@@ -73,6 +73,7 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     implementation(libs.jsoup)
+    implementation(libs.coil.compose)
     implementation(libs.okhttp)
     kapt(libs.androidx.room.compiler)
 
