@@ -22,6 +22,7 @@ import androidx.navigation.compose.rememberNavController
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
+import com.kraat.lostfilmnewtv.ui.home.posterTag
 import com.kraat.lostfilmnewtv.ui.details.DetailsScreen
 import com.kraat.lostfilmnewtv.ui.details.DetailsUiState
 import com.kraat.lostfilmnewtv.ui.home.HomeScreen
@@ -107,19 +108,19 @@ class DetailsScreenTest {
         }
 
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag("poster-0").performSemanticsAction(SemanticsActions.RequestFocus)
+        composeRule.onNodeWithTag(posterTag(seriesDetailsUrl)).performSemanticsAction(SemanticsActions.RequestFocus)
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag("poster-0").assertIsFocused()
+        composeRule.onNodeWithTag(posterTag(seriesDetailsUrl)).assertIsFocused()
 
-        composeRule.onNodeWithTag("poster-0").performKeyInput {
+        composeRule.onNodeWithTag(posterTag(seriesDetailsUrl)).performKeyInput {
             keyDown(Key.DirectionRight)
             keyUp(Key.DirectionRight)
         }
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag("poster-1").assertIsFocused()
+        composeRule.onNodeWithTag(posterTag(movieDetailsUrl)).assertIsFocused()
         assertTrue(composeRule.onAllNodesWithText("Необратимость").fetchSemanticsNodes().isNotEmpty())
 
-        composeRule.onNodeWithTag("poster-1").performClick()
+        composeRule.onNodeWithTag(posterTag(movieDetailsUrl)).performClick()
         composeRule.waitForIdle()
 
         assertTrue(composeRule.onAllNodesWithText("Назад").fetchSemanticsNodes().isNotEmpty())
@@ -127,13 +128,16 @@ class DetailsScreenTest {
         composeRule.waitForIdle()
 
         assertTrue(composeRule.onAllNodesWithText("Необратимость").fetchSemanticsNodes().isNotEmpty())
-        composeRule.onNodeWithTag("poster-1").assertIsFocused()
+        composeRule.onNodeWithTag(posterTag(movieDetailsUrl)).assertIsFocused()
     }
 }
 
+private const val seriesDetailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+private const val movieDetailsUrl = "https://www.lostfilm.today/movies/Irreversible"
+
 private fun seededHomeState(selectedSecond: Boolean = false): HomeUiState {
     val first = ReleaseSummary(
-        id = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/",
+        id = seriesDetailsUrl,
         kind = ReleaseKind.SERIES,
         titleRu = "9-1-1",
         episodeTitleRu = "Маменькин сынок",
@@ -141,13 +145,13 @@ private fun seededHomeState(selectedSecond: Boolean = false): HomeUiState {
         episodeNumber = 13,
         releaseDateRu = "14.03.2026",
         posterUrl = "https://www.lostfilm.today/Static/Images/362/Posters/image_s9.jpg",
-        detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/",
+        detailsUrl = seriesDetailsUrl,
         pageNumber = 1,
         positionInPage = 0,
         fetchedAt = 0L,
     )
     val second = ReleaseSummary(
-        id = "https://www.lostfilm.today/movies/Irreversible",
+        id = movieDetailsUrl,
         kind = ReleaseKind.MOVIE,
         titleRu = "Необратимость",
         episodeTitleRu = null,
@@ -155,7 +159,7 @@ private fun seededHomeState(selectedSecond: Boolean = false): HomeUiState {
         episodeNumber = null,
         releaseDateRu = "13.03.2026",
         posterUrl = "https://www.lostfilm.today/Static/Images/1080/Posters/image.jpg",
-        detailsUrl = "https://www.lostfilm.today/movies/Irreversible",
+        detailsUrl = movieDetailsUrl,
         pageNumber = 1,
         positionInPage = 1,
         fetchedAt = 0L,
