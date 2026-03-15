@@ -45,7 +45,9 @@ class LostFilmRepositoryTest {
 
     @After
     fun tearDown() {
-        database.close()
+        if (this::database.isInitialized) {
+            database.close()
+        }
     }
 
     @Test
@@ -75,6 +77,27 @@ class LostFilmRepositoryTest {
         assertTrue(result is PageState.Error)
         assertTrue(releaseDao.getPageSummaries(1).isEmpty())
         assertTrue(releaseDao.getPageMetadata(1) == null)
+    }
+
+    @Test
+    fun loadsNextPage_andAppendsWithoutLosingExistingItems() = runTest {
+        val repository = createRepository(
+            pageHandler = { pageNumber ->
+                when (pageNumber) {
+                    1 -> fixture("new-page-1.html")
+                    2 -> fixture("new-page-2.html")
+                    else -> error("Unexpected page: $pageNumber")
+                }
+            },
+        )
+
+        val firstPage = repository.loadPage(1) as PageState.Content
+        val secondPage = repository.loadPage(2) as PageState.Content
+
+        assertTrue(secondPage.items.size > firstPage.items.size)
+        assertEquals(firstPage.items.first().detailsUrl, secondPage.items.first().detailsUrl)
+        assertTrue(secondPage.items.any { it.pageNumber == 2 })
+        assertEquals(secondPage.items.map { it.detailsUrl }.distinct().size, secondPage.items.size)
     }
 
     private suspend fun seedPage(pageNumber: Int, fetchedAt: Long) {
