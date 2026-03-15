@@ -10,7 +10,7 @@ import com.kraat.lostfilmnewtv.data.parser.LostFilmListParser
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepositoryImpl
 
-class LostFilmApplication : Application() {
+open class LostFilmApplication : Application() {
     val database: LostFilmDatabase by lazy {
         Room.databaseBuilder(
             this,
@@ -23,7 +23,7 @@ class LostFilmApplication : Application() {
         OkHttpLostFilmHttpClient()
     }
 
-    val repository: LostFilmRepository by lazy {
+    open val repository: LostFilmRepository by lazy {
         LostFilmRepositoryImpl(
             httpClient = httpClient,
             releaseDao = database.releaseDao(),
