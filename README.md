@@ -15,3 +15,4 @@ Run:
 - Spec: `docs/superpowers/specs/2026-03-15-lostfilm-android-tv-design.md`
 - Plan: `docs/superpowers/plans/2026-03-15-lostfilm-android-tv.md`
 - GitHub setup: `docs/github-setup.md`
+- Auth bridge ops: `docs/auth-bridge-ops.md`
