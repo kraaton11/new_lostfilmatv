@@ -7,8 +7,10 @@ build/
 captures/
 local.properties
 .venv/
+.venv_local/
 __pycache__/
 *.pyc
+*.egg-info/
 *.iml
 *.jks
 *.keystore
