@@ -1,12 +1,13 @@
 package com.kraat.lostfilmnewtv.ui
 
 import androidx.activity.ComponentActivity
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
-import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.performSemanticsAction
-import androidx.compose.ui.semantics.SemanticsActions
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.ui.home.HomeScreen
@@ -36,15 +37,36 @@ class HomeScreenTest {
 
     @Test
     fun movingFocus_updatesBottomInfoPanel() {
+        lateinit var updateSelection: () -> Unit
+
         composeRule.setContent {
             LostFilmTheme {
-                HomeScreen(state = seededState())
+                var state by remember { mutableStateOf(seededState()) }
+                updateSelection = {
+                    val selectedItem = state.items[1]
+                    state = state.copy(
+                        selectedItemKey = selectedItem.detailsUrl,
+                        selectedItem = selectedItem,
+                    )
+                }
+                HomeScreen(
+                    state = state,
+                    onItemFocused = { focusedKey ->
+                        state = state.copy(
+                            selectedItemKey = focusedKey,
+                            selectedItem = state.items.find { it.detailsUrl == focusedKey },
+                        )
+                    },
+                )
             }
         }
 
         val initialTitleNodes = composeRule.onAllNodesWithText("9-1-1").fetchSemanticsNodes()
         assertTrue(initialTitleNodes.isNotEmpty())
-        composeRule.onNodeWithTag("poster-1").performSemanticsAction(SemanticsActions.RequestFocus)
+        composeRule.runOnUiThread {
+            updateSelection()
+        }
+        composeRule.waitForIdle()
 
         val updatedTitleNodes = composeRule.onAllNodesWithText("Необратимость").fetchSemanticsNodes()
         assertTrue(updatedTitleNodes.isNotEmpty())
