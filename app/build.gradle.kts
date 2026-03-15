@@ -1,9 +1,42 @@
+import java.util.Base64
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.kapt)
 }
+
+val releaseVersionCodeProvider = providers.gradleProperty("releaseVersionCode").orElse("1")
+val releaseVersionNameProvider = providers.gradleProperty("releaseVersionName").orElse("0.1.0")
+val releaseKeystorePathProvider = providers.environmentVariable("ANDROID_KEYSTORE_PATH")
+val releaseKeystoreBase64Provider = providers.environmentVariable("ANDROID_KEYSTORE_BASE64")
+val releaseKeystorePasswordProvider = providers.environmentVariable("ANDROID_KEYSTORE_PASSWORD")
+val releaseKeyAliasProvider = providers.environmentVariable("ANDROID_KEY_ALIAS")
+val releaseKeyPasswordProvider = providers.environmentVariable("ANDROID_KEY_PASSWORD")
+
+fun decodeReleaseKeystore(): File? {
+    val explicitPath = releaseKeystorePathProvider.orNull
+    if (!explicitPath.isNullOrBlank()) {
+        return file(explicitPath)
+    }
+
+    val base64Value = releaseKeystoreBase64Provider.orNull ?: return null
+    val outputFile = layout.buildDirectory.file("generated/signing/release-keystore.jks").get().asFile
+
+    if (!outputFile.exists()) {
+        outputFile.parentFile.mkdirs()
+        outputFile.writeBytes(Base64.getDecoder().decode(base64Value))
+    }
+
+    return outputFile
+}
+
+val releaseKeystoreFile = decodeReleaseKeystore()
+val hasReleaseSigning = releaseKeystoreFile != null &&
+    !releaseKeystorePasswordProvider.orNull.isNullOrBlank() &&
+    !releaseKeyAliasProvider.orNull.isNullOrBlank() &&
+    !releaseKeyPasswordProvider.orNull.isNullOrBlank()
 
 android {
     namespace = "com.kraat.lostfilmnewtv"
@@ -13,14 +46,28 @@ android {
         applicationId = "com.kraat.lostfilmnewtv"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = releaseVersionCodeProvider.get().toInt()
+        versionName = releaseVersionNameProvider.get()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+    }
+
+    signingConfigs {
+        create("release") {
+            if (hasReleaseSigning) {
+                storeFile = releaseKeystoreFile
+                storePassword = releaseKeystorePasswordProvider.orNull
+                keyAlias = releaseKeyAliasProvider.orNull
+                keyPassword = releaseKeyPasswordProvider.orNull
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
