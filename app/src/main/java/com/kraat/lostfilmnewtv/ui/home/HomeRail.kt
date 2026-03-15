@@ -58,7 +58,7 @@ fun HomeRail(
                 isFocused = item.detailsUrl == focusedItemKey,
                 modifier = Modifier
                     .focusRequester(focusRequesters.getValue(item.detailsUrl))
-                    .testTag("poster-$index")
+                    .testTag(posterTag(item.detailsUrl))
                     .onFocusChanged { focusState ->
                         if (focusState.isFocused) {
                             onItemFocused(item.detailsUrl)
@@ -89,3 +89,5 @@ fun HomeRail(
         }
     }
 }
+
+internal fun posterTag(detailsUrl: String): String = "poster:$detailsUrl"

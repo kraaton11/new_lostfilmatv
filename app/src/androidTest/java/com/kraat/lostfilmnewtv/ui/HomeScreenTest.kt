@@ -16,6 +16,7 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performSemanticsAction
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
+import com.kraat.lostfilmnewtv.ui.home.posterTag
 import com.kraat.lostfilmnewtv.ui.home.HomeScreen
 import com.kraat.lostfilmnewtv.ui.home.HomeUiState
 import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
@@ -61,26 +62,29 @@ class HomeScreenTest {
         val initialTitleNodes = composeRule.onAllNodesWithText("9-1-1").fetchSemanticsNodes()
         assertTrue(initialTitleNodes.isNotEmpty())
 
-        composeRule.onNodeWithTag("poster-0").performSemanticsAction(SemanticsActions.RequestFocus)
+        composeRule.onNodeWithTag(posterTag(firstDetailsUrl)).performSemanticsAction(SemanticsActions.RequestFocus)
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag("poster-0").assertIsFocused()
+        composeRule.onNodeWithTag(posterTag(firstDetailsUrl)).assertIsFocused()
 
-        composeRule.onNodeWithTag("poster-0").performKeyInput {
+        composeRule.onNodeWithTag(posterTag(firstDetailsUrl)).performKeyInput {
             keyDown(Key.DirectionRight)
             keyUp(Key.DirectionRight)
         }
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithTag("poster-1").assertIsFocused()
+        composeRule.onNodeWithTag(posterTag(secondDetailsUrl)).assertIsFocused()
 
         val updatedTitleNodes = composeRule.onAllNodesWithText("Необратимость").fetchSemanticsNodes()
         assertTrue(updatedTitleNodes.isNotEmpty())
     }
 }
 
+private const val firstDetailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+private const val secondDetailsUrl = "https://www.lostfilm.today/movies/Irreversible"
+
 private fun seededState(): HomeUiState {
     val first = ReleaseSummary(
-        id = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/",
+        id = firstDetailsUrl,
         kind = ReleaseKind.SERIES,
         titleRu = "9-1-1",
         episodeTitleRu = "Маменькин сынок",
@@ -88,13 +92,13 @@ private fun seededState(): HomeUiState {
         episodeNumber = 13,
         releaseDateRu = "14.03.2026",
         posterUrl = "https://www.lostfilm.today/Static/Images/362/Posters/image_s9.jpg",
-        detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/",
+        detailsUrl = firstDetailsUrl,
         pageNumber = 1,
         positionInPage = 0,
         fetchedAt = 0L,
     )
     val second = ReleaseSummary(
-        id = "https://www.lostfilm.today/movies/Irreversible",
+        id = secondDetailsUrl,
         kind = ReleaseKind.MOVIE,
         titleRu = "Необратимость",
         episodeTitleRu = null,
@@ -102,7 +106,7 @@ private fun seededState(): HomeUiState {
         episodeNumber = null,
         releaseDateRu = "13.03.2026",
         posterUrl = "https://www.lostfilm.today/Static/Images/1080/Posters/image.jpg",
-        detailsUrl = "https://www.lostfilm.today/movies/Irreversible",
+        detailsUrl = secondDetailsUrl,
         pageNumber = 1,
         positionInPage = 1,
         fetchedAt = 0L,
