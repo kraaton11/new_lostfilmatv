@@ -1,2 +1,12 @@
 .superpowers/
 .worktrees/
+.gradle/
+.idea/
+.kotlin/
+build/
+captures/
+local.properties
+*.iml
+*.jks
+*.keystore
+keystore.properties
