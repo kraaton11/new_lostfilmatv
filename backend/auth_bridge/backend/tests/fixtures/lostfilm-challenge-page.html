@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+  <body>
+    <form action="/ajaxik.php" method="post" id="lf-challenge-form">
+      <input type="hidden" name="act" value="users" />
+      <input type="hidden" name="type" value="login" />
+      <input type="hidden" name="csrf" value="fixture-csrf-token-2" />
+      <input type="hidden" name="code" value="fixture-challenge-code" />
+      <img src="/captcha.php?challenge=fixture" alt="CAPTCHA" />
+      <input type="text" name="cap" />
+      <button type="submit">Continue</button>
+    </form>
+  </body>
+</html>

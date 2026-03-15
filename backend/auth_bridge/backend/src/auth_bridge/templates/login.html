@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Connect LostFilm account</title>
+</head>
+<body>
+    <main>
+        <h1>LostFilm login</h1>
+        <p>Pairing code: {{ user_code }}</p>
+        {% if error_message %}
+        <p>{{ error_message }}</p>
+        <p>Try again.</p>
+        {% endif %}
+        <form method="post" action="/pair/{{ user_code }}/login">
+            <label>
+                Email or username
+                <input type="text" name="username" autocomplete="username" required>
+            </label>
+            <label>
+                Password
+                <input type="password" name="password" autocomplete="current-password" required>
+            </label>
+            <button type="submit">Continue</button>
+        </form>
+    </main>
+</body>
+</html>
