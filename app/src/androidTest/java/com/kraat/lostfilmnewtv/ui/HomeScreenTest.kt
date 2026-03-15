@@ -5,9 +5,15 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performKeyInput
+import androidx.compose.ui.test.performSemanticsAction
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.ui.home.HomeScreen
@@ -37,18 +43,9 @@ class HomeScreenTest {
 
     @Test
     fun movingFocus_updatesBottomInfoPanel() {
-        lateinit var updateSelection: () -> Unit
-
         composeRule.setContent {
             LostFilmTheme {
                 var state by remember { mutableStateOf(seededState()) }
-                updateSelection = {
-                    val selectedItem = state.items[1]
-                    state = state.copy(
-                        selectedItemKey = selectedItem.detailsUrl,
-                        selectedItem = selectedItem,
-                    )
-                }
                 HomeScreen(
                     state = state,
                     onItemFocused = { focusedKey ->
@@ -63,10 +60,18 @@ class HomeScreenTest {
 
         val initialTitleNodes = composeRule.onAllNodesWithText("9-1-1").fetchSemanticsNodes()
         assertTrue(initialTitleNodes.isNotEmpty())
-        composeRule.runOnUiThread {
-            updateSelection()
+
+        composeRule.onNodeWithTag("poster-0").performSemanticsAction(SemanticsActions.RequestFocus)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("poster-0").assertIsFocused()
+
+        composeRule.onNodeWithTag("poster-0").performKeyInput {
+            keyDown(Key.DirectionRight)
+            keyUp(Key.DirectionRight)
         }
         composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("poster-1").assertIsFocused()
 
         val updatedTitleNodes = composeRule.onAllNodesWithText("Необратимость").fetchSemanticsNodes()
         assertTrue(updatedTitleNodes.isNotEmpty())

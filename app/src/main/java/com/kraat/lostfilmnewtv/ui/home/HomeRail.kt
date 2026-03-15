@@ -34,11 +34,14 @@ fun HomeRail(
     onOpenDetails: (String) -> Unit,
     onEndReached: () -> Unit,
 ) {
-    val firstItemFocusRequester = remember { FocusRequester() }
+    val itemKeys = remember(items) { items.map { it.detailsUrl } }
+    val focusRequesters = remember(itemKeys) { itemKeys.associateWith { FocusRequester() } }
 
     LaunchedEffect(items, focusedItemKey) {
-        if (items.isNotEmpty() && (focusedItemKey == null || focusedItemKey == items.first().detailsUrl)) {
-            firstItemFocusRequester.requestFocus()
+        if (items.isNotEmpty()) {
+            val targetKey = focusedItemKey ?: items.first().detailsUrl
+            val targetRequester = focusRequesters[targetKey] ?: focusRequesters[items.first().detailsUrl]
+            targetRequester?.requestFocus()
         }
     }
 
@@ -54,9 +57,8 @@ fun HomeRail(
                 item = item,
                 isFocused = item.detailsUrl == focusedItemKey,
                 modifier = Modifier
-                    .then(if (index == 0) Modifier.focusRequester(firstItemFocusRequester) else Modifier)
+                    .focusRequester(focusRequesters.getValue(item.detailsUrl))
                     .testTag("poster-$index")
-                    .clickable { onOpenDetails(item.detailsUrl) }
                     .onFocusChanged { focusState ->
                         if (focusState.isFocused) {
                             onItemFocused(item.detailsUrl)
@@ -64,7 +66,8 @@ fun HomeRail(
                                 onEndReached()
                             }
                         }
-                    },
+                    }
+                    .clickable { onOpenDetails(item.detailsUrl) },
             )
         }
 

@@ -3,7 +3,6 @@ package com.kraat.lostfilmnewtv.ui.components
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
@@ -39,8 +38,7 @@ fun PosterCard(
             }
             .clip(RoundedCornerShape(20.dp))
             .background(Color(0xFF162130))
-            .border(width = 2.dp, color = borderColor, shape = RoundedCornerShape(20.dp))
-            .focusable(),
+            .border(width = 2.dp, color = borderColor, shape = RoundedCornerShape(20.dp)),
     ) {
         AsyncImage(
             model = item.posterUrl,

@@ -5,13 +5,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -71,14 +74,11 @@ class DetailsScreenTest {
     }
 
     @Test
-    fun backFromDetails_restoresFocusedPoster() {
-        lateinit var openDetails: () -> Unit
-
+    fun backFromDetails_restoresFocusedPosterAfterDpadSelection() {
         composeRule.setContent {
             LostFilmTheme {
                 val navController = rememberNavController()
-                openDetails = { navController.navigate("details") }
-                var homeState by remember { mutableStateOf(seededHomeState(selectedSecond = true)) }
+                var homeState by remember { mutableStateOf(seededHomeState()) }
                 NavHost(
                     navController = navController,
                     startDestination = "home",
@@ -107,18 +107,27 @@ class DetailsScreenTest {
         }
 
         composeRule.waitForIdle()
-        assertTrue(composeRule.onAllNodesWithText("Необратимость").fetchSemanticsNodes().isNotEmpty())
-        composeRule.runOnUiThread {
-            openDetails()
+        composeRule.onNodeWithTag("poster-0").performSemanticsAction(SemanticsActions.RequestFocus)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("poster-0").assertIsFocused()
+
+        composeRule.onNodeWithTag("poster-0").performKeyInput {
+            keyDown(Key.DirectionRight)
+            keyUp(Key.DirectionRight)
         }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("poster-1").assertIsFocused()
+        assertTrue(composeRule.onAllNodesWithText("Необратимость").fetchSemanticsNodes().isNotEmpty())
+
+        composeRule.onNodeWithTag("poster-1").performClick()
         composeRule.waitForIdle()
 
         assertTrue(composeRule.onAllNodesWithText("Назад").fetchSemanticsNodes().isNotEmpty())
-
         composeRule.onNodeWithText("Назад").performClick()
         composeRule.waitForIdle()
 
         assertTrue(composeRule.onAllNodesWithText("Необратимость").fetchSemanticsNodes().isNotEmpty())
+        composeRule.onNodeWithTag("poster-1").assertIsFocused()
     }
 }
 
