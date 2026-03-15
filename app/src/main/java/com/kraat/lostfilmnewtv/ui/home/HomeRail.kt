@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.ui.home
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -54,6 +55,7 @@ fun HomeRail(
                 modifier = Modifier
                     .then(if (index == 0) Modifier.focusRequester(firstItemFocusRequester) else Modifier)
                     .testTag("poster-$index")
+                    .clickable { onOpenDetails(item.detailsUrl) }
                     .onFocusChanged { focusState ->
                         if (focusState.isFocused) {
                             onItemFocused(item.detailsUrl)
