@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en">
+  <body>
+    <form action="/ajaxik.php" method="post" id="lf-login-form">
+      <input type="hidden" name="act" value="users" />
+      <input type="hidden" name="type" value="login" />
+      <input type="hidden" name="csrf" value="fixture-csrf-token" />
+      <input type="hidden" name="back" value="/" />
+      <input type="text" name="mail" />
+      <input type="password" name="pass" />
+      <button type="submit">Sign in</button>
+    </form>
+  </body>
+</html>

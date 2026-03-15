@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Phone sign-in error</title>
+</head>
+<body>
+    <main>
+        <h1>Phone sign-in error</h1>
+        <p>{{ message }}</p>
+        {% if retry_url %}
+        <p><a href="{{ retry_url }}">Try again</a></p>
+        {% endif %}
+    </main>
+</body>
+</html>

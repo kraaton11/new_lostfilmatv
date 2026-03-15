@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>LostFilm challenge</title>
+</head>
+<body>
+    <main>
+        <h1>LostFilm challenge</h1>
+        <p>Pairing code: {{ user_code }}</p>
+        {% if error_message %}
+        <p>{{ error_message }}</p>
+        {% endif %}
+        {% if captcha_image_url %}
+        <p><img src="{{ captcha_image_url }}" alt="LostFilm challenge"></p>
+        {% endif %}
+        <form method="post" action="/pair/{{ user_code }}/challenge">
+            <label>
+                Challenge code
+                <input type="text" name="captcha_code" inputmode="numeric" required>
+            </label>
+            <button type="submit">Confirm</button>
+        </form>
+    </main>
+</body>
+</html>
