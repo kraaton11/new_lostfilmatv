@@ -6,6 +6,9 @@
 build/
 captures/
 local.properties
+.venv/
+__pycache__/
+*.pyc
 *.iml
 *.jks
 *.keystore
