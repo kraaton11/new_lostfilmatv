@@ -19,7 +19,12 @@ In `Settings -> Actions -> General`, allow GitHub Actions to:
 
 - read and write repository contents
 - create pull requests
+- approve and merge pull requests when GitHub asks for explicit permission
 
 ## Required Checks
 
 After the first PR run completes, add `pull-request-checks` as a required status check in the branch protection rule for `main`.
+
+## Auto-Merge
+
+Enable `Allow auto-merge` in the repository settings so the `open-pr` workflow can call `gh pr merge --auto --squash` after required checks go green.
