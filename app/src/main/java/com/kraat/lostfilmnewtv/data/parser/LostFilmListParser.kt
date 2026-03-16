@@ -42,6 +42,7 @@ class LostFilmListParser {
 
         val detailsUrl = contentLink.absoluteUrl("href")
         val posterUrl = contentLink.selectFirst(".picture-box img.thumb").absoluteUrl("src")
+        val isWatched = row.selectFirst(".haveseen-btn.checked") != null
         val releaseDateRu = detailsAlphaValues
             .firstOrNull { it.startsWith("Дата выхода Ru:") }
             ?.substringAfter(':')
@@ -76,6 +77,7 @@ class LostFilmListParser {
             pageNumber = pageNumber,
             positionInPage = positionInPage,
             fetchedAt = fetchedAt,
+            isWatched = isWatched,
         )
     }
 }

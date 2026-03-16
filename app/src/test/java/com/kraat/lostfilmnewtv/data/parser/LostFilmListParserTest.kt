@@ -2,7 +2,9 @@ package com.kraat.lostfilmnewtv.data.parser
 
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LostFilmListParserTest {
@@ -34,5 +36,21 @@ class LostFilmListParserTest {
         assertNull(movie.seasonNumber)
         assertNull(movie.episodeNumber)
         assertEquals("13.03.2026", movie.releaseDateRu)
+    }
+
+    @Test
+    fun parsesWatchedStateFromHaveSeenButton() {
+        val html = fixture("new-page-1.html")
+            .replaceFirst(
+                "class=\"haveseen-btn\"",
+                "class=\"haveseen-btn checked\"",
+            )
+
+        val results = LostFilmListParser().parse(html, pageNumber = 1)
+        val watchedSeries = results.first { it.kind == ReleaseKind.SERIES && it.titleRu == "9-1-1" }
+        val unwatchedMovie = results.first { it.kind == ReleaseKind.MOVIE && it.titleRu == "Необратимость" }
+
+        assertTrue(watchedSeries.isWatched)
+        assertFalse(unwatchedMovie.isWatched)
     }
 }

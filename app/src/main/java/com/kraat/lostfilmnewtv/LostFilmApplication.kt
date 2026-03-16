@@ -21,7 +21,7 @@ open class LostFilmApplication : Application() {
             this,
             LostFilmDatabase::class.java,
             "lostfilm-new-tv.db",
-        ).build()
+        ).fallbackToDestructiveMigration().build()
     }
 
     val httpClient: LostFilmHttpClient by lazy {

@@ -25,6 +25,7 @@ data class ReleaseSummaryEntity(
     val pageNumber: Int,
     val positionInPage: Int,
     val fetchedAt: Long,
+    val isWatched: Boolean,
 ) {
     fun toModel(): ReleaseSummary = ReleaseSummary(
         id = detailsUrl,
@@ -39,6 +40,7 @@ data class ReleaseSummaryEntity(
         pageNumber = pageNumber,
         positionInPage = positionInPage,
         fetchedAt = fetchedAt,
+        isWatched = isWatched,
     )
 
     companion object {
@@ -54,6 +56,7 @@ data class ReleaseSummaryEntity(
             pageNumber = model.pageNumber,
             positionInPage = model.positionInPage,
             fetchedAt = model.fetchedAt,
+            isWatched = model.isWatched,
         )
     }
 }

@@ -13,4 +13,5 @@ data class ReleaseSummary(
     val pageNumber: Int,
     val positionInPage: Int,
     val fetchedAt: Long,
+    val isWatched: Boolean = false,
 )
