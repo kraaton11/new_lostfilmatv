@@ -3,8 +3,11 @@ package com.kraat.lostfilmnewtv.ui.home
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -27,6 +30,8 @@ fun HomeScreen(
     onItemFocused: (String) -> Unit = {},
     onOpenDetails: (String) -> Unit = {},
     onEndReached: () -> Unit = {},
+    onAuthClick: () -> Unit = {},
+    isAuthenticated: Boolean = false,
 ) {
     var focusedItemKey by rememberSaveable(state.items) {
         mutableStateOf(state.selectedItemKey ?: state.items.firstOrNull()?.detailsUrl)
@@ -47,13 +52,22 @@ fun HomeScreen(
             .padding(vertical = 32.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        Text(
-            text = "Новые релизы",
-            color = TextPrimary,
-            fontSize = 30.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 48.dp),
-        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 48.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = "Новые релизы",
+                color = TextPrimary,
+                fontSize = 30.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Button(onClick = onAuthClick) {
+                Text(if (isAuthenticated) "Выйти" else "Войти")
+            }
+        }
 
         if (state.showStaleBanner) {
             Text(

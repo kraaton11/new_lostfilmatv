@@ -9,11 +9,17 @@ from auth_bridge.services.lostfilm_login_client import LostFilmLoginClient, Lost
 @dataclass
 class PairingRecord:
     pairing_id: str
+    pairing_secret: str
+    phone_verifier: str
     user_code: str
     created_at: datetime
     expires_at: datetime
     phone_flow_status: PairingStatus = PairingStatus.PENDING
-    claimed: bool = False
+    lease_active: bool = False
+    finalized: bool = False
+    retryable: bool | None = None
+    failure_reason: str | None = None
+    claim_lease_expires_at: datetime | None = None
     session_payload: SessionPayload | None = None
     challenge_step: LostFilmLoginStep | None = None
     login_client: LostFilmLoginClient | None = None
@@ -22,6 +28,10 @@ class PairingRecord:
     def status(self) -> PairingStatus:
         if self.is_expired():
             return PairingStatus.EXPIRED
+        if self.failure_reason is not None:
+            return PairingStatus.FAILED
+        if self.lease_active and self.claim_lease_expires_at is not None and datetime.now(UTC) >= self.claim_lease_expires_at:
+            return PairingStatus.FAILED
         if self.session_payload is not None:
             return PairingStatus.CONFIRMED
         return self.phone_flow_status
@@ -40,18 +50,22 @@ class InMemoryPairingStore:
         self._ttl_seconds = ttl_seconds
         self._records_by_id: dict[str, PairingRecord] = {}
         self._pairing_id_by_code: dict[str, str] = {}
+        self._pairing_id_by_verifier: dict[str, str] = {}
 
-    def save(self, pairing_id: str, user_code: str) -> PairingRecord:
+    def save(self, pairing_id: str, pairing_secret: str, phone_verifier: str, user_code: str) -> PairingRecord:
         self.prune_expired()
         now = datetime.now(UTC)
         record = PairingRecord(
             pairing_id=pairing_id,
+            pairing_secret=pairing_secret,
+            phone_verifier=phone_verifier,
             user_code=user_code,
             created_at=now,
             expires_at=now + timedelta(seconds=self._ttl_seconds),
         )
         self._records_by_id[pairing_id] = record
         self._pairing_id_by_code[user_code] = pairing_id
+        self._pairing_id_by_verifier[phone_verifier] = pairing_id
         return record
 
     def get(self, pairing_id: str) -> PairingRecord | None:
@@ -74,6 +88,12 @@ class InMemoryPairingStore:
             self.prune_expired(exclude_pairing_ids={pairing_id})
         return record
 
+    def get_by_phone_verifier(self, phone_verifier: str) -> PairingRecord | None:
+        pairing_id = self._pairing_id_by_verifier.get(phone_verifier)
+        if pairing_id is None:
+            return None
+        return self.get(pairing_id)
+
     def has_user_code(self, user_code: str) -> bool:
         self.prune_expired()
         return user_code in self._pairing_id_by_code
@@ -95,12 +115,15 @@ class InMemoryPairingStore:
             self._close_login_client(record)
             if self._pairing_id_by_code.get(record.user_code) == pairing_id:
                 self._pairing_id_by_code.pop(record.user_code, None)
+            if self._pairing_id_by_verifier.get(record.phone_verifier) == pairing_id:
+                self._pairing_id_by_verifier.pop(record.phone_verifier, None)
 
     def clear(self) -> None:
         for record in self._records_by_id.values():
             self._close_login_client(record)
         self._records_by_id.clear()
         self._pairing_id_by_code.clear()
+        self._pairing_id_by_verifier.clear()
 
     def _close_login_client(self, record: PairingRecord) -> None:
         if record.login_client is not None:
@@ -108,6 +131,8 @@ class InMemoryPairingStore:
             record.login_client = None
 
     def _release_expired_state(self, record: PairingRecord) -> None:
-        record.challenge_step = None
         record.session_payload = None
+        record.lease_active = False
+        record.claim_lease_expires_at = None
+        record.challenge_step = None
         self._close_login_client(record)

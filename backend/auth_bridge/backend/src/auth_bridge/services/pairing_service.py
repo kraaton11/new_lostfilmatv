@@ -1,8 +1,9 @@
+from datetime import UTC, datetime, timedelta
 from secrets import token_hex
 import string
 from random import SystemRandom
 from threading import RLock
-from typing import Callable
+from typing import Callable, cast
 
 from auth_bridge.config import Settings
 from auth_bridge.schemas.pairing import PairingCreateResponse, PairingStatus, PairingStatusResponse
@@ -27,6 +28,10 @@ class PairingExpiredError(Exception):
     pass
 
 
+class PairingForbiddenError(Exception):
+    pass
+
+
 class PairingService:
     def __init__(self, store: InMemoryPairingStore, settings: Settings) -> None:
         self._store = store
@@ -39,112 +44,179 @@ class PairingService:
             user_code = self._generate_unique_user_code()
             record = self._store.save(
                 pairing_id=token_hex(16),
+                pairing_secret=token_hex(16),
+                phone_verifier=token_hex(16),
                 user_code=user_code,
             )
             return self._build_create_response(record)
 
-    def get_status(self, pairing_id: str) -> PairingStatusResponse:
+    def get_status(self, pairing_id: str, pairing_secret: str) -> PairingStatusResponse:
         with self._lock:
             record = self._require_record(pairing_id)
+            self._require_secret(record, pairing_secret)
+            self._expire_claim_lease_if_needed(record)
             return PairingStatusResponse(
                 pairingId=record.pairing_id,
                 status=record.status,
                 expiresIn=record.expires_in(),
+                retryable=record.retryable,
+                failureReason=record.failure_reason,
             )
 
-    def get_pairing_by_user_code(self, user_code: str) -> PairingRecord:
+    def get_pairing_by_phone_verifier(self, phone_verifier: str) -> PairingRecord:
         with self._lock:
-            record = self._store.get_by_user_code(user_code)
+            record = self._store.get_by_phone_verifier(phone_verifier)
             if record is None:
                 raise PairingNotFoundError
             return record
 
-    def mark_phone_flow_opened(self, user_code: str) -> PairingRecord:
+    def open_phone_flow(self, phone_verifier: str) -> PairingRecord:
         with self._lock:
-            record = self.get_pairing_by_user_code(user_code)
+            record = self.get_pairing_by_phone_verifier(phone_verifier)
             if record.is_expired():
                 raise PairingExpiredError
-            if record.status == PairingStatus.PENDING:
-                record.phone_flow_status = PairingStatus.AWAITING_PHONE_LOGIN
+            if record.session_payload is None and record.failure_reason is None:
+                record.phone_flow_status = PairingStatus.IN_PROGRESS
             return record
 
-    def store_challenge_step(self, user_code: str, challenge_step: LostFilmLoginStep) -> PairingRecord:
-        with self._lock:
-            record = self.get_pairing_by_user_code(user_code)
-            if record.is_expired():
-                raise PairingExpiredError
-            record.challenge_step = challenge_step
-            record.phone_flow_status = PairingStatus.AWAITING_PHONE_CHALLENGE
-            return record
-
-    def get_challenge_step(self, user_code: str) -> LostFilmLoginStep:
-        with self._lock:
-            record = self.get_pairing_by_user_code(user_code)
-            if record.is_expired():
-                raise PairingExpiredError
-            if record.challenge_step is None:
-                raise PairingNotReadyError
-            return record.challenge_step
-
-    def mark_phone_flow_retryable(self, user_code: str) -> PairingRecord:
-        with self._lock:
-            record = self.get_pairing_by_user_code(user_code)
-            if record.is_expired():
-                raise PairingExpiredError
-            record.challenge_step = None
-            self._close_login_client(record)
-            if record.session_payload is None:
-                record.phone_flow_status = PairingStatus.AWAITING_PHONE_LOGIN
-            return record
-
-    def get_or_create_login_client(
+    def submit_phone_login(
         self,
-        user_code: str,
+        phone_verifier: str,
+        username: str,
+        password: str,
         client_factory: Callable[[], LostFilmLoginClient],
-    ) -> LostFilmLoginClient:
+    ) -> SessionPayload | LostFilmLoginStep:
         with self._lock:
-            record = self.get_pairing_by_user_code(user_code)
+            record = self.get_pairing_by_phone_verifier(phone_verifier)
             if record.is_expired():
                 raise PairingExpiredError
+            if record.session_payload is not None:
+                return record.session_payload
             if record.login_client is None:
                 record.login_client = client_factory()
-            return record.login_client
+            login_client = record.login_client
 
-    def get_login_client(self, user_code: str) -> LostFilmLoginClient:
+        try:
+            login_step = login_client.fetch_login_step()
+            payload = login_client.submit_credentials(login_step, username=username, password=password)
+        except Exception:
+            with self._lock:
+                record = self.get_pairing_by_phone_verifier(phone_verifier)
+                record.phone_flow_status = PairingStatus.IN_PROGRESS
+                record.retryable = True
+                record.failure_reason = None
+                self._close_login_client(record)
+            raise
+
         with self._lock:
-            record = self.get_pairing_by_user_code(user_code)
+            record = self.get_pairing_by_phone_verifier(phone_verifier)
+            if isinstance(payload, LostFilmLoginStep):
+                record.challenge_step = payload if payload.step_kind == "challenge" else None
+                record.phone_flow_status = PairingStatus.IN_PROGRESS
+                record.retryable = True
+                record.failure_reason = None
+                return payload
+            session_payload = SessionPayload.model_validate(cast(dict | SessionPayload, payload))
+            record.session_payload = session_payload
+            record.challenge_step = None
+            record.retryable = None
+            record.failure_reason = None
+            self._close_login_client(record)
+            return session_payload
+
+    def complete_phone_challenge(
+        self,
+        phone_verifier: str,
+        username: str,
+        password: str,
+        captcha_code: str,
+    ) -> SessionPayload | LostFilmLoginStep:
+        with self._lock:
+            record = self.get_pairing_by_phone_verifier(phone_verifier)
             if record.is_expired():
                 raise PairingExpiredError
-            if record.login_client is None:
+            if record.challenge_step is None or record.login_client is None:
                 raise PairingNotReadyError
-            return record.login_client
+            challenge_step = record.challenge_step
+            login_client = record.login_client
+
+        try:
+            result = login_client.complete_challenge(
+                challenge_step,
+                captcha_code=captcha_code,
+                username=username,
+                password=password,
+            )
+        except Exception:
+            with self._lock:
+                record = self.get_pairing_by_phone_verifier(phone_verifier)
+                record.phone_flow_status = PairingStatus.IN_PROGRESS
+                record.retryable = True
+                record.failure_reason = None
+            raise
+
+        with self._lock:
+            record = self.get_pairing_by_phone_verifier(phone_verifier)
+            if isinstance(result, LostFilmLoginStep):
+                record.challenge_step = result if result.step_kind == "challenge" else None
+                record.phone_flow_status = PairingStatus.IN_PROGRESS
+                record.retryable = True
+                record.failure_reason = None
+                return result
+            session_payload = SessionPayload.model_validate(cast(dict | SessionPayload, result))
+            record.session_payload = session_payload
+            record.challenge_step = None
+            record.retryable = None
+            record.failure_reason = None
+            self._close_login_client(record)
+            return session_payload
+
+    def claim_session(self, pairing_id: str, pairing_secret: str) -> SessionPayload:
+        with self._lock:
+            record = self._require_record(pairing_id)
+            self._require_secret(record, pairing_secret)
+            self._expire_claim_lease_if_needed(record)
+            if record.is_expired():
+                raise PairingExpiredError
+            if record.finalized:
+                raise PairingAlreadyClaimedError
+            if record.session_payload is None:
+                raise PairingNotReadyError
+            if not record.lease_active:
+                record.lease_active = True
+                record.claim_lease_expires_at = datetime.now(UTC) + timedelta(seconds=self._settings.claim_lease_ttl_seconds)
+            return record.session_payload
+
+    def finalize_claim(self, pairing_id: str, pairing_secret: str) -> None:
+        with self._lock:
+            record = self._require_record(pairing_id)
+            self._require_secret(record, pairing_secret)
+            self._expire_claim_lease_if_needed(record)
+            if not record.lease_active or record.session_payload is None:
+                raise PairingNotReadyError
+            record.finalized = True
+            record.lease_active = False
+            record.claim_lease_expires_at = None
+
+    def release_claim(self, pairing_id: str, pairing_secret: str) -> None:
+        with self._lock:
+            record = self._require_record(pairing_id)
+            self._require_secret(record, pairing_secret)
+            record.lease_active = False
+            record.claim_lease_expires_at = None
+            record.session_payload = None
+            record.phone_flow_status = PairingStatus.FAILED
+            record.retryable = True
+            record.failure_reason = "session_invalid"
 
     def confirm_pairing(self, pairing_id: str, session_payload: dict | SessionPayload) -> None:
         with self._lock:
             record = self._require_record(pairing_id)
             if record.is_expired():
                 raise PairingExpiredError
-            if record.session_payload is not None:
-                return
             record.session_payload = SessionPayload.model_validate(session_payload)
-            record.challenge_step = None
-            self._close_login_client(record)
-
-    def confirm_pairing_by_user_code(self, user_code: str, session_payload: dict | SessionPayload) -> None:
-        record = self.get_pairing_by_user_code(user_code)
-        self.confirm_pairing(record.pairing_id, session_payload)
-
-    def claim_session(self, pairing_id: str) -> SessionPayload:
-        with self._lock:
-            record = self._require_record(pairing_id)
-            if record.is_expired():
-                raise PairingExpiredError
-            if record.session_payload is None:
-                raise PairingNotReadyError
-            if record.claimed:
-                raise PairingAlreadyClaimedError
-            record.claimed = True
-            return record.session_payload
+            record.retryable = None
+            record.failure_reason = None
 
     def reset(self) -> None:
         with self._lock:
@@ -156,11 +228,26 @@ class PairingService:
             raise PairingNotFoundError
         return record
 
+    def _require_secret(self, record: PairingRecord, pairing_secret: str) -> None:
+        if not pairing_secret or record.pairing_secret != pairing_secret:
+            raise PairingForbiddenError
+
+    def _expire_claim_lease_if_needed(self, record: PairingRecord) -> None:
+        if record.lease_active and record.claim_lease_expires_at is not None and datetime.now(UTC) >= record.claim_lease_expires_at:
+            record.lease_active = False
+            record.claim_lease_expires_at = None
+            record.session_payload = None
+            record.phone_flow_status = PairingStatus.FAILED
+            record.retryable = True
+            record.failure_reason = "lease_expired"
+
     def _build_create_response(self, record: PairingRecord) -> PairingCreateResponse:
         return PairingCreateResponse(
             pairingId=record.pairing_id,
+            pairingSecret=record.pairing_secret,
+            phoneVerifier=record.phone_verifier,
             userCode=record.user_code,
-            verificationUrl=f"{self._settings.public_base_url}/pair/{record.user_code}",
+            verificationUrl=f"{self._settings.public_base_url}/pair/{record.phone_verifier}",
             expiresIn=record.expires_in(now=record.created_at),
             pollInterval=self._settings.pairing_poll_interval_seconds,
             status=record.status,

@@ -2,6 +2,7 @@ package com.kraat.lostfilmnewtv.data.network
 
 import com.kraat.lostfilmnewtv.data.parser.BASE_URL
 import com.kraat.lostfilmnewtv.data.parser.resolveUrl
+import com.kraat.lostfilmnewtv.data.auth.SessionStore
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
@@ -42,6 +43,46 @@ class OkHttpLostFilmHttpClient(
             .build()
 
         okHttpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw IOException("HTTP ${response.code} for $url")
+            }
+
+            return response.body?.string()
+                ?: throw IOException("Empty response body for $url")
+        }
+    }
+
+    private companion object {
+        const val USER_AGENT = "Mozilla/5.0 (Android TV; LostFilmNewTV) AppleWebKit/537.36 Chrome/132.0.0.0 Safari/537.36"
+    }
+}
+
+class AuthenticatedLostFilmHttpClient(
+    private val sessionStore: SessionStore,
+    private val okHttpClient: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(20, TimeUnit.SECONDS)
+        .build(),
+) : LostFilmHttpClient {
+    override suspend fun fetchNewPage(pageNumber: Int): String = withContext(Dispatchers.IO) {
+        val url = if (pageNumber <= 1) "$BASE_URL/new/" else "$BASE_URL/new/page_$pageNumber"
+        execute(url)
+    }
+
+    override suspend fun fetchDetails(detailsUrl: String): String = withContext(Dispatchers.IO) {
+        execute(resolveUrl(detailsUrl))
+    }
+
+    private suspend fun execute(url: String): String {
+        val requestBuilder = Request.Builder()
+            .url(url)
+            .header("User-Agent", USER_AGENT)
+
+        sessionStore.read()?.toCookieString()?.takeIf { it.isNotBlank() }?.let {
+            requestBuilder.header("Cookie", it)
+        }
+
+        okHttpClient.newCall(requestBuilder.build()).execute().use { response ->
             if (!response.isSuccessful) {
                 throw IOException("HTTP ${response.code} for $url")
             }

@@ -285,5 +285,217 @@ class LostFilmLoginClientTest(unittest.TestCase):
         step = client.fetch_login_step()
 
         self.assertEqual(step.form_action, "https://www.lostfilm.today/ajaxik.php")
-        self.assertFalse(step.challenge_required)
-        self.assertIsNone(step.captcha_image_url)
+
+    def test_fetch_login_step_supports_javascript_login_page(self) -> None:
+        html = """
+        <html>
+          <body>
+            <form action="/search/" method="get"><input name="q"></form>
+            <script>
+              function login() {
+                $.ajax({
+                  type: "POST",
+                  url: "/ajaxik.users.php",
+                  dataType: "json",
+                  data: {
+                    act:'users',
+                    type:'login',
+                    mail:encodeURIComponent(mail),
+                    pass:encodeURIComponent(pass),
+                    need_captcha:encodeURIComponent(ncpt),
+                    captcha:encodeURIComponent(cpth),
+                    rem:encodeURIComponent(remb)
+                  }
+                });
+              }
+            </script>
+          </body>
+        </html>
+        """
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, text=html)
+
+        client = LostFilmLoginClient(
+            base_url="https://www.lostfilm.today",
+            http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        )
+
+        step = client.fetch_login_step()
+
+        self.assertEqual(step.form_action, "https://www.lostfilm.today/ajaxik.users.php")
+        self.assertEqual(step.hidden_fields["act"], "users")
+        self.assertEqual(step.hidden_fields["type"], "login")
+        self.assertEqual(step.step_kind, "login")
+
+    def test_submit_credentials_supports_javascript_json_success_response(self) -> None:
+        html = """
+        <html><body><script>
+        function login() {
+          $.ajax({type:"POST", url:"/ajaxik.users.php", data:{act:'users', type:'login'}});
+        }
+        </script></body></html>
+        """
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.method == "GET":
+                return httpx.Response(200, text=html)
+            return httpx.Response(
+                200,
+                text='{"result":"ok","success":true,"name":"Demo"}',
+                headers=[("set-cookie", "lf_session=session-cookie; Domain=.lostfilm.today; Path=/; HttpOnly")],
+            )
+
+        client = LostFilmLoginClient(
+            base_url="https://www.lostfilm.today",
+            http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        )
+
+        login_step = client.fetch_login_step()
+        payload = client.submit_credentials(login_step, username="demo", password="secret")
+
+        self.assertEqual(payload.cookies[0].name, "lf_session")
+
+    def test_submit_credentials_encodes_values_for_javascript_login(self) -> None:
+        html = """
+        <html><body>
+        <input type="hidden" name="return_url" value="" />
+        <input type="hidden" name="need_captcha" value="1" />
+        <script>
+        function login() {
+          $.ajax({type:"POST", url:"/ajaxik.users.php", data:{act:'users', type:'login'}});
+        }
+        </script>
+        </body></html>
+        """
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.method == "GET":
+                return httpx.Response(200, text=html)
+            body = request.content.decode()
+            self.assertIn("mail=demo%2540example.com", body)
+            self.assertIn("pass=secret", body)
+            self.assertIn("need_captcha=", body)
+            self.assertIn("captcha=", body)
+            self.assertIn("rem=1", body)
+            return httpx.Response(200, text='{"error":3,"result":"ok"}')
+
+        client = LostFilmLoginClient(
+            base_url="https://www.lostfilm.today",
+            http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        )
+
+        login_step = client.fetch_login_step()
+        retry_step = client.submit_credentials(login_step, username="demo@example.com", password="secret")
+
+        self.assertEqual(retry_step.step_kind, "login")
+
+    def test_submit_credentials_supports_javascript_json_invalid_credentials(self) -> None:
+        html = """
+        <html><body><script>
+        function login() {
+          $.ajax({type:"POST", url:"/ajaxik.users.php", data:{act:'users', type:'login'}});
+        }
+        </script></body></html>
+        """
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.method == "GET":
+                return httpx.Response(200, text=html)
+            return httpx.Response(200, text='{"result":"ok","error":3}')
+
+        client = LostFilmLoginClient(
+            base_url="https://www.lostfilm.today",
+            http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        )
+
+        login_step = client.fetch_login_step()
+        retry_step = client.submit_credentials(login_step, username="demo", password="wrong")
+
+        self.assertEqual(retry_step.step_kind, "login")
+
+    def test_submit_credentials_returns_challenge_step_for_javascript_need_captcha(self) -> None:
+        html = """
+        <html><body>
+        <div class="need_captcha">
+            <img src="/simple_captcha.php" id="captcha_pictcha" />
+            <input type="text" name="captcha" />
+        </div>
+        <input type="hidden" name="return_url" value="" />
+        <input type="hidden" name="need_captcha" value="1" />
+        <script>
+        function login() {
+          $.ajax({type:"POST", url:"/ajaxik.users.php", data:{act:'users', type:'login'}});
+        }
+        </script>
+        </body></html>
+        """
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.method == "GET":
+                return httpx.Response(200, text=html)
+            return httpx.Response(200, text='{"need_captcha":true,"result":"ok"}')
+
+        client = LostFilmLoginClient(
+            base_url="https://www.lostfilm.today",
+            http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        )
+
+        login_step = client.fetch_login_step()
+        challenge_step = client.submit_credentials(login_step, username="demo", password="secret")
+
+        self.assertEqual(challenge_step.step_kind, "challenge")
+        self.assertTrue(challenge_step.challenge_required)
+        self.assertEqual(challenge_step.form_action, "https://www.lostfilm.today/ajaxik.users.php")
+        self.assertEqual(challenge_step.hidden_fields["act"], "users")
+        self.assertEqual(challenge_step.hidden_fields["type"], "login")
+        self.assertEqual(challenge_step.hidden_fields["need_captcha"], "1")
+        self.assertEqual(challenge_step.captcha_image_url, "https://www.lostfilm.today/simple_captcha.php")
+
+    def test_complete_challenge_supports_javascript_captcha_submission(self) -> None:
+        html = """
+        <html><body>
+        <div class="need_captcha">
+            <img src="/simple_captcha.php" id="captcha_pictcha" />
+            <input type="text" name="captcha" />
+        </div>
+        <input type="hidden" name="return_url" value="" />
+        <input type="hidden" name="need_captcha" value="1" />
+        <script>
+        function login() {
+          $.ajax({type:"POST", url:"/ajaxik.users.php", data:{act:'users', type:'login'}});
+        }
+        </script>
+        </body></html>
+        """
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.method == "GET":
+                return httpx.Response(200, text=html)
+            body = request.content.decode()
+            if "captcha=12345" in body:
+                self.assertIn("mail=demo", body)
+                self.assertIn("pass=secret", body)
+                self.assertIn("need_captcha=1", body)
+                return httpx.Response(
+                    200,
+                    text='{"result":"ok","success":true,"name":"Demo"}',
+                    headers=[("set-cookie", "lf_session=session-cookie; Domain=.lostfilm.today; Path=/; HttpOnly")],
+                )
+            return httpx.Response(200, text='{"need_captcha":true,"result":"ok"}')
+
+        client = LostFilmLoginClient(
+            base_url="https://www.lostfilm.today",
+            http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        )
+
+        login_step = client.fetch_login_step()
+        challenge_step = client.submit_credentials(login_step, username="demo", password="secret")
+        payload = client.complete_challenge(
+            challenge_step,
+            captcha_code="12345",
+            username="demo",
+            password="secret",
+        )
+
+        self.assertEqual(payload.cookies[0].name, "lf_session")
