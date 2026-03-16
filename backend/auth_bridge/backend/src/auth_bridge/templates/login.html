@@ -2,7 +2,8 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Connect LostFilm account</title>
+    <title>LostFilm login</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
 <body>
     <main>
@@ -12,7 +13,7 @@
         <p>{{ error_message }}</p>
         <p>Try again.</p>
         {% endif %}
-        <form method="post" action="/pair/{{ user_code }}/login">
+        <form method="post" action="{{ form_action }}">
             <label>
                 Email or username
                 <input type="text" name="username" autocomplete="username" required>

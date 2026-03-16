@@ -4,533 +4,438 @@
 
 This document defines the revised `v1` authentication design for the LostFilm Android TV application.
 
-The application already supports anonymous browsing of new releases parsed directly from LostFilm. This design adds account sign-in through a QR-based flow and surfaces personal watched-state information without breaking anonymous use.
+The app already supports anonymous browsing of LostFilm releases. The new authenticated flow must keep that anonymous experience intact while adding a QR-based sign-in path that starts on TV, continues on a phone, and ends with the TV storing a valid LostFilm web session locally.
 
-The original `v1` concept assumed the backend could exchange LostFilm credentials for a stable session without mandatory extra steps. Real-world validation showed that LostFilm login currently includes CAPTCHA and dynamic login markup, so the backend must act as a short-lived phone-side login bridge instead of a simple credential exchange endpoint.
+This revision replaces the earlier mixed WebView and phone-side challenge-bridge approach. The confirmed direction is now simpler:
+
+- the TV shows a QR code and short code
+- the phone opens a backend-hosted login page
+- the user enters LostFilm login/password on the backend page
+- the backend performs the LostFilm login server-side
+- the backend captures the resulting LostFilm cookies
+- the TV polls until the pairing is confirmed
+- the TV claims the one-time session payload and stores it securely
+
+Real-world validation showed that LostFilm may require CAPTCHA during server-side login. The `v1` flow therefore includes a backend-hosted challenge step, and the captcha image must be served through the backend pairing session so the displayed image matches the backend-side submit session.
 
 ## Goals
 
-- Add user authentication to the Android TV application.
-- Use a TV-friendly QR login flow instead of manual credential entry on the TV.
-- Keep anonymous browsing fully usable when the user is not signed in.
-- Show personal watched-state data after a successful login.
-- Support the full session lifecycle:
-  - sign in
-  - sign out
-  - expired-session detection
-  - re-login prompt
-- Reuse the existing auth bridge as the pairing service and short-lived login bridge.
+- Add QR-based authentication to the Android TV app.
+- Keep anonymous browsing fully usable at all times.
+- Let the backend perform LostFilm login after the user enters credentials on the phone.
+- Transfer the authenticated LostFilm session to the TV through a one-time claim.
+- Store LostFilm cookies securely in the app.
+- Support login, logout, session expiry, and re-login.
+- Leave ordinary authenticated content traffic direct from app to LostFilm after claim.
 
 ## Non-Goals For V1
 
-- No permanent proxying of LostFilm content traffic through the backend.
-- No full personal profile UI.
-- No account switching or multiple user profiles on one device.
-- No requirement to restore an in-progress QR pairing after the app process is killed.
-- No blocking of core content behind authentication.
-- No browser extension or separate helper app requirement for `v1`.
+- No permanent backend proxy for LostFilm browsing.
+- No TV-side username/password entry.
+- No manual cookie copy/paste.
+- No multiple accounts per device.
+- No restoration of an in-progress pairing after app process death.
+- No broader account-management UI beyond login state and logout.
 
 ## Product Decisions
 
-- Authentication outcome for `v1`: session storage plus watched-state display.
-- Login method: QR code on TV, phone-side login flow on the auth bridge, one-time session handoff to TV.
-- Session lifecycle scope: login, logout, expired-session detection, re-login prompt.
-- User entry points:
-  - a visible sign-in call to action on the home screen
-  - a duplicated account section in settings
-- Anonymous behavior:
-  - the app continues to work normally without login
-  - personal watched-state is hidden when there is no valid session
-- Phone-side login behavior:
-  - the user signs in on an auth bridge page, not on the TV
-  - the auth bridge may prompt for CAPTCHA or other LostFilm-required fields on the phone
-  - successful phone-side completion automatically confirms the pairing for the TV
+- Authentication entry points:
+  - a visible sign-in action on the home screen
+  - a duplicate account entry in settings
+- Pairing UX on TV:
+  - show QR code
+  - show short pairing code
+  - show waiting/pending/expired/success states
+- Phone UX:
+  - backend-hosted login page only
+  - user enters LostFilm username and password on the backend page
+  - backend never asks the TV to open a WebView for login
+- Session destination:
+  - cookies are claimed by the TV app and stored locally in encrypted storage
+- Anonymous fallback:
+  - release browsing keeps working when login fails, expires, or is absent
 
 ## Selected Technical Approach
 
 ### Chosen Approach
 
-Use the existing auth bridge backend for device pairing, phone-side LostFilm login orchestration, CAPTCHA handling, and one-time transfer of a valid LostFilm web session to the Android TV app. After login, the TV app stores the session locally and makes direct requests to LostFilm.
+Use the existing auth bridge as a short-lived pairing and server-side login service.
+
+The backend creates pairings, serves the phone login page, submits LostFilm credentials to `https://www.lostfilm.today/login`, captures the resulting cookies, holds them only until claim, and marks the pairing confirmed. The Android TV app polls the pairing, claims the session once confirmed, stores it in encrypted local storage, verifies that the claimed cookies work from the TV context, finalizes the claim, and only then treats the session as fully logged in for direct authenticated LostFilm requests.
 
 ### Why This Approach
 
-This keeps the TV login experience usable, preserves the QR entry point, and allows a human to complete LostFilm's real browser login requirements on the phone while still handing off the resulting session to the TV automatically. It also keeps the backend out of the steady-state content path after the session is claimed.
+This matches the desired UX best:
+
+- TV input stays simple
+- the phone is only used for credential entry
+- cookies move to the TV automatically
+- the backend stays out of the steady-state browsing path
+
+It also removes the unstable TV WebView dependency that already proved fragile on the real device.
 
 ### Rejected Alternatives
 
-- Permanent backend proxy for authenticated requests:
-  - rejected because it increases operational risk, centralizes user traffic unnecessarily, and may create IP-related issues with LostFilm.
-- TV-only username/password form:
-  - rejected because it is poor TV UX and would likely be fragile if the web login flow changes.
-- Manual cookie import as the primary method:
-  - rejected because it is worse UX than a phone-side login bridge and should remain only a fallback idea if the bridge proves impossible.
-- Simple backend credential exchange without CAPTCHA handling:
-  - rejected because real-world validation showed that LostFilm login currently involves CAPTCHA and dynamic form behavior that cannot be ignored.
+- TV WebView login:
+  - rejected because it is unstable on the target TV device and creates poor TV UX
+- phone browser login to LostFilm directly plus manual cookie transfer:
+  - rejected because the user wants automatic cookie handling
+- permanent authenticated backend proxy:
+  - rejected because it increases operational scope and risk unnecessarily
 
 ## High-Level Architecture
 
-The authenticated design adds a new auth layer beside the existing anonymous content pipeline rather than folding everything into the existing repository.
-
 ### Main Units
 
-- `AuthRepository`
-  - owns authentication state
+- `AuthRepository` in Android
   - starts pairing
   - polls pairing status
-  - claims and stores the LostFilm session
-  - clears session on logout
-  - marks session expired when needed
-- `AuthBridgeClient`
-  - talks to the backend pairing API
-- `SessionStore`
-  - stores the LostFilm session securely on-device
-- `AuthenticatedLostFilmHttpClient` or auth-aware `CookieJar`
-  - attaches LostFilm cookies to authenticated requests
-- `WatchStateRepository`
-  - loads and stores personal watched-state
-  - merges personal status with existing anonymous content data
-- `AuthViewModel` and related settings/home state owners
-  - drive QR login UI
-  - expose login/logout/expired state to the screens
-- `LostFilmLoginBridgeClient` on the backend
-  - fetches LostFilm login pages
-  - submits LostFilm login and CAPTCHA forms server-side
-  - extracts confirmed session cookies from the backend-side LostFilm session
+  - claims session payload
+  - stores cookies securely
+  - exposes login/logout/auth state to UI
+- `AuthBridgeClient` in Android
+  - calls pairing create/status/claim endpoints
+- `SessionStore` in Android
+  - stores LostFilm cookies in encrypted local storage
+- auth-aware HTTP layer in Android
+  - attaches stored cookies to LostFilm requests
+  - updates stored cookies if LostFilm rotates them later
+- `PairingService` in backend
+  - creates pairings
+  - tracks TTL and status
+  - binds temporary login state and temporary session payload to pairing
+- `LostFilmLoginClient` in backend
+  - performs server-side LostFilm login
+  - extracts cookies from the resulting session
+  - validates that login succeeded before pairing confirmation
+- backend phone flow routes/templates
+  - render pairing page and login form
+  - show success/expired/error states
 
-### Architectural Boundaries
+### Responsibility Boundaries
 
 - The backend is responsible for:
-  - creating pairings
-  - hosting the phone-side pairing and login bridge flow
-  - maintaining short-lived LostFilm login state during the phone flow
-  - submitting LostFilm login and CAPTCHA forms server-side
-  - exposing pairing status
-  - one-time transfer of the LostFilm session payload
-- The Android TV app is responsible for:
-  - storing the session
-  - making direct authenticated requests to LostFilm after claim
-  - reading watched-state
-  - reacting to session expiry
-- The existing content repository remains the primary source of anonymous release data.
-- Personal watched-state is layered on top of anonymous content rather than replacing the base repository model.
+  - pairing lifecycle
+  - phone-side credential collection page
+  - server-side LostFilm login
+  - temporary holding of resulting cookies
+  - confirming pairings
+  - one-time session claim
+- The Android app is responsible for:
+  - creating the pairing
+  - showing QR and short code
+  - polling for completion
+  - claiming cookies
+  - secure local storage
+  - direct authenticated LostFilm requests after claim
+- Anonymous repository/data flow remains the default browsing path.
 
 ## TV User Experience
 
-## Entry Points
-
-The user can start authentication from:
-
-- a visible `Sign In` action on the home screen
-- a duplicated account entry in settings
-
-## Anonymous State
+### Anonymous State
 
 When there is no valid session:
 
-- home and details continue to work
-- the app shows content normally
-- watched-state indicators are hidden
-- the account area explains that personal status requires sign-in
+- home and details browsing continue to work
+- watched-state indicators remain hidden
+- the user can start login from home or settings
 
-## QR Login Flow
+### QR Login Flow
 
-When the user chooses to sign in:
-
-1. The TV opens a dedicated authentication screen.
-2. The app creates a pairing with the backend.
-3. The screen shows:
-   - QR code
+1. The user selects `Sign In` on the TV.
+2. The app calls `POST /api/pairings`.
+3. The auth screen shows:
+   - QR code for the backend verification URL
    - short user code
    - waiting state text
-4. The user scans the QR code or opens the verification URL on the phone.
-5. The phone opens an auth bridge page for the pairing.
-6. The auth bridge page walks the user through the current LostFilm login requirements, including CAPTCHA if required.
-7. The backend polls nothing on the phone side; instead, it advances the pairing state as the phone-side flow succeeds or fails.
-8. The TV app polls pairing status in the background.
-9. On success:
-   - the backend marks the pairing `confirmed`
-   - the app claims the session
-   - stores it locally
-   - shows a brief success state
-   - returns the user to the previous context
+4. The user scans the QR with the phone.
+5. The phone opens the backend page for this pairing.
+6. The user enters LostFilm login/password on the backend page.
+7. The backend logs in to LostFilm server-side.
+8. If login succeeds immediately, or after the phone user completes any required CAPTCHA challenge, the backend stores cookies temporarily and marks the pairing `confirmed`.
+9. The TV app sees `confirmed`, calls `POST /api/pairings/{pairingId}/claim`, receives the leased session payload, stores it locally, verifies it with the agreed authenticated probe, calls `finalize`, and only then transitions to logged-in state.
 
-## Phone-Side Flow UX
+### Phone Login Page UX
 
-The phone-side page is served by the auth bridge and should be optimized for the current LostFilm login flow.
+The phone page must be backend-hosted and pairing-specific.
 
-- The page explains that the user is signing in to connect the TV device.
-- The page can show:
-  - username/password fields
-  - CAPTCHA image and input
-  - hidden-field dependent follow-up steps if LostFilm requires them
-- On success, the page shows a clear confirmation such as `Device connected, return to your TV`.
-- On invalid credentials or CAPTCHA failure, the page stays on the phone and lets the user retry without breaking the TV waiting state.
+- It explains that the user is connecting the TV device.
+- It shows username/password fields.
+- If LostFilm requires CAPTCHA, it shows a backend-proxied captcha image and a challenge form.
+- It shows retryable inline errors for invalid credentials.
+- On success it shows `Device connected. Return to your TV.`
+- If pairing expires before completion, it shows an expired page and never confirms the pairing.
 
-## Expired Pairing UX
-
-If the QR pairing expires before completion:
-
-- the TV screen shows an explicit expired state
-- the user gets a clear `Try Again` or `Show New QR` action
-- the phone-side page also shows an expired state if opened after expiry
-- no global app state is broken
-
-## Logged-In State
+### Logged-In State
 
 When login succeeds:
 
-- home and details remain otherwise unchanged
-- personal watched-state appears where supported
-- settings shows that the account is connected
-- settings provides a `Sign Out` action
+- the app returns to normal browsing
+- authenticated cookies are active for LostFilm requests
+- watched-state becomes available where supported
+- settings exposes a sign-out action
 
-## Expired Session UX
+### Logout And Expiry
 
-If the LostFilm session becomes invalid later:
+- Logout clears stored cookies and personal state only.
+- Anonymous cached content remains available.
+- If cookies become invalid later, the app clears auth state softly and prompts for re-login.
 
-- anonymous content remains available
-- personal watched-state disappears
-- the app shows a soft prompt such as `Session expired, sign in again`
-- the same QR login flow is used for re-login
-
-## Logout UX
-
-When the user signs out:
-
-- the app clears local session data
-- clears personal watched-state cache
-- immediately returns to anonymous mode
-
-## Local Data Model
-
-Authenticated data is intentionally separated from the anonymous content cache.
-
-## Session Storage
-
-The LostFilm web session is stored outside Room in a secure local store.
-
-### Session Fields
-
-- session cookies
-- `issuedAt`
-- `lastValidatedAt`
-- `isExpired`
-- optional stable account identifier if one can be derived safely
-
-### Storage Rules
-
-- store session data in encrypted local storage
-- back storage with Android Keystore
-- do not place raw cookies in Room tables with content data
-
-## Pairing State
-
-Active QR pairing state may be held as transient screen state for `v1`.
+## Pairing Contract
 
 ### Pairing Fields
 
 - `pairingId`
+- `pairingSecret`
+- `phoneVerifier`
 - `userCode`
 - `verificationUrl`
-- `expiresAt`
-- `pollIntervalSeconds`
+- `expiresIn`
+- `pollInterval`
 - `status`
+- optional `retryable`
+- optional `failureReason`
 
-### Pairing Statuses
+### TV-Facing Status Model
 
-The backend may expose more detail than the TV strictly needs, but the flow should at least distinguish:
+The public TV-facing status model is intentionally simple:
 
 - `pending`
-- `awaiting_phone_login`
-- `awaiting_phone_challenge`
+- `in_progress`
 - `confirmed`
 - `expired`
 - `failed`
 
-For `v1`, in-progress pairing restoration after app process death is not required.
+The backend may keep more detailed internal state, but Android should not depend on challenge-specific statuses.
 
-## Watched-State Storage
+### Pairing Identity And Binding Rules
 
-Personal watched-state is stored in a dedicated table and never merged into the anonymous content tables at rest.
+- `pairingId` is not sufficient authorization for TV poll/claim calls.
+- `POST /api/pairings` must return a high-entropy `pairingSecret` for the TV.
+- `GET /api/pairings/{pairingId}` and `POST /api/pairings/{pairingId}/claim` must require the TV-held `pairingSecret`.
+- QR URLs must contain an unguessable phone-side verifier token.
+- the QR code must encode a verifier-bound backend URL such as `/pair/{phoneVerifier}`.
+- `userCode` exists only as a manual fallback for the human, not as a security boundary.
+- if manual code entry is supported, it must resolve to the verifier-bound pairing before any credential form is shown.
 
-### Watched-State Fields
+### Claim Semantics
 
-- `detailsUrl` or equivalent stable release key
-- `accountHash`
-- `watchState`
-  - `UNKNOWN`
-  - `WATCHED`
-  - `UNWATCHED`
-- `fetchedAt`
+- `claim` returns the session payload only after `confirmed`
+- claim must be idempotent for the same pairing during a short lease window so transport loss does not destroy the session handoff
+- after `claim`, the pairing enters a leased handoff state until Android finalizes success or releases failure
+- leased handoff TTL for `v1` should be short, for example 60 seconds
+- after secure local save plus successful authenticated verification, Android finalizes the claim and backend-side temporary cookies are deleted
+- if save or verification fails, Android releases the leased payload and discards it locally
+- if Android never calls `finalize` or `release` before lease expiry, the backend must delete the temporary cookies and move the pairing to a retryable failure or expired state according to remaining pairing TTL
+- once finalized, later claims must be rejected
 
-### Data Separation Rules
+### Pairing Concurrency Rules
 
-- anonymous release summaries and details remain intact when login state changes
-- logout clears personal watched-state only
-- base content cache survives logout and session expiry
+- the app treats one pairing as active at a time
+- `POST /api/pairings` must include or derive a TV auth-attempt binding key for the current app/device auth session
+- starting a newer pairing invalidates or supersedes any older unclaimed pairing for that same TV auth-attempt binding key
+- backend confirmation and claim transitions must be atomic
+- a late success from an older superseded pairing must not overwrite the currently active pairing
+
+## Session Payload And Storage
+
+### Session Payload Fields
+
+The backend returns enough cookie data for faithful replay in Android:
+
+- cookie name
+- cookie value
+- cookie domain
+- cookie path
+- expiry or max-age when available
+- `secure`
+- `httpOnly`
+- `sameSite` when available
+- host-only vs domain cookie semantics when distinguishable
+- optional stable account identifier if available safely
+
+### Android Storage Rules
+
+- store the session in encrypted local storage backed by Android Keystore
+- do not store raw cookies in Room content tables
+- keep session storage separate from anonymous content cache
+- support later cookie refresh if authenticated LostFilm responses update cookies
 
 ## Network And API Design
 
-## Backend Pairing API Usage
-
-The Android TV app uses the backend only during login.
-
-### Required TV Calls
+### Android Calls
 
 - `POST /api/pairings`
-  - create pairing
-  - receive `pairingId`, `userCode`, `verificationUrl`, `expiresIn`, `pollInterval`
+  - returns `pairingId`, `pairingSecret`, `phoneVerifier`, `userCode`, `verificationUrl`, `expiresIn`, `pollInterval`, `status`
 - `GET /api/pairings/{pairingId}`
-  - poll status
-  - expect states such as `pending`, `awaiting_phone_login`, `awaiting_phone_challenge`, `confirmed`, `expired`, `failed`
+  - requires `pairingSecret`
+  - returns at least `pairingId`, `status`, `expiresIn`
+  - may also return `retryable` and `failureReason`
 - `POST /api/pairings/{pairingId}/claim`
-  - claim a one-time session payload after pairing confirmation
+  - requires `pairingSecret`
+  - returns leased `SessionPayload`
+- `POST /api/pairings/{pairingId}/finalize`
+  - requires `pairingSecret`
+  - confirms durable local save and successful authenticated verification
+- `POST /api/pairings/{pairingId}/release`
+  - requires `pairingSecret`
+  - abandons leased payload when save or verification fails
 
-### Phone-Side Flow
+### Polling Contract
 
-The phone-side browser flow is also hosted by the auth bridge.
+- `expiresIn` means remaining TTL in seconds, not original lifetime
+- `confirmed`, `expired`, and non-retryable `failed` are terminal states
+- temporary network errors do not change pairing state
+- polling after a deleted or unknown pairing should return a stable error contract rather than ambiguous partial payloads
 
-The exact route shape may evolve, but the backend must support these responsibilities:
+### Phone-Side Backend Calls
 
-- open a pairing-specific page from the QR verification URL
-- display the current LostFilm login step for that pairing
-- submit username/password and any required hidden fields to LostFilm
-- surface CAPTCHA or other challenge steps to the user on the phone
-- retain short-lived LostFilm login session state between steps
-- confirm the pairing only after valid LostFilm session cookies are acquired
+The backend-hosted phone flow should support:
 
-### Session Handoff
+- `GET /pair/{phoneVerifier}` or `GET /pair/{phoneVerifier}/login`
+  - open verifier-bound pairing page
+- `POST /pair/{phoneVerifier}/login`
+  - accept LostFilm username/password
+  - execute server-side login
+  - confirm pairing on success
+  - return inline errors on failure
 
-After `claim`, the backend returns a session payload containing the LostFilm cookies required for authenticated requests.
+No phone-side cookie extraction, manual cookie submit, or Android-JS bridge is part of the chosen design.
 
-The TV app then:
+### Backend Login Form Security
 
-1. stores the session securely
-2. activates authenticated request handling
-3. stops using the backend for ordinary content traffic
-
-## Authenticated LostFilm Access
-
-After login, the TV app talks directly to LostFilm.
-
-This direct flow is used for:
-
-- release pages
-- details pages
-- watched-state extraction
-
-The backend is not part of ordinary content browsing after the session is claimed.
-
-## Watched-State Retrieval
-
-The app reads personal watched-state from LostFilm pages or other authenticated responses available to the signed-in session.
-
-If the required personal markup is absent where it should exist, the app treats the session as suspect and validates expiry behavior through repository rules.
-
-## Repository Integration
-
-The existing anonymous repository remains responsible for release content.
-
-The personal layer should:
-
-- fetch watched-state separately
-- merge it into UI-facing models
-- avoid mutating anonymous cache tables as a side effect of login
+- backend login form posts must be bound to the pairing/verifier token
+- form handling must include CSRF protection
+- login attempts must be rate-limited per pairing and per source IP
+- backend must not leak whether a pairing exists beyond the allowed phone flow
+- backend must not log raw credentials or raw cookies
 
 ## Error Handling
 
-## Pairing Errors
+### Invalid Credentials
 
-If the backend pairing flow fails to start:
+- backend phone page shows inline retryable error
+- pairing remains active until expiry or success
+- TV stays in waiting state
 
-- the login screen shows a retryable error
-- the rest of the app remains usable anonymously
+### Pairing Expiry
 
-If polling fails temporarily:
+- TV shows explicit expired state with retry option
+- phone page also shows expired state
+- no anonymous functionality is affected
 
-- the login screen remains on the same page
-- the user sees a clear status and retry path
-
-## Phone Login Bridge Errors
-
-If LostFilm rejects the phone-side submission because credentials are invalid:
-
-- the phone-side page shows an inline retryable error
-- the TV stays in a waiting state until the pairing expires or succeeds
-
-If LostFilm requires CAPTCHA or another challenge step:
-
-- the phone-side page surfaces the challenge
-- the backend retains the short-lived login state needed to continue the flow
-- the TV can show a more specific waiting message if the pairing status exposes this detail
-
-If the backend cannot acquire session cookies after an apparent login success:
-
-- the pairing is not confirmed
-- the phone-side flow shows a recoverable failure or retry path
-- anonymous TV browsing continues unchanged
-
-## Session Expiry Detection
-
-The app should mark the session expired when authenticated requests consistently behave like anonymous requests or when expected personal data disappears in a context where it should exist.
-
-When this happens:
-
-- clear the active session state
-- stop showing watched-state
-- keep anonymous content visible
-- prompt for re-login
-
-## Parse Failures In Personal Data
-
-If personal watched-state cannot be parsed:
-
-- do not break the home or details screens
-- fall back to `UNKNOWN` watched-state
-- avoid inventing values
-
-## Backend Unavailability
-
-If the auth bridge is down:
+### Backend Unavailable
 
 - login cannot start or complete
-- anonymous browsing still works
-- existing valid local sessions remain usable until they expire
+- anonymous browsing remains available
+- existing valid locally stored sessions keep working until they expire
+
+### Invalid Or Non-Portable Cookies
+
+If backend-collected cookies do not work from the TV/app context:
+
+- the app must clear the claimed session
+- the app returns to anonymous mode
+- the spec treats this as a critical validation failure for this design
+- the app must verify the claimed session with an immediate lightweight authenticated LostFilm request before presenting final logged-in success
+
+### Post-Claim Verification Contract
+
+- after `claim`, Android remains in a non-final `verifying` state
+- Android must issue a lightweight authenticated LostFilm request before showing final success
+- the default `v1` verification probe is `GET https://www.lostfilm.today/` using the claimed cookies
+- authenticated success means the response does not contain the anonymous login form marker `id="lf-login-form"` and does contain an authenticated-only account/logout marker locked by fixtures during implementation
+- if that probe fails, Android must discard the claimed session, call backend release, and return to anonymous mode
+- only after that probe succeeds may Android finalize the claim and transition UI to logged-in success
 
 ## Security And Privacy
 
-- Store LostFilm session data encrypted on-device.
-- Do not persist raw cookies in Room content tables.
-- Treat the backend session handoff as one-time and short-lived.
-- Keep backend-side LostFilm login state short-lived and pairing-scoped.
-- Do not turn the backend into a permanent content proxy for authenticated browsing.
-- Logout must remove locally stored session material and personal watched-state cache.
+- credential entry page must be served only over trusted transport in production
+- backend must not log usernames, passwords, or raw cookies
+- credentials must not be persisted beyond request scope
+- backend-side temporary cookies must be pairing-scoped and short-lived
+- logout must remove locally stored auth material
+- anonymous browsing must remain available even when auth fails
 
 ## Testing Strategy
 
-## Unit Tests
+### Backend Tests
 
-Add tests for:
+Add or revise tests for:
 
-- `AuthRepository`
-- pairing state transitions
-- session expiry transitions
-- logout behavior
-- `SessionStore`
-- backend pairing service
-- backend phone-side login bridge client
+- pairing create/poll/confirm/claim lifecycle
+- invalid-credential retry behavior
+- expired pairing behavior
+- one-time claim semantics
+- cleanup of temporary backend-side cookies after claim/expiry/failure
+- LostFilm login client success/failure parsing and cookie extraction
 
-## Login Bridge Tests
+### Android Tests
 
-Add fixture-based or mocked tests for LostFilm login behavior that cover:
+Add or revise tests for:
 
-- login page fetch and hidden field extraction
-- CAPTCHA-required flow detection
-- successful credential plus CAPTCHA submit
-- extraction of required session cookies from the backend-side LostFilm session
+- create pairing and display QR/code
+- poll until confirmed
+- claim and persist cookies
+- logout clears auth state without breaking anonymous browsing
+- invalid/expired session falls back to anonymous mode
 
-## Parser Tests
+### Manual Validation
 
-Add fixture-based tests for authenticated HTML that contains watched-state markers.
+The following checkpoint remains mandatory before further Android auth expansion:
 
-Verify:
+1. create a real pairing from TV/app
+2. open the backend login page from the phone QR URL
+3. submit real LostFilm credentials through the backend page
+4. verify backend reaches `confirmed`
+5. verify TV/app successfully claims cookies
+6. verify those claimed cookies actually work for authenticated LostFilm requests from the TV device context
 
-- watched-state extraction
-- `WATCHED` mapping
-- `UNWATCHED` mapping
-- graceful fallback to `UNKNOWN`
-
-## Repository Integration Tests
-
-Verify:
-
-- merge of anonymous content and watched-state
-- expired-session fallback
-- logout cleanup
-- anonymous behavior when no session exists
-
-## Android UI Tests
-
-Verify:
-
-- home sign-in action opens the auth screen
-- QR screen states: waiting, expired, success, error
-- successful login returns the user to content
-- watched-state becomes visible after login
-- logout hides watched-state
-- expired-session prompt appears without breaking content browsing
-
-## Manual Smoke Tests
-
-On a real device or emulator, verify:
-
-- QR sign-in start
-- phone-side login bridge opens from the QR URL
-- real LostFilm login and CAPTCHA completion confirms the pairing
-- watched-state appears after returning to TV
-- logout returns the app to anonymous mode
-- expired-session relogin path works
-
-## Mandatory Early Validation Checkpoint
-
-Before starting Android auth implementation beyond backend pairing and login-bridge foundations, perform a real-world validation of the phone-side flow:
-
-1. open a real `/pair/{code}` flow from the backend
-2. log in with a disposable LostFilm test account
-3. complete any required CAPTCHA or challenge on the phone
-4. verify the pairing reaches `confirmed`
-5. verify `claim` returns a valid session payload
-
-If this checkpoint fails because the backend cannot stably complete the LostFilm login bridge flow, stop implementation and revise the design again before continuing.
+If step 6 fails, this design must be revised again because backend-side cookies would not be portable to the app.
 
 ## Risks And Mitigations
 
-### LostFilm Login Markup Drift
+### LostFilm Login Flow Drift
 
 Risk:
 
-- login fields, hidden values, or CAPTCHA behavior may change
+- LostFilm may change its login markup or flow
 
 Mitigation:
 
-- isolate login bridge parsing and submission logic
-- add focused fixtures and mocked flow coverage
-- keep the phone-side bridge short-lived and easy to revise
+- isolate login parsing/submission in `LostFilmLoginClient`
+- keep backend tests fixture-based and focused
 
-### Session Fragility
+### Cookie Portability Risk
 
 Risk:
 
-- LostFilm session behavior may change
+- cookies acquired server-side may not be usable from the TV device context
 
 Mitigation:
 
-- keep session storage isolated
-- detect invalid sessions softly
-- preserve anonymous mode
+- keep explicit real-device validation checkpoint
+- do not treat backend cookie extraction alone as success
 
-### Scope Expansion
+### Scope Drift
 
 Risk:
 
-- auth work may balloon into a full account feature set or a permanent proxy design
+- auth work expands into a full account platform
 
 Mitigation:
 
-- keep `v1` limited to sign-in, sign-out, expiry handling, and watched-state
-- keep the backend limited to pairing, short-lived login bridging, and one-time session transfer
+- keep `v1` limited to login, logout, expiry handling, and watched-state support
 
-## Open Assumptions Locked For V1
+## Locked Assumptions For This Revision
 
+- LostFilm login for the target account flow does not require CAPTCHA.
+- QR + phone-side backend page is the only supported login path in `v1`.
+- Backend login is performed server-side after phone credential entry.
+- Claimed cookies are stored locally in the Android app.
 - Anonymous mode remains fully supported.
-- There is only one active account per device.
-- QR login through the auth bridge is the only supported sign-in path in `v1`.
-- The existing auth bridge remains the only backend component needed for `v1`.
-- The backend performs pairing, short-lived phone-side login bridging, and one-time session transfer only.
-- Watched-state is the only personal feature required for `v1`.
-- In-progress pairing recovery after process death is out of scope.
-- The phone-side login bridge can obtain a valid LostFilm session when a human completes required CAPTCHA or challenge steps.
+- One active account per device is sufficient.
 
 ## Next Step
 
-After the user approves this revised design document, the next step is to rewrite the implementation plan for the backend login bridge plus Android auth flow before writing more production code.
+After the user reviews and approves this revised spec, the next step is to rewrite the implementation plan around the server-side backend login flow and then implement it.

@@ -14,7 +14,15 @@
         {% if captcha_image_url %}
         <p><img src="{{ captcha_image_url }}" alt="LostFilm challenge"></p>
         {% endif %}
-        <form method="post" action="/pair/{{ user_code }}/challenge">
+        <form method="post" action="/pair/{{ phone_verifier }}/challenge">
+            <label>
+                Email or username
+                <input type="text" name="username" autocomplete="username" required>
+            </label>
+            <label>
+                Password
+                <input type="password" name="password" autocomplete="current-password" required>
+            </label>
             <label>
                 Challenge code
                 <input type="text" name="captcha_code" inputmode="numeric" required>

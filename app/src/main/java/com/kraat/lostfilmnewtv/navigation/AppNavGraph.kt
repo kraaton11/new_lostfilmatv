@@ -17,6 +17,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.kraat.lostfilmnewtv.LostFilmApplication
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
+import com.kraat.lostfilmnewtv.ui.auth.AuthScreen
+import com.kraat.lostfilmnewtv.ui.auth.AuthViewModel
 import com.kraat.lostfilmnewtv.ui.details.DetailsScreen
 import com.kraat.lostfilmnewtv.ui.details.DetailsViewModel
 import com.kraat.lostfilmnewtv.ui.home.HomeScreen
@@ -26,6 +28,11 @@ import com.kraat.lostfilmnewtv.ui.home.HomeViewModel
 fun AppNavGraph() {
     val navController = rememberNavController()
     val application = LocalContext.current.applicationContext as LostFilmApplication
+    val authViewModel: AuthViewModel = viewModel(
+        key = "app-auth",
+        factory = AuthViewModel.Factory(application.authRepository),
+    )
+    val authState by authViewModel.uiState.collectAsStateWithLifecycle()
 
     NavHost(
         navController = navController,
@@ -53,6 +60,14 @@ fun AppNavGraph() {
                     navController.navigate(AppDestination.Details.createRoute(detailsUrl))
                 },
                 onEndReached = homeViewModel::onEndReached,
+                onAuthClick = {
+                    if (authState.isAuthenticated) {
+                        authViewModel.logout()
+                    } else {
+                        navController.navigate(AppDestination.Auth.route)
+                    }
+                },
+                isAuthenticated = authState.isAuthenticated,
             )
         }
         composable(
@@ -87,6 +102,17 @@ fun AppNavGraph() {
                 state = state,
                 onBack = { navController.popBackStack() },
                 onRetry = detailsViewModel::onRetry,
+            )
+        }
+        composable(AppDestination.Auth.route) {
+            AuthScreen(
+                viewModel = authViewModel,
+                onAuthComplete = {
+                    navController.popBackStack()
+                },
+                onNavigateBack = {
+                    navController.popBackStack()
+                },
             )
         }
     }

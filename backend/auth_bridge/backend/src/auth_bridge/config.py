@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     lostfilm_base_url: str = "https://www.lostfilm.today"
     pairing_ttl_seconds: int = 600
     pairing_poll_interval_seconds: int = 5
+    claim_lease_ttl_seconds: int = 60
 
 
 @lru_cache

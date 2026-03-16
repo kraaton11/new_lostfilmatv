@@ -5,8 +5,7 @@ from pydantic import BaseModel
 
 class PairingStatus(str, Enum):
     PENDING = "pending"
-    AWAITING_PHONE_LOGIN = "awaiting_phone_login"
-    AWAITING_PHONE_CHALLENGE = "awaiting_phone_challenge"
+    IN_PROGRESS = "in_progress"
     CONFIRMED = "confirmed"
     EXPIRED = "expired"
     FAILED = "failed"
@@ -14,6 +13,8 @@ class PairingStatus(str, Enum):
 
 class PairingCreateResponse(BaseModel):
     pairingId: str
+    pairingSecret: str
+    phoneVerifier: str
     userCode: str
     verificationUrl: str
     expiresIn: int
@@ -25,3 +26,5 @@ class PairingStatusResponse(BaseModel):
     pairingId: str
     status: PairingStatus
     expiresIn: int
+    retryable: bool | None = None
+    failureReason: str | None = None
