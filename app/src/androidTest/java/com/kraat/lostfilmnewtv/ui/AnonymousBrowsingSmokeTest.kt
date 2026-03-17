@@ -1,7 +1,6 @@
 package com.kraat.lostfilmnewtv.ui
 
 import androidx.compose.ui.test.assertIsFocused
-import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -19,6 +18,7 @@ import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.ui.home.posterTag
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Assert.assertTrue
 import org.junit.rules.ExternalResource
 import org.junit.rules.RuleChain
 import org.junit.rules.TestRule
@@ -46,7 +46,7 @@ class AnonymousBrowsingSmokeTest {
         waitForText("Новые релизы")
         waitForFocusedPoster()
 
-        composeRule.onNodeWithText("Новые релизы").assertExists()
+        assertTrue(composeRule.onAllNodesWithText("Новые релизы").fetchSemanticsNodes().isNotEmpty())
         composeRule.onNodeWithTag(posterTag(SMOKE_SUMMARY.detailsUrl)).assertIsFocused()
     }
 
@@ -57,8 +57,8 @@ class AnonymousBrowsingSmokeTest {
         composeRule.onNodeWithTag(posterTag(SMOKE_SUMMARY.detailsUrl)).performClick()
 
         waitForText("Smoke Series Details")
-        composeRule.onNodeWithText("Smoke Series Details").assertExists()
-        composeRule.onNodeWithText("14 марта 2026").assertExists()
+        assertTrue(composeRule.onAllNodesWithText("Smoke Series Details").fetchSemanticsNodes().isNotEmpty())
+        assertTrue(composeRule.onAllNodesWithText("14 марта 2026").fetchSemanticsNodes().isNotEmpty())
 
         composeRule.onNodeWithText("Назад").performClick()
         waitForText("Новые релизы")
@@ -76,7 +76,10 @@ class AnonymousBrowsingSmokeTest {
         composeRule.waitUntil(timeoutMillis = 10_000) {
             composeRule.onAllNodesWithTag(tag)
                 .fetchSemanticsNodes()
-                .any { it.config.getOrNull(androidx.compose.ui.semantics.SemanticsProperties.Focused) == true }
+                .any {
+                    androidx.compose.ui.semantics.SemanticsProperties.Focused in it.config &&
+                        it.config[androidx.compose.ui.semantics.SemanticsProperties.Focused]
+                }
         }
     }
 }

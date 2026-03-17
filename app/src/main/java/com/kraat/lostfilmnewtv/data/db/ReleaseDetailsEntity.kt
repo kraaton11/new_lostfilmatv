@@ -5,6 +5,7 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
+import com.kraat.lostfilmnewtv.data.model.TorrentLink
 
 @Entity(
     tableName = "release_details",
@@ -19,6 +20,8 @@ data class ReleaseDetailsEntity(
     val releaseDateRu: String,
     val posterUrl: String,
     val fetchedAt: Long,
+    val playEpisodeId: String?,
+    val torrentUrl: String?,
 ) {
     fun toModel(): ReleaseDetails = ReleaseDetails(
         detailsUrl = detailsUrl,
@@ -29,6 +32,8 @@ data class ReleaseDetailsEntity(
         releaseDateRu = releaseDateRu,
         posterUrl = posterUrl,
         fetchedAt = fetchedAt,
+        playEpisodeId = playEpisodeId,
+        torrentLinks = torrentUrl?.let { listOf(TorrentLink(label = "Вариант 1", url = it)) }.orEmpty(),
     )
 
     companion object {
@@ -41,6 +46,8 @@ data class ReleaseDetailsEntity(
             releaseDateRu = model.releaseDateRu,
             posterUrl = model.posterUrl,
             fetchedAt = model.fetchedAt,
+            playEpisodeId = model.playEpisodeId,
+            torrentUrl = model.torrentLinks.firstOrNull()?.url,
         )
     }
 }

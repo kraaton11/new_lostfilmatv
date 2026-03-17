@@ -15,6 +15,7 @@ import java.io.IOException
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -100,6 +101,26 @@ class LostFilmRepositoryTest {
         assertEquals(secondPage.items.map { it.detailsUrl }.distinct().size, secondPage.items.size)
     }
 
+    @Test
+    fun loadDetails_enrichesSeriesWithTorrentLinkFromRedirectPage() = runTest {
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            detailsHandler = { fixture("series-details.html") },
+            torrentHandler = { episodeId ->
+                assertEquals("362009013", episodeId)
+                fixture("torrent-redirect.html")
+            },
+        )
+
+        val result = repository.loadDetails("/series/9-1-1/season_9/episode_13/") as DetailsResult.Success
+
+        assertNotNull(result.details.torrentLinks.singleOrNull())
+        assertEquals(
+            "https://www.lostfilm.today/V/?c=1103&s=1&e=1&u=999999&h=fixturehash&n=1&newbie=&br=&ts=1773683822",
+            result.details.torrentLinks.single().url,
+        )
+    }
+
     private suspend fun seedPage(pageNumber: Int, fetchedAt: Long) {
         val parsed = LostFilmListParser().parse(
             html = fixture("new-page-1.html"),
@@ -120,9 +141,11 @@ class LostFilmRepositoryTest {
 
     private fun createRepository(
         pageHandler: suspend (Int) -> String,
+        detailsHandler: suspend (String) -> String = { error("Unexpected details request: $it") },
+        torrentHandler: suspend (String) -> String = { error("Unexpected torrent request: $it") },
     ): LostFilmRepository {
         return LostFilmRepositoryImpl(
-            httpClient = FakeLostFilmHttpClient(pageHandler),
+            httpClient = FakeLostFilmHttpClient(pageHandler, detailsHandler, torrentHandler),
             releaseDao = releaseDao,
             listParser = LostFilmListParser(),
             detailsParser = LostFilmDetailsParser(),
@@ -133,10 +156,14 @@ class LostFilmRepositoryTest {
 
 private class FakeLostFilmHttpClient(
     private val pageHandler: suspend (Int) -> String,
+    private val detailsHandler: suspend (String) -> String,
+    private val torrentHandler: suspend (String) -> String,
 ) : LostFilmHttpClient {
     override suspend fun fetchNewPage(pageNumber: Int): String = pageHandler(pageNumber)
 
     override suspend fun fetchDetails(detailsUrl: String): String {
-        error("Details loading is not used in these tests")
+        return detailsHandler(detailsUrl)
     }
+
+    override suspend fun fetchTorrentRedirect(playEpisodeId: String): String = torrentHandler(playEpisodeId)
 }
