@@ -9,4 +9,11 @@ data class ReleaseDetails(
     val releaseDateRu: String,
     val posterUrl: String,
     val fetchedAt: Long,
+    val playEpisodeId: String? = null,
+    val torrentLinks: List<TorrentLink> = emptyList(),
+)
+
+data class TorrentLink(
+    val label: String,
+    val url: String,
 )

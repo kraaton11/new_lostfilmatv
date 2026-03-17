@@ -8,6 +8,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -22,6 +23,7 @@ import androidx.navigation.compose.rememberNavController
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
+import com.kraat.lostfilmnewtv.data.model.TorrentLink
 import com.kraat.lostfilmnewtv.ui.home.posterTag
 import com.kraat.lostfilmnewtv.ui.details.DetailsScreen
 import com.kraat.lostfilmnewtv.ui.details.DetailsUiState
@@ -54,6 +56,42 @@ class DetailsScreenTest {
         assertTrue(composeRule.onAllNodesWithText("9-1-1").fetchSemanticsNodes().isNotEmpty())
         assertTrue(composeRule.onAllNodesWithText("Сезон 9, серия 13").fetchSemanticsNodes().isNotEmpty())
         assertTrue(composeRule.onAllNodesWithText("14 марта 2026").fetchSemanticsNodes().isNotEmpty())
+    }
+
+    @Test
+    fun seriesDetails_displaySeasonEpisodeAndRuDateOnScreen() {
+        composeRule.setContent {
+            LostFilmTheme {
+                DetailsScreen(
+                    state = DetailsUiState(
+                        details = seriesDetails(),
+                    ),
+                    onBack = {},
+                    onRetry = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Сезон 9, серия 13").assertIsDisplayed()
+        composeRule.onNodeWithText("14 марта 2026").assertIsDisplayed()
+    }
+
+    @Test
+    fun seriesDetails_displayTorrentSectionAndButtonOnScreen() {
+        composeRule.setContent {
+            LostFilmTheme {
+                DetailsScreen(
+                    state = DetailsUiState(
+                        details = seriesDetails(),
+                    ),
+                    onBack = {},
+                    onRetry = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Ссылки").assertIsDisplayed()
+        composeRule.onNodeWithText("Вариант 1").assertIsDisplayed()
     }
 
     @Test
@@ -184,6 +222,12 @@ private fun seriesDetails(): ReleaseDetails = ReleaseDetails(
     releaseDateRu = "14 марта 2026",
     posterUrl = "https://www.lostfilm.today/Static/Images/362/Posters/e_9_13.jpg",
     fetchedAt = 0L,
+    torrentLinks = listOf(
+        TorrentLink(
+            label = "Вариант 1",
+            url = "https://www.lostfilm.today/V/?fixture=1",
+        ),
+    ),
 )
 
 private fun movieDetails(): ReleaseDetails = ReleaseDetails(

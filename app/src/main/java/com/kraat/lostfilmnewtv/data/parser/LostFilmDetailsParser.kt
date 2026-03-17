@@ -2,10 +2,13 @@ package com.kraat.lostfilmnewtv.data.parser
 
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
+import com.kraat.lostfilmnewtv.data.model.TorrentLink
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 
 private val detailsSeasonEpisodeRegex = Regex(""".*/season_(\d+)/episode_(\d+)/?""")
+private val playEpisodeRegex = Regex("""PlayEpisode\('?(\d+)'?\)""")
+private val torrentRedirectRegex = Regex("""/V/\?[^"'\s<]+""")
 
 class LostFilmDetailsParser {
     fun parseSeries(
@@ -28,6 +31,7 @@ class LostFilmDetailsParser {
             releaseDateRu = document.releaseDateRu(),
             posterUrl = document.posterUrl(),
             fetchedAt = fetchedAt,
+            playEpisodeId = document.playEpisodeId(),
         )
     }
 
@@ -47,7 +51,13 @@ class LostFilmDetailsParser {
             releaseDateRu = document.releaseDateRu(),
             posterUrl = document.posterUrl(),
             fetchedAt = fetchedAt,
+            playEpisodeId = document.playEpisodeId(),
         )
+    }
+
+    fun parseTorrentRedirect(html: String): String? {
+        val match = torrentRedirectRegex.find(html) ?: return null
+        return resolveUrl(match.value)
     }
 }
 
@@ -60,3 +70,8 @@ private fun Document.releaseDateRu(): String =
         ?.attr("data-released")
         ?.normalizeText()
         .orEmpty()
+
+private fun Document.playEpisodeId(): String? {
+    val onClick = selectFirst(".external-btn[onClick]")?.attr("onClick").orEmpty()
+    return playEpisodeRegex.find(onClick)?.groupValues?.getOrNull(1)
+}
