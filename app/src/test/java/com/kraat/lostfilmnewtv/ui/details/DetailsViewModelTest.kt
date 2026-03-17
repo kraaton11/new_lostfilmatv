@@ -79,6 +79,36 @@ class DetailsViewModelTest {
         assertNull(viewModel.uiState.value.details?.seasonNumber)
         assertNull(viewModel.uiState.value.details?.episodeNumber)
     }
+
+    @Test
+    fun startAndRetry_doNotExposeRouteOwnedTorrServeMessageState() = runTest(dispatcher) {
+        val repository = FakeDetailsRepository(
+            detailsResult = DetailsResult.Success(
+                details = details(
+                    kind = ReleaseKind.SERIES,
+                    titleRu = "9-1-1",
+                    seasonNumber = 9,
+                    episodeNumber = 13,
+                    releaseDateRu = "14 марта 2026",
+                ),
+                isStale = false,
+            ),
+        )
+        val viewModel = DetailsViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(AppDestination.Details.detailsUrlArg to "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"),
+            ),
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+        viewModel.onRetry()
+        advanceUntilIdle()
+
+        assertNull(viewModel.uiState.value.errorMessage)
+    }
 }
 
 private class FakeDetailsRepository(
