@@ -5,6 +5,7 @@ import com.kraat.lostfilmnewtv.data.db.ReleaseDao
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
+import com.kraat.lostfilmnewtv.data.model.TorrentLink
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmListParser
@@ -78,7 +79,7 @@ class LostFilmRepositoryImpl(
 
         return try {
             val html = httpClient.fetchDetails(normalizedDetailsUrl)
-            val parsed = parseDetails(html, normalizedDetailsUrl, now)
+            val parsed = enrichWithTorrentLinks(parseDetails(html, normalizedDetailsUrl, now))
             releaseDao.upsertDetails(parsed.toEntity())
 
             DetailsResult.Success(
@@ -160,6 +161,24 @@ class LostFilmRepositoryImpl(
         return when (resolvedKind) {
             ReleaseKind.SERIES -> detailsParser.parseSeries(html, detailsUrl, fetchedAt)
             ReleaseKind.MOVIE -> detailsParser.parseMovie(html, detailsUrl, fetchedAt)
+        }
+    }
+
+    private suspend fun enrichWithTorrentLinks(details: ReleaseDetails): ReleaseDetails {
+        val playEpisodeId = details.playEpisodeId ?: return details
+        return try {
+            val redirectHtml = httpClient.fetchTorrentRedirect(playEpisodeId)
+            val torrentUrl = detailsParser.parseTorrentRedirect(redirectHtml) ?: return details
+            details.copy(
+                torrentLinks = listOf(
+                    TorrentLink(
+                        label = "Вариант 1",
+                        url = torrentUrl,
+                    ),
+                ),
+            )
+        } catch (_: IOException) {
+            details
         }
     }
 

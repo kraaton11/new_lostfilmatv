@@ -1,5 +1,7 @@
 package com.kraat.lostfilmnewtv.ui.details
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -27,6 +30,8 @@ fun DetailsScreen(
     onBack: () -> Unit,
     onRetry: () -> Unit,
 ) {
+    val context = LocalContext.current
+
     when {
         state.errorMessage != null -> {
             Box(
@@ -95,6 +100,26 @@ fun DetailsScreen(
                         color = TextPrimary.copy(alpha = 0.72f),
                         fontSize = 20.sp,
                     )
+                    if (details.torrentLinks.isNotEmpty()) {
+                        Text(
+                            text = "Ссылки",
+                            color = TextPrimary,
+                            fontSize = 22.sp,
+                        )
+                        details.torrentLinks.forEach { link ->
+                            Button(
+                                onClick = {
+                                    context.startActivity(
+                                        Intent(Intent.ACTION_VIEW, Uri.parse(link.url)).apply {
+                                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        },
+                                    )
+                                },
+                            ) {
+                                Text(link.label)
+                            }
+                        }
+                    }
                 } else if (state.isLoading) {
                     Text(
                         text = "Загрузка деталей...",
