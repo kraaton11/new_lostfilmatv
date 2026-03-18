@@ -25,6 +25,7 @@ class LostFilmRepositoryImpl(
     private val releaseDao: ReleaseDao,
     private val listParser: LostFilmListParser,
     private val detailsParser: LostFilmDetailsParser,
+    private val hasAuthenticatedSession: suspend () -> Boolean,
     private val clock: () -> Long = { System.currentTimeMillis() },
 ) : LostFilmRepository {
     override suspend fun loadPage(pageNumber: Int): PageState {
@@ -71,8 +72,9 @@ class LostFilmRepositoryImpl(
         val now = clock()
 
         if (cachedDetails != null && now - cachedDetails.fetchedAt <= FRESH_WINDOW_MS) {
+            val cachedModel = refreshCachedTorrentLinksIfNeeded(cachedDetails.toModel())
             return DetailsResult.Success(
-                details = cachedDetails.toModel(),
+                details = cachedModel,
                 isStale = false,
             )
         }
@@ -168,18 +170,30 @@ class LostFilmRepositoryImpl(
         val playEpisodeId = details.playEpisodeId ?: return details
         return try {
             val redirectHtml = httpClient.fetchTorrentRedirect(playEpisodeId)
-            val torrentUrl = detailsParser.parseTorrentRedirect(redirectHtml) ?: return details
-            details.copy(
-                torrentLinks = listOf(
-                    TorrentLink(
-                        label = "Вариант 1",
-                        url = torrentUrl,
-                    ),
-                ),
-            )
+            val selectionHtml = detailsParser.parseTorrentRedirect(redirectHtml)
+                ?.let { httpClient.fetchDetails(it) }
+                ?: redirectHtml
+            val torrentLinks = detailsParser.parseTorrentLinks(selectionHtml)
+            if (torrentLinks.isEmpty()) {
+                details
+            } else {
+                details.copy(torrentLinks = torrentLinks)
+            }
         } catch (_: IOException) {
             details
         }
+    }
+
+    private suspend fun refreshCachedTorrentLinksIfNeeded(details: ReleaseDetails): ReleaseDetails {
+        if (details.playEpisodeId == null || details.torrentLinks.isNotEmpty() || !hasAuthenticatedSession()) {
+            return details
+        }
+
+        val enriched = enrichWithTorrentLinks(details)
+        if (enriched.torrentLinks.isNotEmpty()) {
+            releaseDao.upsertDetails(enriched.toEntity())
+        }
+        return enriched
     }
 
     private fun hasNextPage(

@@ -3,13 +3,16 @@ package com.kraat.lostfilmnewtv.ui
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -24,12 +27,15 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.model.TorrentLink
-import com.kraat.lostfilmnewtv.ui.home.posterTag
 import com.kraat.lostfilmnewtv.ui.details.DetailsScreen
+import com.kraat.lostfilmnewtv.ui.details.DetailsTorrentRowUiModel
 import com.kraat.lostfilmnewtv.ui.details.DetailsUiState
+import com.kraat.lostfilmnewtv.ui.details.TorrServeMessage
 import com.kraat.lostfilmnewtv.ui.home.HomeScreen
 import com.kraat.lostfilmnewtv.ui.home.HomeUiState
+import com.kraat.lostfilmnewtv.ui.home.posterTag
 import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -41,17 +47,7 @@ class DetailsScreenTest {
 
     @Test
     fun seriesDetails_showSeasonEpisodeAndRuDate() {
-        composeRule.setContent {
-            LostFilmTheme {
-                DetailsScreen(
-                    state = DetailsUiState(
-                        details = seriesDetails(),
-                    ),
-                    onBack = {},
-                    onRetry = {},
-                )
-            }
-        }
+        composeRule.setDetailsContent(state = DetailsUiState(details = seriesDetails()))
 
         assertTrue(composeRule.onAllNodesWithText("9-1-1").fetchSemanticsNodes().isNotEmpty())
         assertTrue(composeRule.onAllNodesWithText("Сезон 9, серия 13").fetchSemanticsNodes().isNotEmpty())
@@ -59,61 +55,202 @@ class DetailsScreenTest {
     }
 
     @Test
-    fun seriesDetails_displaySeasonEpisodeAndRuDateOnScreen() {
-        composeRule.setContent {
-            LostFilmTheme {
-                DetailsScreen(
-                    state = DetailsUiState(
-                        details = seriesDetails(),
-                    ),
-                    onBack = {},
-                    onRetry = {},
-                )
-            }
-        }
+    fun seriesDetails_displaysTorrentRowsWithExpectedActions() {
+        val rows = listOf(
+            row("supported", "Поддерживается", "https://example.com/a.torrent", true),
+            row("unsupported", "Без TorrServe", "magnet:?xt=urn:btih:test", false),
+        )
 
-        composeRule.onNodeWithText("Сезон 9, серия 13").assertIsDisplayed()
-        composeRule.onNodeWithText("14 марта 2026").assertIsDisplayed()
+        composeRule.setDetailsContent(
+            state = DetailsUiState(details = detailsWithRows(rows)),
+            torrentRows = rows,
+        )
+
+        composeRule.onNodeWithText("Ссылки").assertIsDisplayed()
+        composeRule.onNodeWithText("Поддерживается").assertIsDisplayed()
+        composeRule.onNodeWithTag(openTag("supported")).assertIsDisplayed()
+        composeRule.onNodeWithTag(torrServeTag("supported")).assertIsDisplayed()
+        composeRule.onNodeWithTag(openTag("unsupported")).assertExists()
+        composeRule.onNodeWithTag(torrServeTag("unsupported")).assertDoesNotExist()
     }
 
     @Test
-    fun seriesDetails_displayTorrentSectionAndButtonOnScreen() {
-        composeRule.setContent {
-            LostFilmTheme {
-                DetailsScreen(
-                    state = DetailsUiState(
-                        details = seriesDetails(),
-                    ),
-                    onBack = {},
-                    onRetry = {},
-                )
-            }
-        }
+    fun torrentSection_usesTorrentRowsAsSingleSourceOfTruth() {
+        val rows = listOf(
+            row("rendered", "Из torrentRows", "https://example.com/rendered.torrent", true),
+        )
+
+        composeRule.setDetailsContent(
+            state = DetailsUiState(details = seriesDetails().copy(torrentLinks = emptyList())),
+            torrentRows = rows,
+        )
 
         composeRule.onNodeWithText("Ссылки").assertIsDisplayed()
-        composeRule.onNodeWithText("Вариант 1").assertIsDisplayed()
+        composeRule.onNodeWithText("Из torrentRows").assertIsDisplayed()
+        composeRule.onNodeWithTag(openTag("rendered")).assertIsDisplayed()
     }
 
     @Test
     fun movieDetails_hideSeasonEpisode() {
-        composeRule.setContent {
-            LostFilmTheme {
-                DetailsScreen(
-                    state = DetailsUiState(
-                        details = movieDetails(),
-                    ),
-                    onBack = {},
-                    onRetry = {},
-                )
-            }
-        }
+        composeRule.setDetailsContent(state = DetailsUiState(details = movieDetails()))
 
         assertTrue(composeRule.onAllNodesWithText("Необратимость").fetchSemanticsNodes().isNotEmpty())
         assertTrue(composeRule.onAllNodesWithText("Сезон 9, серия 13").fetchSemanticsNodes().isEmpty())
     }
 
     @Test
+    fun torrentFocusTraversal_matchesTvExpectations() {
+        val rows = listOf(
+            row("first", "Первый", "https://example.com/1.torrent", true),
+            row("second", "Второй", "magnet:?xt=urn:btih:2", false),
+            row("third", "Третий", "https://example.com/3.torrent", true),
+        )
+
+        composeRule.setDetailsContent(
+            state = DetailsUiState(details = detailsWithRows(rows)),
+            torrentRows = rows,
+            torrServeMessage = TorrServeMessage(rowId = "second", text = "Ошибка TorrServe"),
+        )
+
+        composeRule.onNodeWithTag(openTag("first")).performSemanticsAction(SemanticsActions.RequestFocus)
+        composeRule.onNodeWithTag(openTag("first")).assertIsFocused()
+
+        composeRule.pressKey(openTag("first"), Key.DirectionRight)
+        composeRule.onNodeWithTag(torrServeTag("first")).assertIsFocused()
+
+        composeRule.pressKey(torrServeTag("first"), Key.DirectionLeft)
+        composeRule.onNodeWithTag(openTag("first")).assertIsFocused()
+
+        composeRule.pressKey(openTag("first"), Key.DirectionDown)
+        composeRule.onNodeWithTag(openTag("second")).assertIsFocused()
+
+        composeRule.pressKey(openTag("second"), Key.DirectionRight)
+        composeRule.onNodeWithTag(openTag("second")).assertIsFocused()
+
+        composeRule.pressKey(openTag("second"), Key.DirectionDown)
+        composeRule.onNodeWithTag(openTag("third")).assertIsFocused()
+
+        composeRule.pressKey(openTag("third"), Key.DirectionRight)
+        composeRule.onNodeWithTag(torrServeTag("third")).assertIsFocused()
+
+        composeRule.pressKey(torrServeTag("third"), Key.DirectionRight)
+        composeRule.onNodeWithTag(torrServeTag("third")).assertIsFocused()
+
+        composeRule.pressKey(torrServeTag("third"), Key.DirectionDown)
+        composeRule.onNodeWithTag(torrServeTag("third")).assertIsFocused()
+
+        composeRule.onNodeWithTag(openTag("second")).performSemanticsAction(SemanticsActions.RequestFocus)
+        composeRule.onNodeWithTag(openTag("second")).assertIsFocused()
+        composeRule.pressKey(openTag("second"), Key.DirectionUp)
+        composeRule.onNodeWithTag(openTag("first")).assertIsFocused()
+
+        composeRule.pressKey(openTag("first"), Key.DirectionUp)
+        composeRule.onNodeWithText("Назад").assertIsFocused()
+    }
+
+    @Test
+    fun busyState_disablesOnlyTorrServeButtonsAndShowsRowScopedFeedback() {
+        val rows = listOf(
+            row("active", "Активный", "https://example.com/active.torrent", true),
+            row("other", "Другой", "https://example.com/other.torrent", true),
+            row("unsupported", "Без TorrServe", "magnet:?xt=urn:btih:unsupported", false),
+        )
+        val openedLinks = mutableListOf<String>()
+        val openedTorrServe = mutableListOf<Pair<String, String>>()
+
+        composeRule.setDetailsContent(
+            state = DetailsUiState(details = detailsWithRows(rows)),
+            torrentRows = rows,
+            torrServeMessage = TorrServeMessage(rowId = "other", text = "Не удалось открыть TorrServe"),
+            activeTorrServeRowId = "active",
+            isTorrServeBusy = true,
+            onOpenLink = openedLinks::add,
+            onOpenTorrServe = { rowId, url -> openedTorrServe += rowId to url },
+        )
+
+        composeRule.onNodeWithTag(openTag("active")).assertIsEnabled().performClick()
+        composeRule.onNodeWithTag(torrServeTag("active")).assertIsNotEnabled()
+        composeRule.onNodeWithTag(torrServeTag("other")).assertIsNotEnabled()
+        composeRule.onNodeWithTag(torrServeTag("unsupported")).assertDoesNotExist()
+        composeRule.onNodeWithTag(openTag("other")).performSemanticsAction(SemanticsActions.RequestFocus)
+        composeRule.onNodeWithTag(openTag("other")).assertIsFocused()
+        composeRule.pressKey(openTag("other"), Key.DirectionRight)
+        composeRule.onNodeWithTag(openTag("other")).assertIsFocused()
+        composeRule.onNodeWithText("Открывается...").assertIsDisplayed()
+        composeRule.onNodeWithText("Не удалось открыть TorrServe").assertExists()
+        composeRule.onNodeWithText("TorrServe").assertExists()
+        assertEquals(listOf("https://example.com/active.torrent"), openedLinks)
+        assertTrue(openedTorrServe.isEmpty())
+    }
+
+    @Test
+    fun busyState_rightFromSupportedOpenLink_staysOnOpenLink() {
+        val rows = listOf(
+            row("supported", "Поддерживается", "https://example.com/file.torrent", true),
+        )
+        var openCount = 0
+
+        composeRule.setContent {
+            var isBusy by remember { mutableStateOf(false) }
+            LostFilmTheme {
+                DetailsScreen(
+                    state = DetailsUiState(details = detailsWithRows(rows)),
+                    torrentRows = rows,
+                    torrServeMessage = null,
+                    activeTorrServeRowId = null,
+                    isTorrServeBusy = isBusy,
+                    onBack = {},
+                    onRetry = {},
+                    onOpenLink = {
+                        openCount += 1
+                        isBusy = true
+                    },
+                    onOpenTorrServe = { _, _ -> },
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag(openTag("supported")).performSemanticsAction(SemanticsActions.RequestFocus)
+        composeRule.onNodeWithTag(openTag("supported")).assertIsFocused()
+        composeRule.onNodeWithTag(openTag("supported")).performClick()
+        composeRule.onNodeWithTag(torrServeTag("supported")).assertIsNotEnabled()
+
+        composeRule.pressKey(openTag("supported"), Key.DirectionRight)
+        composeRule.pressKey(openTag("supported"), Key.Enter)
+
+        composeRule.onNodeWithTag(openTag("supported")).assertIsFocused()
+        assertEquals(2, openCount)
+    }
+
+    @Test
+    fun longTorrentList_keepsFocusedRowVisibleWhileMovingDown() {
+        val rows = (0 until 16).map { index ->
+            row(
+                rowId = "row-$index",
+                label = "Вариант ${index + 1}",
+                url = "https://example.com/$index.torrent",
+                isSupported = index % 2 == 0,
+            )
+        }
+
+        composeRule.setDetailsContent(
+            state = DetailsUiState(details = detailsWithRows(rows)),
+            torrentRows = rows,
+        )
+
+        composeRule.onNodeWithTag(openTag("row-0")).performSemanticsAction(SemanticsActions.RequestFocus)
+        for (index in 0 until rows.lastIndex) {
+            composeRule.pressKey(openTag("row-$index"), Key.DirectionDown)
+        }
+
+        composeRule.onNodeWithTag(openTag("row-15")).assertIsFocused()
+        composeRule.onNodeWithTag(openTag("row-15")).assertIsDisplayed()
+    }
+
+    @Test
     fun backFromDetails_restoresFocusedPosterAfterDpadSelection() {
+        val movieRows = listOf(row("movie", "Torrent", "https://example.com/movie.torrent", true))
+
         composeRule.setContent {
             LostFilmTheme {
                 val navController = rememberNavController()
@@ -136,9 +273,15 @@ class DetailsScreenTest {
                     }
                     composable("details") {
                         DetailsScreen(
-                            state = DetailsUiState(details = movieDetails()),
+                            state = DetailsUiState(details = detailsWithRows(movieRows, movieDetails())),
+                            torrentRows = movieRows,
+                            torrServeMessage = null,
+                            activeTorrServeRowId = null,
+                            isTorrServeBusy = false,
                             onBack = { navController.popBackStack() },
                             onRetry = {},
+                            onOpenLink = {},
+                            onOpenTorrServe = { _, _ -> },
                         )
                     }
                 }
@@ -169,6 +312,73 @@ class DetailsScreenTest {
         composeRule.onNodeWithTag(posterTag(movieDetailsUrl)).assertIsFocused()
     }
 }
+
+private fun AndroidComposeTestRule<*, *>.setDetailsContent(
+    state: DetailsUiState,
+    torrentRows: List<DetailsTorrentRowUiModel> = state.details?.torrentLinks.orEmpty().mapIndexed { index, link ->
+        row(
+            rowId = "row-$index",
+            label = link.label,
+            url = link.url,
+            isSupported = true,
+        )
+    },
+    torrServeMessage: TorrServeMessage? = null,
+    activeTorrServeRowId: String? = null,
+    isTorrServeBusy: Boolean = false,
+    onBack: () -> Unit = {},
+    onRetry: () -> Unit = {},
+    onOpenLink: (String) -> Unit = {},
+    onOpenTorrServe: (String, String) -> Unit = { _, _ -> },
+) {
+    setContent {
+        LostFilmTheme {
+            DetailsScreen(
+                state = state,
+                torrentRows = torrentRows,
+                torrServeMessage = torrServeMessage,
+                activeTorrServeRowId = activeTorrServeRowId,
+                isTorrServeBusy = isTorrServeBusy,
+                onBack = onBack,
+                onRetry = onRetry,
+                onOpenLink = onOpenLink,
+                onOpenTorrServe = onOpenTorrServe,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalTestApi::class)
+private fun AndroidComposeTestRule<*, *>.pressKey(tag: String, key: Key) {
+    onNodeWithTag(tag).performKeyInput {
+        keyDown(key)
+        keyUp(key)
+    }
+    waitForIdle()
+}
+
+private fun row(
+    rowId: String,
+    label: String,
+    url: String,
+    isSupported: Boolean,
+): DetailsTorrentRowUiModel = DetailsTorrentRowUiModel(
+    rowId = rowId,
+    label = label,
+    url = url,
+    isTorrServeSupported = isSupported,
+)
+
+private fun detailsWithRows(
+    rows: List<DetailsTorrentRowUiModel>,
+    base: ReleaseDetails = seriesDetails(),
+): ReleaseDetails = base.copy(
+    torrentLinks = rows.map { TorrentLink(label = it.label, url = it.url) },
+)
+
+private fun openTag(rowId: String) = "torrent-open-$rowId"
+
+private fun torrServeTag(rowId: String) = "torrent-torrserve-$rowId"
 
 private const val seriesDetailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
 private const val movieDetailsUrl = "https://www.lostfilm.today/movies/Irreversible"
@@ -214,7 +424,7 @@ private fun seededHomeState(selectedSecond: Boolean = false): HomeUiState {
 }
 
 private fun seriesDetails(): ReleaseDetails = ReleaseDetails(
-    detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/",
+    detailsUrl = seriesDetailsUrl,
     kind = ReleaseKind.SERIES,
     titleRu = "9-1-1",
     seasonNumber = 9,
@@ -231,7 +441,7 @@ private fun seriesDetails(): ReleaseDetails = ReleaseDetails(
 )
 
 private fun movieDetails(): ReleaseDetails = ReleaseDetails(
-    detailsUrl = "https://www.lostfilm.today/movies/Irreversible",
+    detailsUrl = movieDetailsUrl,
     kind = ReleaseKind.MOVIE,
     titleRu = "Необратимость",
     seasonNumber = null,
@@ -239,4 +449,10 @@ private fun movieDetails(): ReleaseDetails = ReleaseDetails(
     releaseDateRu = "13 марта 2026",
     posterUrl = "https://www.lostfilm.today/Static/Images/1080/Posters/poster.jpg",
     fetchedAt = 0L,
+    torrentLinks = listOf(
+        TorrentLink(
+            label = "Torrent",
+            url = "https://example.com/movie.torrent",
+        ),
+    ),
 )
