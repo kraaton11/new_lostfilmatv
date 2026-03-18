@@ -63,6 +63,10 @@ open class LostFilmApplication : Application() {
             releaseDao = database.releaseDao(),
             listParser = LostFilmListParser(),
             detailsParser = LostFilmDetailsParser(),
+            hasAuthenticatedSession = {
+                val session = sessionStore.read()
+                session != null && !session.isExpired()
+            },
         )
     }
 
