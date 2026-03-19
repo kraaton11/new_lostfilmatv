@@ -19,8 +19,8 @@ fun AuthScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    LaunchedEffect(uiState.isAuthenticated) {
-        if (uiState.isAuthenticated) {
+    LaunchedEffect(uiState) {
+        if (uiState is AuthUiState.Authenticated) {
             onAuthComplete()
         }
     }
@@ -32,20 +32,18 @@ fun AuthScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Text(
-            text = "Вход в LostFilm",
-            style = MaterialTheme.typography.headlineLarge
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        when {
-            uiState.isLoading -> {
+        when (val state = uiState) {
+            AuthUiState.CreatingCode -> {
+                Text(
+                    text = "Вход в LostFilm",
+                    style = MaterialTheme.typography.headlineMedium
+                )
+                Spacer(modifier = Modifier.height(24.dp))
                 CircularProgressIndicator()
                 Text("Создание соединения...")
             }
 
-            uiState.isAuthenticated -> {
+            AuthUiState.Authenticated -> {
                 Text("Вы вошли в аккаунт!", style = MaterialTheme.typography.headlineMedium)
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(onClick = {
@@ -56,82 +54,117 @@ fun AuthScreen(
                 }
             }
 
-            uiState.pairing != null -> {
-                val qrBitmap = remember(uiState.pairing?.verificationUrl) {
-                    uiState.pairing?.verificationUrl?.let { QrCodeGenerator.generateImageBitmap(it, 420) }
+            is AuthUiState.WaitingForPhoneOpen,
+            is AuthUiState.WaitingForPhoneLogin,
+            is AuthUiState.VerifyingSession -> {
+                val pairing = when (state) {
+                    is AuthUiState.WaitingForPhoneOpen -> state.pairing
+                    is AuthUiState.WaitingForPhoneLogin -> state.pairing
+                    is AuthUiState.VerifyingSession -> state.pairing
+                    else -> null
+                }
+
+                Text(
+                    text = "Вход в LostFilm",
+                    style = MaterialTheme.typography.titleLarge
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+
+                val qrBitmap = remember(pairing?.verificationUrl) {
+                    pairing?.verificationUrl?.let { QrCodeGenerator.generateImageBitmap(it, 420) }
                 }
 
                 qrBitmap?.let {
                     Image(
                         bitmap = it,
                         contentDescription = "QR code for LostFilm login",
-                        modifier = Modifier.size(220.dp),
+                        modifier = Modifier.size(200.dp),
                     )
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
 
                 Text(
                     text = "Код для входа:",
-                    style = MaterialTheme.typography.titleLarge
-                )
-                Text(
-                    text = uiState.pairing?.userCode ?: "",
-                    style = MaterialTheme.typography.displayMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontSize = 56.sp,
-                )
-                
-                Spacer(modifier = Modifier.height(24.dp))
-                
-                Text(
-                    text = "Инструкция:",
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(
-                    text = "1. Откройте ссылку на другом устройстве\n2. Войдите в LostFilm\n3. Нажмите 'Готово'\n4. Статус обновится автоматически",
+                    text = pairing?.userCode ?: "",
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontSize = 40.sp,
+                    lineHeight = 44.sp,
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "1. Откройте QR на телефоне\n2. Войдите в LostFilm\n3. Вернитесь к телевизору, экран обновится сам",
                     textAlign = TextAlign.Start,
                     style = MaterialTheme.typography.bodyLarge
                 )
-                
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = when (state) {
+                        is AuthUiState.WaitingForPhoneOpen -> "Откройте ссылку на телефоне"
+                        is AuthUiState.WaitingForPhoneLogin -> "Продолжайте вход на телефоне"
+                        is AuthUiState.VerifyingSession -> "Проверяем вход..."
+                        else -> ""
+                    },
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+
+            is AuthUiState.Expired -> {
+                Text(
+                    text = "Вход в LostFilm",
+                    style = MaterialTheme.typography.headlineMedium
+                )
                 Spacer(modifier = Modifier.height(24.dp))
-                
-                OutlinedCard(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp)
-                    ) {
-                        Text(
-                            text = "Ссылка для входа:",
-                            style = MaterialTheme.typography.labelMedium
-                        )
-                        Text(
-                            text = uiState.pairing?.verificationUrl ?: "",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
+                Text(
+                    text = state.message,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                Button(onClick = viewModel::retryAuth) {
+                    Text("Получить новый код")
                 }
-                
-                if (uiState.isPolling) {
-                    Spacer(modifier = Modifier.height(24.dp))
-                    CircularProgressIndicator()
-                    Text("Ожидание подтверждения...")
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedButton(onClick = onNavigateBack) {
+                    Text("Назад")
                 }
             }
 
-            else -> {
+            is AuthUiState.RecoverableError -> {
+                Text(
+                    text = "Вход в LostFilm",
+                    style = MaterialTheme.typography.headlineMedium
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                Text(
+                    text = state.message,
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center,
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                Button(onClick = viewModel::retryAuth) {
+                    Text("Получить новый код")
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedButton(onClick = onNavigateBack) {
+                    Text("Назад")
+                }
+            }
+
+            AuthUiState.Idle -> {
+                Text(
+                    text = "Вход в LostFilm",
+                    style = MaterialTheme.typography.headlineLarge
+                )
+                Spacer(modifier = Modifier.height(32.dp))
                 Button(onClick = { viewModel.startAuth() }) {
                     Text("Начать вход")
                 }
-            }
-        }
-
-        uiState.error?.let { error ->
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(error, color = MaterialTheme.colorScheme.error)
-            Button(onClick = { viewModel.clearError() }) {
-                Text("Повторить")
             }
         }
     }
