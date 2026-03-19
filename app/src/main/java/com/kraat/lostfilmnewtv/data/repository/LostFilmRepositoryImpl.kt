@@ -170,12 +170,22 @@ class LostFilmRepositoryImpl(
         val playEpisodeId = details.playEpisodeId ?: return details
         return try {
             val redirectHtml = httpClient.fetchTorrentRedirect(playEpisodeId)
-            val selectionHtml = detailsParser.parseTorrentRedirect(redirectHtml)
+            val redirectUrl = detailsParser.parseTorrentRedirect(redirectHtml)
+            val selectionHtml = redirectUrl
                 ?.let { httpClient.fetchDetails(it) }
                 ?: redirectHtml
             val torrentLinks = detailsParser.parseTorrentLinks(selectionHtml)
             if (torrentLinks.isEmpty()) {
-                details
+                redirectUrl?.let {
+                    details.copy(
+                        torrentLinks = listOf(
+                            TorrentLink(
+                                label = "Вариант 1",
+                                url = it,
+                            ),
+                        ),
+                    )
+                } ?: details
             } else {
                 details.copy(torrentLinks = torrentLinks)
             }

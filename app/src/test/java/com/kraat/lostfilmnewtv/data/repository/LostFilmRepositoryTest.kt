@@ -206,6 +206,34 @@ class LostFilmRepositoryTest {
         )
     }
 
+    @Test
+    fun loadDetails_fallsBackToRedirectUrlWhenQualityPageHasNoParsedLinks() = runTest {
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            detailsHandler = { requestedUrl ->
+                when {
+                    requestedUrl.contains("/series/9-1-1/season_9/episode_13/") -> fixture("series-details.html")
+                    requestedUrl == "https://www.lostfilm.today/V/?c=1103&s=1&e=1&u=999999&h=fixturehash&n=1&newbie=&br=&ts=1773683822" -> {
+                        "<html><body><div class=\"empty\">no links</div></body></html>"
+                    }
+                    else -> error("Unexpected details request: $requestedUrl")
+                }
+            },
+            torrentHandler = { episodeId ->
+                assertEquals("362009013", episodeId)
+                fixture("torrent-redirect.html")
+            },
+        )
+
+        val result = repository.loadDetails("/series/9-1-1/season_9/episode_13/") as DetailsResult.Success
+
+        assertEquals(listOf("Вариант 1"), result.details.torrentLinks.map { it.label })
+        assertEquals(
+            listOf("https://www.lostfilm.today/V/?c=1103&s=1&e=1&u=999999&h=fixturehash&n=1&newbie=&br=&ts=1773683822"),
+            result.details.torrentLinks.map { it.url },
+        )
+    }
+
     private suspend fun seedPage(pageNumber: Int, fetchedAt: Long) {
         val parsed = LostFilmListParser().parse(
             html = fixture("new-page-1.html"),
