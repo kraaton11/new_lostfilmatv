@@ -70,11 +70,16 @@ class PhoneFlowTest(unittest.TestCase):
         self._original_login_client_factory = app.state.lostfilm_login_client_factory
         self._stub_login_client = _StubLostFilmLoginClient()
         app.state.lostfilm_login_client_factory = lambda: self._stub_login_client
+        # Use a very permissive rate limiter so tests are never blocked
+        from auth_bridge.middleware.rate_limit import SlidingWindowRateLimiter
+        self._original_limiter = app.state.login_rate_limiter
+        app.state.login_rate_limiter = SlidingWindowRateLimiter(max_requests=1000, window_seconds=60)
         self.client = TestClient(app)
         app.state.pairing_service.reset()
 
     def tearDown(self) -> None:
         app.state.lostfilm_login_client_factory = self._original_login_client_factory
+        app.state.login_rate_limiter = self._original_limiter
 
     def test_pair_page_uses_phone_verifier_not_user_code(self) -> None:
         pairing = self.client.post("/api/pairings").json()
