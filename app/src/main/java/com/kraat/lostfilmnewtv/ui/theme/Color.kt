@@ -2,6 +2,7 @@ package com.kraat.lostfilmnewtv.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val BackgroundPrimary = Color(0xFF101620)
-val BackgroundSurface = Color(0xFF1A2332)
-val TextPrimary = Color(0xFFF4F7FB)
+val BackgroundPrimary = Color(0xFF181412)
+val BackgroundSurface = Color(0xFF241F1C)
+val TextPrimary = Color(0xFFF5F0E1)
+val AccentWarm = Color(0xFFD4A373)
