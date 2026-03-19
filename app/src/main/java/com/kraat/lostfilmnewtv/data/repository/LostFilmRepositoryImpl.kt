@@ -176,8 +176,12 @@ class LostFilmRepositoryImpl(
             val redirectHtml = httpClient.fetchTorrentRedirect(playEpisodeId)
             val torrentLinks = detailsParser.parseTorrentLinks(redirectHtml)
             val expandedLinks = if (torrentLinks.size == 1 && torrentLinks.first().label == "Вариант 1") {
-                val torrentPageHtml = httpClient.fetchTorrentPage(torrentLinks.first().url)
-                detailsParser.parseTorrentLinks(torrentPageHtml)
+                try {
+                    val torrentPageHtml = httpClient.fetchTorrentPage(torrentLinks.first().url)
+                    detailsParser.parseTorrentLinks(torrentPageHtml).ifEmpty { torrentLinks }
+                } catch (_: IOException) {
+                    torrentLinks
+                }
             } else {
                 torrentLinks
             }

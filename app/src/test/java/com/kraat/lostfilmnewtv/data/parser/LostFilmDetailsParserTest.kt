@@ -88,4 +88,17 @@ class LostFilmDetailsParserTest {
             links.map { it.url },
         )
     }
+
+    @Test
+    fun parsesRedirectPageAsGenericVariantForExpansion() {
+        val links = LostFilmDetailsParser().parseTorrentLinks(
+            fixture("torrent-redirect.html"),
+        )
+
+        assertEquals(listOf("Вариант 1"), links.map { it.label })
+        assertEquals(
+            listOf("https://www.lostfilm.today/V/?c=1103&s=1&e=1&u=999999&h=fixturehash&n=1&newbie=&br=&ts=1773683822"),
+            links.map { it.url },
+        )
+    }
 }

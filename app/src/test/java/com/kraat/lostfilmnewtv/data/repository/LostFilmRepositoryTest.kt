@@ -111,11 +111,13 @@ class LostFilmRepositoryTest {
                 assertEquals("362009013", episodeId)
                 fixture("torrent-redirect.html")
             },
+            torrentPageHandler = { throw IOException("options page unavailable") },
         )
 
         val result = repository.loadDetails("/series/9-1-1/season_9/episode_13/") as DetailsResult.Success
 
         assertNotNull(result.details.torrentLinks.singleOrNull())
+        assertEquals("Вариант 1", result.details.torrentLinks.single().label)
         assertEquals(
             "https://www.lostfilm.today/V/?c=1103&s=1&e=1&u=999999&h=fixturehash&n=1&newbie=&br=&ts=1773683822",
             result.details.torrentLinks.single().url,

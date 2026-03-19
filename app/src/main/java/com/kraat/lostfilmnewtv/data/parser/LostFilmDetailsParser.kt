@@ -136,6 +136,8 @@ private fun String.normalizeTorrentLabel(index: Int, fallbackText: String = ""):
         normalized.isBlank() -> "Вариант ${index + 1}"
         normalized.equals("эту ссылку", ignoreCase = true) -> "Вариант ${index + 1}"
         normalized.equals("this link", ignoreCase = true) -> "Вариант ${index + 1}"
+        normalized.equals("скачать", ignoreCase = true) -> "Вариант ${index + 1}"
+        normalized.equals("download", ignoreCase = true) -> "Вариант ${index + 1}"
         normalized == "1080" -> "1080p"
         normalized == "MP4" -> fallbackText.extractQualityFromTitle() ?: "720p"
         else -> normalized
