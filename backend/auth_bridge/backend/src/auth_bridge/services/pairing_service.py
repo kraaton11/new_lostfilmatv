@@ -185,6 +185,8 @@ class PairingService:
             self._expire_claim_lease_if_needed(record)
             if record.is_expired():
                 raise PairingExpiredError
+            if record.failure_reason == "lease_expired":
+                raise PairingExpiredError
             if record.finalized:
                 raise PairingAlreadyClaimedError
             if record.session_payload is None:
@@ -200,6 +202,8 @@ class PairingService:
             record = self._require_record(pairing_id)
             self._require_secret(record, pairing_secret)
             self._expire_claim_lease_if_needed(record)
+            if record.failure_reason == "lease_expired":
+                raise PairingExpiredError
             if not record.lease_active or record.session_payload is None:
                 raise PairingNotReadyError
             record.finalized = True

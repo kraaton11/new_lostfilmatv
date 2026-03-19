@@ -144,3 +144,63 @@ class PairingsApiTest(unittest.TestCase):
 
         self.assertEqual(status_response.status_code, 200)
         self.assertEqual(status_response.json()["status"], "failed")
+
+    def test_claim_returns_expired_when_claim_lease_has_elapsed(self) -> None:
+        pairing = self.client.post("/api/pairings").json()
+        app.state.pairing_service.confirm_pairing(
+            pairing_id=pairing["pairingId"],
+            session_payload={
+                "cookies": [
+                    {
+                        "name": "lf_session",
+                        "value": "cookie-value",
+                        "domain": ".lostfilm.today",
+                        "path": "/",
+                    }
+                ]
+            },
+        )
+
+        self.client.post(
+            f"/api/pairings/{pairing['pairingId']}/claim",
+            headers={"X-Pairing-Secret": pairing["pairingSecret"]},
+        )
+        record = app.state.pairing_service._store.get(pairing["pairingId"])
+        record.claim_lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+
+        expired_claim = self.client.post(
+            f"/api/pairings/{pairing['pairingId']}/claim",
+            headers={"X-Pairing-Secret": pairing["pairingSecret"]},
+        )
+
+        self.assertEqual(expired_claim.status_code, 410)
+
+    def test_finalize_returns_expired_when_claim_lease_has_elapsed(self) -> None:
+        pairing = self.client.post("/api/pairings").json()
+        app.state.pairing_service.confirm_pairing(
+            pairing_id=pairing["pairingId"],
+            session_payload={
+                "cookies": [
+                    {
+                        "name": "lf_session",
+                        "value": "cookie-value",
+                        "domain": ".lostfilm.today",
+                        "path": "/",
+                    }
+                ]
+            },
+        )
+
+        self.client.post(
+            f"/api/pairings/{pairing['pairingId']}/claim",
+            headers={"X-Pairing-Secret": pairing["pairingSecret"]},
+        )
+        record = app.state.pairing_service._store.get(pairing["pairingId"])
+        record.claim_lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
+
+        expired_finalize = self.client.post(
+            f"/api/pairings/{pairing['pairingId']}/finalize",
+            headers={"X-Pairing-Secret": pairing["pairingSecret"]},
+        )
+
+        self.assertEqual(expired_finalize.status_code, 410)
