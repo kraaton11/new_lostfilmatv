@@ -1,6 +1,9 @@
 name: pull-request-checks
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
     branches:
       - main
