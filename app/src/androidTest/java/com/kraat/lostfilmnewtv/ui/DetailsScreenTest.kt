@@ -195,6 +195,7 @@ class DetailsScreenTest {
             LostFilmTheme {
                 DetailsScreen(
                     state = DetailsUiState(details = detailsWithRows(rows)),
+                    isAuthenticated = true,
                     torrentRows = rows,
                     torrServeMessage = null,
                     activeTorrServeRowId = null,
@@ -274,6 +275,7 @@ class DetailsScreenTest {
                     composable("details") {
                         DetailsScreen(
                             state = DetailsUiState(details = detailsWithRows(movieRows, movieDetails())),
+                            isAuthenticated = true,
                             torrentRows = movieRows,
                             torrServeMessage = null,
                             activeTorrServeRowId = null,
@@ -315,6 +317,7 @@ class DetailsScreenTest {
 
 private fun AndroidComposeTestRule<*, *>.setDetailsContent(
     state: DetailsUiState,
+    isAuthenticated: Boolean = true,
     torrentRows: List<DetailsTorrentRowUiModel> = state.details?.torrentLinks.orEmpty().mapIndexed { index, link ->
         row(
             rowId = "row-$index",
@@ -335,6 +338,7 @@ private fun AndroidComposeTestRule<*, *>.setDetailsContent(
         LostFilmTheme {
             DetailsScreen(
                 state = state,
+                isAuthenticated = isAuthenticated,
                 torrentRows = torrentRows,
                 torrServeMessage = torrServeMessage,
                 activeTorrServeRowId = activeTorrServeRowId,
