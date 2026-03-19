@@ -4,6 +4,7 @@ import com.kraat.lostfilmnewtv.data.model.LostFilmCookie
 import com.kraat.lostfilmnewtv.data.model.LostFilmSession
 import com.kraat.lostfilmnewtv.data.model.PairingSession
 import com.kraat.lostfilmnewtv.data.model.PairingStatus
+import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
@@ -11,6 +12,7 @@ import kotlinx.serialization.json.Json
 import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.Response
 
 class AuthBridgeClient(
     private val baseUrl: String,
@@ -22,27 +24,29 @@ class AuthBridgeClient(
     }
 
     suspend fun createPairing(): PairingSession = withContext(Dispatchers.IO) {
+        val url = "$baseUrl/api/pairings"
         val request = Request.Builder()
-            .url("$baseUrl/api/pairings")
+            .url(url)
             .post(FormBody.Builder().build())
             .build()
 
         httpClient.newCall(request).execute().use { response ->
-            val body = response.body?.string() ?: error("Empty response")
+            val body = response.requireSuccessBody(url)
             val dto = json.decodeFromString(PairingDto.serializer(), body)
             dto.toModel()
         }
     }
 
     suspend fun getPairingStatus(pairing: PairingSession): PairingSession = withContext(Dispatchers.IO) {
+        val url = "$baseUrl/api/pairings/${pairing.pairingId}"
         val request = Request.Builder()
-            .url("$baseUrl/api/pairings/${pairing.pairingId}")
+            .url(url)
             .header("X-Pairing-Secret", pairing.pairingSecret)
             .get()
             .build()
 
         httpClient.newCall(request).execute().use { response ->
-            val body = response.body?.string() ?: error("Empty response")
+            val body = response.requireSuccessBody(url)
             val dto = json.decodeFromString(PairingStatusDto.serializer(), body)
             pairing.copy(
                 status = parseStatus(dto.status),
@@ -54,14 +58,15 @@ class AuthBridgeClient(
     }
 
     suspend fun claimSession(pairing: PairingSession): LostFilmSession = withContext(Dispatchers.IO) {
+        val url = "$baseUrl/api/pairings/${pairing.pairingId}/claim"
         val request = Request.Builder()
-            .url("$baseUrl/api/pairings/${pairing.pairingId}/claim")
+            .url(url)
             .header("X-Pairing-Secret", pairing.pairingSecret)
             .post(FormBody.Builder().build())
             .build()
 
         httpClient.newCall(request).execute().use { response ->
-            val body = response.body?.string() ?: error("Empty response")
+            val body = response.requireSuccessBody(url)
             val dto = json.decodeFromString(SessionPayloadDto.serializer(), body)
             LostFilmSession(
                 cookies = dto.cookies.map {
@@ -78,21 +83,40 @@ class AuthBridgeClient(
     }
 
     suspend fun finalizeClaim(pairing: PairingSession): Boolean = withContext(Dispatchers.IO) {
+        val url = "$baseUrl/api/pairings/${pairing.pairingId}/finalize"
         val request = Request.Builder()
-            .url("$baseUrl/api/pairings/${pairing.pairingId}/finalize")
+            .url(url)
             .header("X-Pairing-Secret", pairing.pairingSecret)
             .post(FormBody.Builder().build())
             .build()
-        httpClient.newCall(request).execute().use { it.code == 204 }
+        httpClient.newCall(request).execute().use {
+            it.requireSuccess(url)
+            it.code == 204
+        }
     }
 
     suspend fun releaseClaim(pairing: PairingSession): Boolean = withContext(Dispatchers.IO) {
+        val url = "$baseUrl/api/pairings/${pairing.pairingId}/release"
         val request = Request.Builder()
-            .url("$baseUrl/api/pairings/${pairing.pairingId}/release")
+            .url(url)
             .header("X-Pairing-Secret", pairing.pairingSecret)
             .post(FormBody.Builder().build())
             .build()
-        httpClient.newCall(request).execute().use { it.code == 204 }
+        httpClient.newCall(request).execute().use {
+            it.requireSuccess(url)
+            it.code == 204
+        }
+    }
+
+    private fun Response.requireSuccess(url: String) {
+        if (!isSuccessful) {
+            throw AuthBridgeHttpException(code, url, body?.string())
+        }
+    }
+
+    private fun Response.requireSuccessBody(url: String): String {
+        requireSuccess(url)
+        return body?.string() ?: throw IOException("Empty response body for $url")
     }
 
     private fun parseStatus(status: String): PairingStatus = when (status.uppercase()) {

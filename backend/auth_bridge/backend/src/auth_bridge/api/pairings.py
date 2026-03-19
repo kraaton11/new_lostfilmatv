@@ -52,6 +52,8 @@ def build_pairings_router(pairing_service: PairingService) -> APIRouter:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pairing session was not found.") from exc
         except PairingForbiddenError as exc:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Pairing secret is invalid.") from exc
+        except PairingExpiredError as exc:
+            raise HTTPException(status_code=status.HTTP_410_GONE, detail="Pairing session has expired.") from exc
         except PairingNotReadyError as exc:
             raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Pairing lease is not active.") from exc
 
