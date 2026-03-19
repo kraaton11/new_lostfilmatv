@@ -2,32 +2,32 @@
 
 ## Required Repository Settings
 
-Configure the repository once before relying on the automated PR and release flow.
+Configure the repository once before relying on the direct-push `main` workflow and release flow.
 
 ## Branch Protection
 
 Protect the `main` branch with these settings:
 
-- require pull requests before merging
-- require status checks to pass before merging
-- require the `pull-request-checks` workflow as a required check
-- disable direct pushes to `main` for normal day-to-day work
+- allow direct pushes to `main`
+- do not require pull requests before changes reach `main`
+- do not require blocking status checks in the branch protection rule
+- keep force-pushes disabled
+- keep branch deletions disabled
 
 ## Actions Permissions
 
 In `Settings -> Actions -> General`, allow GitHub Actions to:
 
 - read and write repository contents
-- create pull requests
-- approve and merge pull requests when GitHub asks for explicit permission
 
-## Required Checks
+## Verify Workflow
 
-After the first PR run completes, add `pull-request-checks` as a required status check in the branch protection rule for `main`.
+The `pull-request-checks` workflow should run on:
 
-## Auto-Merge
+- direct pushes to `main`
+- optional pull requests that target `main`
 
-Enable `Allow auto-merge` in the repository settings so the `open-pr` workflow can call `gh pr merge --auto --squash` after required checks go green.
+This keeps `verify` visible in Actions after every push without making it a branch-protection blocker.
 
 ## Release Secrets
 
