@@ -59,6 +59,19 @@ class LostFilmDetailsParser {
         val match = torrentRedirectRegex.find(html) ?: return null
         return resolveUrl(match.value)
     }
+
+    fun parseTorrentLinks(html: String): List<TorrentLink> {
+        val document = Jsoup.parse(html, BASE_URL)
+        return document.select(".inner-box--item").mapNotNull { item ->
+            val label = item.selectFirst(".inner-box--label").textOrEmpty()
+            val url = item.selectFirst(".inner-box--link a[href]")?.absUrl("href").orEmpty()
+            if (label.isBlank() || url.isBlank()) {
+                null
+            } else {
+                TorrentLink(label = label, url = url)
+            }
+        }.distinctBy { it.url }
+    }
 }
 
 private fun Document.posterUrl(): String =

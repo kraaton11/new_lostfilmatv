@@ -1,7 +1,6 @@
 package com.kraat.lostfilmnewtv.data.parser
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -51,6 +50,23 @@ class LostFilmDetailsParserTest {
         assertEquals(
             "https://www.lostfilm.today/V/?c=1103&s=1&e=1&u=999999&h=fixturehash&n=1&newbie=&br=&ts=1773683822",
             link,
+        )
+    }
+
+    @Test
+    fun parsesTorrentLinksFromQualitySelectionPage() {
+        val links = LostFilmDetailsParser().parseTorrentLinks(
+            fixture("torrent-quality-page.html"),
+        )
+
+        assertEquals(listOf("SD", "1080", "MP4"), links.map { it.label })
+        assertEquals(
+            listOf(
+                "https://n.tracktor.site/td.php?s=fixture-sd",
+                "https://n.tracktor.site/td.php?s=fixture-1080",
+                "https://n.tracktor.site/td.php?s=fixture-mp4",
+            ),
+            links.map { it.url },
         )
     }
 }
