@@ -1,13 +1,9 @@
 package com.kraat.lostfilmnewtv.ui.details
 
-import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.StateRestorationTester
-import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
@@ -36,7 +32,6 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -85,12 +80,10 @@ class DetailsRouteTest {
 
         composeRule.onNodeWithTag(torrServeButtonTag("$detailsUrl#0")).assertIsEnabled()
         composeRule.onNodeWithTag(torrServeButtonTag("$detailsUrl#1")).assertDoesNotExist()
-        composeRule.onNodeWithTag(openLinkButtonTag("$detailsUrl#0")).assertExists()
-        composeRule.onNodeWithTag(openLinkButtonTag("$detailsUrl#1")).assertExists()
     }
 
     @Test
-    fun route_suppresses_repeated_torrserve_clicks_but_direct_open_still_dispatches() {
+    fun route_suppresses_repeated_torrserve_clicks_while_busy() {
         val detailsUrl = "https://www.lostfilm.today/series/busy"
         val result = CompletableDeferred<TorrServeOpenResult>()
         val launchCount = AtomicInteger(0)
@@ -121,15 +114,9 @@ class DetailsRouteTest {
         composeRule.waitUntil(timeoutMillis = 5_000) { launchCount.get() == 1 }
         composeRule.onNodeWithTag(torrServeButtonTag("$detailsUrl#0")).assertIsNotEnabled()
         composeRule.waitForIdle()
+        composeRule.onNodeWithTag(torrServeButtonTag("$detailsUrl#0")).performSemanticsAction(SemanticsActions.OnClick)
 
         assertEquals(1, launchCount.get())
-
-        composeRule.onNodeWithTag(openLinkButtonTag("$detailsUrl#0")).performSemanticsAction(SemanticsActions.OnClick)
-        composeRule.waitForIdle()
-
-        val startedIntent = ShadowApplication.getInstance().nextStartedActivity
-        assertEquals(Intent.ACTION_VIEW, startedIntent.action)
-        assertEquals(Uri.parse("https://example.com/file.torrent"), startedIntent.data)
 
         result.complete(TorrServeOpenResult.Success)
         composeRule.waitUntil(timeoutMillis = 5_000) { activeLaunches.get() == 0 }
@@ -296,13 +283,9 @@ private fun succeedingActionHandler(): TorrServeActionHandler = TorrServeActionH
     builder = IdentityBuilder(),
     probe = AlwaysAvailableChecker(),
     launcher = ImmediateLauncher(TorrServeOpenResult.Success),
-    ioDispatcher = Dispatchers.Unconfined,
-    mainDispatcher = Dispatchers.Unconfined,
 )
 
 private fun torrServeButtonTag(rowId: String) = "torrent-torrserve-$rowId"
-
-private fun openLinkButtonTag(rowId: String) = "torrent-open-$rowId"
 
 private class IdentityBuilder : TorrServeSourceBuilder {
     override fun build(rawUrl: String): String = rawUrl
@@ -315,7 +298,10 @@ private class AlwaysAvailableChecker : TorrServeAvailabilityChecker {
 private class ImmediateLauncher(
     private val result: TorrServeOpenResult,
 ) : TorrServeUrlLauncher {
-    override suspend fun launch(context: Context, torrServeUrl: String): Boolean {
+    override suspend fun launch(
+        context: android.content.Context,
+        torrServeUrl: String,
+    ): Boolean {
         return result == TorrServeOpenResult.Success
     }
 }

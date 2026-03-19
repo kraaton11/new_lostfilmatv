@@ -5,8 +5,8 @@ import androidx.test.core.app.ApplicationProvider
 import com.kraat.lostfilmnewtv.data.db.LostFilmDatabase
 import com.kraat.lostfilmnewtv.data.db.PageCacheMetadataEntity
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
-import com.kraat.lostfilmnewtv.data.db.ReleaseDetailsEntity
 import com.kraat.lostfilmnewtv.data.db.ReleaseSummaryEntity
+import com.kraat.lostfilmnewtv.data.db.ReleaseDetailsEntity
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
@@ -16,6 +16,7 @@ import java.io.IOException
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -102,136 +103,99 @@ class LostFilmRepositoryTest {
     }
 
     @Test
-    fun loadDetails_enrichesSeriesWithTorrentLinksFromSelectionPage() = runTest {
+    fun loadDetails_enrichesSeriesWithTorrentLinkFromRedirectPage() = runTest {
         val repository = createRepository(
             pageHandler = { fixture("new-page-1.html") },
-            detailsHandler = { requestedUrl ->
-                when {
-                    requestedUrl.contains("/series/9-1-1/season_9/episode_13/") -> fixture("series-details.html")
-                    requestedUrl == "https://www.lostfilm.today/V/?c=1103&s=1&e=1&u=999999&h=fixturehash&n=1&newbie=&br=&ts=1773683822" -> {
-                        fixture("torrent-quality-page.html")
-                    }
-                    else -> error("Unexpected details request: $requestedUrl")
-                }
-            },
+            detailsHandler = { fixture("series-details.html") },
             torrentHandler = { episodeId ->
                 assertEquals("362009013", episodeId)
                 fixture("torrent-redirect.html")
             },
+            torrentPageHandler = { throw IOException("options page unavailable") },
         )
 
         val result = repository.loadDetails("/series/9-1-1/season_9/episode_13/") as DetailsResult.Success
 
+        assertNotNull(result.details.torrentLinks.singleOrNull())
+        assertEquals("Вариант 1", result.details.torrentLinks.single().label)
         assertEquals(
-            listOf("SD", "1080", "MP4"),
-            result.details.torrentLinks.map { it.label },
-        )
-        assertEquals(
-            listOf(
-                "https://n.tracktor.site/td.php?s=fixture-sd",
-                "https://n.tracktor.site/td.php?s=fixture-1080",
-                "https://n.tracktor.site/td.php?s=fixture-mp4",
-            ),
-            result.details.torrentLinks.map { it.url },
+            "https://www.lostfilm.today/V/?c=1103&s=1&e=1&u=999999&h=fixturehash&n=1&newbie=&br=&ts=1773683822",
+            result.details.torrentLinks.single().url,
         )
     }
 
     @Test
-    fun loadDetails_returnsCachedTorrentLinksWithoutCollapsingQualityChoices() = runTest {
+    fun loadDetails_enrichesSeriesWithMultipleTorrentQualities() = runTest {
         val repository = createRepository(
             pageHandler = { fixture("new-page-1.html") },
-            detailsHandler = { requestedUrl ->
-                when {
-                    requestedUrl.contains("/series/9-1-1/season_9/episode_13/") -> fixture("series-details.html")
-                    requestedUrl == "https://www.lostfilm.today/V/?c=1103&s=1&e=1&u=999999&h=fixturehash&n=1&newbie=&br=&ts=1773683822" -> {
-                        fixture("torrent-quality-page.html")
-                    }
-                    else -> error("Unexpected details request: $requestedUrl")
-                }
-            },
+            detailsHandler = { fixture("series-details.html") },
             torrentHandler = { fixture("torrent-redirect.html") },
+            torrentPageHandler = { fixture("torrent-options-page.html") },
         )
 
-        repository.loadDetails("/series/9-1-1/season_9/episode_13/")
-        val cached = repository.loadDetails("/series/9-1-1/season_9/episode_13/") as DetailsResult.Success
+        val result = repository.loadDetails("/series/9-1-1/season_9/episode_13/") as DetailsResult.Success
 
-        assertEquals(listOf("SD", "1080", "MP4"), cached.details.torrentLinks.map { it.label })
-        assertEquals(
-            listOf(
-                "https://n.tracktor.site/td.php?s=fixture-sd",
-                "https://n.tracktor.site/td.php?s=fixture-1080",
-                "https://n.tracktor.site/td.php?s=fixture-mp4",
-            ),
-            cached.details.torrentLinks.map { it.url },
-        )
+        assertEquals(listOf("SD", "1080p", "720p"), result.details.torrentLinks.map { it.label })
+        assertEquals(3, result.details.torrentLinks.size)
     }
 
     @Test
-    fun loadDetails_refreshesFreshCachedTorrentLinksAfterLogin() = runTest {
+    fun loadDetails_refreshesFreshCachedDetailsWithTorrentLinkAfterLogin() = runTest {
         val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
-        seedDetailsWithoutTorrentLinks(detailsUrl = detailsUrl, fetchedAt = NOW - 1_000L)
+        seedDetails(detailsUrl = detailsUrl, fetchedAt = NOW - 1_000L)
         var detailsRequests = 0
         var torrentRequests = 0
         val repository = createRepository(
             pageHandler = { fixture("new-page-1.html") },
-            detailsHandler = { requestedUrl ->
+            detailsHandler = {
                 detailsRequests += 1
-                when (requestedUrl) {
-                    "https://www.lostfilm.today/V/?c=1103&s=1&e=1&u=999999&h=fixturehash&n=1&newbie=&br=&ts=1773683822" -> {
-                        fixture("torrent-quality-page.html")
-                    }
-                    else -> error("Fresh cached details should not refetch HTML: $requestedUrl")
-                }
+                error("Fresh cached details should not refetch HTML")
             },
             torrentHandler = { episodeId ->
                 torrentRequests += 1
                 assertEquals("362009013", episodeId)
                 fixture("torrent-redirect.html")
             },
+            torrentPageHandler = { fixture("torrent-options-page.html") },
             isAuthenticated = true,
         )
 
         val result = repository.loadDetails(detailsUrl) as DetailsResult.Success
 
-        assertEquals(1, detailsRequests)
+        assertEquals(0, detailsRequests)
         assertEquals(1, torrentRequests)
-        assertEquals(listOf("SD", "1080", "MP4"), result.details.torrentLinks.map { it.label })
-        assertEquals(
-            listOf(
-                "https://n.tracktor.site/td.php?s=fixture-sd",
-                "https://n.tracktor.site/td.php?s=fixture-1080",
-                "https://n.tracktor.site/td.php?s=fixture-mp4",
-            ),
-            releaseDao.getReleaseDetails(detailsUrl)?.toModel()?.torrentLinks?.map { it.url },
-        )
+        assertEquals(listOf("SD", "1080p", "720p"), result.details.torrentLinks.map { it.label })
+        assertEquals(listOf("SD", "1080p", "720p"), releaseDao.getReleaseDetails(detailsUrl)?.toModel()?.torrentLinks?.map { it.label })
     }
 
     @Test
-    fun loadDetails_fallsBackToRedirectUrlWhenQualityPageHasNoParsedLinks() = runTest {
+    fun loadDetails_refreshesGenericCachedVariantIntoMultipleQualities() = runTest {
+        val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        val parsed = LostFilmDetailsParser().parseSeries(
+            html = fixture("series-details.html"),
+            detailsUrl = detailsUrl,
+            fetchedAt = NOW - 1_000L,
+        ).copy(
+            torrentLinks = listOf(
+                com.kraat.lostfilmnewtv.data.model.TorrentLink(
+                    label = "Вариант 1",
+                    url = "https://www.lostfilm.today/V/?c=1103&s=1&e=1&u=999999&h=fixturehash&n=1&newbie=&br=&ts=1773683822",
+                ),
+            ),
+        )
+        releaseDao.upsertDetails(ReleaseDetailsEntity.fromModel(parsed))
+
         val repository = createRepository(
             pageHandler = { fixture("new-page-1.html") },
-            detailsHandler = { requestedUrl ->
-                when {
-                    requestedUrl.contains("/series/9-1-1/season_9/episode_13/") -> fixture("series-details.html")
-                    requestedUrl == "https://www.lostfilm.today/V/?c=1103&s=1&e=1&u=999999&h=fixturehash&n=1&newbie=&br=&ts=1773683822" -> {
-                        "<html><body><div class=\"empty\">no links</div></body></html>"
-                    }
-                    else -> error("Unexpected details request: $requestedUrl")
-                }
-            },
-            torrentHandler = { episodeId ->
-                assertEquals("362009013", episodeId)
-                fixture("torrent-redirect.html")
-            },
+            detailsHandler = { error("Fresh cached details should not refetch HTML") },
+            torrentHandler = { error("Existing V link should be expanded directly") },
+            torrentPageHandler = { fixture("torrent-options-page.html") },
+            isAuthenticated = false,
         )
 
-        val result = repository.loadDetails("/series/9-1-1/season_9/episode_13/") as DetailsResult.Success
+        val result = repository.loadDetails(detailsUrl) as DetailsResult.Success
 
-        assertEquals(listOf("Вариант 1"), result.details.torrentLinks.map { it.label })
-        assertEquals(
-            listOf("https://www.lostfilm.today/V/?c=1103&s=1&e=1&u=999999&h=fixturehash&n=1&newbie=&br=&ts=1773683822"),
-            result.details.torrentLinks.map { it.url },
-        )
+        assertEquals(listOf("SD", "1080p", "720p"), result.details.torrentLinks.map { it.label })
     }
 
     private suspend fun seedPage(pageNumber: Int, fetchedAt: Long) {
@@ -252,7 +216,7 @@ class LostFilmRepositoryTest {
         )
     }
 
-    private suspend fun seedDetailsWithoutTorrentLinks(detailsUrl: String, fetchedAt: Long) {
+    private suspend fun seedDetails(detailsUrl: String, fetchedAt: Long) {
         val parsed = LostFilmDetailsParser().parseSeries(
             html = fixture("series-details.html"),
             detailsUrl = detailsUrl,
@@ -266,10 +230,11 @@ class LostFilmRepositoryTest {
         pageHandler: suspend (Int) -> String,
         detailsHandler: suspend (String) -> String = { error("Unexpected details request: $it") },
         torrentHandler: suspend (String) -> String = { error("Unexpected torrent request: $it") },
+        torrentPageHandler: suspend (String) -> String = { error("Unexpected torrent page request: $it") },
         isAuthenticated: Boolean = false,
     ): LostFilmRepository {
         return LostFilmRepositoryImpl(
-            httpClient = FakeLostFilmHttpClient(pageHandler, detailsHandler, torrentHandler),
+            httpClient = FakeLostFilmHttpClient(pageHandler, detailsHandler, torrentHandler, torrentPageHandler),
             releaseDao = releaseDao,
             listParser = LostFilmListParser(),
             detailsParser = LostFilmDetailsParser(),
@@ -283,6 +248,7 @@ private class FakeLostFilmHttpClient(
     private val pageHandler: suspend (Int) -> String,
     private val detailsHandler: suspend (String) -> String,
     private val torrentHandler: suspend (String) -> String,
+    private val torrentPageHandler: suspend (String) -> String,
 ) : LostFilmHttpClient {
     override suspend fun fetchNewPage(pageNumber: Int): String = pageHandler(pageNumber)
 
@@ -291,4 +257,6 @@ private class FakeLostFilmHttpClient(
     }
 
     override suspend fun fetchTorrentRedirect(playEpisodeId: String): String = torrentHandler(playEpisodeId)
+
+    override suspend fun fetchTorrentPage(url: String): String = torrentPageHandler(url)
 }

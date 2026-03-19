@@ -23,13 +23,13 @@ import com.kraat.lostfilmnewtv.navigation.AppDestination
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeActionHandler
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeLinkBuilder
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeOpenResult
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 @Composable
 fun DetailsRoute(
@@ -58,7 +58,7 @@ fun DetailsRoute(
                 url = link.url,
                 isTorrServeSupported = linkBuilder.supportsSource(link.url),
             )
-        }
+        }.filter { it.isTorrServeSupported }
     }
 
     var torrServeMessage by remember(detailsUrl) { mutableStateOf<TorrServeMessage?>(null) }
@@ -122,6 +122,7 @@ fun DetailsRoute(
 
     DetailsScreen(
         state = state,
+        isAuthenticated = true,
         torrentRows = torrentRows,
         torrServeMessage = torrServeMessage,
         activeTorrServeRowId = activeTorrServeRowId,

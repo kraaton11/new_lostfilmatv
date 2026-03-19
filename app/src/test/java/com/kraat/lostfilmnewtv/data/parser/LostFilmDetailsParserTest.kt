@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.data.parser
 
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -54,18 +55,49 @@ class LostFilmDetailsParserTest {
     }
 
     @Test
-    fun parsesTorrentLinksFromQualitySelectionPage() {
+    fun parsesTorrentLinksWithQualityLabels() {
         val links = LostFilmDetailsParser().parseTorrentLinks(
-            fixture("torrent-quality-page.html"),
+            fixture("torrent-links.html"),
         )
 
-        assertEquals(listOf("SD", "1080", "MP4"), links.map { it.label })
         assertEquals(
             listOf(
-                "https://n.tracktor.site/td.php?s=fixture-sd",
-                "https://n.tracktor.site/td.php?s=fixture-1080",
-                "https://n.tracktor.site/td.php?s=fixture-mp4",
+                "1080p",
+                "720p",
+                "480p",
             ),
+            links.map { it.label },
+        )
+        assertEquals(3, links.size)
+        assertFalse(links.any { !it.url.startsWith("https://www.lostfilm.today/V/?") })
+    }
+
+    @Test
+    fun parsesTorrentOptionsFromVPage() {
+        val links = LostFilmDetailsParser().parseTorrentLinks(
+            fixture("torrent-options-page.html"),
+        )
+
+        assertEquals(listOf("SD", "1080p", "720p"), links.map { it.label })
+        assertEquals(
+            listOf(
+                "https://n.tracktor.site/td.php?s=sd-token",
+                "https://n.tracktor.site/td.php?s=fullhd-token",
+                "https://n.tracktor.site/td.php?s=mp4-token",
+            ),
+            links.map { it.url },
+        )
+    }
+
+    @Test
+    fun parsesRedirectPageAsGenericVariantForExpansion() {
+        val links = LostFilmDetailsParser().parseTorrentLinks(
+            fixture("torrent-redirect.html"),
+        )
+
+        assertEquals(listOf("Вариант 1"), links.map { it.label })
+        assertEquals(
+            listOf("https://www.lostfilm.today/V/?c=1103&s=1&e=1&u=999999&h=fixturehash&n=1&newbie=&br=&ts=1773683822"),
             links.map { it.url },
         )
     }
