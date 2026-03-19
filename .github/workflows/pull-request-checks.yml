@@ -26,4 +26,4 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run unit tests, lint, and debug assembly
-        run: ./gradlew testDebugUnitTest lint assembleDebug
+        run: ./gradlew testDebugUnitTest assembleDebug lintDebug --continue
