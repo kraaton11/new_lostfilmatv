@@ -1,5 +1,7 @@
 package com.kraat.lostfilmnewtv.data.model
 
+import kotlinx.serialization.Serializable
+
 data class ReleaseDetails(
     val detailsUrl: String,
     val kind: ReleaseKind,
@@ -13,6 +15,7 @@ data class ReleaseDetails(
     val torrentLinks: List<TorrentLink> = emptyList(),
 )
 
+@Serializable
 data class TorrentLink(
     val label: String,
     val url: String,

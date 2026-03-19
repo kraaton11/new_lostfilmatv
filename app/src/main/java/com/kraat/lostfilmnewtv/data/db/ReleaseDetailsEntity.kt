@@ -6,6 +6,8 @@ import androidx.room.PrimaryKey
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.TorrentLink
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 @Entity(
     tableName = "release_details",
@@ -33,7 +35,7 @@ data class ReleaseDetailsEntity(
         posterUrl = posterUrl,
         fetchedAt = fetchedAt,
         playEpisodeId = playEpisodeId,
-        torrentLinks = TorrentLinkListConverters.toTorrentLinks(torrentLinksJson),
+        torrentLinks = torrentLinksJson.decodeTorrentLinks(),
     )
 
     companion object {
@@ -47,7 +49,21 @@ data class ReleaseDetailsEntity(
             posterUrl = model.posterUrl,
             fetchedAt = model.fetchedAt,
             playEpisodeId = model.playEpisodeId,
-            torrentLinksJson = TorrentLinkListConverters.fromTorrentLinks(model.torrentLinks),
+            torrentLinksJson = model.torrentLinks.encodeTorrentLinks(),
         )
     }
+}
+
+private fun String?.decodeTorrentLinks(): List<TorrentLink> {
+    if (this.isNullOrBlank()) {
+        return emptyList()
+    }
+    return Json.decodeFromString<List<TorrentLink>>(this)
+}
+
+private fun List<TorrentLink>.encodeTorrentLinks(): String? {
+    if (isEmpty()) {
+        return null
+    }
+    return Json.encodeToString(this)
 }
