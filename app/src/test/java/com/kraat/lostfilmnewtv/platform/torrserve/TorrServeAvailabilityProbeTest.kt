@@ -5,6 +5,7 @@ import android.content.pm.ActivityInfo
 import android.content.pm.ResolveInfo
 import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.test.runTest
+import org.junit.Before
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -12,10 +13,16 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.Shadows.shadowOf
+import org.robolectric.shadows.ShadowPackageManager
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
 class TorrServeAvailabilityProbeTest {
+
+    @Before
+    fun resetPackageManagerState() {
+        ShadowPackageManager.reset()
+    }
 
     @Test
     fun available_whenTorrServeMainActivityResolves() = runTest {
