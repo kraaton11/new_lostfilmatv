@@ -21,7 +21,7 @@ data class ReleaseDetailsEntity(
     val posterUrl: String,
     val fetchedAt: Long,
     val playEpisodeId: String?,
-    val torrentUrl: String?,
+    val torrentLinksJson: String?,
 ) {
     fun toModel(): ReleaseDetails = ReleaseDetails(
         detailsUrl = detailsUrl,
@@ -33,7 +33,7 @@ data class ReleaseDetailsEntity(
         posterUrl = posterUrl,
         fetchedAt = fetchedAt,
         playEpisodeId = playEpisodeId,
-        torrentLinks = torrentUrl?.let { listOf(TorrentLink(label = "Вариант 1", url = it)) }.orEmpty(),
+        torrentLinks = TorrentLinkListConverters.toTorrentLinks(torrentLinksJson),
     )
 
     companion object {
@@ -47,7 +47,7 @@ data class ReleaseDetailsEntity(
             posterUrl = model.posterUrl,
             fetchedAt = model.fetchedAt,
             playEpisodeId = model.playEpisodeId,
-            torrentUrl = model.torrentLinks.firstOrNull()?.url,
+            torrentLinksJson = TorrentLinkListConverters.fromTorrentLinks(model.torrentLinks),
         )
     }
 }

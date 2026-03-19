@@ -23,6 +23,7 @@ robolectric = "4.14.1"
 securityCrypto = "1.1.0-alpha06"
 serialization = "1.7.3"
 zxing = "3.5.3"
+mockito = "5.11.0"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -60,6 +61,7 @@ robolectric = { module = "org.robolectric:robolectric", version.ref = "robolectr
 androidx-security-crypto = { module = "androidx.security:security-crypto", version.ref = "securityCrypto" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "serialization" }
 zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
+mockito-core = { module = "org.mockito:mockito-core", version.ref = "mockito" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
