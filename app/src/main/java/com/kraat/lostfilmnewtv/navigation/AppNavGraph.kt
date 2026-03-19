@@ -18,6 +18,7 @@ import androidx.navigation.navArgument
 import com.kraat.lostfilmnewtv.LostFilmApplication
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.ui.auth.AuthScreen
+import com.kraat.lostfilmnewtv.ui.auth.AuthUiState
 import com.kraat.lostfilmnewtv.ui.auth.AuthViewModel
 import com.kraat.lostfilmnewtv.ui.details.DetailsScreen
 import com.kraat.lostfilmnewtv.ui.details.DetailsViewModel
@@ -33,6 +34,7 @@ fun AppNavGraph() {
         factory = AuthViewModel.Factory(application.authRepository),
     )
     val authState by authViewModel.uiState.collectAsStateWithLifecycle()
+    val isAuthenticated = authState is AuthUiState.Authenticated
 
     NavHost(
         navController = navController,
@@ -61,13 +63,13 @@ fun AppNavGraph() {
                 },
                 onEndReached = homeViewModel::onEndReached,
                 onAuthClick = {
-                    if (authState.isAuthenticated) {
+                    if (isAuthenticated) {
                         authViewModel.logout()
                     } else {
                         navController.navigate(AppDestination.Auth.route)
                     }
                 },
-                isAuthenticated = authState.isAuthenticated,
+                isAuthenticated = isAuthenticated,
             )
         }
         composable(
@@ -100,7 +102,7 @@ fun AppNavGraph() {
 
             DetailsScreen(
                 state = state,
-                isAuthenticated = authState.isAuthenticated,
+                isAuthenticated = isAuthenticated,
                 onBack = { navController.popBackStack() },
                 onRetry = detailsViewModel::onRetry,
             )
