@@ -16,6 +16,8 @@ interface LostFilmHttpClient {
     suspend fun fetchDetails(detailsUrl: String): String
 
     suspend fun fetchTorrentRedirect(playEpisodeId: String): String
+
+    suspend fun fetchTorrentPage(url: String): String
 }
 
 class OkHttpLostFilmHttpClient(
@@ -40,6 +42,10 @@ class OkHttpLostFilmHttpClient(
 
     override suspend fun fetchTorrentRedirect(playEpisodeId: String): String = withContext(Dispatchers.IO) {
         execute("$BASE_URL/v_search.php?a=$playEpisodeId")
+    }
+
+    override suspend fun fetchTorrentPage(url: String): String = withContext(Dispatchers.IO) {
+        execute(url)
     }
 
     private fun execute(url: String): String {
@@ -81,6 +87,10 @@ class AuthenticatedLostFilmHttpClient(
 
     override suspend fun fetchTorrentRedirect(playEpisodeId: String): String = withContext(Dispatchers.IO) {
         execute("$BASE_URL/v_search.php?a=$playEpisodeId")
+    }
+
+    override suspend fun fetchTorrentPage(url: String): String = withContext(Dispatchers.IO) {
+        execute(url)
     }
 
     private suspend fun execute(url: String): String {

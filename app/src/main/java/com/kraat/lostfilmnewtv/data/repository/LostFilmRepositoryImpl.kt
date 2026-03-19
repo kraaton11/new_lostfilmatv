@@ -5,7 +5,6 @@ import com.kraat.lostfilmnewtv.data.db.ReleaseDao
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
-import com.kraat.lostfilmnewtv.data.model.TorrentLink
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmListParser
@@ -167,35 +166,43 @@ class LostFilmRepositoryImpl(
     }
 
     private suspend fun enrichWithTorrentLinks(details: ReleaseDetails): ReleaseDetails {
+        val cachedExpanded = expandGenericTorrentLinks(details)
+        if (cachedExpanded != null) {
+            return cachedExpanded
+        }
+
         val playEpisodeId = details.playEpisodeId ?: return details
         return try {
             val redirectHtml = httpClient.fetchTorrentRedirect(playEpisodeId)
-            val redirectUrl = detailsParser.parseTorrentRedirect(redirectHtml)
-            val selectionHtml = redirectUrl
-                ?.let { httpClient.fetchDetails(it) }
-                ?: redirectHtml
-            val torrentLinks = detailsParser.parseTorrentLinks(selectionHtml)
-            if (torrentLinks.isEmpty()) {
-                redirectUrl?.let {
-                    details.copy(
-                        torrentLinks = listOf(
-                            TorrentLink(
-                                label = "Вариант 1",
-                                url = it,
-                            ),
-                        ),
-                    )
-                } ?: details
+            val torrentLinks = detailsParser.parseTorrentLinks(redirectHtml)
+            val expandedLinks = if (torrentLinks.size == 1 && torrentLinks.first().label == "Вариант 1") {
+                val torrentPageHtml = httpClient.fetchTorrentPage(torrentLinks.first().url)
+                detailsParser.parseTorrentLinks(torrentPageHtml)
             } else {
-                details.copy(torrentLinks = torrentLinks)
+                torrentLinks
             }
+
+            if (expandedLinks.isEmpty()) {
+                return details
+            }
+            details.copy(
+                torrentLinks = expandedLinks,
+            )
         } catch (_: IOException) {
             details
         }
     }
 
     private suspend fun refreshCachedTorrentLinksIfNeeded(details: ReleaseDetails): ReleaseDetails {
-        if (details.playEpisodeId == null || details.torrentLinks.isNotEmpty() || !hasAuthenticatedSession()) {
+        if (details.playEpisodeId == null) {
+            return details
+        }
+
+        if (details.torrentLinks.isNotEmpty() && details.torrentLinks.none { it.label == "Вариант 1" }) {
+            return details
+        }
+
+        if (details.torrentLinks.isEmpty() && !hasAuthenticatedSession()) {
             return details
         }
 
@@ -221,5 +228,23 @@ class LostFilmRepositoryImpl(
             .maxOrNull()
 
         return highestPageNumber?.let { pageNumber < it } ?: true
+    }
+
+    private suspend fun expandGenericTorrentLinks(details: ReleaseDetails): ReleaseDetails? {
+        val singleGenericLink = details.torrentLinks.singleOrNull()
+            ?.takeIf { it.label == "Вариант 1" && it.url.contains("/V/?") }
+            ?: return null
+
+        return try {
+            val torrentPageHtml = httpClient.fetchTorrentPage(singleGenericLink.url)
+            val parsedLinks = detailsParser.parseTorrentLinks(torrentPageHtml)
+            if (parsedLinks.isEmpty()) {
+                details
+            } else {
+                details.copy(torrentLinks = parsedLinks)
+            }
+        } catch (_: IOException) {
+            details
+        }
     }
 }

@@ -62,15 +62,56 @@ class LostFilmDetailsParser {
 
     fun parseTorrentLinks(html: String): List<TorrentLink> {
         val document = Jsoup.parse(html, BASE_URL)
-        return document.select(".inner-box--item").mapNotNull { item ->
-            val label = item.selectFirst(".inner-box--label").textOrEmpty()
-            val url = item.selectFirst(".inner-box--link a[href]")?.absUrl("href").orEmpty()
-            if (label.isBlank() || url.isBlank()) {
-                null
-            } else {
-                TorrentLink(label = label, url = url)
+        val linksFromOptionsPage = document
+            .select(".inner-box--item")
+            .mapIndexedNotNull { index, item ->
+                val mainLink = item.selectFirst(".inner-box--link.main a")
+                val href = item.selectFirst(".inner-box--link.main a")
+                    ?.absUrl("href")
+                    .orEmpty()
+                if (href.isBlank()) {
+                    return@mapIndexedNotNull null
+                }
+
+                TorrentLink(
+                    label = item.selectFirst(".inner-box--label")
+                        ?.text()
+                        .orEmpty()
+                        .normalizeTorrentLabel(
+                            index = index,
+                            fallbackText = mainLink?.text().orEmpty(),
+                        ),
+                    url = href,
+                )
             }
-        }.distinctBy { it.url }
+            .distinctBy { it.url }
+
+        if (linksFromOptionsPage.isNotEmpty()) {
+            return linksFromOptionsPage
+        }
+
+        val linksFromAnchors = document
+            .select("a[href*=/V/?]")
+            .mapIndexedNotNull { index, element ->
+                val href = element.absUrl("href").ifBlank { resolveUrl(element.attr("href")) }
+                if (href.isBlank()) {
+                    return@mapIndexedNotNull null
+                }
+
+                TorrentLink(
+                    label = element.text().normalizeTorrentLabel(index),
+                    url = href,
+                )
+            }
+            .distinctBy { it.url }
+
+        if (linksFromAnchors.isNotEmpty()) {
+            return linksFromAnchors
+        }
+
+        return parseTorrentRedirect(html)?.let { url ->
+            listOf(TorrentLink(label = "Вариант 1", url = url))
+        }.orEmpty()
     }
 }
 
@@ -87,4 +128,26 @@ private fun Document.releaseDateRu(): String =
 private fun Document.playEpisodeId(): String? {
     val onClick = selectFirst(".external-btn[onClick]")?.attr("onClick").orEmpty()
     return playEpisodeRegex.find(onClick)?.groupValues?.getOrNull(1)
+}
+
+private fun String.normalizeTorrentLabel(index: Int, fallbackText: String = ""): String {
+    val normalized = normalizeText()
+    return when {
+        normalized.isBlank() -> "Вариант ${index + 1}"
+        normalized.equals("эту ссылку", ignoreCase = true) -> "Вариант ${index + 1}"
+        normalized.equals("this link", ignoreCase = true) -> "Вариант ${index + 1}"
+        normalized == "1080" -> "1080p"
+        normalized == "MP4" -> fallbackText.extractQualityFromTitle() ?: "720p"
+        else -> normalized
+    }
+}
+
+private fun String.extractQualityFromTitle(): String? {
+    val normalized = normalizeText()
+    return Regex("""\b(\d{3,4}p)\b""", RegexOption.IGNORE_CASE)
+        .find(normalized)
+        ?.groupValues
+        ?.getOrNull(1)
+        ?.lowercase()
+        ?.replaceFirstChar { it.uppercase() }
 }
