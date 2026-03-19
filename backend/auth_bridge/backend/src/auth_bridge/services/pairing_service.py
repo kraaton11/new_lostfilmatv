@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 from secrets import token_hex
+import logging
 import string
 from random import SystemRandom
 from threading import RLock
@@ -10,6 +11,8 @@ from auth_bridge.schemas.pairing import PairingCreateResponse, PairingStatus, Pa
 from auth_bridge.schemas.session_payload import SessionPayload
 from auth_bridge.services.lostfilm_login_client import LostFilmLoginClient, LostFilmLoginStep
 from auth_bridge.services.pairing_store import InMemoryPairingStore, PairingRecord
+
+logger = logging.getLogger(__name__)
 
 
 class PairingNotFoundError(Exception):
@@ -48,6 +51,7 @@ class PairingService:
                 phone_verifier=token_hex(16),
                 user_code=user_code,
             )
+            logger.info("Pairing created: id=%s user_code=%s", record.pairing_id, record.user_code)
             return self._build_create_response(record)
 
     def get_status(self, pairing_id: str, pairing_secret: str) -> PairingStatusResponse:
@@ -106,6 +110,7 @@ class PairingService:
                 record.retryable = True
                 record.failure_reason = None
                 self._close_login_client(record)
+            logger.warning("Login attempt failed for phone_verifier=%s", phone_verifier)
             raise
 
         with self._lock:
@@ -115,6 +120,7 @@ class PairingService:
                 record.phone_flow_status = PairingStatus.IN_PROGRESS
                 record.retryable = True
                 record.failure_reason = None
+                logger.debug("Login requires further step '%s' for phone_verifier=%s", payload.step_kind, phone_verifier)
                 return payload
             session_payload = SessionPayload.model_validate(cast(dict | SessionPayload, payload))
             record.session_payload = session_payload
@@ -122,6 +128,7 @@ class PairingService:
             record.retryable = None
             record.failure_reason = None
             self._close_login_client(record)
+            logger.info("Login succeeded for pairing_id=%s account_id=%s", record.pairing_id, session_payload.accountId)
             return session_payload
 
     def complete_phone_challenge(
@@ -185,6 +192,7 @@ class PairingService:
             if not record.lease_active:
                 record.lease_active = True
                 record.claim_lease_expires_at = datetime.now(UTC) + timedelta(seconds=self._settings.claim_lease_ttl_seconds)
+                logger.info("Claim lease opened for pairing_id=%s", pairing_id)
             return record.session_payload
 
     def finalize_claim(self, pairing_id: str, pairing_secret: str) -> None:
@@ -197,6 +205,7 @@ class PairingService:
             record.finalized = True
             record.lease_active = False
             record.claim_lease_expires_at = None
+            logger.info("Pairing finalized: id=%s", pairing_id)
 
     def release_claim(self, pairing_id: str, pairing_secret: str) -> None:
         with self._lock:
@@ -208,6 +217,7 @@ class PairingService:
             record.phone_flow_status = PairingStatus.FAILED
             record.retryable = True
             record.failure_reason = "session_invalid"
+            logger.info("Claim released (session invalid) for pairing_id=%s", pairing_id)
 
     def confirm_pairing(self, pairing_id: str, session_payload: dict | SessionPayload) -> None:
         with self._lock:
@@ -240,6 +250,7 @@ class PairingService:
             record.phone_flow_status = PairingStatus.FAILED
             record.retryable = True
             record.failure_reason = "lease_expired"
+            logger.warning("Claim lease expired for pairing_id=%s", record.pairing_id)
 
     def _build_create_response(self, record: PairingRecord) -> PairingCreateResponse:
         return PairingCreateResponse(

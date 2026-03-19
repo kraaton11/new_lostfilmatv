@@ -141,7 +141,7 @@ class LostFilmLoginClient:
         self,
         response: httpx.Response,
         login_step: LostFilmLoginStep,
-    ) -> LostFilmLoginStep | None:
+    ) -> LostFilmLoginStep | SessionPayload | None:
         text = response.text.strip()
         if not text.startswith("{"):
             return None

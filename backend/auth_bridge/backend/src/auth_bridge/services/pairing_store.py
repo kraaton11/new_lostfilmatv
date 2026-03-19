@@ -26,10 +26,14 @@ class PairingRecord:
 
     @property
     def status(self) -> PairingStatus:
+        # NOTE: lease expiry is checked explicitly via _expire_claim_lease_if_needed()
+        # before reading this property, so the lease_active branch here is a safety fallback.
         if self.is_expired():
             return PairingStatus.EXPIRED
         if self.failure_reason is not None:
             return PairingStatus.FAILED
+        if self.finalized:
+            return PairingStatus.CONFIRMED
         if self.lease_active and self.claim_lease_expires_at is not None and datetime.now(UTC) >= self.claim_lease_expires_at:
             return PairingStatus.FAILED
         if self.session_payload is not None:
