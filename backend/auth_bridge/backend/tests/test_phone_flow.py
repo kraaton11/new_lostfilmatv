@@ -90,6 +90,12 @@ class PhoneFlowTest(unittest.TestCase):
         self.assertIn(pairing["userCode"], response.text)
         self.assertIn(f"/pair/{pairing['phoneVerifier']}/login", response.text)
 
+    def test_qr_contract_no_longer_points_to_legacy_pair_path(self) -> None:
+        pairing = self.client.post("/api/pairings").json()
+
+        self.assertEqual(pairing["verificationUrl"], f"https://{pairing['phoneVerifier']}.auth.example.test/")
+        self.assertNotIn(f"/pair/{pairing['phoneVerifier']}", pairing["verificationUrl"])
+
     def test_post_login_confirms_pairing_server_side(self) -> None:
         pairing = self.client.post("/api/pairings").json()
 

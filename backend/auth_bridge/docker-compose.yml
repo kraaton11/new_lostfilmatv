@@ -1,44 +1,25 @@
 services:
   auth-backend:
-    image: ${AUTH_BACKEND_IMAGE:-ghcr.io/kraaton11/lostfilm-auth-bridge:latest}
+    image: ${AUTH_BACKEND_IMAGE:-lostfilm-auth-bridge:auth-bazuka-pp-ua-amd64}
     restart: unless-stopped
     ports:
-      - "127.0.0.1:${BACKEND_PORT:-3001}:8000"
+      - "127.0.0.1:${BACKEND_PORT:-18015}:8000"
     environment:
-      APP_ENV: production
-      APP_HOST: 0.0.0.0
-      APP_PORT: 8000
-      APP_BASE_URL: ${APP_BASE_URL}
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@auth-postgres:5432/${POSTGRES_DB}
-      PAIRING_TTL_SECONDS: ${PAIRING_TTL_SECONDS:-600}
-      TRANSFER_TOKEN_TTL_SECONDS: ${TRANSFER_TOKEN_TTL_SECONDS:-120}
-      SESSION_ENCRYPTION_KEY: ${SESSION_ENCRYPTION_KEY}
-      COOKIE_MAX_BYTES: ${COOKIE_MAX_BYTES:-16384}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-    depends_on:
-      auth-postgres:
-        condition: service_healthy
+      AUTH_BRIDGE_PUBLIC_BASE_URL: ${AUTH_BRIDGE_PUBLIC_BASE_URL}
+      AUTH_BRIDGE_PUBLIC_BASE_DOMAIN: ${AUTH_BRIDGE_PUBLIC_BASE_DOMAIN}
+      AUTH_BRIDGE_LOSTFILM_BASE_URL: ${AUTH_BRIDGE_LOSTFILM_BASE_URL:-https://www.lostfilm.today}
+      AUTH_BRIDGE_PAIRING_TTL_SECONDS: ${AUTH_BRIDGE_PAIRING_TTL_SECONDS:-600}
+      AUTH_BRIDGE_PAIRING_POLL_INTERVAL_SECONDS: ${AUTH_BRIDGE_PAIRING_POLL_INTERVAL_SECONDS:-5}
+      AUTH_BRIDGE_CLAIM_LEASE_TTL_SECONDS: ${AUTH_BRIDGE_CLAIM_LEASE_TTL_SECONDS:-60}
+      AUTH_BRIDGE_LOGIN_RATE_LIMIT_MAX_REQUESTS: ${AUTH_BRIDGE_LOGIN_RATE_LIMIT_MAX_REQUESTS:-10}
+      AUTH_BRIDGE_LOGIN_RATE_LIMIT_WINDOW_SECONDS: ${AUTH_BRIDGE_LOGIN_RATE_LIMIT_WINDOW_SECONDS:-300}
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=3)\""]
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=3)\"",
+        ]
       interval: 30s
       timeout: 5s
       retries: 5
       start_period: 20s
-
-  auth-postgres:
-    image: postgres:17
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB}
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-    volumes:
-      - auth_postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-volumes:
-  auth_postgres_data:

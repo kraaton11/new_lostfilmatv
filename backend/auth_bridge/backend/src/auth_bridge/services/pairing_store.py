@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Callable
 
 from auth_bridge.schemas.pairing import PairingStatus
 from auth_bridge.schemas.session_payload import SessionPayload
@@ -55,6 +56,10 @@ class InMemoryPairingStore:
         self._records_by_id: dict[str, PairingRecord] = {}
         self._pairing_id_by_code: dict[str, str] = {}
         self._pairing_id_by_verifier: dict[str, str] = {}
+        self._cleanup_callbacks: list[Callable[[PairingRecord], None]] = []
+
+    def register_cleanup_callback(self, callback: Callable[[PairingRecord], None]) -> None:
+        self._cleanup_callbacks.append(callback)
 
     def save(self, pairing_id: str, pairing_secret: str, phone_verifier: str, user_code: str) -> PairingRecord:
         self.prune_expired()
@@ -117,6 +122,7 @@ class InMemoryPairingStore:
         for pairing_id in expired_pairing_ids:
             record = self._records_by_id.pop(pairing_id)
             self._close_login_client(record)
+            self._run_cleanup_callbacks(record)
             if self._pairing_id_by_code.get(record.user_code) == pairing_id:
                 self._pairing_id_by_code.pop(record.user_code, None)
             if self._pairing_id_by_verifier.get(record.phone_verifier) == pairing_id:
@@ -125,6 +131,7 @@ class InMemoryPairingStore:
     def clear(self) -> None:
         for record in self._records_by_id.values():
             self._close_login_client(record)
+            self._run_cleanup_callbacks(record)
         self._records_by_id.clear()
         self._pairing_id_by_code.clear()
         self._pairing_id_by_verifier.clear()
@@ -140,3 +147,8 @@ class InMemoryPairingStore:
         record.claim_lease_expires_at = None
         record.challenge_step = None
         self._close_login_client(record)
+        self._run_cleanup_callbacks(record)
+
+    def _run_cleanup_callbacks(self, record: PairingRecord) -> None:
+        for callback in self._cleanup_callbacks:
+            callback(record)

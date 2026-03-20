@@ -56,6 +56,90 @@ class LostFilmSessionVerifierTest {
     }
 
     @Test
+    fun verify_returnsTrue_whenAuthenticatedHomeUsesUserPaneWithoutLogoutLink() = runTest {
+        val server = MockWebServer()
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(
+                    """
+                    <html>
+                      <body>
+                        <div class="user-pane">
+                          <a href="/my" title="Перейти в личный кабинет">
+                            <img src="/Static/Users/c/c/f/avatar.jpg" class="imgavatar" />
+                          </a>
+                        </div>
+                      </body>
+                    </html>
+                    """.trimIndent(),
+                ),
+        )
+        server.start()
+        try {
+            val verifier = LostFilmSessionVerifier(
+                probeUrl = server.url("/").toString(),
+                okHttpClient = OkHttpClient(),
+            )
+
+            val verified = verifier.verify(
+                LostFilmSession(
+                    cookies = listOf(
+                        LostFilmCookie("lf_session", "cookie-value", ".lostfilm.today"),
+                        LostFilmCookie("lf_udv", "device-cookie", ".lostfilm.today"),
+                    ),
+                ),
+            )
+
+            assertTrue(verified)
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun verify_returnsTrue_whenAuthenticatedHomeUsesDefaultNoAvatarMarker() = runTest {
+        val server = MockWebServer()
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(
+                    """
+                    <html>
+                      <body>
+                        <div class="user-pane">
+                          <a href="/my" title="Перейти в личный кабинет">
+                            <img src="/vision/no-avatar-50.jpg" class="avatar" />
+                          </a>
+                        </div>
+                      </body>
+                    </html>
+                    """.trimIndent(),
+                ),
+        )
+        server.start()
+        try {
+            val verifier = LostFilmSessionVerifier(
+                probeUrl = server.url("/").toString(),
+                okHttpClient = OkHttpClient(),
+            )
+
+            val verified = verifier.verify(
+                LostFilmSession(
+                    cookies = listOf(
+                        LostFilmCookie("lf_session", "cookie-value", ".lostfilm.today"),
+                        LostFilmCookie("lf_udv", "device-cookie", ".lostfilm.today"),
+                    ),
+                ),
+            )
+
+            assertTrue(verified)
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
     fun verify_returnsFalse_whenProbeStillLooksAnonymous() = runTest {
         val server = MockWebServer()
         server.enqueue(

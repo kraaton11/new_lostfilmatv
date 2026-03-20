@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 from html.parser import HTMLParser
 import json
+import logging
 import re
 from typing import cast
 from urllib.parse import quote, urlencode, urljoin
@@ -8,6 +9,21 @@ from urllib.parse import quote, urlencode, urljoin
 import httpx
 
 from auth_bridge.schemas.session_payload import LostFilmCookie, SessionPayload
+
+
+logger = logging.getLogger(__name__)
+
+_ANONYMOUS_MARKERS = (
+    'id="lf-login-form"',
+    'location.replace("/")',
+    'http-equiv="refresh" content="0; url=/"',
+    "если по какой-то причине вас не перенаправило",
+)
+_AUTHENTICATED_MARKERS = (
+    "/logout",
+    "Мой профиль",
+    "Настройки профиля",
+)
 
 
 class LostFilmLoginError(Exception):
@@ -97,7 +113,7 @@ class LostFilmLoginClient:
             login_step.form_action,
             self._build_login_fields(login_step.form_action, login_step.hidden_fields, username=username, password=password),
         )
-        payload = self._extract_session_payload()
+        payload = self._refresh_session_payload()
         if payload is not None:
             return payload
         json_retry_step = self._parse_json_login_response(response, login_step)
@@ -129,7 +145,7 @@ class LostFilmLoginClient:
             challenge_step.form_action,
             fields,
         )
-        payload = self._extract_session_payload()
+        payload = self._refresh_session_payload()
         if payload is not None:
             return payload
         json_retry_step = self._parse_json_login_response(response, challenge_step)
@@ -163,7 +179,7 @@ class LostFilmLoginClient:
             )
 
         if payload.get("success"):
-            extracted_payload = self._extract_session_payload()
+            extracted_payload = self._refresh_session_payload()
             if extracted_payload is not None:
                 return extracted_payload
             raise LostFilmLoginError("LostFilm login did not return the required session cookies.")
@@ -315,13 +331,54 @@ class LostFilmLoginClient:
                 path=cookie.path or "/",
             )
             for cookie in self._http_client.cookies.jar
-            if cookie.name in (*self._required_cookie_names, *self._optional_cookie_names)
         ]
         if not any(cookie.name in self._required_cookie_names for cookie in cookies):
             return None
 
         account_cookie = next((cookie for cookie in cookies if cookie.name == "uid"), None)
+        logger.debug(
+            "LostFilm session cookies extracted: names=%s account_id_present=%s",
+            [cookie.name for cookie in cookies],
+            account_cookie is not None,
+        )
         return SessionPayload(cookies=cookies, accountId=account_cookie.value if account_cookie else None)
+
+    def _refresh_session_payload(self) -> SessionPayload | None:
+        payload = self._extract_session_payload()
+        if payload is None:
+            return None
+
+        if payload.accountId is not None:
+            return payload
+
+        try:
+            response = self._http_client.get(f"{self._base_url}/my")
+            response.raise_for_status()
+        except httpx.HTTPError:
+            logger.debug("LostFilm session handshake via /my failed before payload handoff.", exc_info=True)
+            return payload
+
+        body = response.text
+        normalized_body = body.lower()
+        anonymous_hits = [marker for marker in _ANONYMOUS_MARKERS if marker in normalized_body]
+        authenticated_hits = [marker for marker in _AUTHENTICATED_MARKERS if marker in body]
+        logger.debug(
+            "LostFilm /my probe after login: final_url=%s anonymous_hits=%s authenticated_hits=%s",
+            response.url,
+            anonymous_hits,
+            authenticated_hits,
+        )
+
+        refreshed_payload = self._extract_session_payload()
+        if refreshed_payload is not None:
+            logger.debug(
+                "LostFilm session handshake refreshed cookies: before=%s after=%s",
+                [cookie.name for cookie in payload.cookies],
+                [cookie.name for cookie in refreshed_payload.cookies],
+            )
+            return refreshed_payload
+
+        return payload
 
     def _clear_auth_cookies(self) -> None:
         auth_cookie_names = {*self._required_cookie_names, *self._optional_cookie_names}
