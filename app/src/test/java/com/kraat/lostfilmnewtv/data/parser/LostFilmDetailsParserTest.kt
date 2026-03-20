@@ -43,6 +43,44 @@ class LostFilmDetailsParserTest {
     }
 
     @Test
+    fun parsesAjaxSessionTokenFromAuthenticatedUserData() {
+        val html = """
+            <html>
+                <body>
+                    <script type="text/javascript">
+                        let UserData = {"id":42,"session":"ajax-session-token","auto_seen":"1"};
+                    </script>
+                </body>
+            </html>
+        """.trimIndent()
+
+        val token = LostFilmDetailsParser().parseAjaxSessionToken(html)
+
+        assertEquals("ajax-session-token", token)
+    }
+
+    @Test
+    fun parsesAjaxSessionTokenFromSequentialUserDataAssignments() {
+        val html = """
+            <html>
+                <body>
+                    <script type="text/javascript">
+                        UserData = {};
+                        UserData.id = 7431747;
+                        UserData.level = 1;
+                        UserData.session = 'ajax-session-token';
+                        UserData.auto_seen = '';
+                    </script>
+                </body>
+            </html>
+        """.trimIndent()
+
+        val token = LostFilmDetailsParser().parseAjaxSessionToken(html)
+
+        assertEquals("ajax-session-token", token)
+    }
+
+    @Test
     fun parsesTorrentRedirectLink() {
         val link = LostFilmDetailsParser().parseTorrentRedirect(
             fixture("torrent-redirect.html"),

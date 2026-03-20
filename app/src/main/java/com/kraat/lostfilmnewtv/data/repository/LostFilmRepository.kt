@@ -19,4 +19,6 @@ interface LostFilmRepository {
     suspend fun loadPage(pageNumber: Int): PageState
 
     suspend fun loadDetails(detailsUrl: String): DetailsResult
+
+    suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean
 }

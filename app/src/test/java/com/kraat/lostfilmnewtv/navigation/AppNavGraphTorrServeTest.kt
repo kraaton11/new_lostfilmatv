@@ -151,6 +151,8 @@ private class FakeAppNavGraphRepository : LostFilmRepository {
             )
         }
     }
+
+    override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean = false
 }
 
 private class FakeAuthRepository(

@@ -24,6 +24,8 @@ import com.kraat.lostfilmnewtv.ui.details.DetailsRoute
 import com.kraat.lostfilmnewtv.ui.home.HomeScreen
 import com.kraat.lostfilmnewtv.ui.home.HomeViewModel
 
+private const val HOME_WATCHED_DETAILS_URL_KEY = "home.watched_details_url"
+
 @Composable
 fun AppNavGraph() {
     val navController = rememberNavController()
@@ -39,7 +41,7 @@ fun AppNavGraph() {
         navController = navController,
         startDestination = AppDestination.Home.route,
     ) {
-        composable(AppDestination.Home.route) {
+        composable(AppDestination.Home.route) { backStackEntry ->
             val homeViewModel: HomeViewModel = viewModel(
                 factory = repositoryViewModelFactory(application.repository) { repository ->
                     HomeViewModel(
@@ -49,9 +51,19 @@ fun AppNavGraph() {
                 },
             )
             val state by homeViewModel.uiState.collectAsStateWithLifecycle()
+            val watchedDetailsUrl by backStackEntry.savedStateHandle
+                .getStateFlow<String?>(HOME_WATCHED_DETAILS_URL_KEY, null)
+                .collectAsStateWithLifecycle()
 
             LaunchedEffect(Unit) {
                 homeViewModel.onStart()
+            }
+
+            LaunchedEffect(watchedDetailsUrl) {
+                watchedDetailsUrl?.let { detailsUrl ->
+                    homeViewModel.onItemWatched(detailsUrl)
+                    backStackEntry.savedStateHandle[HOME_WATCHED_DETAILS_URL_KEY] = null
+                }
             }
 
             HomeScreen(
@@ -88,6 +100,11 @@ fun AppNavGraph() {
                 isAuthenticated = isAuthenticated,
                 actionHandler = application.torrServeActionHandler,
                 linkBuilder = application.torrServeLinkBuilder,
+                onMarkedWatched = { watchedDetailsUrl ->
+                    navController.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.set(HOME_WATCHED_DETAILS_URL_KEY, watchedDetailsUrl)
+                },
                 onBack = { navController.popBackStack() },
             )
         }

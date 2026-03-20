@@ -62,6 +62,31 @@ class HomeViewModel(
         }
     }
 
+    fun onItemWatched(detailsUrl: String) {
+        _uiState.update { state ->
+            val updatedItems = state.items.map { item ->
+                if (item.detailsUrl == detailsUrl) {
+                    item.copy(isWatched = true)
+                } else {
+                    item
+                }
+            }
+            val updatedSelectedItem = updatedItems.find { it.detailsUrl == state.selectedItemKey }
+                ?: state.selectedItem?.let { selectedItem ->
+                    if (selectedItem.detailsUrl == detailsUrl) {
+                        selectedItem.copy(isWatched = true)
+                    } else {
+                        selectedItem
+                    }
+                }
+
+            state.copy(
+                items = updatedItems,
+                selectedItem = updatedSelectedItem,
+            )
+        }
+    }
+
     private fun loadPage(pageNumber: Int, isPagingRequest: Boolean) {
         _uiState.update { state ->
             state.copy(

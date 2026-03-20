@@ -119,6 +119,8 @@ private class FakeDetailsRepository(
     }
 
     override suspend fun loadDetails(detailsUrl: String): DetailsResult = detailsResult
+
+    override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean = false
 }
 
 private fun details(

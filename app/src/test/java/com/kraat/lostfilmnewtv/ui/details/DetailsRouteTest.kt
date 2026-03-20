@@ -265,6 +265,33 @@ class DetailsRouteTest {
         composeRule.waitForNodeWithText("Recovered")
         composeRule.onNodeWithText("Recovered").assertExists()
     }
+
+    @Test
+    fun route_marksEpisodeWatchedAfterSuccessfulTorrServeOpen_andNotifiesHome() {
+        val detailsUrl = "https://www.lostfilm.today/series/mark"
+        val repository = RouteFakeDetailsRepository.success(detailsUrl)
+        val watchedDetailsUrls = CopyOnWriteArrayList<String>()
+
+        composeRule.setContent {
+            DetailsRoute(
+                detailsUrl = detailsUrl,
+                repository = repository,
+                actionHandler = succeedingActionHandler(),
+                linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
+                onBack = {},
+                onMarkedWatched = { watchedDetailsUrls += it },
+                openTorrServe = { _, _ -> TorrServeOpenResult.Success },
+            )
+        }
+
+        composeRule.waitForNodeWithTag(torrServeButtonTag("$detailsUrl#0"))
+        composeRule.onNodeWithTag(torrServeButtonTag("$detailsUrl#0"))
+            .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitForIdle()
+
+        assertEquals(listOf(detailsUrl to "362009013"), repository.markedEpisodes)
+        assertEquals(listOf(detailsUrl), watchedDetailsUrls)
+    }
 }
 
 private fun ComposeContentTestRule.waitForNodeWithTag(tag: String) {
@@ -311,6 +338,7 @@ private class RouteFakeDetailsRepository(
 ) : LostFilmRepository {
     private val scriptedResults = ConcurrentHashMap(detailsResults)
     val loadedDetailsUrls = CopyOnWriteArrayList<String>()
+    val markedEpisodes = CopyOnWriteArrayList<Pair<String, String>>()
 
     override suspend fun loadPage(pageNumber: Int): PageState {
         error("Page loading is not used in details route tests")
@@ -320,6 +348,11 @@ private class RouteFakeDetailsRepository(
         loadedDetailsUrls += detailsUrl
         return scriptedResults[detailsUrl]?.removeAt(0)
             ?: error("No scripted details result for $detailsUrl")
+    }
+
+    override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean {
+        markedEpisodes += detailsUrl to playEpisodeId
+        return true
     }
 
     companion object {
@@ -348,5 +381,6 @@ private fun details(
     releaseDateRu = "14 марта 2026",
     posterUrl = "https://example.com/poster.jpg",
     fetchedAt = 0L,
+    playEpisodeId = "362009013",
     torrentLinks = torrentLinks,
 )

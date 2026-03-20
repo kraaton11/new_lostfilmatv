@@ -39,6 +39,7 @@ fun DetailsRoute(
     actionHandler: TorrServeActionHandler,
     linkBuilder: TorrServeLinkBuilder,
     onBack: () -> Unit,
+    onMarkedWatched: (String) -> Unit = {},
     openTorrServe: suspend (Context, String) -> TorrServeOpenResult = actionHandler::open,
     openExternalLink: (Context, String) -> Unit = ::openLink,
 ) {
@@ -86,6 +87,7 @@ fun DetailsRoute(
             return@handleOpenTorrServe
         }
 
+        val currentDetails = state.details
         val token = requestToken + 1
         requestToken = token
         torrServeMessage = null
@@ -95,7 +97,21 @@ fun DetailsRoute(
         inFlightJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             try {
                 val message = when (openTorrServe(context, url)) {
-                    TorrServeOpenResult.Success -> null
+                    TorrServeOpenResult.Success -> {
+                        val playEpisodeId = currentDetails?.playEpisodeId
+                        if (playEpisodeId != null) {
+                            launch {
+                                val marked = repository.markEpisodeWatched(
+                                    detailsUrl = currentDetails.detailsUrl,
+                                    playEpisodeId = playEpisodeId,
+                                )
+                                if (marked) {
+                                    onMarkedWatched(currentDetails.detailsUrl)
+                                }
+                            }
+                        }
+                        null
+                    }
                     TorrServeOpenResult.Unavailable -> TorrServeMessage(
                         rowId = rowId,
                         text = "Не удалось подключиться к TorrServe",

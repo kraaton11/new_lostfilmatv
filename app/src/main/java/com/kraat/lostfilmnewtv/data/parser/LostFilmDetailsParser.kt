@@ -9,6 +9,9 @@ import org.jsoup.nodes.Document
 private val detailsSeasonEpisodeRegex = Regex(""".*/season_(\d+)/episode_(\d+)/?""")
 private val playEpisodeRegex = Regex("""PlayEpisode\('?(\d+)'?\)""")
 private val torrentRedirectRegex = Regex("""/V/\?[^"'\s<]+""")
+private val userDataBlockRegex = Regex("""UserData\s*=\s*\{.*?\}""", setOf(RegexOption.DOT_MATCHES_ALL))
+private val userDataSessionRegex = Regex("""["']session["']\s*:\s*["']([^"']+)["']""")
+private val userDataSessionAssignmentRegex = Regex("""UserData\.session\s*=\s*["']([^"']+)["']""")
 
 class LostFilmDetailsParser {
     fun parseSeries(
@@ -112,6 +115,30 @@ class LostFilmDetailsParser {
         return parseTorrentRedirect(html)?.let { url ->
             listOf(TorrentLink(label = "Вариант 1", url = url))
         }.orEmpty()
+    }
+
+    fun parseAjaxSessionToken(html: String): String? {
+        userDataSessionAssignmentRegex.find(html)?.groupValues?.getOrNull(1)?.let { return it }
+        val userDataBlock = userDataBlockRegex.find(html)?.value ?: return null
+        return userDataSessionRegex.find(userDataBlock)?.groupValues?.getOrNull(1)
+    }
+
+    fun parseWatchedState(html: String): Boolean? {
+        val watchedElement = Jsoup.parse(html, BASE_URL)
+            .selectFirst(".isawthat-btn, .haveseen-btn")
+            ?: return null
+
+        val normalizedText = watchedElement.text().lowercase()
+        return when {
+            watchedElement.hasClass("checked") -> true
+            normalizedText.contains("не просмотрена") -> false
+            normalizedText.contains("не просмотрен") -> false
+            normalizedText.contains("not watched") -> false
+            normalizedText.contains("просмотрена") -> true
+            normalizedText.contains("просмотрен") -> true
+            normalizedText.contains("watched") -> true
+            else -> null
+        }
     }
 }
 
