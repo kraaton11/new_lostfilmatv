@@ -20,11 +20,13 @@ Important:
 
 ## Files To Upload
 
+### Option A: install from a prebuilt image tarball
+
 Copy these files to the server:
 
 - `backend/auth_bridge/docker-compose.yml`
 - `backend/auth_bridge/.env.example`
-- backend image tarball if you are deploying a prebuilt image
+- backend image tarball
 
 Suggested target directory:
 
@@ -32,6 +34,17 @@ Suggested target directory:
 mkdir -p ~/lostfilm-auth-bridge
 cd ~/lostfilm-auth-bridge
 ```
+
+### Option B: build on the server from source
+
+Do not upload only `docker-compose.yml` and `.env.example`.
+
+For this path, clone or upload the full repository so the server has:
+
+- `backend/auth_bridge/docker-compose.yml`
+- `backend/auth_bridge/.env.example`
+- `backend/auth_bridge/backend/Dockerfile`
+- `backend/auth_bridge/backend/src/...`
 
 ## Create The Runtime Env File
 
@@ -64,17 +77,26 @@ If you are installing from a prebuilt tarball:
 docker load -i lostfilm-auth-bridge-auth-bazuka-pp-ua-amd64.tar
 ```
 
-If you are building on the server instead:
+If you are building on the server from the repository root instead:
 
 ```bash
-docker build -t lostfilm-auth-bridge:auth-bazuka-pp-ua-amd64 backend
+docker build -t lostfilm-auth-bridge:auth-bazuka-pp-ua-amd64 backend/auth_bridge/backend
 ```
 
 ## Start The Backend
 
-From the directory that contains `docker-compose.yml` and `.env`:
+If you installed from a prebuilt tarball, run from the directory that contains `docker-compose.yml` and `.env`:
 
 ```bash
+docker compose up -d
+docker compose ps
+docker compose logs --tail=100 auth-backend
+```
+
+If you are working from the repository checkout, run from `backend/auth_bridge`:
+
+```bash
+cd backend/auth_bridge
 docker compose up -d
 docker compose ps
 docker compose logs --tail=100 auth-backend
