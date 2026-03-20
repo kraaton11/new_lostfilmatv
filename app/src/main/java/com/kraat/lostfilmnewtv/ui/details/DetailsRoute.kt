@@ -35,6 +35,7 @@ import kotlinx.coroutines.launch
 fun DetailsRoute(
     detailsUrl: String,
     repository: LostFilmRepository,
+    isAuthenticated: Boolean = true,
     actionHandler: TorrServeActionHandler,
     linkBuilder: TorrServeLinkBuilder,
     onBack: () -> Unit,
@@ -122,7 +123,7 @@ fun DetailsRoute(
 
     DetailsScreen(
         state = state,
-        isAuthenticated = true,
+        isAuthenticated = isAuthenticated,
         torrentRows = torrentRows,
         torrServeMessage = torrServeMessage,
         activeTorrServeRowId = activeTorrServeRowId,
