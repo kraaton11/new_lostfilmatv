@@ -20,8 +20,7 @@ import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.ui.auth.AuthScreen
 import com.kraat.lostfilmnewtv.ui.auth.AuthUiState
 import com.kraat.lostfilmnewtv.ui.auth.AuthViewModel
-import com.kraat.lostfilmnewtv.ui.details.DetailsScreen
-import com.kraat.lostfilmnewtv.ui.details.DetailsViewModel
+import com.kraat.lostfilmnewtv.ui.details.DetailsRoute
 import com.kraat.lostfilmnewtv.ui.home.HomeScreen
 import com.kraat.lostfilmnewtv.ui.home.HomeViewModel
 
@@ -83,28 +82,13 @@ fun AppNavGraph() {
             val detailsUrl = Uri.decode(
                 backStackEntry.arguments?.getString(AppDestination.Details.detailsUrlArg).orEmpty(),
             )
-            val detailsViewModel: DetailsViewModel = viewModel(
-                key = "details:$detailsUrl",
-                factory = repositoryViewModelFactory(application.repository) { repository ->
-                    DetailsViewModel(
-                        repository = repository,
-                        savedStateHandle = SavedStateHandle(
-                            mapOf(AppDestination.Details.detailsUrlArg to detailsUrl),
-                        ),
-                    )
-                },
-            )
-            val state by detailsViewModel.uiState.collectAsStateWithLifecycle()
-
-            LaunchedEffect(detailsUrl) {
-                detailsViewModel.onStart()
-            }
-
-            DetailsScreen(
-                state = state,
+            DetailsRoute(
+                detailsUrl = detailsUrl,
+                repository = application.repository,
                 isAuthenticated = isAuthenticated,
+                actionHandler = application.torrServeActionHandler,
+                linkBuilder = application.torrServeLinkBuilder,
                 onBack = { navController.popBackStack() },
-                onRetry = detailsViewModel::onRetry,
             )
         }
         composable(AppDestination.Auth.route) {

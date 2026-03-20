@@ -2,6 +2,7 @@ package com.kraat.lostfilmnewtv
 
 import android.app.Application
 import androidx.room.Room
+import com.kraat.lostfilmnewtv.data.auth.AuthRepositoryContract
 import com.kraat.lostfilmnewtv.data.auth.AuthRepository
 import com.kraat.lostfilmnewtv.data.auth.EncryptedSessionStore
 import com.kraat.lostfilmnewtv.data.db.LostFilmDatabase
@@ -53,7 +54,7 @@ open class LostFilmApplication : Application() {
         AuthenticatedLostFilmHttpClient(sessionStore = sessionStore)
     }
 
-    val authRepository: AuthRepository by lazy {
+    open val authRepository: AuthRepositoryContract by lazy {
         AuthRepository(authBridgeClient, sessionStore)
     }
 
@@ -74,7 +75,7 @@ open class LostFilmApplication : Application() {
     val torrServeLinkBuilder: TorrServeLinkBuilder by lazy { TorrServeLinkBuilder(torrServeConfig) }
     val torrServeAvailabilityProbe: TorrServeAvailabilityProbe by lazy { TorrServeAvailabilityProbe(applicationContext) }
     val torrServeLauncher: TorrServeLauncher by lazy { TorrServeLauncher() }
-    val torrServeActionHandler: TorrServeActionHandler by lazy { 
+    open val torrServeActionHandler: TorrServeActionHandler by lazy {
         TorrServeActionHandler(torrServeLinkBuilder, torrServeAvailabilityProbe, torrServeLauncher) 
     }
 }
