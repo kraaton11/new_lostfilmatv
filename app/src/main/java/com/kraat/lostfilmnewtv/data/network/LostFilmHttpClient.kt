@@ -7,6 +7,7 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.FormBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
@@ -18,6 +19,8 @@ interface LostFilmHttpClient {
     suspend fun fetchTorrentRedirect(playEpisodeId: String): String
 
     suspend fun fetchTorrentPage(url: String): String
+
+    suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String, ajaxSessionToken: String): Boolean
 }
 
 class OkHttpLostFilmHttpClient(
@@ -46,6 +49,20 @@ class OkHttpLostFilmHttpClient(
 
     override suspend fun fetchTorrentPage(url: String): String = withContext(Dispatchers.IO) {
         execute(url)
+    }
+
+    override suspend fun markEpisodeWatched(
+        detailsUrl: String,
+        playEpisodeId: String,
+        ajaxSessionToken: String,
+    ): Boolean = withContext(Dispatchers.IO) {
+        executeMarkEpisodeWatched(
+            okHttpClient = okHttpClient,
+            refererUrl = resolveUrl(detailsUrl),
+            playEpisodeId = playEpisodeId,
+            ajaxSessionToken = ajaxSessionToken,
+            cookieHeader = null,
+        )
     }
 
     private fun execute(url: String): String {
@@ -93,6 +110,20 @@ class AuthenticatedLostFilmHttpClient(
         execute(url)
     }
 
+    override suspend fun markEpisodeWatched(
+        detailsUrl: String,
+        playEpisodeId: String,
+        ajaxSessionToken: String,
+    ): Boolean = withContext(Dispatchers.IO) {
+        executeMarkEpisodeWatched(
+            okHttpClient = okHttpClient,
+            refererUrl = resolveUrl(detailsUrl),
+            playEpisodeId = playEpisodeId,
+            ajaxSessionToken = ajaxSessionToken,
+            cookieHeader = sessionStore.read()?.toCookieString(),
+        )
+    }
+
     private suspend fun execute(url: String): String {
         val requestBuilder = Request.Builder()
             .url(url)
@@ -114,5 +145,46 @@ class AuthenticatedLostFilmHttpClient(
 
     private companion object {
         const val USER_AGENT = "Mozilla/5.0 (Android TV; LostFilmNewTV) AppleWebKit/537.36 Chrome/132.0.0.0 Safari/537.36"
+    }
+}
+
+private val markEpisodeSuccessRegex = Regex(""""result"\s*:\s*"on"""")
+
+private fun executeMarkEpisodeWatched(
+    okHttpClient: OkHttpClient,
+    refererUrl: String,
+    playEpisodeId: String,
+    ajaxSessionToken: String,
+    cookieHeader: String?,
+): Boolean {
+    val requestBuilder = Request.Builder()
+        .url("$BASE_URL/ajaxik.php")
+        .header("User-Agent", "Mozilla/5.0 (Android TV; LostFilmNewTV) AppleWebKit/537.36 Chrome/132.0.0.0 Safari/537.36")
+        .header("Accept", "application/json, text/javascript, */*; q=0.01")
+        .header("Origin", BASE_URL)
+        .header("Referer", refererUrl)
+        .header("X-Requested-With", "XMLHttpRequest")
+        .post(
+            FormBody.Builder()
+                .add("act", "serial")
+                .add("type", "markepisode")
+                .add("val", playEpisodeId)
+                .add("auto", "0")
+                .add("mode", "on")
+                .add("session", ajaxSessionToken)
+                .build(),
+        )
+
+    cookieHeader?.takeIf { it.isNotBlank() }?.let { requestBuilder.header("Cookie", it) }
+
+    okHttpClient.newCall(requestBuilder.build()).execute().use { response ->
+        if (!response.isSuccessful) {
+            val errorBody = response.body?.string().orEmpty()
+            throw IOException("HTTP ${response.code} for $BASE_URL/ajaxik.php body=$errorBody")
+        }
+
+        val body = response.body?.string()
+            ?: throw IOException("Empty response body for $BASE_URL/ajaxik.php")
+        return markEpisodeSuccessRegex.containsMatchIn(body)
     }
 }

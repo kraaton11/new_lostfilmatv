@@ -38,25 +38,31 @@ class EncryptedSessionStore(context: Context) : SessionStore {
         }
     }
 
-    override suspend fun save(session: LostFilmSession) = withContext(Dispatchers.IO) {
+    override suspend fun save(session: LostFilmSession) {
+        withContext(Dispatchers.IO) {
         val sessionJson = json.encodeToString(session)
         prefs.edit()
             .putString(KEY_SESSION, sessionJson)
             .remove(KEY_EXPIRED)
             .apply()
+        }
     }
 
-    override suspend fun markExpired() = withContext(Dispatchers.IO) {
-        prefs.edit()
-            .putBoolean(KEY_EXPIRED, true)
-            .apply()
+    override suspend fun markExpired() {
+        withContext(Dispatchers.IO) {
+            prefs.edit()
+                .putBoolean(KEY_EXPIRED, true)
+                .apply()
+        }
     }
 
-    override suspend fun clear() = withContext(Dispatchers.IO) {
-        prefs.edit()
-            .remove(KEY_SESSION)
-            .remove(KEY_EXPIRED)
-            .apply()
+    override suspend fun clear() {
+        withContext(Dispatchers.IO) {
+            prefs.edit()
+                .remove(KEY_SESSION)
+                .remove(KEY_EXPIRED)
+                .apply()
+        }
     }
 
     override suspend fun isExpired(): Boolean = withContext(Dispatchers.IO) {

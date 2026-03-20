@@ -106,6 +106,41 @@ class LostFilmRepositoryImpl(
         }
     }
 
+    override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean {
+        if (!hasAuthenticatedSession()) {
+            return false
+        }
+
+        val normalizedDetailsUrl = resolveUrl(detailsUrl)
+        return try {
+            val detailsHtml = httpClient.fetchDetails(normalizedDetailsUrl)
+            val ajaxSessionToken = detailsParser.parseAjaxSessionToken(detailsHtml)
+            if (ajaxSessionToken == null) {
+                return false
+            }
+            val marked = httpClient.markEpisodeWatched(
+                detailsUrl = normalizedDetailsUrl,
+                playEpisodeId = playEpisodeId,
+                ajaxSessionToken = ajaxSessionToken,
+            )
+            val effectiveMarked = if (marked) {
+                true
+            } else {
+                val refreshedDetailsHtml = httpClient.fetchDetails(normalizedDetailsUrl)
+                detailsParser.parseWatchedState(refreshedDetailsHtml) == true
+            }
+            if (effectiveMarked) {
+                releaseDao.updateSummaryWatched(
+                    detailsUrl = normalizedDetailsUrl,
+                    isWatched = true,
+                )
+            }
+            effectiveMarked
+        } catch (_: IOException) {
+            false
+        }
+    }
+
     private suspend fun fallbackPageState(pageNumber: Int, exception: Exception): PageState {
         val now = clock()
         val cachedMetadata = releaseDao.getPageMetadata(pageNumber)

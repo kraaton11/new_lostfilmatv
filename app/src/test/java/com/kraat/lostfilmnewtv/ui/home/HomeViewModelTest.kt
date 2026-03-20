@@ -109,6 +109,35 @@ class HomeViewModelTest {
 
         assertTrue(viewModel.uiState.value.showStaleBanner)
     }
+
+    @Test
+    fun onItemWatched_marksExistingItemAndSelectedCardImmediately() = runTest(dispatcher) {
+        val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(
+                    pageNumber = 1,
+                    items = listOf(summary(detailsUrl = detailsUrl)),
+                    hasNextPage = true,
+                    isStale = false,
+                ),
+            ),
+        )
+        val viewModel = HomeViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+        viewModel.onItemFocused(detailsUrl)
+
+        viewModel.onItemWatched(detailsUrl)
+
+        assertTrue(viewModel.uiState.value.items.single().isWatched)
+        assertTrue(viewModel.uiState.value.selectedItem?.isWatched == true)
+    }
 }
 
 private class FakeLostFilmRepository(
@@ -138,6 +167,8 @@ private class FakeLostFilmRepository(
             isStale = false,
         )
     }
+
+    override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean = false
 }
 
 private fun summary(
