@@ -38,7 +38,7 @@ open class LostFilmApplication : Application() {
     }
 
     val authBridgeBaseUrl: String by lazy {
-        "http://192.168.2.168:18015"
+        "https://auth.bazuka.pp.ua"
     }
 
     val authBridgeClient: AuthBridgeClient by lazy {

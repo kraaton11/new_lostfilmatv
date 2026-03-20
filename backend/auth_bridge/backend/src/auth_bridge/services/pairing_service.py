@@ -1,5 +1,6 @@
 from datetime import UTC, datetime, timedelta
 from secrets import token_hex
+import httpx
 import logging
 import string
 from random import SystemRandom
@@ -82,6 +83,19 @@ class PairingService:
             if record.session_payload is None and record.failure_reason is None:
                 record.phone_flow_status = PairingStatus.IN_PROGRESS
             return record
+
+    def open_phone_flow_for_host(self, host: str) -> PairingRecord:
+        return self.open_phone_flow(self.resolve_phone_verifier_from_host(host))
+
+    def resolve_phone_verifier_from_host(self, host: str) -> str:
+        normalized_host = host.split(":", 1)[0].strip().lower()
+        expected_suffix = f".{self._settings.wildcard_base_domain}".lower()
+        if not normalized_host.endswith(expected_suffix):
+            raise PairingNotFoundError
+        phone_verifier = normalized_host[: -len(expected_suffix)]
+        if not phone_verifier or "." in phone_verifier:
+            raise PairingNotFoundError
+        return phone_verifier
 
     def submit_phone_login(
         self,
@@ -232,6 +246,20 @@ class PairingService:
             record.retryable = None
             record.failure_reason = None
 
+    def confirm_pairing_from_proxy_session(self, pairing_id: str, cookie_jar: httpx.Cookies) -> SessionPayload:
+        with self._lock:
+            record = self._require_record(pairing_id)
+            if record.is_expired():
+                raise PairingExpiredError
+            session_payload = self._build_session_payload_from_cookie_jar(cookie_jar)
+            record.session_payload = session_payload
+            record.challenge_step = None
+            record.retryable = None
+            record.failure_reason = None
+            self._close_login_client(record)
+            logger.info("Pairing confirmed from proxied browser session: id=%s account_id=%s", pairing_id, session_payload.accountId)
+            return session_payload
+
     def reset(self) -> None:
         with self._lock:
             self._store.clear()
@@ -262,7 +290,7 @@ class PairingService:
             pairingSecret=record.pairing_secret,
             phoneVerifier=record.phone_verifier,
             userCode=record.user_code,
-            verificationUrl=f"{self._settings.public_base_url}/pair/{record.phone_verifier}",
+            verificationUrl=f"https://{record.phone_verifier}.{self._settings.wildcard_base_domain}/",
             expiresIn=record.expires_in(now=record.created_at),
             pollInterval=self._settings.pairing_poll_interval_seconds,
             status=record.status,
@@ -282,3 +310,16 @@ class PairingService:
         if record.login_client is not None:
             record.login_client.close()
             record.login_client = None
+
+    def _build_session_payload_from_cookie_jar(self, cookie_jar: httpx.Cookies) -> SessionPayload:
+        cookies = [
+            {
+                "name": cookie.name,
+                "value": cookie.value,
+                "domain": cookie.domain,
+                "path": cookie.path or "/",
+            }
+            for cookie in cookie_jar.jar
+        ]
+        account_cookie = next((cookie for cookie in cookie_jar.jar if cookie.name == "uid"), None)
+        return SessionPayload(cookies=cookies, accountId=account_cookie.value if account_cookie is not None else None)

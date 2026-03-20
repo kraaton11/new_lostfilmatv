@@ -28,7 +28,15 @@ class LostFilmSessionVerifier(
             }
 
             val body = response.body?.string() ?: throw IOException("Empty response body for $probeUrl")
-            return@withContext body.contains(AUTHENTICATED_MARKER) && !body.contains(ANONYMOUS_LOGIN_MARKER)
+            val normalizedBody = body.lowercase()
+            val looksAnonymous = normalizedBody.contains(ANONYMOUS_LOGIN_MARKER)
+            val hasProfileLink = normalizedBody.contains(PROFILE_LINK_MARKER)
+            val hasUserPane = normalizedBody.contains(USER_PANE_MARKER)
+            val hasAvatarMarker =
+                normalizedBody.contains(AVATAR_MARKER) || normalizedBody.contains(DEFAULT_AVATAR_MARKER)
+            val hasLogoutLink = normalizedBody.contains(LOGOUT_MARKER)
+
+            return@withContext !looksAnonymous && (hasLogoutLink || (hasProfileLink && hasUserPane && hasAvatarMarker))
         }
     }
 
@@ -36,6 +44,10 @@ class LostFilmSessionVerifier(
         const val DEFAULT_PROBE_URL = "https://www.lostfilm.today/"
         const val USER_AGENT = "Mozilla/5.0 (Android TV; LostFilmNewTV) AppleWebKit/537.36 Chrome/132.0.0.0 Safari/537.36"
         const val ANONYMOUS_LOGIN_MARKER = "id=\"lf-login-form\""
-        const val AUTHENTICATED_MARKER = "/logout"
+        const val LOGOUT_MARKER = "href=\"/logout\""
+        const val PROFILE_LINK_MARKER = "href=\"/my\""
+        const val USER_PANE_MARKER = "class=\"user-pane\""
+        const val AVATAR_MARKER = "/static/users/"
+        const val DEFAULT_AVATAR_MARKER = "/vision/no-avatar-50.jpg"
     }
 }

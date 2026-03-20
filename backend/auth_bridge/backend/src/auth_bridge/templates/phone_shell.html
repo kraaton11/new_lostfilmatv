@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html lang="en">
+  <body>
+    {% if confirmed %}
+    <h1>Device connected. Return to your TV.</h1>
+    <p>Your LostFilm session is ready on the paired device.</p>
+    {% else %}
+    <h1>Connect your TV</h1>
+    <p>Use this phone to complete the LostFilm sign-in for code {{ user_code }}.</p>
+    <p><a href="/login">Continue in LostFilm</a></p>
+    {% endif %}
+  </body>
+</html>

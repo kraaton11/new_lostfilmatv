@@ -80,7 +80,7 @@ class LostFilmLoginClientTest(unittest.TestCase):
             },
         )
 
-    def test_complete_challenge_extracts_required_session_cookies(self) -> None:
+    def test_complete_challenge_preserves_all_session_cookies(self) -> None:
         login_page = (FIXTURES_DIR / "lostfilm-login-page.html").read_text(encoding="utf-8")
         challenge_page = (FIXTURES_DIR / "lostfilm-challenge-page.html").read_text(encoding="utf-8")
 
@@ -115,6 +115,12 @@ class LostFilmLoginClientTest(unittest.TestCase):
             payload.model_dump(),
             {
                 "cookies": [
+                    {
+                        "name": "PHPSESSID",
+                        "value": "temporary",
+                        "domain": ".lostfilm.today",
+                        "path": "/",
+                    },
                     {
                         "name": "lf_session",
                         "value": "session-cookie",
@@ -355,6 +361,74 @@ class LostFilmLoginClientTest(unittest.TestCase):
         payload = client.submit_credentials(login_step, username="demo", password="secret")
 
         self.assertEqual(payload.cookies[0].name, "lf_session")
+
+    def test_submit_credentials_completes_session_handshake_via_my_page(self) -> None:
+        html = """
+        <html><body><script>
+        function login() {
+          $.ajax({type:"POST", url:"/ajaxik.users.php", data:{act:'users', type:'login'}});
+        }
+        </script></body></html>
+        """
+
+        requests: list[tuple[str, str]] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            requests.append((request.method, str(request.url)))
+            if request.method == "GET" and str(request.url) == "https://www.lostfilm.today/login":
+                return httpx.Response(200, text=html)
+            if request.method == "POST" and str(request.url) == "https://www.lostfilm.today/ajaxik.users.php":
+                return httpx.Response(
+                    200,
+                    text='{"result":"ok","success":true,"name":"Demo"}',
+                    headers=[("set-cookie", "lf_session=session-cookie; Domain=.lostfilm.today; Path=/; HttpOnly")],
+                )
+            if request.method == "GET" and str(request.url) == "https://www.lostfilm.today/my":
+                cookie_header = request.headers.get("cookie", "")
+                self.assertIn("lf_session=session-cookie", cookie_header)
+                return httpx.Response(
+                    200,
+                    text="<html><body>Мой профиль</body></html>",
+                    headers=[("set-cookie", "uid=42; Domain=.lostfilm.today; Path=/")],
+                )
+            raise AssertionError(f"Unexpected request: {request.method} {request.url}")
+
+        client = LostFilmLoginClient(
+            base_url="https://www.lostfilm.today",
+            http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        )
+
+        login_step = client.fetch_login_step()
+        payload = client.submit_credentials(login_step, username="demo", password="secret")
+
+        self.assertEqual(
+            payload.model_dump(),
+            {
+                "cookies": [
+                    {
+                        "name": "lf_session",
+                        "value": "session-cookie",
+                        "domain": ".lostfilm.today",
+                        "path": "/",
+                    },
+                    {
+                        "name": "uid",
+                        "value": "42",
+                        "domain": ".lostfilm.today",
+                        "path": "/",
+                    },
+                ],
+                "accountId": "42",
+            },
+        )
+        self.assertEqual(
+            requests,
+            [
+                ("GET", "https://www.lostfilm.today/login"),
+                ("POST", "https://www.lostfilm.today/ajaxik.users.php"),
+                ("GET", "https://www.lostfilm.today/my"),
+            ],
+        )
 
     def test_submit_credentials_encodes_values_for_javascript_login(self) -> None:
         html = """
