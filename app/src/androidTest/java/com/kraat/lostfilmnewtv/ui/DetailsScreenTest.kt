@@ -52,6 +52,7 @@ class DetailsScreenTest {
 
         assertTrue(composeRule.onAllNodesWithText("9-1-1").fetchSemanticsNodes().isNotEmpty())
         assertTrue(composeRule.onAllNodesWithText("Сезон 9, серия 13").fetchSemanticsNodes().isNotEmpty())
+        assertTrue(composeRule.onAllNodesWithText("Маменькин сынок").fetchSemanticsNodes().isNotEmpty())
         assertTrue(composeRule.onAllNodesWithText("14 марта 2026").fetchSemanticsNodes().isEmpty())
     }
 
@@ -96,6 +97,7 @@ class DetailsScreenTest {
 
         assertTrue(composeRule.onAllNodesWithText("Необратимость").fetchSemanticsNodes().isNotEmpty())
         assertTrue(composeRule.onAllNodesWithText("Сезон 9, серия 13").fetchSemanticsNodes().isEmpty())
+        assertTrue(composeRule.onAllNodesWithText("Маменькин сынок").fetchSemanticsNodes().isEmpty())
     }
 
     @Test
@@ -131,6 +133,7 @@ class DetailsScreenTest {
 
         composeRule.onNodeWithTag(torrServeTag("first")).assertIsDisplayed()
         composeRule.onNodeWithText("Сезон 9, серия 13").assertExists()
+        composeRule.onNodeWithText("Маменькин сынок").assertExists()
         composeRule.onNodeWithText("1080p • TorrServe • свежие данные").assertExists()
         assertTrue(composeRule.onAllNodesWithTag("details-open-link").fetchSemanticsNodes().isEmpty())
         assertTrue(composeRule.onAllNodesWithTag("details-back").fetchSemanticsNodes().isEmpty())
@@ -447,6 +450,7 @@ private fun seriesDetails(): ReleaseDetails = ReleaseDetails(
     releaseDateRu = "14 марта 2026",
     posterUrl = "https://www.lostfilm.today/Static/Images/362/Posters/e_9_13.jpg",
     fetchedAt = 0L,
+    episodeTitleRu = "Маменькин сынок",
     torrentLinks = listOf(
         TorrentLink(
             label = "Вариант 1",

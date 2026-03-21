@@ -84,6 +84,7 @@ class DetailsStageModelsTest {
         )
 
         assertEquals("Сезон 1, серия 5", ui.heroMetaLine)
+        assertEquals("The Engineer", ui.heroEpisodeTitle)
         assertEquals("1080p • TorrServe • свежие данные", ui.heroStatusLine)
     }
 
@@ -144,6 +145,7 @@ private fun seriesDetails(): ReleaseDetails = ReleaseDetails(
     releaseDateRu = "21 марта 2026",
     posterUrl = "https://example.com/poster.jpg",
     fetchedAt = 0L,
+    episodeTitleRu = "The Engineer",
 )
 
 private fun movieDetails(): ReleaseDetails = ReleaseDetails(

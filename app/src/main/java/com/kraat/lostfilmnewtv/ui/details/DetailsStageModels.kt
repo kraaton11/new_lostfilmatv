@@ -7,6 +7,7 @@ data class DetailsStageUiModel(
     val activeRowId: String?,
     val title: String,
     val heroMetaLine: String,
+    val heroEpisodeTitle: String,
     val heroStatusLine: String,
     val primaryAction: DetailsStageActionUiModel,
     val qualityActions: List<DetailsStageActionUiModel>,
@@ -61,6 +62,7 @@ fun buildDetailsStageUi(
         activeRowId = resolvedActiveRow?.rowId,
         title = details?.titleRu ?: "",
         heroMetaLine = buildHeroMetaLine(details = details),
+        heroEpisodeTitle = buildHeroEpisodeTitle(details = details),
         heroStatusLine = buildHeroStatusLine(
             activeRow = resolvedActiveRow,
             showStaleBanner = state.showStaleBanner,
@@ -86,6 +88,11 @@ private fun buildHeroMetaLine(details: ReleaseDetails?): String {
         }
         ReleaseKind.MOVIE -> details.releaseDateRu
     }
+}
+
+private fun buildHeroEpisodeTitle(details: ReleaseDetails?): String {
+    if (details?.kind != ReleaseKind.SERIES) return ""
+    return details.episodeTitleRu?.trim().orEmpty()
 }
 
 private fun buildHeroStatusLine(

@@ -71,7 +71,9 @@ class LostFilmRepositoryImpl(
         val now = clock()
 
         if (cachedDetails != null && now - cachedDetails.fetchedAt <= FRESH_WINDOW_MS) {
-            val cachedModel = refreshCachedTorrentLinksIfNeeded(cachedDetails.toModel())
+            val cachedModel = enrichWithSummaryEpisodeTitle(
+                refreshCachedTorrentLinksIfNeeded(cachedDetails.toModel()),
+            )
             return DetailsResult.Success(
                 details = cachedModel,
                 isStale = false,
@@ -80,7 +82,9 @@ class LostFilmRepositoryImpl(
 
         return try {
             val html = httpClient.fetchDetails(normalizedDetailsUrl)
-            val parsed = enrichWithTorrentLinks(parseDetails(html, normalizedDetailsUrl, now))
+            val parsed = enrichWithSummaryEpisodeTitle(
+                enrichWithTorrentLinks(parseDetails(html, normalizedDetailsUrl, now)),
+            )
             releaseDao.upsertDetails(parsed.toEntity())
 
             DetailsResult.Success(
@@ -91,7 +95,7 @@ class LostFilmRepositoryImpl(
             if (exception is IOException || exception is IllegalStateException) {
                 if (cachedDetails != null && now - cachedDetails.fetchedAt < RETENTION_WINDOW_MS) {
                     DetailsResult.Success(
-                        details = cachedDetails.toModel(),
+                        details = enrichWithSummaryEpisodeTitle(cachedDetails.toModel()),
                         isStale = true,
                     )
                 } else {
@@ -250,6 +254,19 @@ class LostFilmRepositoryImpl(
             releaseDao.upsertDetails(enriched.toEntity())
         }
         return enriched
+    }
+
+    private suspend fun enrichWithSummaryEpisodeTitle(details: ReleaseDetails): ReleaseDetails {
+        if (details.kind != ReleaseKind.SERIES || !details.episodeTitleRu.isNullOrBlank()) {
+            return details
+        }
+
+        val episodeTitleRu = releaseDao.getSummary(details.detailsUrl)
+            ?.episodeTitleRu
+            ?.takeIf { it.isNotBlank() }
+            ?: return details
+
+        return details.copy(episodeTitleRu = episodeTitleRu)
     }
 
     private fun hasNextPage(

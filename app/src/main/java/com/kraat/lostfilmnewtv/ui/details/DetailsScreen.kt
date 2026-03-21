@@ -350,6 +350,15 @@ private fun BoxScope.HeroStage(
                     fontWeight = FontWeight.Medium,
                 )
             }
+            if (stageUi.heroEpisodeTitle.isNotBlank()) {
+                Text(
+                    text = stageUi.heroEpisodeTitle,
+                    color = TextPrimary,
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Medium,
+                    lineHeight = 28.sp,
+                )
+            }
             if (stageUi.heroStatusLine.isNotBlank()) {
                 CompactStatusLine(
                     text = stageUi.heroStatusLine,

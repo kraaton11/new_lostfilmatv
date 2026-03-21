@@ -13,6 +13,7 @@ data class ReleaseDetails(
     val fetchedAt: Long,
     val playEpisodeId: String? = null,
     val torrentLinks: List<TorrentLink> = emptyList(),
+    val episodeTitleRu: String? = null,
 )
 
 @Serializable

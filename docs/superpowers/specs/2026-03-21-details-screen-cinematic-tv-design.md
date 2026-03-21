@@ -15,10 +15,14 @@ Included:
 - Reduced metadata density for readability
 
 Excluded:
-- Repository, parser, or network-layer changes
+- New network/API work or navigation changes
 - New navigation destinations
 - Description-first or synopsis-first layouts
 - Full technical data sheet on the first screen
+
+Addendum, 2026-03-21:
+- The simplified hero may show one extra line for series episode title when that text already exists in cached summary metadata for the same `detailsUrl`.
+- This does not change the status-line contract and does not add new first-screen actions.
 
 ## Product Intent
 
@@ -65,6 +69,7 @@ The left or center-left side holds the content identity:
 - poster
 - title
 - one short metadata line
+- optional episode-title line for series
 - one short status line
 
 The hero should not include dense chip rows or a secondary information deck.
@@ -73,6 +78,10 @@ Recommended metadata line examples:
 - `Сезон 9, серия 13`
 - `14 марта 2026`
 - `Сериал`
+
+Recommended episode-title examples:
+- `Маменькин сынок`
+- `Pilot`
 
 Recommended status line examples:
 - `1080p • TorrServe • кэш свежий`

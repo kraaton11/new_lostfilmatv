@@ -126,6 +126,7 @@ class LostFilmRepositoryTest {
 
     @Test
     fun loadDetails_enrichesSeriesWithMultipleTorrentQualities() = runTest {
+        seedPage(pageNumber = 1, fetchedAt = NOW - 1_000L)
         val repository = createRepository(
             pageHandler = { fixture("new-page-1.html") },
             detailsHandler = { fixture("series-details.html") },
@@ -135,6 +136,7 @@ class LostFilmRepositoryTest {
 
         val result = repository.loadDetails("/series/9-1-1/season_9/episode_13/") as DetailsResult.Success
 
+        assertEquals("Маменькин сынок", result.details.episodeTitleRu)
         assertEquals(listOf("SD", "1080p", "720p"), result.details.torrentLinks.map { it.label })
         assertEquals(3, result.details.torrentLinks.size)
     }
