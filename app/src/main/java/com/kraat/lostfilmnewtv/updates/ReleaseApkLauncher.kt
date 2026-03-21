@@ -1,6 +1,7 @@
 package com.kraat.lostfilmnewtv.updates
 
 import android.content.Context
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
 import kotlinx.coroutines.CoroutineDispatcher
@@ -17,13 +18,11 @@ class ReleaseApkLauncher(
         }
 
         try {
-            if (context.packageManager.queryIntentActivities(intent, 0).isNotEmpty()) {
-                context.startActivity(intent)
-                true
-            } else {
-                false
-            }
-        } catch (error: Exception) {
+            context.startActivity(intent)
+            true
+        } catch (_: ActivityNotFoundException) {
+            false
+        } catch (_: Exception) {
             false
         }
     }
