@@ -49,13 +49,17 @@ fun SettingsRoute(
         installedVersionText = state.value.installedVersionText,
         latestVersionText = state.value.latestVersionText,
         statusText = state.value.statusText,
+        isCheckingForUpdates = state.value.isCheckingForUpdates,
         installUrl = state.value.installUrl,
         onUpdateModeSelected = settingsViewModel::onUpdateModeSelected,
         onCheckForUpdatesClick = settingsViewModel::onCheckForUpdatesClick,
         onInstallUpdateClick = {
             state.value.installUrl?.let { installUrl ->
                 scope.launch {
-                    openInstallApk(context, installUrl)
+                    val opened = openInstallApk(context, installUrl)
+                    if (!opened) {
+                        settingsViewModel.onInstallUpdateFailed()
+                    }
                 }
             }
         },

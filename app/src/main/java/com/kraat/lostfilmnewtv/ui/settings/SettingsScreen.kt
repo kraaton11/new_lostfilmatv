@@ -31,6 +31,7 @@ fun SettingsScreen(
     installedVersionText: String,
     latestVersionText: String?,
     statusText: String?,
+    isCheckingForUpdates: Boolean,
     installUrl: String?,
     onUpdateModeSelected: (UpdateCheckMode) -> Unit,
     onCheckForUpdatesClick: () -> Unit,
@@ -80,10 +81,11 @@ fun SettingsScreen(
             Button(
                 onClick = onCheckForUpdatesClick,
                 modifier = Modifier.fillMaxWidth(),
+                enabled = !isCheckingForUpdates,
                 colors = secondaryButtonColors(),
             ) {
                 Text(
-                    text = "Проверить обновления",
+                    text = if (isCheckingForUpdates) "Проверяем..." else "Проверить обновления",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Medium,
                 )

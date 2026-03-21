@@ -12,7 +12,7 @@ class AppUpdateRepository(
             when {
                 latestRelease.apkUrl.isNullOrBlank() -> AppUpdateInfo.Error(
                     installedVersion = installedVersion,
-                    message = "Latest release does not contain an APK asset.",
+                    message = "Не удалось найти APK для обновления.",
                 )
 
                 latestRelease.version == installedVersion -> AppUpdateInfo.UpToDate(
@@ -30,7 +30,7 @@ class AppUpdateRepository(
         } catch (error: Exception) {
             AppUpdateInfo.Error(
                 installedVersion = installedVersion,
-                message = error.message ?: "Failed to check for app updates.",
+                message = "Не удалось проверить обновления.",
             )
         }
 }

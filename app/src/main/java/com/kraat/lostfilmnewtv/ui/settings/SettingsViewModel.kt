@@ -64,12 +64,20 @@ class SettingsViewModel(
         refreshUpdateInfo()
     }
 
+    fun onInstallUpdateFailed() {
+        _uiState.update { state ->
+            state.copy(statusText = INSTALL_UPDATE_FAILED_MESSAGE)
+        }
+    }
+
     private fun refreshUpdateInfo() {
         val requestToken = refreshRequestToken + 1
         refreshRequestToken = requestToken
         activeRefreshJob?.cancel()
         _uiState.update { state ->
             state.copy(
+                latestVersionText = null,
+                statusText = CHECKING_UPDATES_MESSAGE,
                 isCheckingForUpdates = true,
                 installUrl = null,
             )
@@ -112,3 +120,6 @@ private fun SettingsUiState.toCheckedState(updateInfo: AppUpdateInfo): SettingsU
         )
     }
 }
+
+private const val CHECKING_UPDATES_MESSAGE = "Проверяем обновления..."
+private const val INSTALL_UPDATE_FAILED_MESSAGE = "Не удалось открыть обновление."

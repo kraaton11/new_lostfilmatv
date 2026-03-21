@@ -229,6 +229,41 @@ class AppNavGraphTorrServeTest {
     }
 
     @Test
+    fun settings_install_failure_shows_user_facing_message_via_nav_graph() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsName = "app-nav-update-failure-settings"
+        context.deleteSharedPreferences(prefsName)
+        val store = PlaybackPreferencesStore(context, prefsName = prefsName)
+        TestLostFilmApplication.playbackPreferencesStoreOverride = store
+        TestLostFilmApplication.appUpdateRepositoryOverride = fakeAppUpdateRepository(
+            installedVersion = "0.1.0",
+            latestVersion = "0.2.0",
+            apkUrl = TEST_APK_URL,
+        )
+        val launcher = RecordingReleaseApkLauncher(launchResult = false)
+        TestLostFilmApplication.releaseApkLauncherOverride = launcher
+
+        composeRule.setContent {
+            LostFilmTheme {
+                AppNavGraph()
+            }
+        }
+
+        composeRule.waitForText("Новые релизы")
+        composeRule.onNodeWithText("Настройки")
+            .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitForText("Обновления")
+        composeRule.onNodeWithText("Проверить обновления")
+            .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitForText("Скачать и установить")
+        composeRule.onNodeWithText("Скачать и установить")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        composeRule.waitForText("Не удалось открыть обновление.")
+        assertEquals(listOf(TEST_APK_URL), launcher.launchedUrls)
+    }
+
+    @Test
     fun settings_update_mode_persists_to_application_store_and_restores_through_nav_graph() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val prefsName = "app-nav-playback-settings"
@@ -271,6 +306,7 @@ class AppNavGraphTorrServeTest {
             .performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitForText("Обновления")
         composeRule.onNodeWithTag("settings-update-mode-quiet").assertIsSelected()
+        composeRule.waitForText("Последняя версия: 0.2.0")
     }
 }
 
@@ -438,12 +474,14 @@ private class NoOpLauncher : TorrServeUrlLauncher {
     override suspend fun launch(context: android.content.Context, torrServeUrl: String): Boolean = false
 }
 
-private class RecordingReleaseApkLauncher : ReleaseApkLauncher() {
+private class RecordingReleaseApkLauncher(
+    private val launchResult: Boolean = true,
+) : ReleaseApkLauncher() {
     val launchedUrls = CopyOnWriteArrayList<String>()
 
     override suspend fun launch(context: Context, apkUrl: String): Boolean {
         launchedUrls += apkUrl
-        return true
+        return launchResult
     }
 }
 

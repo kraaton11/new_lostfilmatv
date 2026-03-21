@@ -66,7 +66,25 @@ class AppUpdateRepositoryTest {
 
         assertTrue(updateInfo is AppUpdateInfo.Error)
         assertEquals("1.0.0", (updateInfo as AppUpdateInfo.Error).installedVersion)
-        assertEquals("Latest release does not contain an APK asset.", updateInfo.message)
+        assertEquals("Не удалось найти APK для обновления.", updateInfo.message)
+    }
+
+    @Test
+    fun checkForUpdate_returnsUserFacingError_whenReleaseFetchFails() = runTest {
+        val repository = AppUpdateRepository(
+            installedVersion = "1.0.0",
+            releaseClient = object : GitHubReleaseClient(httpClient = okhttp3.OkHttpClient()) {
+                override suspend fun fetchLatestRelease(): GitHubRelease {
+                    throw IllegalStateException("HTTP 500 from releases API")
+                }
+            },
+        )
+
+        val updateInfo = repository.checkForUpdate()
+
+        assertTrue(updateInfo is AppUpdateInfo.Error)
+        assertEquals("1.0.0", (updateInfo as AppUpdateInfo.Error).installedVersion)
+        assertEquals("Не удалось проверить обновления.", updateInfo.message)
     }
 
     @Test
