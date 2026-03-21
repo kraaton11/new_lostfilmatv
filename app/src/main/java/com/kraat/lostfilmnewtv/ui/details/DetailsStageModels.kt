@@ -51,6 +51,7 @@ fun buildDetailsStageUi(
     val qualityActions = torrentRows.map { row ->
         row.toQualityAction(
             isBusy = isTorrServeBusy && activeTorrServeRowId == row.rowId,
+            disableForBusy = isTorrServeBusy && row.isTorrServeSupported,
         )
     }
     val primaryAction = qualityActions.firstOrNull { it.rowId == resolvedActiveRow?.rowId }
@@ -113,7 +114,10 @@ fun buildDetailsStageUi(
     )
 }
 
-private fun DetailsTorrentRowUiModel.toQualityAction(isBusy: Boolean): DetailsStageActionUiModel {
+private fun DetailsTorrentRowUiModel.toQualityAction(
+    isBusy: Boolean,
+    disableForBusy: Boolean,
+): DetailsStageActionUiModel {
     val actionType = if (isTorrServeSupported) {
         DetailsStageActionType.OPEN_TORRSERVE
     } else {
@@ -130,7 +134,7 @@ private fun DetailsTorrentRowUiModel.toQualityAction(isBusy: Boolean): DetailsSt
         },
         qualityLabel = label,
         actionType = actionType,
-        enabled = !isBusy,
+        enabled = !disableForBusy,
     )
 }
 

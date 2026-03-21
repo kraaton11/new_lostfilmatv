@@ -73,6 +73,27 @@ class DetailsStageModelsTest {
         assertEquals("Требуется вход", ui.techCards.first { it.cardId == "access" }.value)
         assertEquals("Кэш", ui.techCards.first { it.cardId == "freshness" }.label)
     }
+
+    @Test
+    fun buildStageUi_disablesAllTorrServeQualityActionsWhileBusy() {
+        val ui = buildDetailsStageUi(
+            state = DetailsUiState(details = seriesDetails()),
+            isAuthenticated = true,
+            torrentRows = listOf(
+                DetailsTorrentRowUiModel("row-0", "1080p", "https://example.com/1080", isTorrServeSupported = true),
+                DetailsTorrentRowUiModel("row-1", "720p", "https://example.com/720", isTorrServeSupported = true),
+                DetailsTorrentRowUiModel("row-2", "WEBRip", "magnet:?xt=urn:btih:test", isTorrServeSupported = false),
+            ),
+            activeRowId = "row-0",
+            activeTorrServeRowId = "row-0",
+            isTorrServeBusy = true,
+        )
+
+        assertEquals(false, ui.qualityActions.first { it.rowId == "row-0" }.enabled)
+        assertEquals(false, ui.qualityActions.first { it.rowId == "row-1" }.enabled)
+        assertEquals(true, ui.qualityActions.first { it.rowId == "row-2" }.enabled)
+        assertEquals(true, ui.secondaryActions.first().enabled)
+    }
 }
 
 private fun seriesDetails(): ReleaseDetails = ReleaseDetails(
