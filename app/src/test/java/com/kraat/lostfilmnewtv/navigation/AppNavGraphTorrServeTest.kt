@@ -40,9 +40,11 @@ import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeUrlLauncher
 import com.kraat.lostfilmnewtv.updates.AppUpdateRepository
 import com.kraat.lostfilmnewtv.updates.GitHubRelease
 import com.kraat.lostfilmnewtv.updates.GitHubReleaseClient
+import com.kraat.lostfilmnewtv.updates.ReleaseApkLauncher
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 import com.kraat.lostfilmnewtv.ui.home.posterTag
 import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
+import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 import okhttp3.OkHttpClient
 import org.junit.After
@@ -66,6 +68,7 @@ class AppNavGraphTorrServeTest {
         TestLostFilmApplication.repositoryOverride = FakeAppNavGraphRepository()
         TestLostFilmApplication.authRepositoryOverride = FakeAuthRepository()
         TestLostFilmApplication.appUpdateRepositoryOverride = null
+        TestLostFilmApplication.releaseApkLauncherOverride = null
         torrServeOpenCalls.set(0)
         TestLostFilmApplication.torrServeActionHandlerOverride = unavailableTorrServeActionHandler()
 
@@ -89,6 +92,7 @@ class AppNavGraphTorrServeTest {
         TestLostFilmApplication.torrServeActionHandlerOverride = null
         TestLostFilmApplication.playbackPreferencesStoreOverride = null
         TestLostFilmApplication.appUpdateRepositoryOverride = null
+        TestLostFilmApplication.releaseApkLauncherOverride = null
     }
 
     @Test
@@ -128,8 +132,100 @@ class AppNavGraphTorrServeTest {
 
         composeRule.waitForText("Качество по умолчанию")
         composeRule.waitForText("Обновления")
-        composeRule.onNodeWithText("Проверить обновления")
+        assertEquals(1, composeRule.onAllNodesWithText("Проверить обновления").fetchSemanticsNodes().size)
         composeRule.onNodeWithTag("settings-update-mode-manual").assertIsSelected()
+    }
+
+    @Test
+    fun settings_playback_quality_persists_and_applies_to_details_via_nav_graph() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsName = "app-nav-playback-quality-settings"
+        context.deleteSharedPreferences(prefsName)
+        val store = PlaybackPreferencesStore(context, prefsName = prefsName)
+        TestLostFilmApplication.repositoryOverride = FakeAppNavGraphRepository(
+            details = TEST_DETAILS_WITH_MULTIPLE_QUALITIES,
+        )
+        TestLostFilmApplication.playbackPreferencesStoreOverride = store
+        var graphInstance by mutableIntStateOf(0)
+
+        composeRule.setContent {
+            LostFilmTheme {
+                key(graphInstance) {
+                    AppNavGraph()
+                }
+            }
+        }
+
+        composeRule.waitForText("Новые релизы")
+        composeRule.onNodeWithText("Настройки")
+            .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitForText("Качество по умолчанию")
+        composeRule.onNodeWithTag("settings-quality-720")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            store.readDefaultQuality() == PlaybackQualityPreference.Q720
+        }
+        assertEquals(PlaybackQualityPreference.Q720, store.readDefaultQuality())
+
+        composeRule.runOnIdle {
+            graphInstance += 1
+        }
+
+        composeRule.waitForTag(posterTag(TEST_SUMMARY.detailsUrl))
+        composeRule.onNodeWithTag(posterTag(TEST_SUMMARY.detailsUrl))
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        composeRule.waitForText(TEST_DETAILS_WITH_MULTIPLE_QUALITIES.titleRu)
+        val clickedTag = composeRule.clickExistingTorrServeButton(
+            preferredTag = routeTorrServeTag(TEST_SUMMARY.detailsUrl, 1),
+            fallbackTag = legacyTorrServeTag(0),
+        )
+
+        assertEquals(routeTorrServeTag(TEST_SUMMARY.detailsUrl, 1), clickedTag)
+    }
+
+    @Test
+    fun settings_check_for_updates_shows_update_data_and_launches_install_via_nav_graph() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsName = "app-nav-update-settings"
+        context.deleteSharedPreferences(prefsName)
+        val store = PlaybackPreferencesStore(context, prefsName = prefsName)
+        TestLostFilmApplication.playbackPreferencesStoreOverride = store
+        TestLostFilmApplication.appUpdateRepositoryOverride = fakeAppUpdateRepository(
+            installedVersion = "0.1.0",
+            latestVersion = "0.2.0",
+            apkUrl = TEST_APK_URL,
+        )
+        val launcher = RecordingReleaseApkLauncher()
+        TestLostFilmApplication.releaseApkLauncherOverride = launcher
+
+        composeRule.setContent {
+            LostFilmTheme {
+                AppNavGraph()
+            }
+        }
+
+        composeRule.waitForText("Новые релизы")
+        composeRule.onNodeWithText("Настройки")
+            .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitForText("Обновления")
+        composeRule.onNodeWithText("Проверить обновления")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("Последняя версия: 0.2.0").fetchSemanticsNodes().isNotEmpty()
+        }
+        assertEquals(1, composeRule.onAllNodesWithText("Последняя версия: 0.2.0").fetchSemanticsNodes().size)
+        assertEquals(1, composeRule.onAllNodesWithText("Скачать и установить").fetchSemanticsNodes().size)
+
+        composeRule.onNodeWithText("Скачать и установить")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            launcher.launchedUrls == listOf(TEST_APK_URL)
+        }
+        assertEquals(listOf(TEST_APK_URL), launcher.launchedUrls)
     }
 
     @Test
@@ -208,7 +304,9 @@ private fun ComposeContentTestRule.clickExistingTorrServeButton(
     return tag
 }
 
-private class FakeAppNavGraphRepository : LostFilmRepository {
+private class FakeAppNavGraphRepository(
+    private val details: ReleaseDetails = TEST_DETAILS,
+) : LostFilmRepository {
     override suspend fun loadPage(pageNumber: Int): PageState {
         return PageState.Content(
             pageNumber = 1,
@@ -221,7 +319,7 @@ private class FakeAppNavGraphRepository : LostFilmRepository {
     override suspend fun loadDetails(detailsUrl: String): DetailsResult {
         return if (detailsUrl == TEST_SUMMARY.detailsUrl) {
             DetailsResult.Success(
-                details = TEST_DETAILS,
+                details = details,
                 isStale = false,
             )
         } else {
@@ -277,6 +375,9 @@ class TestLostFilmApplication : LostFilmApplication() {
     override val appUpdateRepository: AppUpdateRepository
         get() = appUpdateRepositoryOverride ?: super.appUpdateRepository
 
+    override val releaseApkLauncher: ReleaseApkLauncher
+        get() = releaseApkLauncherOverride ?: super.releaseApkLauncher
+
     companion object {
         @Volatile
         var repositoryOverride: LostFilmRepository? = null
@@ -292,6 +393,9 @@ class TestLostFilmApplication : LostFilmApplication() {
 
         @Volatile
         var appUpdateRepositoryOverride: AppUpdateRepository? = null
+
+        @Volatile
+        var releaseApkLauncherOverride: ReleaseApkLauncher? = null
     }
 }
 
@@ -334,6 +438,15 @@ private class NoOpLauncher : TorrServeUrlLauncher {
     override suspend fun launch(context: android.content.Context, torrServeUrl: String): Boolean = false
 }
 
+private class RecordingReleaseApkLauncher : ReleaseApkLauncher() {
+    val launchedUrls = CopyOnWriteArrayList<String>()
+
+    override suspend fun launch(context: Context, apkUrl: String): Boolean {
+        launchedUrls += apkUrl
+        return true
+    }
+}
+
 private fun routeTorrServeTag(detailsUrl: String, index: Int): String {
     return "torrent-torrserve-$detailsUrl#$index"
 }
@@ -344,6 +457,7 @@ private fun legacyTorrServeTag(index: Int): String {
 
 private const val TEST_TORRENT_LABEL = "1080p"
 private const val TEST_TORRENT_URL = "https://example.com/file.torrent"
+private const val TEST_APK_URL = "https://example.test/releases/lostfilm-tv.apk"
 private val torrServeOpenCalls = AtomicInteger(0)
 
 private val TEST_SUMMARY = ReleaseSummary(
@@ -374,6 +488,20 @@ private val TEST_DETAILS = ReleaseDetails(
         TorrentLink(
             label = TEST_TORRENT_LABEL,
             url = TEST_TORRENT_URL,
+        ),
+    ),
+)
+
+private val TEST_DETAILS_WITH_MULTIPLE_QUALITIES = TEST_DETAILS.copy(
+    titleRu = "Smoke Series Details Multi",
+    torrentLinks = listOf(
+        TorrentLink(
+            label = "1080p",
+            url = "https://example.com/file-1080.torrent",
+        ),
+        TorrentLink(
+            label = "720p",
+            url = "https://example.com/file-720.torrent",
         ),
     ),
 )
