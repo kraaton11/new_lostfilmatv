@@ -4,6 +4,9 @@ import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -16,6 +19,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.kraat.lostfilmnewtv.LostFilmApplication
+import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.ui.auth.AuthScreen
 import com.kraat.lostfilmnewtv.ui.auth.AuthUiState
@@ -23,6 +27,7 @@ import com.kraat.lostfilmnewtv.ui.auth.AuthViewModel
 import com.kraat.lostfilmnewtv.ui.details.DetailsRoute
 import com.kraat.lostfilmnewtv.ui.home.HomeScreen
 import com.kraat.lostfilmnewtv.ui.home.HomeViewModel
+import com.kraat.lostfilmnewtv.ui.settings.SettingsScreen
 
 private const val HOME_WATCHED_DETAILS_URL_KEY = "home.watched_details_url"
 
@@ -36,6 +41,9 @@ fun AppNavGraph() {
     )
     val authState by authViewModel.uiState.collectAsStateWithLifecycle()
     val isAuthenticated = authState is AuthUiState.Authenticated
+    var selectedPlaybackQuality by remember {
+        mutableStateOf(application.playbackPreferencesStore.readDefaultQuality())
+    }
 
     NavHost(
         navController = navController,
@@ -80,6 +88,9 @@ fun AppNavGraph() {
                         navController.navigate(AppDestination.Auth.route)
                     }
                 },
+                onSettingsClick = {
+                    navController.navigate(AppDestination.Settings.route)
+                },
                 isAuthenticated = isAuthenticated,
             )
         }
@@ -106,6 +117,15 @@ fun AppNavGraph() {
                         ?.set(HOME_WATCHED_DETAILS_URL_KEY, watchedDetailsUrl)
                 },
                 onBack = { navController.popBackStack() },
+            )
+        }
+        composable(AppDestination.Settings.route) {
+            SettingsScreen(
+                selectedQuality = selectedPlaybackQuality,
+                onQualitySelected = {
+                    application.playbackPreferencesStore.writeDefaultQuality(it)
+                    selectedPlaybackQuality = it
+                },
             )
         }
         composable(AppDestination.Auth.route) {

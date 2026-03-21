@@ -20,4 +20,8 @@ sealed interface AppDestination {
     data object Auth : AppDestination {
         override val route: String = "auth"
     }
+
+    data object Settings : AppDestination {
+        override val route: String = "settings"
+    }
 }

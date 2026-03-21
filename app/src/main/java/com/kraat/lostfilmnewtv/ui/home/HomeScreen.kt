@@ -30,6 +30,7 @@ fun HomeScreen(
     onItemFocused: (String) -> Unit = {},
     onOpenDetails: (String) -> Unit = {},
     onEndReached: () -> Unit = {},
+    onSettingsClick: () -> Unit = {},
     onAuthClick: () -> Unit = {},
     isAuthenticated: Boolean = false,
 ) {
@@ -64,8 +65,13 @@ fun HomeScreen(
                 fontSize = 30.sp,
                 fontWeight = FontWeight.SemiBold,
             )
-            Button(onClick = onAuthClick) {
-                Text(if (isAuthenticated) "Выйти" else "Войти")
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Button(onClick = onSettingsClick) {
+                    Text("Настройки")
+                }
+                Button(onClick = onAuthClick) {
+                    Text(if (isAuthenticated) "Выйти" else "Войти")
+                }
             }
         }
 
