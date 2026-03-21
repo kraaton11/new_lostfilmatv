@@ -1,6 +1,7 @@
 package com.kraat.lostfilmnewtv.ui.home
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,10 +16,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kraat.lostfilmnewtv.BuildConfig
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
@@ -33,6 +36,7 @@ fun HomeScreen(
     onSettingsClick: () -> Unit = {},
     onAuthClick: () -> Unit = {},
     isAuthenticated: Boolean = false,
+    appVersionText: String = BuildConfig.VERSION_NAME,
 ) {
     var focusedItemKey by rememberSaveable(state.items) {
         mutableStateOf(state.selectedItemKey ?: state.items.firstOrNull()?.detailsUrl)
@@ -46,64 +50,78 @@ fun HomeScreen(
 
     val focusedItem = state.items.find { it.detailsUrl == focusedItemKey } ?: state.selectedItem ?: state.items.firstOrNull()
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(BackgroundPrimary)
-            .padding(vertical = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        Row(
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 48.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
+                .fillMaxSize()
+                .padding(vertical = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            Text(
-                text = "Новые релизы",
-                color = TextPrimary,
-                fontSize = 30.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = onSettingsClick) {
-                    Text("Настройки")
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 48.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    text = "Новые релизы",
+                    color = TextPrimary,
+                    fontSize = 30.sp,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(onClick = onSettingsClick) {
+                        Text("Настройки")
+                    }
+                    Button(onClick = onAuthClick) {
+                        Text(if (isAuthenticated) "Выйти" else "Войти")
+                    }
                 }
-                Button(onClick = onAuthClick) {
-                    Text(if (isAuthenticated) "Выйти" else "Войти")
-                }
+            }
+
+            if (state.showStaleBanner) {
+                Text(
+                    text = "Данные показаны из кэша и могут быть устаревшими",
+                    color = TextPrimary.copy(alpha = 0.78f),
+                    fontSize = 16.sp,
+                    modifier = Modifier.padding(horizontal = 48.dp),
+                )
+            }
+
+            if (state.items.isEmpty() && state.fullScreenErrorMessage != null) {
+                Text(
+                    text = state.fullScreenErrorMessage,
+                    color = TextPrimary,
+                    modifier = Modifier.padding(horizontal = 48.dp),
+                )
+            } else {
+                HomeRail(
+                    items = state.items,
+                    focusedItemKey = focusedItemKey,
+                    isPaging = state.isPaging,
+                    onItemFocused = { detailsUrl ->
+                        focusedItemKey = detailsUrl
+                        onItemFocused(detailsUrl)
+                    },
+                    onOpenDetails = onOpenDetails,
+                    onEndReached = onEndReached,
+                )
+                BottomInfoPanel(item = focusedItem)
             }
         }
 
-        if (state.showStaleBanner) {
-            Text(
-                text = "Данные показаны из кэша и могут быть устаревшими",
-                color = TextPrimary.copy(alpha = 0.78f),
-                fontSize = 16.sp,
-                modifier = Modifier.padding(horizontal = 48.dp),
-            )
-        }
-
-        if (state.items.isEmpty() && state.fullScreenErrorMessage != null) {
-            Text(
-                text = state.fullScreenErrorMessage,
-                color = TextPrimary,
-                modifier = Modifier.padding(horizontal = 48.dp),
-            )
-        } else {
-            HomeRail(
-                items = state.items,
-                focusedItemKey = focusedItemKey,
-                isPaging = state.isPaging,
-                onItemFocused = { detailsUrl ->
-                    focusedItemKey = detailsUrl
-                    onItemFocused(detailsUrl)
-                },
-                onOpenDetails = onOpenDetails,
-                onEndReached = onEndReached,
-            )
-            BottomInfoPanel(item = focusedItem)
-        }
+        Text(
+            text = appVersionText,
+            color = TextPrimary.copy(alpha = 0.56f),
+            fontSize = 16.sp,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 48.dp, bottom = 24.dp),
+        )
     }
 }
 
