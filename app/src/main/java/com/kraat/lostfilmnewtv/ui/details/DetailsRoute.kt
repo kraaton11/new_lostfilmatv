@@ -1,9 +1,6 @@
 package com.kraat.lostfilmnewtv.ui.details
 
-import android.content.ActivityNotFoundException
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -20,6 +17,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.navigation.AppDestination
+import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeActionHandler
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeLinkBuilder
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeOpenResult
@@ -36,12 +34,12 @@ fun DetailsRoute(
     detailsUrl: String,
     repository: LostFilmRepository,
     isAuthenticated: Boolean = true,
+    preferredPlaybackQuality: PlaybackQualityPreference = PlaybackQualityPreference.Q1080,
     actionHandler: TorrServeActionHandler,
     linkBuilder: TorrServeLinkBuilder,
     onBack: () -> Unit,
     onMarkedWatched: (String) -> Unit = {},
     openTorrServe: suspend (Context, String) -> TorrServeOpenResult = actionHandler::open,
-    openExternalLink: (Context, String) -> Unit = ::openLink,
 ) {
     val detailsViewModel: DetailsViewModel = viewModel(
         key = "details:$detailsUrl",
@@ -52,7 +50,12 @@ fun DetailsRoute(
     val scope = remember(detailsUrl) {
         CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     }
-    val torrentRows = remember(state.details?.torrentLinks, detailsUrl, linkBuilder) {
+    val supportedTorrentRows = remember(
+        state.details?.torrentLinks,
+        detailsUrl,
+        linkBuilder,
+        preferredPlaybackQuality,
+    ) {
         state.details?.torrentLinks.orEmpty().mapIndexed { index, link ->
             DetailsTorrentRowUiModel(
                 rowId = "$detailsUrl#$index",
@@ -61,6 +64,9 @@ fun DetailsRoute(
                 isTorrServeSupported = linkBuilder.supportsSource(link.url),
             )
         }.filter { it.isTorrServeSupported }
+    }
+    val playbackRow = remember(supportedTorrentRows, preferredPlaybackQuality) {
+        resolvePreferredTorrentRow(preferredPlaybackQuality, supportedTorrentRows)
     }
 
     var torrServeMessage by remember(detailsUrl) { mutableStateOf<TorrServeMessage?>(null) }
@@ -133,21 +139,17 @@ fun DetailsRoute(
             }
         }
     }
-    val handleOpenLink: (String) -> Unit = { url ->
-        openExternalLink(context, url)
-    }
-
     DetailsScreen(
         state = state,
         isAuthenticated = isAuthenticated,
-        torrentRows = torrentRows,
+        availableTorrentRowsCount = supportedTorrentRows.size,
+        playbackRow = playbackRow,
         torrServeMessage = torrServeMessage,
         activeTorrServeRowId = activeTorrServeRowId,
         isTorrServeBusy = isTorrServeBusy,
         onBack = onBack,
         onRetry = detailsViewModel::onRetry,
         onOpenTorrServe = handleOpenTorrServe,
-        onOpenLink = handleOpenLink,
     )
 }
 
@@ -165,20 +167,5 @@ private fun detailsViewModelFactory(
                 ),
             ) as T
         }
-    }
-}
-
-private fun openLink(context: Context, rawUrl: String) {
-    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(rawUrl)).apply {
-        if (context !is android.app.Activity) {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-    }
-
-    try {
-        context.startActivity(intent)
-    } catch (_: ActivityNotFoundException) {
-    } catch (_: SecurityException) {
-    } catch (_: IllegalArgumentException) {
     }
 }

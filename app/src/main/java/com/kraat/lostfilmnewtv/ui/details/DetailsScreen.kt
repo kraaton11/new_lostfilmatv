@@ -18,8 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.relocation.BringIntoViewRequester
-import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -30,15 +28,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusProperties
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -53,7 +47,6 @@ import coil.compose.AsyncImage
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
-import kotlinx.coroutines.launch
 
 private val AccentGold = Color(0xFFF2C46E)
 private val AccentGoldFocus = Color(0xFFFFE0A8)
@@ -74,23 +67,18 @@ fun DetailsScreen(
     onRetry: () -> Unit,
 ) {
     val context = LocalContext.current
+    val torrentRows = state.details?.toTorrentRows().orEmpty()
 
     DetailsScreen(
         state = state,
         isAuthenticated = isAuthenticated,
-        torrentRows = state.details?.toTorrentRows().orEmpty(),
+        availableTorrentRowsCount = torrentRows.size,
+        playbackRow = torrentRows.firstOrNull(),
         torrServeMessage = null,
         activeTorrServeRowId = null,
         isTorrServeBusy = false,
         onBack = onBack,
         onRetry = onRetry,
-        onOpenLink = { url ->
-            context.startActivity(
-                Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                },
-            )
-        },
         onOpenTorrServe = { _, url ->
             context.startActivity(
                 Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
@@ -105,13 +93,13 @@ fun DetailsScreen(
 fun DetailsScreen(
     state: DetailsUiState,
     isAuthenticated: Boolean,
-    torrentRows: List<DetailsTorrentRowUiModel>,
+    availableTorrentRowsCount: Int,
+    playbackRow: DetailsTorrentRowUiModel?,
     torrServeMessage: TorrServeMessage?,
     activeTorrServeRowId: String?,
     isTorrServeBusy: Boolean,
     onBack: () -> Unit,
     onRetry: () -> Unit,
-    onOpenLink: (String) -> Unit,
     onOpenTorrServe: (String, String) -> Unit,
 ) {
     when {
@@ -119,12 +107,12 @@ fun DetailsScreen(
         else -> ContentState(
             state = state,
             isAuthenticated = isAuthenticated,
-            torrentRows = torrentRows,
+            availableTorrentRowsCount = availableTorrentRowsCount,
+            playbackRow = playbackRow,
             torrServeMessage = torrServeMessage,
             activeTorrServeRowId = activeTorrServeRowId,
             isTorrServeBusy = isTorrServeBusy,
             onBack = onBack,
-            onOpenLink = onOpenLink,
             onOpenTorrServe = onOpenTorrServe,
         )
     }
@@ -158,31 +146,25 @@ private fun ErrorState(message: String, onRetry: () -> Unit) {
 private fun ContentState(
     state: DetailsUiState,
     isAuthenticated: Boolean,
-    torrentRows: List<DetailsTorrentRowUiModel>,
+    availableTorrentRowsCount: Int,
+    playbackRow: DetailsTorrentRowUiModel?,
     torrServeMessage: TorrServeMessage?,
     activeTorrServeRowId: String?,
     isTorrServeBusy: Boolean,
     onBack: () -> Unit,
-    onOpenLink: (String) -> Unit,
     onOpenTorrServe: (String, String) -> Unit,
 ) {
     val details = state.details
-    var activeRowId by remember(torrentRows) { mutableStateOf(torrentRows.firstOrNull()?.rowId) }
     val stageUi = buildDetailsStageUi(
         state = state,
         isAuthenticated = isAuthenticated,
-        torrentRows = torrentRows,
-        activeRowId = activeRowId,
+        availableTorrentRowsCount = availableTorrentRowsCount,
+        playbackRow = playbackRow,
         activeTorrServeRowId = activeTorrServeRowId,
         isTorrServeBusy = isTorrServeBusy,
-        torrServeMessageText = torrServeMessage?.takeIf { it.rowId == activeRowId }?.text,
+        torrServeMessageText = torrServeMessage?.takeIf { it.rowId == playbackRow?.rowId }?.text,
     )
     val scrollState = rememberScrollState()
-    val actionScrollState = rememberScrollState()
-    val qualityRequesters = remember(stageUi.qualityActions) { stageUi.qualityActions.map { FocusRequester() } }
-    val qualityBringIntoView = remember(stageUi.qualityActions) {
-        stageUi.qualityActions.map { BringIntoViewRequester() }
-    }
 
     Column(
         modifier = Modifier
@@ -216,49 +198,18 @@ private fun ContentState(
                     .width(236.dp),
                 verticalArrangement = Arrangement.spacedBy(0.dp),
             ) {
-                Column(
+                StageButton(
+                    label = stageUi.primaryAction.label,
+                    subtitle = stageUi.primaryAction.subtitle,
+                    onClick = {
+                        val row = playbackRow ?: return@StageButton
+                        onOpenTorrServe(row.rowId, row.url)
+                    },
                     modifier = Modifier
-                        .height(560.dp)
-                        .verticalScroll(actionScrollState),
-                ) {
-                    stageUi.qualityActions.forEachIndexed { index, action ->
-                        val row = torrentRows.firstOrNull { it.rowId == action.rowId }
-                        val bringIntoViewRequester = qualityBringIntoView[index]
-                        val scope = rememberCoroutineScope()
-                        StageButton(
-                            label = action.label,
-                            subtitle = action.subtitle,
-                            onClick = {
-                                if (row == null) return@StageButton
-                                activeRowId = row.rowId
-                                if (row.isTorrServeSupported) {
-                                    onOpenTorrServe(row.rowId, row.url)
-                                } else {
-                                    onOpenLink(row.url)
-                                }
-                            },
-                            modifier = Modifier
-                                .padding(bottom = 10.dp)
-                                .testTag(primaryActionTag(action))
-                                .bringIntoViewRequester(bringIntoViewRequester)
-                                .focusRequester(qualityRequesters[index])
-                                .focusProperties {
-                                    up = qualityRequesters.getOrElse(index - 1) { qualityRequesters[index] }
-                                    down = qualityRequesters.getOrElse(index + 1) { qualityRequesters[index] }
-                                    left = qualityRequesters[index]
-                                    right = qualityRequesters[index]
-                                }
-                                .onFocusChanged { focusState ->
-                                    if (focusState.isFocused) {
-                                        activeRowId = action.rowId
-                                        scope.launch { bringIntoViewRequester.bringIntoView() }
-                                    }
-                                },
-                            isPrimary = action.rowId == stageUi.activeRowId,
-                            enabled = action.enabled,
-                        )
-                    }
-                }
+                        .testTag(primaryActionTag(stageUi.primaryAction)),
+                    isPrimary = true,
+                    enabled = stageUi.primaryAction.enabled,
+                )
             }
         }
     }
@@ -504,7 +455,6 @@ private fun primaryActionTag(action: DetailsStageActionUiModel): String {
     val rowId = action.rowId ?: return "details-primary-action"
     return when (action.actionType) {
         DetailsStageActionType.OPEN_TORRSERVE -> "torrent-torrserve-$rowId"
-        DetailsStageActionType.OPEN_LINK -> "torrent-open-$rowId"
         DetailsStageActionType.NONE -> "details-primary-action"
     }
 }
