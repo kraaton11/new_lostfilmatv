@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -190,7 +189,7 @@ private fun ContentState(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(start = 72.dp, top = 48.dp, end = 72.dp, bottom = 64.dp),
+                    .padding(start = 72.dp, top = 48.dp, end = 72.dp, bottom = 56.dp),
             ) {
                 HeroStage(
                     details = details,
@@ -199,13 +198,6 @@ private fun ContentState(
                         val row = playbackRow ?: return@HeroStage
                         onOpenTorrServe(row.rowId, row.url)
                     },
-                )
-                Spacer(modifier = Modifier.height(28.dp))
-                BottomInfoStrip(
-                    text = stageUi.bottomInfoLine,
-                    modifier = Modifier
-                        .padding(start = 304.dp)
-                        .width(520.dp),
                 )
             }
         }
@@ -316,6 +308,12 @@ private fun HeroStage(
                     .testTag(primaryActionTag(stageUi.primaryAction)),
                 isPrimary = true,
                 enabled = stageUi.primaryAction.enabled,
+            )
+            BottomInfoStrip(
+                text = stageUi.bottomInfoLine,
+                modifier = Modifier
+                    .width(368.dp)
+                    .testTag("details-bottom-info"),
             )
         }
     }
