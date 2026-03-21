@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -54,6 +55,7 @@ private val AccentBlue = Color(0xFF86C8FF)
 private val SurfaceCard = Color(0xCC08111A)
 private val SurfaceSoft = Color(0xB30B1520)
 private val SurfaceFocused = Color(0xFF16293C)
+private val SurfaceReadable = Color(0xE6142432)
 private val BorderDefault = Color(0x1FFFFFFF)
 private val TextSecondary = Color(0xFFCCDAE6)
 private val TextMuted = Color(0xFF8FA7BB)
@@ -188,8 +190,7 @@ private fun ContentState(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 72.dp, vertical = 52.dp),
-                verticalArrangement = Arrangement.SpaceBetween,
+                    .padding(start = 72.dp, top = 48.dp, end = 72.dp, bottom = 64.dp),
             ) {
                 HeroStage(
                     details = details,
@@ -199,7 +200,13 @@ private fun ContentState(
                         onOpenTorrServe(row.rowId, row.url)
                     },
                 )
-                BottomInfoStrip(text = stageUi.bottomInfoLine)
+                Spacer(modifier = Modifier.height(28.dp))
+                BottomInfoStrip(
+                    text = stageUi.bottomInfoLine,
+                    modifier = Modifier
+                        .padding(start = 304.dp)
+                        .width(520.dp),
+                )
             }
         }
     }
@@ -354,24 +361,28 @@ private fun PosterCard(details: ReleaseDetails?) {
 @Composable
 private fun BottomInfoStrip(
     text: String,
+    modifier: Modifier = Modifier,
 ) {
     if (text.isBlank()) return
 
     val isError = text.contains("Не удалось")
     Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(22.dp))
-            .background(if (isError) Color(0x332A0E10) else SurfaceSoft)
-            .border(1.dp, if (isError) StatusError else BorderDefault, RoundedCornerShape(22.dp))
-            .padding(horizontal = 18.dp, vertical = 14.dp),
+        modifier = modifier
+            .clip(RoundedCornerShape(24.dp))
+            .background(if (isError) Color(0xCC2A0E10) else SurfaceReadable)
+            .border(
+                width = 1.5.dp,
+                color = if (isError) StatusError else AccentBlue.copy(alpha = 0.42f),
+                shape = RoundedCornerShape(24.dp),
+            )
+            .padding(horizontal = 22.dp, vertical = 18.dp),
     ) {
         Text(
             text = text,
-            color = if (isError) StatusError else TextSecondary,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
-            lineHeight = 20.sp,
+            color = if (isError) Color(0xFFFFC1B8) else TextPrimary,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.SemiBold,
+            lineHeight = 24.sp,
         )
     }
 }
