@@ -45,6 +45,10 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
         mutableStateOf(application.playbackPreferencesStore.readDefaultQuality())
     }
 
+    LaunchedEffect(application) {
+        application.homeChannelSyncManager.syncNow()
+    }
+
     LaunchedEffect(initialDetailsUrl) {
         initialDetailsUrl
             ?.takeIf { it.isNotBlank() }
@@ -65,6 +69,7 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                     HomeViewModel(
                         repository = repository,
                         savedStateHandle = SavedStateHandle(),
+                        onChannelContentChanged = application.homeChannelSyncManager::syncNow,
                     )
                 },
             )
@@ -127,6 +132,7 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                         ?.savedStateHandle
                         ?.set(HOME_WATCHED_DETAILS_URL_KEY, watchedDetailsUrl)
                 },
+                onChannelContentChanged = application.homeChannelSyncManager::syncNow,
                 onBack = { navController.popBackStack() },
             )
         }
@@ -135,6 +141,7 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                 playbackPreferencesStore = application.playbackPreferencesStore,
                 appUpdateRepository = application.appUpdateRepository,
                 onPlaybackQualityChanged = { selectedPlaybackQuality = it },
+                syncAndroidTvChannel = application.homeChannelSyncManager::syncNow,
                 openInstallApk = application.releaseApkLauncher::launch,
             )
         }

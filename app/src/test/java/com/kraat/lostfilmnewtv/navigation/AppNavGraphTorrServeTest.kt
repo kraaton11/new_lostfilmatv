@@ -38,6 +38,12 @@ import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeAvailabilityChecker
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeSourceBuilder
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeUrlLauncher
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPreferences
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelProgram
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelProgramSource
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPublisher
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPublisherResult
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelSyncManager
 import com.kraat.lostfilmnewtv.updates.AppUpdateRepository
 import com.kraat.lostfilmnewtv.updates.GitHubRelease
 import com.kraat.lostfilmnewtv.updates.GitHubReleaseClient
@@ -45,6 +51,7 @@ import com.kraat.lostfilmnewtv.updates.ReleaseApkLauncher
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 import com.kraat.lostfilmnewtv.ui.home.posterTag
 import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
+import kotlinx.coroutines.CompletableDeferred
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 import okhttp3.OkHttpClient
@@ -70,6 +77,7 @@ class AppNavGraphTorrServeTest {
         TestLostFilmApplication.authRepositoryOverride = FakeAuthRepository()
         TestLostFilmApplication.appUpdateRepositoryOverride = null
         TestLostFilmApplication.releaseApkLauncherOverride = null
+        TestLostFilmApplication.homeChannelSyncManagerOverride = testHomeChannelSyncManager()
         torrServeOpenCalls.set(0)
         TestLostFilmApplication.torrServeActionHandlerOverride = unavailableTorrServeActionHandler()
 
@@ -94,6 +102,7 @@ class AppNavGraphTorrServeTest {
         TestLostFilmApplication.playbackPreferencesStoreOverride = null
         TestLostFilmApplication.appUpdateRepositoryOverride = null
         TestLostFilmApplication.releaseApkLauncherOverride = null
+        TestLostFilmApplication.homeChannelSyncManagerOverride = null
     }
 
     @Test
@@ -129,6 +138,33 @@ class AppNavGraphTorrServeTest {
 
         composeRule.waitForText(TEST_DETAILS.titleRu)
         assertEquals(1, composeRule.onAllNodesWithText(TEST_DETAILS.titleRu).fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun startup_composition_triggers_single_channel_sync_before_home_content_finishes_loading() {
+        val pageResult = CompletableDeferred<PageState>()
+        val publisher = RecordingAppNavHomeChannelPublisher()
+        TestLostFilmApplication.repositoryOverride = BlockingAppNavGraphRepository(pageResult)
+        TestLostFilmApplication.homeChannelSyncManagerOverride = testHomeChannelSyncManager(publisher)
+
+        composeRule.setContent {
+            LostFilmTheme {
+                AppNavGraph()
+            }
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) { publisher.reconcileCalls.get() == 1 }
+        assertEquals(1, publisher.reconcileCalls.get())
+
+        pageResult.complete(
+            PageState.Content(
+                pageNumber = 1,
+                items = listOf(TEST_SUMMARY),
+                hasNextPage = false,
+                isStale = false,
+            ),
+        )
+        composeRule.waitForText("Новые релизы")
     }
 
     @Test
@@ -422,6 +458,33 @@ private class FakeAppNavGraphRepository(
     override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean = false
 }
 
+private class BlockingAppNavGraphRepository(
+    private val firstPage: CompletableDeferred<PageState>,
+) : LostFilmRepository {
+    override suspend fun loadPage(pageNumber: Int): PageState = firstPage.await()
+
+    override suspend fun loadDetails(detailsUrl: String): DetailsResult {
+        error("Details loading is not used in blocking app nav graph test")
+    }
+
+    override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean = false
+}
+
+private class RecordingAppNavHomeChannelPublisher : HomeChannelPublisher {
+    val reconcileCalls = AtomicInteger(0)
+
+    override suspend fun reconcile(
+        mode: AndroidTvChannelMode,
+        existingChannelId: Long?,
+        programs: List<HomeChannelProgram>,
+    ): HomeChannelPublisherResult {
+        reconcileCalls.incrementAndGet()
+        return HomeChannelPublisherResult(channelId = existingChannelId ?: 1L)
+    }
+
+    override suspend fun deleteChannel(channelId: Long) = Unit
+}
+
 private class FakeAuthRepository(
     private val authState: AuthState = AuthState(),
 ) : AuthRepositoryContract {
@@ -467,6 +530,9 @@ class TestLostFilmApplication : LostFilmApplication() {
     override val releaseApkLauncher: ReleaseApkLauncher
         get() = releaseApkLauncherOverride ?: super.releaseApkLauncher
 
+    override val homeChannelSyncManager: HomeChannelSyncManager
+        get() = homeChannelSyncManagerOverride ?: super.homeChannelSyncManager
+
     companion object {
         @Volatile
         var repositoryOverride: LostFilmRepository? = null
@@ -485,7 +551,49 @@ class TestLostFilmApplication : LostFilmApplication() {
 
         @Volatile
         var releaseApkLauncherOverride: ReleaseApkLauncher? = null
+
+        @Volatile
+        var homeChannelSyncManagerOverride: HomeChannelSyncManager? = null
     }
+}
+
+private fun testHomeChannelSyncManager(
+    publisher: RecordingAppNavHomeChannelPublisher = RecordingAppNavHomeChannelPublisher(),
+): HomeChannelSyncManager {
+    return HomeChannelSyncManager(
+        programSource = object : HomeChannelProgramSource {
+            override suspend fun loadPrograms(
+                mode: AndroidTvChannelMode,
+                limit: Int,
+            ): List<HomeChannelProgram> {
+                return listOf(
+                    HomeChannelProgram(
+                        detailsUrl = TEST_SUMMARY.detailsUrl,
+                        title = TEST_SUMMARY.titleRu,
+                        description = TEST_SUMMARY.episodeTitleRu.orEmpty(),
+                        posterUrl = TEST_SUMMARY.posterUrl,
+                        internalProviderId = TEST_SUMMARY.detailsUrl,
+                    ),
+                )
+            }
+        },
+        preferences = object : HomeChannelPreferences {
+            private var storedChannelId: Long? = null
+
+            override fun readMode(): AndroidTvChannelMode = AndroidTvChannelMode.ALL_NEW
+
+            override fun readChannelId(): Long? = storedChannelId
+
+            override fun writeChannelId(channelId: Long) {
+                storedChannelId = channelId
+            }
+
+            override fun clearChannelId() {
+                storedChannelId = null
+            }
+        },
+        publisher = publisher,
+    )
 }
 
 private fun fakeAppUpdateRepository(

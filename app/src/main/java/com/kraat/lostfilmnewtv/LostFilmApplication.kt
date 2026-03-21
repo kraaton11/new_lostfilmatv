@@ -20,6 +20,10 @@ import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeAvailabilityProbe
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeConfig
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeLauncher
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeLinkBuilder
+import com.kraat.lostfilmnewtv.tvchannel.AndroidHomeChannelPublisher
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelContentRepository
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPreferences
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelSyncManager
 import com.kraat.lostfilmnewtv.updates.AppUpdateRepository
 import com.kraat.lostfilmnewtv.updates.GitHubReleaseClient
 import com.kraat.lostfilmnewtv.updates.ReleaseApkLauncher
@@ -86,6 +90,14 @@ open class LostFilmApplication : Application() {
         PlaybackPreferencesStore(this)
     }
 
+    open val homeChannelSyncManager: HomeChannelSyncManager by lazy {
+        HomeChannelSyncManager(
+            programSource = HomeChannelContentRepository(database.releaseDao()),
+            preferences = PlaybackStoreHomeChannelPreferences(playbackPreferencesStore),
+            publisher = AndroidHomeChannelPublisher(applicationContext),
+        )
+    }
+
     val torrServeConfig: TorrServeConfig by lazy { TorrServeConfig() }
     val torrServeLinkBuilder: TorrServeLinkBuilder by lazy { TorrServeLinkBuilder(torrServeConfig) }
     val torrServeAvailabilityProbe: TorrServeAvailabilityProbe by lazy { TorrServeAvailabilityProbe(applicationContext) }
@@ -93,5 +105,21 @@ open class LostFilmApplication : Application() {
     open val releaseApkLauncher: ReleaseApkLauncher by lazy { ReleaseApkLauncher() }
     open val torrServeActionHandler: TorrServeActionHandler by lazy {
         TorrServeActionHandler(torrServeLinkBuilder, torrServeAvailabilityProbe, torrServeLauncher)
+    }
+}
+
+private class PlaybackStoreHomeChannelPreferences(
+    private val store: PlaybackPreferencesStore,
+) : HomeChannelPreferences {
+    override fun readMode() = store.readAndroidTvChannelMode()
+
+    override fun readChannelId() = store.readAndroidTvChannelId()
+
+    override fun writeChannelId(channelId: Long) {
+        store.writeAndroidTvChannelId(channelId)
+    }
+
+    override fun clearChannelId() {
+        store.clearAndroidTvChannelId()
     }
 }
