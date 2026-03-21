@@ -4,6 +4,7 @@ kotlin = "2.1.20"
 composeBom = "2026.02.01"
 tvMaterial = "1.1.0-beta01"
 tvFoundation = "1.0.0-alpha12"
+tvProvider = "1.1.0"
 coreKtx = "1.16.0"
 lifecycle = "2.8.7"
 activityCompose = "1.10.1"
@@ -43,6 +44,7 @@ androidx-compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4
 androidx-compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
 androidx-tv-foundation = { module = "androidx.tv:tv-foundation", version.ref = "tvFoundation" }
 androidx-tv-material = { module = "androidx.tv:tv-material", version.ref = "tvMaterial" }
+androidx-tvprovider = { module = "androidx.tvprovider:tvprovider", version.ref = "tvProvider" }
 androidx-room-runtime = { module = "androidx.room:room-runtime", version.ref = "room" }
 androidx-room-ktx = { module = "androidx.room:room-ktx", version.ref = "room" }
 androidx-room-compiler = { module = "androidx.room:room-compiler", version.ref = "room" }
