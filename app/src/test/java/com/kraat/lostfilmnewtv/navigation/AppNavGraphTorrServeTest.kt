@@ -5,8 +5,13 @@ import android.content.pm.ActivityInfo
 import android.content.pm.ResolveInfo
 import android.net.Uri
 import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
@@ -32,9 +37,14 @@ import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeActionHandler
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeAvailabilityChecker
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeSourceBuilder
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeUrlLauncher
+import com.kraat.lostfilmnewtv.updates.AppUpdateRepository
+import com.kraat.lostfilmnewtv.updates.GitHubRelease
+import com.kraat.lostfilmnewtv.updates.GitHubReleaseClient
+import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 import com.kraat.lostfilmnewtv.ui.home.posterTag
 import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
 import java.util.concurrent.atomic.AtomicInteger
+import okhttp3.OkHttpClient
 import org.junit.After
 import org.junit.Before
 import org.junit.Assert.assertEquals
@@ -55,6 +65,7 @@ class AppNavGraphTorrServeTest {
     fun setUp() {
         TestLostFilmApplication.repositoryOverride = FakeAppNavGraphRepository()
         TestLostFilmApplication.authRepositoryOverride = FakeAuthRepository()
+        TestLostFilmApplication.appUpdateRepositoryOverride = null
         torrServeOpenCalls.set(0)
         TestLostFilmApplication.torrServeActionHandlerOverride = unavailableTorrServeActionHandler()
 
@@ -77,6 +88,7 @@ class AppNavGraphTorrServeTest {
         TestLostFilmApplication.authRepositoryOverride = null
         TestLostFilmApplication.torrServeActionHandlerOverride = null
         TestLostFilmApplication.playbackPreferencesStoreOverride = null
+        TestLostFilmApplication.appUpdateRepositoryOverride = null
     }
 
     @Test
@@ -115,30 +127,54 @@ class AppNavGraphTorrServeTest {
             .performSemanticsAction(SemanticsActions.OnClick)
 
         composeRule.waitForText("Качество по умолчанию")
+        composeRule.waitForText("Обновления")
+        composeRule.onNodeWithText("Проверить обновления")
+        composeRule.onNodeWithTag("settings-update-mode-manual").assertIsSelected()
     }
 
     @Test
-    fun settings_selection_persists_to_application_playback_store() {
+    fun settings_update_mode_persists_to_application_store_and_restores_through_nav_graph() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val prefsName = "app-nav-playback-settings"
         context.deleteSharedPreferences(prefsName)
         val store = PlaybackPreferencesStore(context, prefsName = prefsName)
         TestLostFilmApplication.playbackPreferencesStoreOverride = store
+        TestLostFilmApplication.appUpdateRepositoryOverride = fakeAppUpdateRepository(
+            installedVersion = "0.1.0",
+            latestVersion = "0.2.0",
+            apkUrl = "https://example.test/app.apk",
+        )
+        var graphInstance by mutableIntStateOf(0)
 
         composeRule.setContent {
             LostFilmTheme {
-                AppNavGraph()
+                key(graphInstance) {
+                    AppNavGraph()
+                }
             }
         }
 
         composeRule.waitForText("Новые релизы")
         composeRule.onNodeWithText("Настройки")
             .performSemanticsAction(SemanticsActions.OnClick)
-        composeRule.waitForText("Качество по умолчанию")
-        composeRule.onNodeWithTag("settings-quality-720")
+        composeRule.waitForText("Обновления")
+        composeRule.onNodeWithTag("settings-update-mode-quiet")
             .performSemanticsAction(SemanticsActions.OnClick)
 
-        assertEquals(PlaybackQualityPreference.Q720, store.readDefaultQuality())
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            store.readUpdateCheckMode() == UpdateCheckMode.QUIET_CHECK
+        }
+        assertEquals(UpdateCheckMode.QUIET_CHECK, store.readUpdateCheckMode())
+
+        composeRule.runOnIdle {
+            graphInstance += 1
+        }
+
+        composeRule.waitForText("Новые релизы")
+        composeRule.onNodeWithText("Настройки")
+            .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitForText("Обновления")
+        composeRule.onNodeWithTag("settings-update-mode-quiet").assertIsSelected()
     }
 }
 
@@ -238,6 +274,9 @@ class TestLostFilmApplication : LostFilmApplication() {
     override val playbackPreferencesStore: PlaybackPreferencesStore
         get() = playbackPreferencesStoreOverride ?: super.playbackPreferencesStore
 
+    override val appUpdateRepository: AppUpdateRepository
+        get() = appUpdateRepositoryOverride ?: super.appUpdateRepository
+
     companion object {
         @Volatile
         var repositoryOverride: LostFilmRepository? = null
@@ -250,7 +289,28 @@ class TestLostFilmApplication : LostFilmApplication() {
 
         @Volatile
         var playbackPreferencesStoreOverride: PlaybackPreferencesStore? = null
+
+        @Volatile
+        var appUpdateRepositoryOverride: AppUpdateRepository? = null
     }
+}
+
+private fun fakeAppUpdateRepository(
+    installedVersion: String,
+    latestVersion: String,
+    apkUrl: String,
+): AppUpdateRepository {
+    return AppUpdateRepository(
+        installedVersion = installedVersion,
+        releaseClient = object : GitHubReleaseClient(OkHttpClient()) {
+            override suspend fun fetchLatestRelease(): GitHubRelease {
+                return GitHubRelease(
+                    version = latestVersion,
+                    apkUrl = apkUrl,
+                )
+            }
+        },
+    )
 }
 
 private fun unavailableTorrServeActionHandler(): TorrServeActionHandler = TorrServeActionHandler(
