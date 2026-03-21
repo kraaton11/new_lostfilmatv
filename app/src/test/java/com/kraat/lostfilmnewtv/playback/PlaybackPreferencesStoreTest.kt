@@ -2,6 +2,7 @@ package com.kraat.lostfilmnewtv.playback
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -29,5 +30,27 @@ class PlaybackPreferencesStoreTest {
         store.writeDefaultQuality(PlaybackQualityPreference.Q720)
 
         assertEquals(PlaybackQualityPreference.Q720, store.readDefaultQuality())
+    }
+
+    @Test
+    fun readUpdateCheckMode_returnsManual_whenNothingWasSaved() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsName = "playback-store-update-default"
+        context.deleteSharedPreferences(prefsName)
+        val store = PlaybackPreferencesStore(context, prefsName = prefsName)
+
+        assertEquals(UpdateCheckMode.MANUAL, store.readUpdateCheckMode())
+    }
+
+    @Test
+    fun writeUpdateCheckMode_persistsQuietCheck() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsName = "playback-store-update-write"
+        context.deleteSharedPreferences(prefsName)
+        val store = PlaybackPreferencesStore(context, prefsName = prefsName)
+
+        store.writeUpdateCheckMode(UpdateCheckMode.QUIET_CHECK)
+
+        assertEquals(UpdateCheckMode.QUIET_CHECK, store.readUpdateCheckMode())
     }
 }

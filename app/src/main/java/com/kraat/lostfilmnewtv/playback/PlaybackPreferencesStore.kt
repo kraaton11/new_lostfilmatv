@@ -1,6 +1,7 @@
 package com.kraat.lostfilmnewtv.playback
 
 import android.content.Context
+import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 
 class PlaybackPreferencesStore(
     context: Context,
@@ -20,8 +21,21 @@ class PlaybackPreferencesStore(
             .apply()
     }
 
+    fun readUpdateCheckMode(): UpdateCheckMode {
+        return UpdateCheckMode.fromStorageValue(
+            prefs.getString(KEY_UPDATE_CHECK_MODE, null),
+        )
+    }
+
+    fun writeUpdateCheckMode(value: UpdateCheckMode) {
+        prefs.edit()
+            .putString(KEY_UPDATE_CHECK_MODE, value.storageValue)
+            .apply()
+    }
+
     private companion object {
         const val DEFAULT_PREFS_NAME = "lostfilm_playback_prefs"
         const val KEY_DEFAULT_QUALITY = "default_quality"
+        const val KEY_UPDATE_CHECK_MODE = "update_check_mode"
     }
 }
