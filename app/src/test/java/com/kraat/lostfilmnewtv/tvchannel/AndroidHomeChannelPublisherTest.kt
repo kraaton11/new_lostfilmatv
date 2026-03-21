@@ -1,7 +1,9 @@
 package com.kraat.lostfilmnewtv.tvchannel
 
 import android.content.Context
+import android.graphics.Bitmap
 import androidx.test.core.app.ApplicationProvider
+import androidx.tvprovider.media.tv.TvContractCompat
 import com.kraat.lostfilmnewtv.navigation.AppLaunchTarget
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -11,6 +13,7 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class AndroidHomeChannelPublisherTest {
     private val context = ApplicationProvider.getApplicationContext<Context>()
+    private val testLogo = Bitmap.createBitmap(2, 2, Bitmap.Config.ARGB_8888)
 
     @Test
     fun reconcile_missingChannel_publishesDefaultChannel_andAddsPrograms() = runTestPublisher {
@@ -18,6 +21,7 @@ class AndroidHomeChannelPublisherTest {
         val publisher = AndroidHomeChannelPublisher(
             appContext = context,
             helperFacade = facade,
+            channelLogoProvider = { testLogo },
         )
 
         val result = publisher.reconcile(
@@ -28,7 +32,13 @@ class AndroidHomeChannelPublisherTest {
 
         assertEquals(42L, result.channelId)
         assertEquals(1, facade.publishDefaultChannelCalls)
+        assertEquals(1, facade.publishedChannels.size)
+        assertEquals(testLogo, facade.publishedChannels.single().logoBitmap)
         assertEquals(listOf("https://example.com/1"), facade.upsertedPrograms.map { it.internalProviderId })
+        assertEquals(
+            listOf(TvContractCompat.PreviewProgramColumns.TYPE_CLIP),
+            facade.upsertedPrograms.map { it.type },
+        )
         assertEquals(
             "https://example.com/1",
             AppLaunchTarget.parseDetailsUrl(facade.upsertedPrograms.single().launchIntent),
@@ -62,6 +72,7 @@ class AndroidHomeChannelPublisherTest {
         val publisher = AndroidHomeChannelPublisher(
             appContext = context,
             helperFacade = facade,
+            channelLogoProvider = { testLogo },
         )
 
         publisher.reconcile(
@@ -95,6 +106,7 @@ private class RecordingPreviewFacade(
 
     var publishDefaultChannelCalls: Int = 0
         private set
+    val publishedChannels = mutableListOf<PreviewChannelRecord>()
     val upsertedPrograms = mutableListOf<PreviewProgramRecord>()
     val deletedProgramIds = mutableListOf<Long>()
 
@@ -102,6 +114,7 @@ private class RecordingPreviewFacade(
 
     override suspend fun publishDefaultChannel(channel: PreviewChannelRecord): Long {
         publishDefaultChannelCalls += 1
+        publishedChannels += channel
         return 42L
     }
 

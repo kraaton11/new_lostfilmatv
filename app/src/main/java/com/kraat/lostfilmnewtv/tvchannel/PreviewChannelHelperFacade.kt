@@ -2,6 +2,7 @@ package com.kraat.lostfilmnewtv.tvchannel
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
 import androidx.tvprovider.media.tv.PreviewChannel
 import androidx.tvprovider.media.tv.PreviewChannelHelper
@@ -28,6 +29,7 @@ data class PreviewChannelRecord(
     val description: String,
     val appLinkIntent: Intent,
     val internalProviderId: String,
+    val logoBitmap: Bitmap? = null,
 )
 
 data class PreviewProgramRecord(
@@ -38,6 +40,7 @@ data class PreviewProgramRecord(
     val description: String,
     val posterUrl: String,
     val launchIntent: Intent,
+    val type: Int = TvContractCompat.PreviewProgramColumns.TYPE_CLIP,
     val weight: Int = 0,
 )
 
@@ -90,18 +93,20 @@ class AndroidXPreviewChannelHelperFacade(
 }
 
 private fun PreviewChannelRecord.toPreviewChannel(): PreviewChannel {
-    return PreviewChannel.Builder()
+    val builder = PreviewChannel.Builder()
         .setDisplayName(displayName)
         .setDescription(description)
         .setAppLinkIntent(appLinkIntent)
         .setInternalProviderId(internalProviderId)
-        .build()
+    logoBitmap?.let(builder::setLogo)
+    return builder.build()
 }
 
 private fun PreviewProgramRecord.toPreviewProgram(): PreviewProgram {
     return PreviewProgram.Builder()
         .setChannelId(channelId)
         .setWeight(weight)
+        .setType(type)
         .setTitle(title)
         .setDescription(description)
         .setPosterArtUri(Uri.parse(posterUrl))
@@ -121,6 +126,7 @@ private fun PreviewProgram.toRecord(context: Context): PreviewProgramRecord {
         description = description.orEmpty(),
         posterUrl = posterArtUri?.toString().orEmpty(),
         launchIntent = runCatching { intent }.getOrElse { fallbackIntent },
+        type = type,
         weight = weight,
     )
 }

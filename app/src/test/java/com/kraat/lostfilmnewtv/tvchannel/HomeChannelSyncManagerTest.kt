@@ -53,6 +53,7 @@ class HomeChannelSyncManagerTest {
                 createdChannelId = 7L,
                 failure = IllegalStateException("launcher unavailable"),
             ),
+            onSyncFailure = {},
         )
 
         manager.syncNow()

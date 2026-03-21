@@ -2,12 +2,19 @@ package com.kraat.lostfilmnewtv.tvchannel
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import androidx.core.graphics.drawable.toBitmap
 import com.kraat.lostfilmnewtv.MainActivity
 import com.kraat.lostfilmnewtv.navigation.AppLaunchTarget
 
 class AndroidHomeChannelPublisher(
     private val appContext: Context,
     private val helperFacade: PreviewChannelHelperFacade = AndroidXPreviewChannelHelperFacade(appContext),
+    private val channelLogoProvider: () -> Bitmap = {
+        appContext.packageManager
+            .getApplicationIcon(appContext.packageName)
+            .toBitmap()
+    },
 ) : HomeChannelPublisher {
     override suspend fun reconcile(
         mode: AndroidTvChannelMode,
@@ -57,6 +64,7 @@ class AndroidHomeChannelPublisher(
                 description = CHANNEL_DESCRIPTION,
                 appLinkIntent = Intent(appContext, MainActivity::class.java),
                 internalProviderId = CHANNEL_INTERNAL_PROVIDER_ID,
+                logoBitmap = channelLogoProvider(),
             ),
         )
     }
