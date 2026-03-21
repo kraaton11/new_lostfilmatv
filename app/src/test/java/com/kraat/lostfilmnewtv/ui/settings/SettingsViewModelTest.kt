@@ -1,6 +1,7 @@
 package com.kraat.lostfilmnewtv.ui.settings
 
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
+import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.updates.AppUpdateInfo
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 import kotlinx.coroutines.CompletableDeferred
@@ -161,6 +162,52 @@ class SettingsViewModelTest {
         assertEquals(emptyList<UpdateCheckMode>(), persistedModes)
         assertEquals(0, updateChecker.callCount)
         assertEquals(UpdateCheckMode.QUIET_CHECK, viewModel.uiState.value.updateMode)
+    }
+
+    @Test
+    fun onChannelModeSelected_persistsMode_andTriggersChannelSync() = runTest(dispatcher) {
+        val persistedModes = mutableListOf<AndroidTvChannelMode>()
+        var syncCalls = 0
+        val viewModel = SettingsViewModel(
+            installedVersion = "1.0.0",
+            initialPlaybackQuality = PlaybackQualityPreference.Q1080,
+            initialUpdateMode = UpdateCheckMode.MANUAL,
+            initialChannelMode = AndroidTvChannelMode.ALL_NEW,
+            persistChannelMode = { persistedModes += it },
+            syncAndroidTvChannel = { syncCalls += 1 },
+            checkForUpdates = { AppUpdateInfo.UpToDate(installedVersion = "1.0.0") },
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onChannelModeSelected(AndroidTvChannelMode.UNWATCHED)
+        advanceUntilIdle()
+
+        assertEquals(listOf(AndroidTvChannelMode.UNWATCHED), persistedModes)
+        assertEquals(AndroidTvChannelMode.UNWATCHED, viewModel.uiState.value.channelMode)
+        assertEquals(1, syncCalls)
+    }
+
+    @Test
+    fun onChannelModeSelected_sameMode_doesNotPersistOrSyncAgain() = runTest(dispatcher) {
+        val persistedModes = mutableListOf<AndroidTvChannelMode>()
+        var syncCalls = 0
+        val viewModel = SettingsViewModel(
+            installedVersion = "1.0.0",
+            initialPlaybackQuality = PlaybackQualityPreference.Q1080,
+            initialUpdateMode = UpdateCheckMode.MANUAL,
+            initialChannelMode = AndroidTvChannelMode.DISABLED,
+            persistChannelMode = { persistedModes += it },
+            syncAndroidTvChannel = { syncCalls += 1 },
+            checkForUpdates = { AppUpdateInfo.UpToDate(installedVersion = "1.0.0") },
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onChannelModeSelected(AndroidTvChannelMode.DISABLED)
+        advanceUntilIdle()
+
+        assertEquals(emptyList<AndroidTvChannelMode>(), persistedModes)
+        assertEquals(AndroidTvChannelMode.DISABLED, viewModel.uiState.value.channelMode)
+        assertEquals(0, syncCalls)
     }
 
     @Test

@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
+import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
@@ -30,12 +31,14 @@ fun SettingsScreen(
     selectedQuality: PlaybackQualityPreference,
     onQualitySelected: (PlaybackQualityPreference) -> Unit,
     selectedUpdateMode: UpdateCheckMode,
+    selectedChannelMode: AndroidTvChannelMode,
     installedVersionText: String,
     latestVersionText: String?,
     statusText: String?,
     isCheckingForUpdates: Boolean,
     installUrl: String?,
     onUpdateModeSelected: (UpdateCheckMode) -> Unit,
+    onChannelModeSelected: (AndroidTvChannelMode) -> Unit,
     onCheckForUpdatesClick: () -> Unit,
     onInstallUpdateClick: () -> Unit,
 ) {
@@ -107,6 +110,16 @@ fun SettingsScreen(
                         fontWeight = FontWeight.Medium,
                     )
                 }
+            }
+        }
+        SettingsGroup(title = "Канал Android TV") {
+            AndroidTvChannelMode.entries.forEach { mode ->
+                SettingsSelectionButton(
+                    text = mode.label(),
+                    isSelected = mode == selectedChannelMode,
+                    tag = mode.buttonTag(),
+                    onClick = { onChannelModeSelected(mode) },
+                )
             }
         }
     }
@@ -191,5 +204,21 @@ private fun UpdateCheckMode.buttonTag(): String {
     return when (this) {
         UpdateCheckMode.MANUAL -> "settings-update-mode-manual"
         UpdateCheckMode.QUIET_CHECK -> "settings-update-mode-quiet"
+    }
+}
+
+private fun AndroidTvChannelMode.label(): String {
+    return when (this) {
+        AndroidTvChannelMode.ALL_NEW -> "Все новые релизы"
+        AndroidTvChannelMode.UNWATCHED -> "Только непросмотренные"
+        AndroidTvChannelMode.DISABLED -> "Не показывать"
+    }
+}
+
+private fun AndroidTvChannelMode.buttonTag(): String {
+    return when (this) {
+        AndroidTvChannelMode.ALL_NEW -> "settings-tv-channel-all-new"
+        AndroidTvChannelMode.UNWATCHED -> "settings-tv-channel-unwatched"
+        AndroidTvChannelMode.DISABLED -> "settings-tv-channel-disabled"
     }
 }
