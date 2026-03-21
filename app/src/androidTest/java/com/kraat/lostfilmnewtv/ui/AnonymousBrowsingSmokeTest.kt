@@ -58,6 +58,7 @@ class AnonymousBrowsingSmokeTest {
         waitForText("Smoke Series Details")
         assertTrue(composeRule.onAllNodesWithText("Smoke Series Details").fetchSemanticsNodes().isNotEmpty())
         assertTrue(composeRule.onAllNodesWithText("Сезон 1, серия 1").fetchSemanticsNodes().isNotEmpty())
+        assertTrue(composeRule.onAllNodesWithText("Pilot").fetchSemanticsNodes().isNotEmpty())
         assertTrue(composeRule.onAllNodesWithTag("details-back").fetchSemanticsNodes().isEmpty())
 
         composeRule.activityRule.scenario.onActivity { activity ->
@@ -137,4 +138,5 @@ private val SMOKE_DETAILS = ReleaseDetails(
     releaseDateRu = "14 марта 2026",
     posterUrl = "https://example.com/posters/smoke-series-details.jpg",
     fetchedAt = 0L,
+    episodeTitleRu = "Pilot",
 )

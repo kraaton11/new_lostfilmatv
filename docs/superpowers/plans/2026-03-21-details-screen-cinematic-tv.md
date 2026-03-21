@@ -10,17 +10,24 @@
 
 ---
 
+## Addendum: Episode Title In Hero
+
+This follow-up slice keeps the current status-line behavior unchanged and adds only one new content element: an optional episode-title line for series. The source of truth is the cached summary metadata already stored for the same `detailsUrl`; do not introduce new navigation arguments or new network fetching for this.
+
 ## File Map
 
+- Modify: `app/src/main/java/com/kraat/lostfilmnewtv/data/model/ReleaseDetails.kt`
+- Modify: `app/src/main/java/com/kraat/lostfilmnewtv/data/repository/LostFilmRepositoryImpl.kt`
 - Modify: `app/src/main/java/com/kraat/lostfilmnewtv/ui/details/DetailsStageModels.kt`
 - Modify: `app/src/test/java/com/kraat/lostfilmnewtv/ui/details/DetailsStageModelsTest.kt`
 - Modify: `app/src/main/java/com/kraat/lostfilmnewtv/ui/details/DetailsScreen.kt`
 - Modify: `app/src/androidTest/java/com/kraat/lostfilmnewtv/ui/DetailsScreenTest.kt`
+- Verify: `app/src/test/java/com/kraat/lostfilmnewtv/data/repository/LostFilmRepositoryTest.kt`
 - Verify: `app/src/test/java/com/kraat/lostfilmnewtv/ui/details/DetailsRouteTest.kt`
 - Reference spec: `docs/superpowers/specs/2026-03-21-details-screen-cinematic-tv-design.md`
 
 Notes:
-- Do not add parser, repository, or network fields.
+- Do not add new network requests or navigation arguments.
 - Keep existing supported-row semantic tags such as `torrent-torrserve-<rowId>`.
 - Do not keep separate onscreen `Назад` or `Открыть ссылку` controls on the first screen.
 - The first-screen technical sheet and its focus model must be removed, not merely hidden behind alpha or size tricks.
