@@ -50,9 +50,10 @@ class DetailsScreenTest {
         composeRule.setDetailsContent(state = DetailsUiState(details = seriesDetails()))
 
         assertTrue(composeRule.onAllNodesWithText("9-1-1").fetchSemanticsNodes().isNotEmpty())
-        assertTrue(composeRule.onAllNodesWithText("Сезон 9, серия 13").fetchSemanticsNodes().isNotEmpty())
         assertTrue(composeRule.onAllNodesWithText("Маменькин сынок").fetchSemanticsNodes().isNotEmpty())
         assertTrue(composeRule.onAllNodesWithText("14 марта 2026").fetchSemanticsNodes().isEmpty())
+        assertTrue(composeRule.onAllNodesWithText("TorrServe").fetchSemanticsNodes().isEmpty())
+        assertTrue(composeRule.onAllNodesWithText("Сезон 9 • Серия 13 • 1080p").fetchSemanticsNodes().isNotEmpty())
     }
 
     @Test
@@ -60,8 +61,10 @@ class DetailsScreenTest {
         composeRule.setDetailsContent(state = DetailsUiState(details = movieDetails()))
 
         assertTrue(composeRule.onAllNodesWithText("Необратимость").fetchSemanticsNodes().isNotEmpty())
-        assertTrue(composeRule.onAllNodesWithText("Сезон 9, серия 13").fetchSemanticsNodes().isEmpty())
+        assertTrue(composeRule.onAllNodesWithText("Сезон 9 • Серия 13 • 1080p").fetchSemanticsNodes().isEmpty())
         assertTrue(composeRule.onAllNodesWithText("Маменькин сынок").fetchSemanticsNodes().isEmpty())
+        assertTrue(composeRule.onAllNodesWithText("13 марта 2026").fetchSemanticsNodes().isEmpty())
+        assertTrue(composeRule.onAllNodesWithText("Фильм • 1080p").fetchSemanticsNodes().isNotEmpty())
     }
 
     @Test
@@ -76,7 +79,7 @@ class DetailsScreenTest {
 
         composeRule.onNodeWithText("Смотреть").assertExists()
         composeRule.onNodeWithTag(torrServeTag("preferred")).assertIsDisplayed()
-        composeRule.onNodeWithText("720p • TorrServe • свежие данные").assertExists()
+        composeRule.onNodeWithText("Сезон 9 • Серия 13 • 720p").assertExists()
     }
 
     @Test
@@ -123,7 +126,7 @@ class DetailsScreenTest {
         )
 
         composeRule.onNodeWithTag("details-primary-action").assertIsNotEnabled()
-        composeRule.onNodeWithText("Варианты качества не найдены").assertExists()
+        composeRule.onNodeWithText("Видео недоступно").assertExists()
     }
 
     @Test

@@ -181,35 +181,25 @@ private fun ContentState(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(760.dp),
+                .height(620.dp),
         ) {
             BackgroundPoster(details = details)
             AmbientGlow()
-
-            HeroStage(
-                details = details,
-                stageUi = stageUi,
-            )
-
             Column(
                 modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(top = 118.dp, end = 28.dp, bottom = 152.dp)
-                    .width(236.dp),
-                verticalArrangement = Arrangement.spacedBy(0.dp),
+                    .fillMaxSize()
+                    .padding(horizontal = 72.dp, vertical = 52.dp),
+                verticalArrangement = Arrangement.SpaceBetween,
             ) {
-                StageButton(
-                    label = stageUi.primaryAction.label,
-                    subtitle = stageUi.primaryAction.subtitle,
-                    onClick = {
-                        val row = playbackRow ?: return@StageButton
+                HeroStage(
+                    details = details,
+                    stageUi = stageUi,
+                    onOpenTorrServe = {
+                        val row = playbackRow ?: return@HeroStage
                         onOpenTorrServe(row.rowId, row.url)
                     },
-                    modifier = Modifier
-                        .testTag(primaryActionTag(stageUi.primaryAction)),
-                    isPrimary = true,
-                    enabled = stageUi.primaryAction.enabled,
                 )
+                BottomInfoStrip(text = stageUi.bottomInfoLine)
             }
         }
     }
@@ -270,22 +260,30 @@ private fun BoxScope.AmbientGlow() {
 }
 
 @Composable
-private fun BoxScope.HeroStage(
+private fun HeroStage(
     details: ReleaseDetails?,
     stageUi: DetailsStageUiModel,
+    onOpenTorrServe: () -> Unit,
 ) {
     Row(
         modifier = Modifier
-            .align(Alignment.CenterStart)
-            .padding(start = 72.dp, top = 64.dp, end = 320.dp),
-        horizontalArrangement = Arrangement.spacedBy(32.dp),
+            .fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(28.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         PosterCard(details = details)
         Column(
-            modifier = Modifier.width(460.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier.width(520.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
+            if (stageUi.heroMetaLine.isNotBlank()) {
+                Text(
+                    text = stageUi.heroMetaLine,
+                    color = TextSecondary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
             Text(
                 text = stageUi.title.ifBlank { "Details" },
                 color = TextPrimary,
@@ -293,14 +291,6 @@ private fun BoxScope.HeroStage(
                 fontWeight = FontWeight.Bold,
                 lineHeight = 56.sp,
             )
-            if (stageUi.heroMetaLine.isNotBlank()) {
-                Text(
-                    text = stageUi.heroMetaLine,
-                    color = TextSecondary,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Medium,
-                )
-            }
             if (stageUi.heroEpisodeTitle.isNotBlank()) {
                 Text(
                     text = stageUi.heroEpisodeTitle,
@@ -310,12 +300,16 @@ private fun BoxScope.HeroStage(
                     lineHeight = 28.sp,
                 )
             }
-            if (stageUi.heroStatusLine.isNotBlank()) {
-                CompactStatusLine(
-                    text = stageUi.heroStatusLine,
-                    isError = stageUi.heroStatusLine.contains("Не удалось"),
-                )
-            }
+            StageButton(
+                label = stageUi.primaryAction.label,
+                subtitle = stageUi.primaryAction.subtitle,
+                onClick = onOpenTorrServe,
+                modifier = Modifier
+                    .width(248.dp)
+                    .testTag(primaryActionTag(stageUi.primaryAction)),
+                isPrimary = true,
+                enabled = stageUi.primaryAction.enabled,
+            )
         }
     }
 }
@@ -324,7 +318,7 @@ private fun BoxScope.HeroStage(
 private fun PosterCard(details: ReleaseDetails?) {
     Box(
         modifier = Modifier
-            .size(width = 254.dp, height = 372.dp)
+            .size(width = 276.dp, height = 398.dp)
             .shadow(28.dp, RoundedCornerShape(28.dp))
             .clip(RoundedCornerShape(28.dp))
             .background(
@@ -358,23 +352,26 @@ private fun PosterCard(details: ReleaseDetails?) {
 }
 
 @Composable
-private fun CompactStatusLine(
+private fun BottomInfoStrip(
     text: String,
-    isError: Boolean,
 ) {
+    if (text.isBlank()) return
+
+    val isError = text.contains("Не удалось")
     Box(
         modifier = Modifier
-            .clip(RoundedCornerShape(18.dp))
-            .background(if (isError) Color(0x402A0E10) else SurfaceSoft)
-            .border(1.dp, if (isError) StatusError else BorderDefault, RoundedCornerShape(18.dp))
-            .padding(horizontal = 16.dp, vertical = 11.dp),
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(22.dp))
+            .background(if (isError) Color(0x332A0E10) else SurfaceSoft)
+            .border(1.dp, if (isError) StatusError else BorderDefault, RoundedCornerShape(22.dp))
+            .padding(horizontal = 18.dp, vertical = 14.dp),
     ) {
         Text(
             text = text,
             color = if (isError) StatusError else TextSecondary,
-            fontSize = 16.sp,
+            fontSize = 15.sp,
             fontWeight = FontWeight.Medium,
-            lineHeight = 22.sp,
+            lineHeight = 20.sp,
         )
     }
 }
