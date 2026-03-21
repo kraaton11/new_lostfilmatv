@@ -6,12 +6,12 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 
 class HomeChannelContentRepository(
     private val reader: HomeChannelSummaryReader,
-) {
+) : HomeChannelProgramSource {
     constructor(releaseDao: ReleaseDao) : this(
         reader = DaoHomeChannelSummaryReader(releaseDao),
     )
 
-    suspend fun loadPrograms(
+    override suspend fun loadPrograms(
         mode: AndroidTvChannelMode,
         limit: Int,
     ): List<HomeChannelProgram> {
@@ -31,6 +31,13 @@ class HomeChannelContentRepository(
             )
         }
     }
+}
+
+interface HomeChannelProgramSource {
+    suspend fun loadPrograms(
+        mode: AndroidTvChannelMode,
+        limit: Int,
+    ): List<HomeChannelProgram>
 }
 
 interface HomeChannelSummaryReader {
