@@ -15,6 +15,7 @@ Included:
 - User-configurable default playback quality in a dedicated settings screen
 - Local persistence for the chosen default quality
 - Automatic nearest-quality fallback when the preferred quality is unavailable
+- Removal of the legacy direct-link playback path from the details flow
 - Test coverage for quality resolution, settings persistence, and details-screen behavior
 
 Excluded:
@@ -22,6 +23,7 @@ Excluded:
 - Changes to TorrServe integration behavior
 - Multi-profile or cloud-synced settings
 - Advanced playback options beyond default quality
+- Alternative non-TorrServe playback modes
 
 ## Product Intent
 
@@ -74,9 +76,8 @@ That action always opens the row resolved from the saved preference and the avai
 
 The hero status line should reflect the actual chosen row so the user can see what will open, for example:
 - `1080p • TorrServe • свежие данные`
-- `720p • прямая ссылка`
 
-If there are no playable rows, the primary action remains disabled.
+If there are no TorrServe-compatible rows, the primary action remains disabled.
 
 ## Quality Resolution Model
 
@@ -113,6 +114,15 @@ Examples:
 - preferred `1080p`, available only `WEBRip` -> choose `WEBRip`
 
 This guarantees the single action stays useful without requiring a manual fallback flow.
+
+### Direct-link removal
+
+The old direct-link path is now out of scope for playback behavior:
+- do not render direct-link actions in details
+- do not keep a direct-link fallback for unsupported rows
+- remove code branches that open torrent URLs outside the TorrServe path for this feature flow
+
+If a release has no TorrServe-compatible rows after filtering, the app should surface the existing empty-state messaging rather than offering a non-TorrServe playback action.
 
 ## State and Data Handling
 
@@ -197,7 +207,7 @@ UI or composable tests for:
 Route/screen tests for:
 - details render only one primary watch action
 - the chosen row matches the stored preference or nearest fallback
-- TorrServe/direct-link behavior still follows the resolved row type
+- unsupported rows do not create a direct-link playback path
 - hero status line reflects the resolved quality
 
 ## Success Criteria
@@ -206,5 +216,5 @@ Route/screen tests for:
 - A fresh install defaults to `1080p`
 - Users can change the default quality in a dedicated settings screen
 - Playback automatically falls back to the nearest available quality when needed
-- Existing TorrServe and direct-link behavior remains intact for the resolved row
+- Legacy direct-link playback code is removed from this feature path
 - The TV flow becomes simpler without reducing playback reliability
