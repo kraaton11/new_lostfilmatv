@@ -165,15 +165,17 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun onChannelModeSelected_persistsMode_andTriggersChannelSync() = runTest(dispatcher) {
+    fun onChannelModeSelected_activeMode_persistsSyncsAndSchedules() = runTest(dispatcher) {
         val persistedModes = mutableListOf<AndroidTvChannelMode>()
         var syncCalls = 0
+        var scheduleCalls = 0
         val viewModel = SettingsViewModel(
             installedVersion = "1.0.0",
             initialPlaybackQuality = PlaybackQualityPreference.Q1080,
             initialUpdateMode = UpdateCheckMode.MANUAL,
             initialChannelMode = AndroidTvChannelMode.ALL_NEW,
             persistChannelMode = { persistedModes += it },
+            syncAndroidTvChannelBackgroundSchedule = { scheduleCalls += 1 },
             syncAndroidTvChannel = { syncCalls += 1 },
             checkForUpdates = { AppUpdateInfo.UpToDate(installedVersion = "1.0.0") },
             ioDispatcher = dispatcher,
@@ -184,19 +186,48 @@ class SettingsViewModelTest {
 
         assertEquals(listOf(AndroidTvChannelMode.UNWATCHED), persistedModes)
         assertEquals(AndroidTvChannelMode.UNWATCHED, viewModel.uiState.value.channelMode)
+        assertEquals(1, scheduleCalls)
         assertEquals(1, syncCalls)
     }
 
     @Test
-    fun onChannelModeSelected_sameMode_doesNotPersistOrSyncAgain() = runTest(dispatcher) {
+    fun onChannelModeSelected_disabledMode_persistsSyncsAndCancelsSchedule() = runTest(dispatcher) {
         val persistedModes = mutableListOf<AndroidTvChannelMode>()
         var syncCalls = 0
+        var scheduleCalls = 0
+        val viewModel = SettingsViewModel(
+            installedVersion = "1.0.0",
+            initialPlaybackQuality = PlaybackQualityPreference.Q1080,
+            initialUpdateMode = UpdateCheckMode.MANUAL,
+            initialChannelMode = AndroidTvChannelMode.ALL_NEW,
+            persistChannelMode = { persistedModes += it },
+            syncAndroidTvChannelBackgroundSchedule = { scheduleCalls += 1 },
+            syncAndroidTvChannel = { syncCalls += 1 },
+            checkForUpdates = { AppUpdateInfo.UpToDate(installedVersion = "1.0.0") },
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onChannelModeSelected(AndroidTvChannelMode.DISABLED)
+        advanceUntilIdle()
+
+        assertEquals(listOf(AndroidTvChannelMode.DISABLED), persistedModes)
+        assertEquals(AndroidTvChannelMode.DISABLED, viewModel.uiState.value.channelMode)
+        assertEquals(1, scheduleCalls)
+        assertEquals(1, syncCalls)
+    }
+
+    @Test
+    fun onChannelModeSelected_sameMode_doesNotPersistSyncOrScheduleAgain() = runTest(dispatcher) {
+        val persistedModes = mutableListOf<AndroidTvChannelMode>()
+        var syncCalls = 0
+        var scheduleCalls = 0
         val viewModel = SettingsViewModel(
             installedVersion = "1.0.0",
             initialPlaybackQuality = PlaybackQualityPreference.Q1080,
             initialUpdateMode = UpdateCheckMode.MANUAL,
             initialChannelMode = AndroidTvChannelMode.DISABLED,
             persistChannelMode = { persistedModes += it },
+            syncAndroidTvChannelBackgroundSchedule = { scheduleCalls += 1 },
             syncAndroidTvChannel = { syncCalls += 1 },
             checkForUpdates = { AppUpdateInfo.UpToDate(installedVersion = "1.0.0") },
             ioDispatcher = dispatcher,
@@ -207,6 +238,7 @@ class SettingsViewModelTest {
 
         assertEquals(emptyList<AndroidTvChannelMode>(), persistedModes)
         assertEquals(AndroidTvChannelMode.DISABLED, viewModel.uiState.value.channelMode)
+        assertEquals(0, scheduleCalls)
         assertEquals(0, syncCalls)
     }
 

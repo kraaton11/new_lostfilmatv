@@ -46,6 +46,7 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
     }
 
     LaunchedEffect(application) {
+        application.homeChannelBackgroundScheduler.syncForCurrentMode()
         application.homeChannelSyncManager.syncNow()
     }
 
@@ -141,6 +142,7 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                 playbackPreferencesStore = application.playbackPreferencesStore,
                 appUpdateRepository = application.appUpdateRepository,
                 onPlaybackQualityChanged = { selectedPlaybackQuality = it },
+                syncAndroidTvChannelBackgroundSchedule = application.homeChannelBackgroundScheduler::syncForCurrentMode,
                 syncAndroidTvChannel = application.homeChannelSyncManager::syncNow,
                 openInstallApk = application.releaseApkLauncher::launch,
             )

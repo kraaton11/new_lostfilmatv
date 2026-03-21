@@ -38,6 +38,8 @@ import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeAvailabilityChecker
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeSourceBuilder
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeUrlLauncher
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelBackgroundRefreshRunner
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelBackgroundScheduler
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPreferences
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelProgram
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelProgramSource
@@ -54,12 +56,15 @@ import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
 import kotlinx.coroutines.CompletableDeferred
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
+import androidx.work.WorkManager
 import okhttp3.OkHttpClient
 import org.junit.After
 import org.junit.Before
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.mockingDetails
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
@@ -78,6 +83,8 @@ class AppNavGraphTorrServeTest {
         TestLostFilmApplication.appUpdateRepositoryOverride = null
         TestLostFilmApplication.releaseApkLauncherOverride = null
         TestLostFilmApplication.homeChannelSyncManagerOverride = testHomeChannelSyncManager()
+        TestLostFilmApplication.homeChannelBackgroundSchedulerOverride = testHomeChannelBackgroundScheduler()
+        TestLostFilmApplication.homeChannelBackgroundRefreshRunnerOverride = null
         torrServeOpenCalls.set(0)
         TestLostFilmApplication.torrServeActionHandlerOverride = unavailableTorrServeActionHandler()
 
@@ -103,6 +110,8 @@ class AppNavGraphTorrServeTest {
         TestLostFilmApplication.appUpdateRepositoryOverride = null
         TestLostFilmApplication.releaseApkLauncherOverride = null
         TestLostFilmApplication.homeChannelSyncManagerOverride = null
+        TestLostFilmApplication.homeChannelBackgroundSchedulerOverride = null
+        TestLostFilmApplication.homeChannelBackgroundRefreshRunnerOverride = null
     }
 
     @Test
@@ -155,6 +164,45 @@ class AppNavGraphTorrServeTest {
 
         composeRule.waitUntil(timeoutMillis = 5_000) { publisher.reconcileCalls.get() == 1 }
         assertEquals(1, publisher.reconcileCalls.get())
+
+        pageResult.complete(
+            PageState.Content(
+                pageNumber = 1,
+                items = listOf(TEST_SUMMARY),
+                hasNextPage = false,
+                isStale = false,
+            ),
+        )
+        composeRule.waitForText("Новые релизы")
+    }
+
+    @Test
+    fun startup_composition_schedules_background_channel_refresh_once() {
+        val pageResult = CompletableDeferred<PageState>()
+        val workManager = mock(WorkManager::class.java)
+        TestLostFilmApplication.repositoryOverride = BlockingAppNavGraphRepository(pageResult)
+        TestLostFilmApplication.homeChannelBackgroundSchedulerOverride = HomeChannelBackgroundScheduler(
+            readMode = { AndroidTvChannelMode.ALL_NEW },
+            workManager = workManager,
+        )
+
+        composeRule.setContent {
+            LostFilmTheme {
+                AppNavGraph()
+            }
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            mockingDetails(workManager).invocations.count {
+                it.method.name == "enqueueUniquePeriodicWork"
+            } == 1
+        }
+        assertEquals(
+            1,
+            mockingDetails(workManager).invocations.count {
+                it.method.name == "enqueueUniquePeriodicWork"
+            },
+        )
 
         pageResult.complete(
             PageState.Content(
@@ -533,6 +581,12 @@ class TestLostFilmApplication : LostFilmApplication() {
     override val homeChannelSyncManager: HomeChannelSyncManager
         get() = homeChannelSyncManagerOverride ?: super.homeChannelSyncManager
 
+    override val homeChannelBackgroundScheduler: HomeChannelBackgroundScheduler
+        get() = homeChannelBackgroundSchedulerOverride ?: super.homeChannelBackgroundScheduler
+
+    override val homeChannelBackgroundRefreshRunner: HomeChannelBackgroundRefreshRunner
+        get() = homeChannelBackgroundRefreshRunnerOverride ?: super.homeChannelBackgroundRefreshRunner
+
     companion object {
         @Volatile
         var repositoryOverride: LostFilmRepository? = null
@@ -554,6 +608,12 @@ class TestLostFilmApplication : LostFilmApplication() {
 
         @Volatile
         var homeChannelSyncManagerOverride: HomeChannelSyncManager? = null
+
+        @Volatile
+        var homeChannelBackgroundSchedulerOverride: HomeChannelBackgroundScheduler? = null
+
+        @Volatile
+        var homeChannelBackgroundRefreshRunnerOverride: HomeChannelBackgroundRefreshRunner? = null
     }
 }
 
@@ -593,6 +653,13 @@ private fun testHomeChannelSyncManager(
             }
         },
         publisher = publisher,
+    )
+}
+
+private fun testHomeChannelBackgroundScheduler(): HomeChannelBackgroundScheduler {
+    return HomeChannelBackgroundScheduler(
+        readMode = { AndroidTvChannelMode.ALL_NEW },
+        workManager = mock(WorkManager::class.java),
     )
 }
 
