@@ -20,6 +20,9 @@ import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeAvailabilityProbe
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeConfig
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeLauncher
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeLinkBuilder
+import com.kraat.lostfilmnewtv.updates.AppUpdateRepository
+import com.kraat.lostfilmnewtv.updates.GitHubReleaseClient
+import com.kraat.lostfilmnewtv.updates.ReleaseApkLauncher
 import okhttp3.OkHttpClient
 
 open class LostFilmApplication : Application() {
@@ -45,6 +48,13 @@ open class LostFilmApplication : Application() {
 
     val authBridgeClient: AuthBridgeClient by lazy {
         AuthBridgeClient(authBridgeBaseUrl, okHttpClient)
+    }
+
+    val appUpdateRepository: AppUpdateRepository by lazy {
+        AppUpdateRepository(
+            installedVersion = BuildConfig.VERSION_NAME,
+            releaseClient = GitHubReleaseClient(okHttpClient),
+        )
     }
 
     val sessionStore: EncryptedSessionStore by lazy {
@@ -80,7 +90,8 @@ open class LostFilmApplication : Application() {
     val torrServeLinkBuilder: TorrServeLinkBuilder by lazy { TorrServeLinkBuilder(torrServeConfig) }
     val torrServeAvailabilityProbe: TorrServeAvailabilityProbe by lazy { TorrServeAvailabilityProbe(applicationContext) }
     val torrServeLauncher: TorrServeLauncher by lazy { TorrServeLauncher() }
+    val releaseApkLauncher: ReleaseApkLauncher by lazy { ReleaseApkLauncher() }
     open val torrServeActionHandler: TorrServeActionHandler by lazy {
-        TorrServeActionHandler(torrServeLinkBuilder, torrServeAvailabilityProbe, torrServeLauncher) 
+        TorrServeActionHandler(torrServeLinkBuilder, torrServeAvailabilityProbe, torrServeLauncher)
     }
 }
