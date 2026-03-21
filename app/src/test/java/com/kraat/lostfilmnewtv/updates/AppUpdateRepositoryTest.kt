@@ -1,8 +1,10 @@
 package com.kraat.lostfilmnewtv.updates
 
+import java.util.concurrent.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 class AppUpdateRepositoryTest {
@@ -65,6 +67,25 @@ class AppUpdateRepositoryTest {
         assertTrue(updateInfo is AppUpdateInfo.Error)
         assertEquals("1.0.0", (updateInfo as AppUpdateInfo.Error).installedVersion)
         assertEquals("Latest release does not contain an APK asset.", updateInfo.message)
+    }
+
+    @Test
+    fun checkForUpdate_rethrowsCancellationException() = runTest {
+        val repository = AppUpdateRepository(
+            installedVersion = "1.0.0",
+            releaseClient = object : GitHubReleaseClient(httpClient = okhttp3.OkHttpClient()) {
+                override suspend fun fetchLatestRelease(): GitHubRelease {
+                    throw CancellationException("cancelled")
+                }
+            },
+        )
+
+        try {
+            repository.checkForUpdate()
+            fail("Expected CancellationException")
+        } catch (error: CancellationException) {
+            assertEquals("cancelled", error.message)
+        }
     }
 
     private fun fakeClient(release: GitHubRelease): GitHubReleaseClient =
