@@ -50,7 +50,7 @@ open class LostFilmApplication : Application() {
         AuthBridgeClient(authBridgeBaseUrl, okHttpClient)
     }
 
-    val appUpdateRepository: AppUpdateRepository by lazy {
+    open val appUpdateRepository: AppUpdateRepository by lazy {
         AppUpdateRepository(
             installedVersion = BuildConfig.VERSION_NAME,
             releaseClient = GitHubReleaseClient(okHttpClient),
@@ -90,7 +90,7 @@ open class LostFilmApplication : Application() {
     val torrServeLinkBuilder: TorrServeLinkBuilder by lazy { TorrServeLinkBuilder(torrServeConfig) }
     val torrServeAvailabilityProbe: TorrServeAvailabilityProbe by lazy { TorrServeAvailabilityProbe(applicationContext) }
     val torrServeLauncher: TorrServeLauncher by lazy { TorrServeLauncher() }
-    val releaseApkLauncher: ReleaseApkLauncher by lazy { ReleaseApkLauncher() }
+    open val releaseApkLauncher: ReleaseApkLauncher by lazy { ReleaseApkLauncher() }
     open val torrServeActionHandler: TorrServeActionHandler by lazy {
         TorrServeActionHandler(torrServeLinkBuilder, torrServeAvailabilityProbe, torrServeLauncher)
     }
