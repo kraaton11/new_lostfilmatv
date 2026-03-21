@@ -14,6 +14,7 @@ import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -46,12 +47,12 @@ class DetailsScreenTest {
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun seriesDetails_showSeasonEpisodeAndRuDate() {
+    fun seriesDetails_showCompactHeroMetaLine() {
         composeRule.setDetailsContent(state = DetailsUiState(details = seriesDetails()))
 
         assertTrue(composeRule.onAllNodesWithText("9-1-1").fetchSemanticsNodes().isNotEmpty())
         assertTrue(composeRule.onAllNodesWithText("Сезон 9, серия 13").fetchSemanticsNodes().isNotEmpty())
-        assertTrue(composeRule.onAllNodesWithText("14 марта 2026").fetchSemanticsNodes().isNotEmpty())
+        assertTrue(composeRule.onAllNodesWithText("14 марта 2026").fetchSemanticsNodes().isEmpty())
     }
 
     @Test
@@ -66,11 +67,12 @@ class DetailsScreenTest {
             torrentRows = rows,
         )
 
-        composeRule.onNodeWithText("Сигнал релиза").assertIsDisplayed()
         assertTrue(composeRule.onAllNodesWithText("Поддерживается").fetchSemanticsNodes().isNotEmpty())
+        composeRule.onNodeWithText("Поддерживается • TorrServe • свежие данные").assertExists()
         composeRule.onNodeWithTag(torrServeTag("supported")).assertIsDisplayed()
         composeRule.onNodeWithTag(openTag("unsupported")).assertExists()
         composeRule.onNodeWithTag("details-open-link").assertExists()
+        assertTrue(composeRule.onAllNodesWithTag("details-tech-quality").fetchSemanticsNodes().isEmpty())
         composeRule.onNodeWithTag(torrServeTag("unsupported")).assertDoesNotExist()
     }
 
@@ -85,8 +87,8 @@ class DetailsScreenTest {
             torrentRows = rows,
         )
 
-        composeRule.onNodeWithText("Сигнал релиза").assertIsDisplayed()
         assertTrue(composeRule.onAllNodesWithText("Из torrentRows").fetchSemanticsNodes().isNotEmpty())
+        composeRule.onNodeWithText("Из torrentRows • TorrServe • свежие данные").assertExists()
         composeRule.onNodeWithTag(torrServeTag("rendered")).assertIsDisplayed()
     }
 
@@ -99,7 +101,7 @@ class DetailsScreenTest {
     }
 
     @Test
-    fun cinematicDetails_displaysReleaseSignalAndSecondaryOpenLinkAction() {
+    fun cinematicDetails_displaysSecondaryOpenLinkAction_withoutTechSheet() {
         val rows = listOf(
             row("first", "1080p", "https://example.com/1.torrent", true),
             row("second", "720p", "https://example.com/2.torrent", true),
@@ -110,10 +112,29 @@ class DetailsScreenTest {
             torrentRows = rows,
         )
 
-        composeRule.onNodeWithText("Сигнал релиза").assertIsDisplayed()
         composeRule.onNodeWithTag(torrServeTag("first")).assertIsDisplayed()
         composeRule.onNodeWithTag("details-open-link").assertIsDisplayed()
-        composeRule.onNodeWithTag("details-tech-quality").assertIsDisplayed()
+        composeRule.onNodeWithText("1080p • TorrServe • свежие данные").assertExists()
+        assertTrue(composeRule.onAllNodesWithTag("details-tech-quality").fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
+    fun simplifiedDetails_hidesTechSheetAndShowsCompactStatusLine() {
+        val rows = listOf(
+            row("first", "1080p", "https://example.com/1.torrent", true),
+            row("second", "720p", "https://example.com/2.torrent", true),
+        )
+
+        composeRule.setDetailsContent(
+            state = DetailsUiState(details = detailsWithRows(rows)),
+            torrentRows = rows,
+        )
+
+        composeRule.onNodeWithTag(torrServeTag("first")).assertIsDisplayed()
+        composeRule.onNodeWithText("Сезон 9, серия 13").assertExists()
+        composeRule.onNodeWithText("1080p • TorrServe • свежие данные").assertExists()
+        assertTrue(composeRule.onAllNodesWithText("Сигнал релиза").fetchSemanticsNodes().isEmpty())
+        assertTrue(composeRule.onAllNodesWithTag("details-tech-quality").fetchSemanticsNodes().isEmpty())
     }
 
     @Test
@@ -131,12 +152,6 @@ class DetailsScreenTest {
         )
 
         composeRule.onNodeWithTag(torrServeTag("first")).performSemanticsAction(SemanticsActions.RequestFocus)
-        composeRule.onNodeWithTag(torrServeTag("first")).assertIsFocused()
-
-        composeRule.pressKey(torrServeTag("first"), Key.DirectionLeft)
-        composeRule.onNodeWithTag("details-tech-quality").assertIsFocused()
-
-        composeRule.pressKey("details-tech-quality", Key.DirectionUp)
         composeRule.onNodeWithTag(torrServeTag("first")).assertIsFocused()
 
         composeRule.pressKey(torrServeTag("first"), Key.DirectionDown)
@@ -166,7 +181,7 @@ class DetailsScreenTest {
         composeRule.setDetailsContent(
             state = DetailsUiState(details = detailsWithRows(rows)),
             torrentRows = rows,
-            torrServeMessage = TorrServeMessage(rowId = "other", text = "Не удалось открыть TorrServe"),
+            torrServeMessage = TorrServeMessage(rowId = "active", text = "Не удалось открыть TorrServe"),
             activeTorrServeRowId = "active",
             isTorrServeBusy = true,
             onOpenLink = openedLinks::add,
@@ -178,7 +193,6 @@ class DetailsScreenTest {
         composeRule.onNodeWithTag(torrServeTag("other")).assertIsNotEnabled()
         composeRule.onNodeWithTag(torrServeTag("unsupported")).assertDoesNotExist()
         composeRule.onNodeWithTag(openTag("unsupported")).assertIsEnabled()
-        assertTrue(composeRule.onAllNodesWithText("Открывается...").fetchSemanticsNodes().isNotEmpty())
         composeRule.onNodeWithText("Не удалось открыть TorrServe").assertExists()
         assertTrue(composeRule.onAllNodesWithText("TorrServe").fetchSemanticsNodes().isNotEmpty())
         assertEquals(listOf("https://example.com/active.torrent"), openedLinks)

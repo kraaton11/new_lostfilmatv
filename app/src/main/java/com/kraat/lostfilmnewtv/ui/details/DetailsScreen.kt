@@ -6,13 +6,11 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -49,12 +47,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
-import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 import kotlinx.coroutines.launch
@@ -62,16 +58,12 @@ import kotlinx.coroutines.launch
 private val AccentGold = Color(0xFFF2C46E)
 private val AccentGoldFocus = Color(0xFFFFE0A8)
 private val AccentBlue = Color(0xFF86C8FF)
-private val AccentBlueSoft = Color(0x332B7DBA)
 private val SurfaceCard = Color(0xCC08111A)
 private val SurfaceSoft = Color(0xB30B1520)
-private val SurfaceTech = Color(0xB3101C29)
 private val SurfaceFocused = Color(0xFF16293C)
 private val BorderDefault = Color(0x1FFFFFFF)
-private val BorderFocused = Color(0x52FFFFFF)
 private val TextSecondary = Color(0xFFCCDAE6)
 private val TextMuted = Color(0xFF8FA7BB)
-private val StatusWarn = Color(0xFFD99C45)
 private val StatusError = Color(0xFFE07060)
 
 @Composable
@@ -176,7 +168,6 @@ private fun ContentState(
 ) {
     val details = state.details
     var activeRowId by remember(torrentRows) { mutableStateOf(torrentRows.firstOrNull()?.rowId) }
-    var focusedTechCardId by remember { mutableStateOf("quality") }
     val stageUi = buildDetailsStageUi(
         state = state,
         isAuthenticated = isAuthenticated,
@@ -184,36 +175,15 @@ private fun ContentState(
         activeRowId = activeRowId,
         activeTorrServeRowId = activeTorrServeRowId,
         isTorrServeBusy = isTorrServeBusy,
+        torrServeMessageText = torrServeMessage?.takeIf { it.rowId == activeRowId }?.text,
     )
     val scrollState = rememberScrollState()
     val actionScrollState = rememberScrollState()
     val backRequester = remember { FocusRequester() }
     val qualityRequesters = remember(stageUi.qualityActions) { stageUi.qualityActions.map { FocusRequester() } }
     val openLinkRequester = remember { FocusRequester() }
-    val techRequesters = remember(stageUi.techCards) {
-        stageUi.techCards.associate { it.cardId to FocusRequester() }
-    }
     val qualityBringIntoView = remember(stageUi.qualityActions) {
         stageUi.qualityActions.map { BringIntoViewRequester() }
-    }
-    val activeActionIndex = stageUi.qualityActions.indexOfFirst { it.rowId == stageUi.activeRowId }
-        .takeIf { it >= 0 } ?: 0
-    val activeRow = torrentRows.firstOrNull { it.rowId == stageUi.activeRowId }
-    val activeActionMessage = when {
-        stageUi.primaryAction.actionType == DetailsStageActionType.OPEN_LINK -> "Этот вариант откроется прямой ссылкой"
-        isTorrServeBusy && activeTorrServeRowId == stageUi.activeRowId -> "Открывается..."
-        activeRow?.isTorrServeSupported == true -> "Основной путь запуска через TorrServe"
-        else -> qualityStatusText(
-            hasDetails = details != null,
-            torrentRowsCount = torrentRows.size,
-            isAuthenticated = isAuthenticated,
-        ) ?: ""
-    }
-    val visibleActionMessage = when {
-        torrServeMessage?.text.isNullOrBlank() -> activeActionMessage
-        activeActionMessage.isBlank() -> torrServeMessage?.text.orEmpty()
-        activeActionMessage.contains(torrServeMessage?.text.orEmpty()) -> activeActionMessage
-        else -> "$activeActionMessage\n${torrServeMessage?.text.orEmpty()}"
     }
 
     Column(
@@ -231,15 +201,12 @@ private fun ContentState(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(860.dp),
+                .height(760.dp),
         ) {
             BackgroundPoster(details = details)
             AmbientGlow()
 
             TopOverlay(
-                stageUi = stageUi,
-                details = details,
-                state = state,
                 onBack = onBack,
                 backRequester = backRequester,
                 downTarget = qualityRequesters.firstOrNull() ?: FocusRequester.Default,
@@ -286,7 +253,6 @@ private fun ContentState(
                                 .focusProperties {
                                     up = if (index == 0) backRequester else qualityRequesters[index - 1]
                                     down = qualityRequesters.getOrElse(index + 1) { openLinkRequester }
-                                    left = techRequesters[focusedTechCardId] ?: FocusRequester.Default
                                     right = qualityRequesters[index]
                                 }
                                 .onFocusChanged { focusState ->
@@ -314,7 +280,6 @@ private fun ContentState(
                                 .focusProperties {
                                     up = qualityRequesters.lastOrNull() ?: backRequester
                                     down = openLinkRequester
-                                    left = techRequesters[focusedTechCardId] ?: FocusRequester.Default
                                     right = openLinkRequester
                                 },
                             isSecondary = true,
@@ -322,31 +287,6 @@ private fun ContentState(
                     }
                 }
             }
-
-            if (!torrServeMessage?.text.isNullOrBlank()) {
-                Text(
-                    text = torrServeMessage?.text.orEmpty(),
-                    color = StatusError,
-                    fontSize = 14.sp,
-                    lineHeight = 20.sp,
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .width(236.dp)
-                        .padding(end = 28.dp, bottom = 118.dp),
-                )
-            }
-
-            TechSheet(
-                stageUi = stageUi,
-                activeActionMessage = activeActionMessage,
-                techRequesters = techRequesters,
-                activeActionRequester = qualityRequesters.getOrElse(activeActionIndex) { backRequester },
-                focusedTechCardId = focusedTechCardId,
-                onTechFocused = { focusedTechCardId = it },
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .padding(start = 26.dp, end = 278.dp, bottom = 26.dp),
-            )
         }
     }
 }
@@ -407,80 +347,28 @@ private fun BoxScope.AmbientGlow() {
 
 @Composable
 private fun BoxScope.TopOverlay(
-    stageUi: DetailsStageUiModel,
-    details: ReleaseDetails?,
-    state: DetailsUiState,
     onBack: () -> Unit,
     backRequester: FocusRequester,
     downTarget: FocusRequester,
 ) {
-    Row(
+    Box(
         modifier = Modifier
             .align(Alignment.TopStart)
-            .fillMaxWidth()
             .padding(horizontal = 26.dp, vertical = 24.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.Top,
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            StageButton(
-                label = "Назад",
-                subtitle = "Вернуться к релизам",
-                onClick = onBack,
-                modifier = Modifier
-                    .width(176.dp)
-                    .testTag("details-back")
-                    .focusRequester(backRequester)
-                    .focusProperties {
-                        down = downTarget
-                    },
-                isSecondary = true,
-            )
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                stageUi.metaChips.forEach { chip ->
-                    MetaChip(text = chip)
-                }
-            }
-
-            if (details?.kind == ReleaseKind.SERIES &&
-                details.seasonNumber != null &&
-                details.episodeNumber != null
-            ) {
-                Text(
-                    text = "Сезон ${details.seasonNumber}, серия ${details.episodeNumber}",
-                    color = TextSecondary,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium,
-                )
-            }
-
-            details?.releaseDateRu?.let { releaseDate ->
-                Text(
-                    text = releaseDate,
-                    color = TextMuted,
-                    fontSize = 15.sp,
-                )
-            }
-        }
-
-        Column(
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-            if (state.showStaleBanner) {
-                FloatingStatusPill(
-                    label = "Кэш",
-                    value = "Данные могут быть устаревшими",
-                    accent = StatusWarn,
-                )
-            }
-            FloatingStatusPill(
-                label = "Режим",
-                value = "Cinematic TV Details",
-                accent = AccentBlue,
-            )
-        }
+        StageButton(
+            label = "Назад",
+            subtitle = "Вернуться к релизам",
+            onClick = onBack,
+            modifier = Modifier
+                .width(176.dp)
+                .testTag("details-back")
+                .focusRequester(backRequester)
+                .focusProperties {
+                    down = downTarget
+                },
+            isSecondary = true,
+        )
     }
 }
 
@@ -489,38 +377,37 @@ private fun BoxScope.HeroStage(
     details: ReleaseDetails?,
     stageUi: DetailsStageUiModel,
 ) {
-    Column(
+    Row(
         modifier = Modifier
-            .align(Alignment.TopCenter)
-            .padding(top = 108.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .align(Alignment.CenterStart)
+            .padding(start = 72.dp, top = 64.dp, end = 320.dp),
+        horizontalArrangement = Arrangement.spacedBy(32.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         PosterCard(details = details)
-        Spacer(modifier = Modifier.height(34.dp))
-        Text(
-            text = stageUi.title.ifBlank { "Details" },
-            color = TextPrimary,
-            fontSize = 58.sp,
-            fontWeight = FontWeight.Bold,
-            lineHeight = 62.sp,
-        )
-        Spacer(modifier = Modifier.height(14.dp))
-        Text(
-            text = stageUi.heroSubtitle,
-            color = TextSecondary,
-            fontSize = 16.sp,
-            lineHeight = 22.sp,
-            modifier = Modifier.width(620.dp),
-        )
-        Spacer(modifier = Modifier.height(18.dp))
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            modifier = Modifier.width(460.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            stageUi.heroStats.forEachIndexed { index, stat ->
-                HeroStatChip(
-                    text = stat,
-                    isAccent = index == 1,
+            Text(
+                text = stageUi.title.ifBlank { "Details" },
+                color = TextPrimary,
+                fontSize = 52.sp,
+                fontWeight = FontWeight.Bold,
+                lineHeight = 56.sp,
+            )
+            if (stageUi.heroMetaLine.isNotBlank()) {
+                Text(
+                    text = stageUi.heroMetaLine,
+                    color = TextSecondary,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+            if (stageUi.heroStatusLine.isNotBlank()) {
+                CompactStatusLine(
+                    text = stageUi.heroStatusLine,
+                    isError = stageUi.heroStatusLine.contains("Не удалось"),
                 )
             }
         }
@@ -565,257 +452,24 @@ private fun PosterCard(details: ReleaseDetails?) {
 }
 
 @Composable
-private fun HeroStatChip(text: String, isAccent: Boolean) {
+private fun CompactStatusLine(
+    text: String,
+    isError: Boolean,
+) {
     Box(
         modifier = Modifier
-            .background(
-                if (isAccent) AccentBlueSoft else SurfaceSoft,
-                RoundedCornerShape(999.dp),
-            )
-            .border(
-                width = 1.dp,
-                color = if (isAccent) AccentBlue else BorderDefault,
-                shape = RoundedCornerShape(999.dp),
-            )
-            .padding(horizontal = 14.dp, vertical = 8.dp),
+            .clip(RoundedCornerShape(18.dp))
+            .background(if (isError) Color(0x402A0E10) else SurfaceSoft)
+            .border(1.dp, if (isError) StatusError else BorderDefault, RoundedCornerShape(18.dp))
+            .padding(horizontal = 16.dp, vertical = 11.dp),
     ) {
         Text(
             text = text,
-            color = if (isAccent) AccentBlue else TextSecondary,
-            fontSize = 12.sp,
+            color = if (isError) StatusError else TextSecondary,
+            fontSize = 16.sp,
             fontWeight = FontWeight.Medium,
+            lineHeight = 22.sp,
         )
-    }
-}
-
-@Composable
-private fun MetaChip(text: String) {
-    Box(
-        modifier = Modifier
-            .background(SurfaceSoft, RoundedCornerShape(999.dp))
-            .border(1.dp, BorderDefault, RoundedCornerShape(999.dp))
-            .padding(horizontal = 12.dp, vertical = 7.dp),
-    ) {
-        Text(
-            text = text,
-            color = TextSecondary,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 0.6.sp,
-        )
-    }
-}
-
-@Composable
-private fun FloatingStatusPill(label: String, value: String, accent: Color) {
-    Column(
-        modifier = Modifier
-            .background(SurfaceSoft, RoundedCornerShape(18.dp))
-            .border(1.dp, BorderDefault, RoundedCornerShape(18.dp))
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        horizontalAlignment = Alignment.End,
-    ) {
-        Text(
-            text = label,
-            color = accent,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 0.8.sp,
-        )
-        Text(
-            text = value,
-            color = TextSecondary,
-            fontSize = 12.sp,
-        )
-    }
-}
-
-@Composable
-private fun TechSheet(
-    stageUi: DetailsStageUiModel,
-    activeActionMessage: String,
-    techRequesters: Map<String, FocusRequester>,
-    activeActionRequester: FocusRequester,
-    focusedTechCardId: String,
-    onTechFocused: (String) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val activeCard = stageUi.techCards.firstOrNull { it.cardId == focusedTechCardId } ?: stageUi.techCards.first()
-    val techCards = stageUi.techCards
-
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(28.dp))
-            .background(SurfaceCard)
-            .border(1.dp, BorderDefault, RoundedCornerShape(28.dp))
-            .padding(horizontal = 22.dp, vertical = 20.dp),
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Top,
-        ) {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(
-                    text = "Сигнал релиза",
-                    color = TextPrimary,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = "Техданные собраны из уже доступных сигналов экрана: качества, состояния доступа, формата релиза и статуса запуска.",
-                    color = TextMuted,
-                    fontSize = 13.sp,
-                    lineHeight = 18.sp,
-                )
-            }
-
-            MetaChip(text = "Quality · ${stageUi.primaryAction.qualityLabel ?: "N/A"}")
-        }
-
-        Spacer(modifier = Modifier.height(18.dp))
-
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            techCards.forEachIndexed { index, card ->
-                TechCard(
-                    card = card,
-                    modifier = Modifier
-                        .weight(1f)
-                        .testTag("details-tech-${card.cardId}")
-                        .focusRequester(techRequesters.getValue(card.cardId))
-                        .focusProperties {
-                            left = techRequesters[techCards.getOrNull(index - 1)?.cardId]
-                                ?: techRequesters.getValue(card.cardId)
-                            right = techRequesters[techCards.getOrNull(index + 1)?.cardId]
-                                ?: techRequesters.getValue(card.cardId)
-                            up = activeActionRequester
-                            down = techRequesters.getValue(card.cardId)
-                        },
-                    isFocused = card.cardId == focusedTechCardId,
-                    onFocused = { onTechFocused(card.cardId) },
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            DetailPanel(
-                label = "Focused card",
-                title = "${activeCard.label}: ${activeCard.value}",
-                body = activeCard.supportingText,
-                modifier = Modifier.weight(1f),
-            )
-            DetailPanel(
-                label = "Action response",
-                title = stageUi.primaryAction.label,
-                body = activeActionMessage,
-                modifier = Modifier.weight(0.92f),
-                highlight = activeActionMessage.contains("Открывается") || activeActionMessage.contains("TorrServe"),
-                isError = activeActionMessage.contains("Не удалось"),
-            )
-        }
-    }
-}
-
-@Composable
-private fun TechCard(
-    card: DetailsTechCardUiModel,
-    isFocused: Boolean,
-    onFocused: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val scale by animateFloatAsState(
-        targetValue = if (isFocused) 1.03f else 1f,
-        animationSpec = tween(durationMillis = 110),
-        label = "techCardScale",
-    )
-
-    Box(
-        modifier = modifier
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
-            .clip(RoundedCornerShape(20.dp))
-            .background(if (isFocused) SurfaceFocused else SurfaceTech)
-            .border(
-                width = if (isFocused) 2.dp else 1.dp,
-                color = if (isFocused) AccentBlue else BorderDefault,
-                shape = RoundedCornerShape(20.dp),
-            )
-            .onFocusChanged { focusState ->
-                if (focusState.isFocused) onFocused()
-            }
-            .focusable()
-            .padding(horizontal = 14.dp, vertical = 14.dp),
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                text = card.label,
-                color = TextMuted,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp,
-            )
-            Text(
-                text = card.value,
-                color = TextPrimary,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold,
-                lineHeight = 21.sp,
-            )
-            Text(
-                text = card.supportingText,
-                color = TextSecondary,
-                fontSize = 12.sp,
-                lineHeight = 16.sp,
-            )
-        }
-    }
-}
-
-@Composable
-private fun DetailPanel(
-    label: String,
-    title: String,
-    body: String,
-    modifier: Modifier = Modifier,
-    highlight: Boolean = false,
-    isError: Boolean = false,
-) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(22.dp))
-            .background(if (highlight) SurfaceFocused else SurfaceSoft)
-            .border(1.dp, BorderDefault, RoundedCornerShape(22.dp))
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-    ) {
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                text = label,
-                color = TextMuted,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp,
-            )
-            Text(
-                text = title,
-                color = if (isError) StatusError else TextPrimary,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.SemiBold,
-                lineHeight = 24.sp,
-            )
-            Text(
-                text = body,
-                color = if (isError) StatusError else TextSecondary,
-                fontSize = 13.sp,
-                lineHeight = 18.sp,
-            )
-        }
     }
 }
 
@@ -898,21 +552,4 @@ private fun primaryActionTag(action: DetailsStageActionUiModel): String {
         DetailsStageActionType.OPEN_LINK -> "torrent-open-$rowId"
         DetailsStageActionType.NONE -> "details-primary-action"
     }
-}
-
-private fun ReleaseDetails.releaseTypeLabel(): String {
-    return when (kind) {
-        ReleaseKind.SERIES -> "SERIES"
-        ReleaseKind.MOVIE -> "MOVIE"
-    }
-}
-
-@Composable
-private fun SkeletonBox(width: Dp, height: Dp) {
-    Box(
-        modifier = Modifier
-            .size(width = width, height = height)
-            .clip(RoundedCornerShape(10.dp))
-            .background(SurfaceSoft),
-    )
 }
