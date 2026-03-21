@@ -1,6 +1,7 @@
 package com.kraat.lostfilmnewtv
 
 import android.app.Application
+import androidx.work.WorkManager
 import androidx.room.Room
 import com.kraat.lostfilmnewtv.data.auth.AuthRepositoryContract
 import com.kraat.lostfilmnewtv.data.auth.AuthRepository
@@ -22,6 +23,9 @@ import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeLauncher
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeLinkBuilder
 import com.kraat.lostfilmnewtv.tvchannel.AndroidHomeChannelPublisher
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelContentRepository
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelBackgroundRefreshRunner
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelBackgroundRefreshRunnerProvider
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelBackgroundScheduler
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPreferences
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelSyncManager
 import com.kraat.lostfilmnewtv.updates.AppUpdateRepository
@@ -29,7 +33,7 @@ import com.kraat.lostfilmnewtv.updates.GitHubReleaseClient
 import com.kraat.lostfilmnewtv.updates.ReleaseApkLauncher
 import okhttp3.OkHttpClient
 
-open class LostFilmApplication : Application() {
+open class LostFilmApplication : Application(), HomeChannelBackgroundRefreshRunnerProvider {
     val database: LostFilmDatabase by lazy {
         Room.databaseBuilder(
             this,
@@ -95,6 +99,23 @@ open class LostFilmApplication : Application() {
             programSource = HomeChannelContentRepository(database.releaseDao()),
             preferences = PlaybackStoreHomeChannelPreferences(playbackPreferencesStore),
             publisher = AndroidHomeChannelPublisher(applicationContext),
+        )
+    }
+
+    override open val homeChannelBackgroundRefreshRunner: HomeChannelBackgroundRefreshRunner by lazy {
+        HomeChannelBackgroundRefreshRunner(
+            readMode = playbackPreferencesStore::readAndroidTvChannelMode,
+            readSession = sessionStore::read,
+            isSessionExpired = sessionStore::isExpired,
+            refreshFirstPage = { repository.loadPage(pageNumber = 1) },
+            syncChannel = homeChannelSyncManager::syncNow,
+        )
+    }
+
+    open val homeChannelBackgroundScheduler: HomeChannelBackgroundScheduler by lazy {
+        HomeChannelBackgroundScheduler(
+            readMode = playbackPreferencesStore::readAndroidTvChannelMode,
+            workManager = WorkManager.getInstance(applicationContext),
         )
     }
 

@@ -20,6 +20,7 @@ fun SettingsRoute(
     playbackPreferencesStore: PlaybackPreferencesStore,
     appUpdateRepository: AppUpdateRepository,
     onPlaybackQualityChanged: (PlaybackQualityPreference) -> Unit = {},
+    syncAndroidTvChannelBackgroundSchedule: () -> Unit = {},
     syncAndroidTvChannel: suspend () -> Unit = {},
     installedVersion: String = BuildConfig.VERSION_NAME,
     openInstallApk: suspend (Context, String) -> Boolean = { _, _ -> false },
@@ -30,6 +31,7 @@ fun SettingsRoute(
             playbackPreferencesStore = playbackPreferencesStore,
             appUpdateRepository = appUpdateRepository,
             installedVersion = installedVersion,
+            syncAndroidTvChannelBackgroundSchedule = syncAndroidTvChannelBackgroundSchedule,
             syncAndroidTvChannel = syncAndroidTvChannel,
         ),
     )
@@ -74,6 +76,7 @@ private fun settingsViewModelFactory(
     playbackPreferencesStore: PlaybackPreferencesStore,
     appUpdateRepository: AppUpdateRepository,
     installedVersion: String,
+    syncAndroidTvChannelBackgroundSchedule: () -> Unit,
     syncAndroidTvChannel: suspend () -> Unit,
 ): ViewModelProvider.Factory {
     return object : ViewModelProvider.Factory {
@@ -87,6 +90,7 @@ private fun settingsViewModelFactory(
                 persistPlaybackQuality = playbackPreferencesStore::writeDefaultQuality,
                 persistUpdateMode = playbackPreferencesStore::writeUpdateCheckMode,
                 persistChannelMode = playbackPreferencesStore::writeAndroidTvChannelMode,
+                syncAndroidTvChannelBackgroundSchedule = syncAndroidTvChannelBackgroundSchedule,
                 syncAndroidTvChannel = syncAndroidTvChannel,
                 checkForUpdates = appUpdateRepository::checkForUpdate,
             ) as T

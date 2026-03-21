@@ -23,6 +23,7 @@ class SettingsViewModel(
     private val persistPlaybackQuality: (PlaybackQualityPreference) -> Unit = {},
     private val persistUpdateMode: (UpdateCheckMode) -> Unit = {},
     private val persistChannelMode: (AndroidTvChannelMode) -> Unit = {},
+    private val syncAndroidTvChannelBackgroundSchedule: () -> Unit = {},
     private val syncAndroidTvChannel: suspend () -> Unit = {},
     private val checkForUpdates: suspend () -> AppUpdateInfo,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
@@ -74,6 +75,7 @@ class SettingsViewModel(
             state.copy(channelMode = mode)
         }
         viewModelScope.launch(ioDispatcher) {
+            syncAndroidTvChannelBackgroundSchedule()
             syncAndroidTvChannel()
         }
     }
