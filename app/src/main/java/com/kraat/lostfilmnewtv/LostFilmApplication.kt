@@ -14,6 +14,7 @@ import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmListParser
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepositoryImpl
+import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeActionHandler
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeAvailabilityProbe
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeConfig
@@ -69,6 +70,10 @@ open class LostFilmApplication : Application() {
                 session != null && !session.isExpired()
             },
         )
+    }
+
+    open val playbackPreferencesStore: PlaybackPreferencesStore by lazy {
+        PlaybackPreferencesStore(this)
     }
 
     val torrServeConfig: TorrServeConfig by lazy { TorrServeConfig() }

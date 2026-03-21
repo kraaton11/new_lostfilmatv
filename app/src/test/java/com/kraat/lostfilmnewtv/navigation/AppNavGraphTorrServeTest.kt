@@ -4,10 +4,12 @@ import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.ResolveInfo
 import android.net.Uri
+import android.content.Context
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.semantics.SemanticsActions
@@ -24,6 +26,8 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.model.TorrentLink
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
+import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
+import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeActionHandler
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeAvailabilityChecker
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeSourceBuilder
@@ -72,6 +76,7 @@ class AppNavGraphTorrServeTest {
         TestLostFilmApplication.repositoryOverride = null
         TestLostFilmApplication.authRepositoryOverride = null
         TestLostFilmApplication.torrServeActionHandlerOverride = null
+        TestLostFilmApplication.playbackPreferencesStoreOverride = null
     }
 
     @Test
@@ -95,6 +100,45 @@ class AppNavGraphTorrServeTest {
 
         composeRule.waitUntil(timeoutMillis = 5_000) { torrServeOpenCalls.get() == 1 }
         assertEquals(1, torrServeOpenCalls.get())
+    }
+
+    @Test
+    fun settings_screen_opens_from_home_nav_graph() {
+        composeRule.setContent {
+            LostFilmTheme {
+                AppNavGraph()
+            }
+        }
+
+        composeRule.waitForText("Новые релизы")
+        composeRule.onNodeWithText("Настройки")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        composeRule.waitForText("Качество по умолчанию")
+    }
+
+    @Test
+    fun settings_selection_persists_to_application_playback_store() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsName = "app-nav-playback-settings"
+        context.deleteSharedPreferences(prefsName)
+        val store = PlaybackPreferencesStore(context, prefsName = prefsName)
+        TestLostFilmApplication.playbackPreferencesStoreOverride = store
+
+        composeRule.setContent {
+            LostFilmTheme {
+                AppNavGraph()
+            }
+        }
+
+        composeRule.waitForText("Новые релизы")
+        composeRule.onNodeWithText("Настройки")
+            .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitForText("Качество по умолчанию")
+        composeRule.onNodeWithTag("settings-quality-720")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        assertEquals(PlaybackQualityPreference.Q720, store.readDefaultQuality())
     }
 }
 
@@ -191,6 +235,9 @@ class TestLostFilmApplication : LostFilmApplication() {
             "torrServeActionHandlerOverride must be set before composing AppNavGraph in tests"
         }
 
+    override val playbackPreferencesStore: PlaybackPreferencesStore
+        get() = playbackPreferencesStoreOverride ?: super.playbackPreferencesStore
+
     companion object {
         @Volatile
         var repositoryOverride: LostFilmRepository? = null
@@ -200,6 +247,9 @@ class TestLostFilmApplication : LostFilmApplication() {
 
         @Volatile
         var torrServeActionHandlerOverride: TorrServeActionHandler? = null
+
+        @Volatile
+        var playbackPreferencesStoreOverride: PlaybackPreferencesStore? = null
     }
 }
 
