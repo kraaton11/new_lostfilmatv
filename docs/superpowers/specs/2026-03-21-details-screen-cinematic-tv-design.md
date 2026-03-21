@@ -50,11 +50,12 @@ Compared with the previous `Floating Stage + info sheet` direction, this approac
 
 ## Layout Structure
 
-### 1. Minimal top overlay
+### 1. Minimal top edge
 
-The top area becomes intentionally quiet:
-- `Назад`
-- at most one compact contextual status element if needed
+The top edge becomes intentionally quiet:
+- no focusable chrome above the hero
+- no inline `Назад` button
+- system `Back` on the remote remains the only exit control
 
 Avoid multiple chips, badges, or stacked metadata in this zone.
 
@@ -87,7 +88,6 @@ The right side contains a short vertical action rail with strong focus clarity.
 Primary order:
 - active `Смотреть`
 - alternative quality actions below
-- one lower-priority `Открыть ссылку`
 
 The rail should remain visually lighter than before:
 - fewer decorative layers
@@ -121,12 +121,12 @@ On screen open, focus lands on the primary playback action:
 
 Navigation should become simpler than the previous two-zone model:
 - `Up/Down` moves within the right action rail
-- `Up` from the first action goes to `Назад`
+- `Up` from the first action stays on the first action
 - no first-screen left/right dependency on a lower technical zone
 
 This creates a very predictable focus model:
-- top back control
 - vertical action rail
+- system `Back` to leave the screen
 
 The hero remains informational and visually stable, not part of the initial focus loop.
 
@@ -215,9 +215,9 @@ The public screen contract should remain stable if possible.
 Implementation should verify:
 - initial focus lands on the primary playback action
 - action-rail focus order is deterministic
-- `Назад` is reachable from the first action
+- there is no onscreen `Назад` or `Открыть ссылку` control
 - the compact status line updates for busy/error/fallback states
-- the simplified screen still preserves open-link and TorrServe behavior
+- the simplified screen still preserves direct-link rows and TorrServe behavior when provided
 
 Suggested validation:
 - focused UI tests for action-rail navigation

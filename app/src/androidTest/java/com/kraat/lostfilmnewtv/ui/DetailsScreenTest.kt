@@ -67,13 +67,12 @@ class DetailsScreenTest {
             torrentRows = rows,
         )
 
-        assertTrue(composeRule.onAllNodesWithText("Поддерживается").fetchSemanticsNodes().isNotEmpty())
         composeRule.onNodeWithText("Поддерживается • TorrServe • свежие данные").assertExists()
         composeRule.onNodeWithTag(torrServeTag("supported")).assertIsDisplayed()
         composeRule.onNodeWithTag(openTag("unsupported")).assertExists()
-        composeRule.onNodeWithTag("details-open-link").assertExists()
+        assertTrue(composeRule.onAllNodesWithTag("details-open-link").fetchSemanticsNodes().isEmpty())
         assertTrue(composeRule.onAllNodesWithTag("details-tech-quality").fetchSemanticsNodes().isEmpty())
-        composeRule.onNodeWithTag(torrServeTag("unsupported")).assertDoesNotExist()
+        assertTrue(composeRule.onAllNodesWithTag(torrServeTag("unsupported")).fetchSemanticsNodes().isEmpty())
     }
 
     @Test
@@ -87,7 +86,6 @@ class DetailsScreenTest {
             torrentRows = rows,
         )
 
-        assertTrue(composeRule.onAllNodesWithText("Из torrentRows").fetchSemanticsNodes().isNotEmpty())
         composeRule.onNodeWithText("Из torrentRows • TorrServe • свежие данные").assertExists()
         composeRule.onNodeWithTag(torrServeTag("rendered")).assertIsDisplayed()
     }
@@ -101,7 +99,7 @@ class DetailsScreenTest {
     }
 
     @Test
-    fun cinematicDetails_displaysSecondaryOpenLinkAction_withoutTechSheet() {
+    fun cinematicDetails_showsSingleActionRail_withoutTechSheet() {
         val rows = listOf(
             row("first", "1080p", "https://example.com/1.torrent", true),
             row("second", "720p", "https://example.com/2.torrent", true),
@@ -113,7 +111,8 @@ class DetailsScreenTest {
         )
 
         composeRule.onNodeWithTag(torrServeTag("first")).assertIsDisplayed()
-        composeRule.onNodeWithTag("details-open-link").assertIsDisplayed()
+        assertTrue(composeRule.onAllNodesWithTag("details-open-link").fetchSemanticsNodes().isEmpty())
+        assertTrue(composeRule.onAllNodesWithTag("details-back").fetchSemanticsNodes().isEmpty())
         composeRule.onNodeWithText("1080p • TorrServe • свежие данные").assertExists()
         assertTrue(composeRule.onAllNodesWithTag("details-tech-quality").fetchSemanticsNodes().isEmpty())
     }
@@ -133,6 +132,8 @@ class DetailsScreenTest {
         composeRule.onNodeWithTag(torrServeTag("first")).assertIsDisplayed()
         composeRule.onNodeWithText("Сезон 9, серия 13").assertExists()
         composeRule.onNodeWithText("1080p • TorrServe • свежие данные").assertExists()
+        assertTrue(composeRule.onAllNodesWithTag("details-open-link").fetchSemanticsNodes().isEmpty())
+        assertTrue(composeRule.onAllNodesWithTag("details-back").fetchSemanticsNodes().isEmpty())
         assertTrue(composeRule.onAllNodesWithText("Сигнал релиза").fetchSemanticsNodes().isEmpty())
         assertTrue(composeRule.onAllNodesWithTag("details-tech-quality").fetchSemanticsNodes().isEmpty())
     }
@@ -165,7 +166,8 @@ class DetailsScreenTest {
 
         composeRule.onNodeWithTag(torrServeTag("first")).performSemanticsAction(SemanticsActions.RequestFocus)
         composeRule.pressKey(torrServeTag("first"), Key.DirectionUp)
-        composeRule.onNodeWithText("Назад").assertIsFocused()
+        composeRule.onNodeWithTag(torrServeTag("first")).assertIsFocused()
+        assertTrue(composeRule.onAllNodesWithTag("details-back").fetchSemanticsNodes().isEmpty())
     }
 
     @Test
@@ -188,26 +190,25 @@ class DetailsScreenTest {
             onOpenTorrServe = { rowId, url -> openedTorrServe += rowId to url },
         )
 
-        composeRule.onNodeWithTag("details-open-link").assertIsEnabled().performClick()
         composeRule.onNodeWithTag(torrServeTag("active")).assertIsNotEnabled()
         composeRule.onNodeWithTag(torrServeTag("other")).assertIsNotEnabled()
-        composeRule.onNodeWithTag(torrServeTag("unsupported")).assertDoesNotExist()
+        assertTrue(composeRule.onAllNodesWithTag(torrServeTag("unsupported")).fetchSemanticsNodes().isEmpty())
         composeRule.onNodeWithTag(openTag("unsupported")).assertIsEnabled()
         composeRule.onNodeWithText("Не удалось открыть TorrServe").assertExists()
+        composeRule.onNodeWithTag(openTag("unsupported")).performClick()
+        assertTrue(composeRule.onAllNodesWithTag("details-open-link").fetchSemanticsNodes().isEmpty())
         assertTrue(composeRule.onAllNodesWithText("TorrServe").fetchSemanticsNodes().isNotEmpty())
-        assertEquals(listOf("https://example.com/active.torrent"), openedLinks)
+        assertEquals(listOf("magnet:?xt=urn:btih:unsupported"), openedLinks)
         assertTrue(openedTorrServe.isEmpty())
     }
 
     @Test
-    fun secondaryOpenLinkAction_opensActiveQualityLink() {
+    fun detailsScreen_hidesSecondaryChromeActions() {
         val rows = listOf(
             row("supported", "Поддерживается", "https://example.com/file.torrent", true),
         )
-        var openCount = 0
 
         composeRule.setContent {
-            var isBusy by remember { mutableStateOf(false) }
             LostFilmTheme {
                 DetailsScreen(
                     state = DetailsUiState(details = detailsWithRows(rows)),
@@ -215,20 +216,17 @@ class DetailsScreenTest {
                     torrentRows = rows,
                     torrServeMessage = null,
                     activeTorrServeRowId = null,
-                    isTorrServeBusy = isBusy,
+                    isTorrServeBusy = false,
                     onBack = {},
                     onRetry = {},
-                    onOpenLink = {
-                        openCount += 1
-                        isBusy = true
-                    },
+                    onOpenLink = {},
                     onOpenTorrServe = { _, _ -> },
                 )
             }
         }
 
-        composeRule.onNodeWithTag("details-open-link").performClick()
-        assertEquals(1, openCount)
+        assertTrue(composeRule.onAllNodesWithTag("details-open-link").fetchSemanticsNodes().isEmpty())
+        assertTrue(composeRule.onAllNodesWithTag("details-back").fetchSemanticsNodes().isEmpty())
     }
 
     @Test
@@ -257,7 +255,7 @@ class DetailsScreenTest {
     }
 
     @Test
-    fun backFromDetails_restoresFocusedPosterAfterDpadSelection() {
+    fun backFromDetails_restoresFocusedPosterAfterSystemBack() {
         val movieRows = listOf(row("movie", "Torrent", "https://example.com/movie.torrent", true))
 
         composeRule.setContent {
@@ -314,8 +312,10 @@ class DetailsScreenTest {
         composeRule.onNodeWithTag(posterTag(movieDetailsUrl)).performClick()
         composeRule.waitForIdle()
 
-        assertTrue(composeRule.onAllNodesWithText("Назад").fetchSemanticsNodes().isNotEmpty())
-        composeRule.onNodeWithText("Назад").performClick()
+        assertTrue(composeRule.onAllNodesWithTag("details-back").fetchSemanticsNodes().isEmpty())
+        composeRule.activityRule.scenario.onActivity { activity ->
+            activity.onBackPressedDispatcher.onBackPressed()
+        }
         composeRule.waitForIdle()
 
         assertTrue(composeRule.onAllNodesWithText("Необратимость").fetchSemanticsNodes().isNotEmpty())

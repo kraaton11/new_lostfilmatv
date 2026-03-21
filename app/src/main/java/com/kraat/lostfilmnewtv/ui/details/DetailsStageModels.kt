@@ -57,22 +57,6 @@ fun buildDetailsStageUi(
             enabled = false,
         )
 
-    val secondaryActions = buildList {
-        if (resolvedActiveRow != null) {
-            add(
-                DetailsStageActionUiModel(
-                    actionId = "open-link-${resolvedActiveRow.rowId}",
-                    rowId = resolvedActiveRow.rowId,
-                    label = "Открыть ссылку",
-                    subtitle = resolvedActiveRow.label,
-                    qualityLabel = resolvedActiveRow.label,
-                    actionType = DetailsStageActionType.OPEN_LINK,
-                    enabled = true,
-                ),
-            )
-        }
-    }
-
     return DetailsStageUiModel(
         activeRowId = resolvedActiveRow?.rowId,
         title = details?.titleRu ?: "",
@@ -85,7 +69,7 @@ fun buildDetailsStageUi(
         ),
         primaryAction = primaryAction,
         qualityActions = qualityActions,
-        secondaryActions = secondaryActions,
+        secondaryActions = emptyList(),
     )
 }
 

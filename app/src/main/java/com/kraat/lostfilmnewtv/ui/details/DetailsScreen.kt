@@ -179,9 +179,7 @@ private fun ContentState(
     )
     val scrollState = rememberScrollState()
     val actionScrollState = rememberScrollState()
-    val backRequester = remember { FocusRequester() }
     val qualityRequesters = remember(stageUi.qualityActions) { stageUi.qualityActions.map { FocusRequester() } }
-    val openLinkRequester = remember { FocusRequester() }
     val qualityBringIntoView = remember(stageUi.qualityActions) {
         stageUi.qualityActions.map { BringIntoViewRequester() }
     }
@@ -205,12 +203,6 @@ private fun ContentState(
         ) {
             BackgroundPoster(details = details)
             AmbientGlow()
-
-            TopOverlay(
-                onBack = onBack,
-                backRequester = backRequester,
-                downTarget = qualityRequesters.firstOrNull() ?: FocusRequester.Default,
-            )
 
             HeroStage(
                 details = details,
@@ -251,8 +243,9 @@ private fun ContentState(
                                 .bringIntoViewRequester(bringIntoViewRequester)
                                 .focusRequester(qualityRequesters[index])
                                 .focusProperties {
-                                    up = if (index == 0) backRequester else qualityRequesters[index - 1]
-                                    down = qualityRequesters.getOrElse(index + 1) { openLinkRequester }
+                                    up = qualityRequesters.getOrElse(index - 1) { qualityRequesters[index] }
+                                    down = qualityRequesters.getOrElse(index + 1) { qualityRequesters[index] }
+                                    left = qualityRequesters[index]
                                     right = qualityRequesters[index]
                                 }
                                 .onFocusChanged { focusState ->
@@ -263,26 +256,6 @@ private fun ContentState(
                                 },
                             isPrimary = action.rowId == stageUi.activeRowId,
                             enabled = action.enabled,
-                        )
-                    }
-                    if (stageUi.secondaryActions.isNotEmpty()) {
-                        val openLinkAction = stageUi.secondaryActions.first()
-                        StageButton(
-                            label = openLinkAction.label,
-                            subtitle = openLinkAction.subtitle,
-                            onClick = {
-                                val row = torrentRows.firstOrNull { it.rowId == stageUi.activeRowId } ?: return@StageButton
-                                onOpenLink(row.url)
-                            },
-                            modifier = Modifier
-                                .testTag("details-open-link")
-                                .focusRequester(openLinkRequester)
-                                .focusProperties {
-                                    up = qualityRequesters.lastOrNull() ?: backRequester
-                                    down = openLinkRequester
-                                    right = openLinkRequester
-                                },
-                            isSecondary = true,
                         )
                     }
                 }
@@ -343,33 +316,6 @@ private fun BoxScope.AmbientGlow() {
                 CircleShape,
             ),
     )
-}
-
-@Composable
-private fun BoxScope.TopOverlay(
-    onBack: () -> Unit,
-    backRequester: FocusRequester,
-    downTarget: FocusRequester,
-) {
-    Box(
-        modifier = Modifier
-            .align(Alignment.TopStart)
-            .padding(horizontal = 26.dp, vertical = 24.dp),
-    ) {
-        StageButton(
-            label = "Назад",
-            subtitle = "Вернуться к релизам",
-            onClick = onBack,
-            modifier = Modifier
-                .width(176.dp)
-                .testTag("details-back")
-                .focusRequester(backRequester)
-                .focusProperties {
-                    down = downTarget
-                },
-            isSecondary = true,
-        )
-    }
 }
 
 @Composable

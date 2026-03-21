@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED: Use superpowers:subagent-driven-development (if subagents available) or superpowers:executing-plans to implement this plan. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Simplify the Android TV `Details` screen into the approved `Hero + Action Rail` layout so the first screen becomes readable at a glance while keeping playback action first and preserving current TorrServe/direct-link behavior.
+**Goal:** Simplify the Android TV `Details` screen into the approved `Hero + Action Rail` layout so the first screen becomes readable at a glance while keeping playback action first and removing extra onscreen chrome.
 
 **Architecture:** Keep `DetailsRoute` and the public `DetailsScreen` overloads stable. Slim the presentation model so it exposes only the hero strings and actions that the simplified first screen needs, then rebuild `DetailsScreen.kt` around two visible zones: a calm hero block and a compact right-side action rail. Remove the first-screen technical-sheet focus path instead of hiding it cosmetically.
 
@@ -22,7 +22,7 @@
 Notes:
 - Do not add parser, repository, or network fields.
 - Keep existing supported-row semantic tags such as `torrent-torrserve-<rowId>`.
-- Preserve the current raw/open-link fallback as a secondary action in the rail.
+- Do not keep separate onscreen `Назад` or `Открыть ссылку` controls on the first screen.
 - The first-screen technical sheet and its focus model must be removed, not merely hidden behind alpha or size tricks.
 
 ## Chunk 1: Slim The Stage Model Contract
@@ -119,7 +119,7 @@ Build only the copy the simplified screen needs:
   - `<quality> • прямая ссылка`
   - `<quality> • TorrServe • данные из кэша`
 
-Keep `secondaryActions` for `Открыть ссылку`. Preserve the busy logic that disables all TorrServe-supported quality actions while keeping direct-link paths enabled.
+Collapse first-screen secondary actions to `emptyList()`. Preserve the busy logic that disables all TorrServe-supported quality actions while keeping direct-link rows enabled when they are present.
 
 - [ ] **Step 5: Re-run the mapper tests**
 
@@ -182,7 +182,6 @@ Delete first-screen dependencies on:
 - action-to-tech-card left navigation
 
 The content state should only keep:
-- top back control
 - hero strings from `stageUi`
 - right action rail
 - one compact inline status line
@@ -202,7 +201,6 @@ Keep the visual background and premium tone, but remove dense chip/stat rows. If
 The right rail should contain:
 - active `Смотреть <quality>`
 - remaining quality actions below
-- one `details-open-link` secondary action
 
 Preserve:
 - `torrent-torrserve-<rowId>` for supported rows
@@ -241,7 +239,7 @@ Replace them with assertions for:
 - metadata line under the title
 - one compact status line
 - only vertical movement in the action rail
-- `Назад` above the first action
+- no onscreen `Назад` or `Открыть ссылку`
 
 - [ ] **Step 2: Add a focused test for the simplified focus path**
 
