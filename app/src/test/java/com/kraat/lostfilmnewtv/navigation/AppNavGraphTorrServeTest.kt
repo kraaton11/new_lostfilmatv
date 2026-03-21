@@ -119,6 +119,18 @@ class AppNavGraphTorrServeTest {
     }
 
     @Test
+    fun initialDetailsUrl_opens_details_without_home_click() {
+        composeRule.setContent {
+            LostFilmTheme {
+                AppNavGraph(initialDetailsUrl = TEST_SUMMARY.detailsUrl)
+            }
+        }
+
+        composeRule.waitForText(TEST_DETAILS.titleRu)
+        assertEquals(1, composeRule.onAllNodesWithText(TEST_DETAILS.titleRu).fetchSemanticsNodes().size)
+    }
+
+    @Test
     fun settings_screen_opens_from_home_nav_graph() {
         composeRule.setContent {
             LostFilmTheme {
