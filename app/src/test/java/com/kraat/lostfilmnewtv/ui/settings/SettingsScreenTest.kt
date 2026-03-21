@@ -1,13 +1,21 @@
 package com.kraat.lostfilmnewtv.ui.settings
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeUp
+import androidx.compose.ui.unit.dp
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
@@ -115,5 +123,35 @@ class SettingsScreenTest {
 
         composeRule.onNodeWithText("Проверяем обновления...").assertExists()
         composeRule.onNodeWithText("Проверяем...").assertIsNotEnabled()
+    }
+
+    @Test
+    fun settingsScreen_allowsScrollingToCheckUpdatesButton_whenViewportIsShort() {
+        composeRule.setContent {
+            LostFilmTheme {
+                Box(modifier = Modifier.size(width = 1280.dp, height = 900.dp)) {
+                    SettingsScreen(
+                        selectedQuality = PlaybackQualityPreference.Q1080,
+                        onQualitySelected = {},
+                        selectedUpdateMode = UpdateCheckMode.MANUAL,
+                        installedVersionText = "0.1.0",
+                        latestVersionText = "0.2.0",
+                        statusText = "Доступно обновление",
+                        isCheckingForUpdates = false,
+                        installUrl = "https://example.test/app.apk",
+                        onUpdateModeSelected = {},
+                        onCheckForUpdatesClick = {},
+                        onInstallUpdateClick = {},
+                    )
+                }
+            }
+        }
+
+        composeRule.onRoot().performTouchInput {
+            repeat(3) {
+                swipeUp()
+            }
+        }
+        composeRule.onNodeWithText("Проверить обновления").assertIsDisplayed()
     }
 }
