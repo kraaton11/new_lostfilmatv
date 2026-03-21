@@ -27,7 +27,7 @@ import com.kraat.lostfilmnewtv.ui.auth.AuthViewModel
 import com.kraat.lostfilmnewtv.ui.details.DetailsRoute
 import com.kraat.lostfilmnewtv.ui.home.HomeScreen
 import com.kraat.lostfilmnewtv.ui.home.HomeViewModel
-import com.kraat.lostfilmnewtv.ui.settings.SettingsScreen
+import com.kraat.lostfilmnewtv.ui.settings.SettingsRoute
 
 private const val HOME_WATCHED_DETAILS_URL_KEY = "home.watched_details_url"
 
@@ -121,12 +121,11 @@ fun AppNavGraph() {
             )
         }
         composable(AppDestination.Settings.route) {
-            SettingsScreen(
-                selectedQuality = selectedPlaybackQuality,
-                onQualitySelected = {
-                    application.playbackPreferencesStore.writeDefaultQuality(it)
-                    selectedPlaybackQuality = it
-                },
+            SettingsRoute(
+                playbackPreferencesStore = application.playbackPreferencesStore,
+                appUpdateRepository = application.appUpdateRepository,
+                onPlaybackQualityChanged = { selectedPlaybackQuality = it },
+                openInstallApk = application.releaseApkLauncher::launch,
             )
         }
         composable(AppDestination.Auth.route) {
