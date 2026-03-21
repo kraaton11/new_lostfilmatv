@@ -28,7 +28,7 @@ class DetailsStageModelsTest {
         assertEquals("Смотреть", ui.primaryAction.label)
         assertEquals("row-1", ui.primaryAction.rowId)
         assertEquals("720p", ui.primaryAction.qualityLabel)
-        assertEquals("720p • TorrServe", ui.primaryAction.subtitle)
+        assertEquals("720p", ui.primaryAction.subtitle)
         assertEquals(DetailsStageActionType.OPEN_TORRSERVE, ui.primaryAction.actionType)
     }
 
@@ -64,13 +64,36 @@ class DetailsStageModelsTest {
             isTorrServeBusy = false,
         )
 
-        assertEquals("Сезон 1, серия 5", ui.heroMetaLine)
+        assertEquals("", ui.heroMetaLine)
         assertEquals("The Engineer", ui.heroEpisodeTitle)
-        assertEquals("1080p • TorrServe • свежие данные", ui.heroStatusLine)
+        assertEquals("Сезон 1 • Серия 5 • 1080p", ui.bottomInfoLine)
     }
 
     @Test
-    fun buildStageUi_usesSingleErrorStatusLine_forRowScopedTorrServeFallback() {
+    fun buildStageUi_usesMovieMetaInBottomStrip_withoutReleaseDate() {
+        val ui = buildDetailsStageUi(
+            state = DetailsUiState(
+                details = movieDetails(),
+            ),
+            isAuthenticated = true,
+            availableTorrentRowsCount = 1,
+            playbackRow = DetailsTorrentRowUiModel(
+                rowId = "row-0",
+                label = "1080p",
+                url = "https://example.com/1080",
+                isTorrServeSupported = true,
+            ),
+            activeTorrServeRowId = null,
+            isTorrServeBusy = false,
+        )
+
+        assertEquals("", ui.heroMetaLine)
+        assertEquals("", ui.heroEpisodeTitle)
+        assertEquals("Фильм • 1080p", ui.bottomInfoLine)
+    }
+
+    @Test
+    fun buildStageUi_reusesBottomStripForRowScopedTorrServeFallback() {
         val ui = buildDetailsStageUi(
             state = DetailsUiState(
                 details = movieDetails(),
@@ -89,8 +112,8 @@ class DetailsStageModelsTest {
             torrServeMessageText = "Не удалось открыть TorrServe",
         )
 
-        assertEquals("21 марта 2026", ui.heroMetaLine)
-        assertEquals("Не удалось открыть TorrServe", ui.heroStatusLine)
+        assertEquals("", ui.heroMetaLine)
+        assertEquals("Не удалось открыть TorrServe", ui.bottomInfoLine)
     }
 
     @Test
@@ -105,6 +128,7 @@ class DetailsStageModelsTest {
         )
 
         assertEquals(false, ui.primaryAction.enabled)
+        assertEquals("Открывается...", ui.bottomInfoLine)
         assertEquals(emptyList<DetailsStageActionUiModel>(), ui.secondaryActions)
     }
 
@@ -122,7 +146,8 @@ class DetailsStageModelsTest {
         assertEquals(null, ui.activeRowId)
         assertEquals(DetailsStageActionType.NONE, ui.primaryAction.actionType)
         assertEquals(false, ui.primaryAction.enabled)
-        assertEquals("Варианты качества не найдены", ui.primaryAction.label)
+        assertEquals("Смотреть", ui.primaryAction.label)
+        assertEquals("Видео недоступно", ui.bottomInfoLine)
     }
 }
 
