@@ -53,4 +53,20 @@ class PlaybackPreferencesStoreTest {
 
         assertEquals(UpdateCheckMode.QUIET_CHECK, store.readUpdateCheckMode())
     }
+
+    @Test
+    fun writeDefaultQualityAndUpdateCheckMode_persistTogetherInSamePrefsFile() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsName = "playback-store-combined"
+        context.deleteSharedPreferences(prefsName)
+
+        val store = PlaybackPreferencesStore(context, prefsName = prefsName)
+        store.writeDefaultQuality(PlaybackQualityPreference.Q720)
+        store.writeUpdateCheckMode(UpdateCheckMode.QUIET_CHECK)
+
+        val recreatedStore = PlaybackPreferencesStore(context, prefsName = prefsName)
+
+        assertEquals(PlaybackQualityPreference.Q720, recreatedStore.readDefaultQuality())
+        assertEquals(UpdateCheckMode.QUIET_CHECK, recreatedStore.readUpdateCheckMode())
+    }
 }
