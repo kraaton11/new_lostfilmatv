@@ -25,6 +25,25 @@ interface ReleaseDao {
     )
     suspend fun getSummariesUpToPage(pageNumber: Int): List<ReleaseSummaryEntity>
 
+    @Query(
+        """
+        SELECT * FROM release_summaries
+        ORDER BY pageNumber ASC, positionInPage ASC
+        LIMIT :limit
+        """,
+    )
+    suspend fun getLatestSummariesForChannel(limit: Int): List<ReleaseSummaryEntity>
+
+    @Query(
+        """
+        SELECT * FROM release_summaries
+        WHERE isWatched = 0
+        ORDER BY pageNumber ASC, positionInPage ASC
+        LIMIT :limit
+        """,
+    )
+    suspend fun getLatestUnwatchedSummariesForChannel(limit: Int): List<ReleaseSummaryEntity>
+
     @Query("SELECT * FROM page_cache_metadata WHERE pageNumber = :pageNumber")
     suspend fun getPageMetadata(pageNumber: Int): PageCacheMetadataEntity?
 
