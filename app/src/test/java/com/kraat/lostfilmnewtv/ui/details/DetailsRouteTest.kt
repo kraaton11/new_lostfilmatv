@@ -342,6 +342,7 @@ class DetailsRouteTest {
         val detailsUrl = "https://www.lostfilm.today/series/mark"
         val repository = RouteFakeDetailsRepository.success(detailsUrl)
         val watchedDetailsUrls = CopyOnWriteArrayList<String>()
+        val channelSyncCalls = AtomicInteger(0)
 
         composeRule.setContent {
             DetailsRoute(
@@ -351,6 +352,7 @@ class DetailsRouteTest {
                 linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
                 onBack = {},
                 onMarkedWatched = { watchedDetailsUrls += it },
+                onChannelContentChanged = { channelSyncCalls.incrementAndGet() },
                 openTorrServe = { _, _ -> TorrServeOpenResult.Success },
             )
         }
@@ -362,6 +364,7 @@ class DetailsRouteTest {
 
         assertEquals(listOf(detailsUrl to "362009013"), repository.markedEpisodes)
         assertEquals(listOf(detailsUrl), watchedDetailsUrls)
+        assertEquals(1, channelSyncCalls.get())
     }
 }
 

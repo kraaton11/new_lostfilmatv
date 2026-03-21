@@ -47,6 +47,32 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun onStart_successfulContentLoad_triggersChannelSync() = runTest(dispatcher) {
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(
+                    pageNumber = 1,
+                    items = listOf(summary(detailsUrl = "https://www.lostfilm.today/series/channel-sync/season_1/episode_1/")),
+                    hasNextPage = false,
+                    isStale = false,
+                ),
+            ),
+        )
+        var syncCalls = 0
+        val viewModel = HomeViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            onChannelContentChanged = { syncCalls += 1 },
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+
+        assertEquals(1, syncCalls)
+    }
+
+    @Test
     fun onEndReached_loadsNextPageOnce() = runTest(dispatcher) {
         val firstItem = summary(detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/")
         val secondItem = summary(
