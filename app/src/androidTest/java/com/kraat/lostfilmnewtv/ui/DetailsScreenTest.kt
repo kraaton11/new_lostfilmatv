@@ -101,6 +101,25 @@ class DetailsScreenTest {
     }
 
     @Test
+    fun detailsScreen_placesBottomStripDirectlyBelowWatchButton() {
+        val playbackRow = row("preferred", "1080p", "https://example.com/1080.torrent", true)
+
+        composeRule.setDetailsContent(
+            state = DetailsUiState(details = detailsWithRows(listOf(playbackRow))),
+            availableTorrentRowsCount = 1,
+            playbackRow = playbackRow,
+        )
+
+        composeRule.waitForIdle()
+
+        val buttonBounds = composeRule.onNodeWithTag(torrServeTag("preferred")).fetchSemanticsNode().boundsInRoot
+        val stripBounds = composeRule.onNodeWithTag("details-bottom-info").fetchSemanticsNode().boundsInRoot
+
+        assertTrue(stripBounds.top > buttonBounds.bottom)
+        assertTrue(stripBounds.top - buttonBounds.bottom < 96f)
+    }
+
+    @Test
     fun busyState_disablesSingleWatchButton_andShowsStatusFeedback() {
         val playbackRow = row("preferred", "1080p", "https://example.com/1080.torrent", true)
 
