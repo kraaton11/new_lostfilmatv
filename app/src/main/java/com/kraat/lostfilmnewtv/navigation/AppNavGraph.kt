@@ -109,6 +109,7 @@ fun AppNavGraph() {
                 detailsUrl = detailsUrl,
                 repository = application.repository,
                 isAuthenticated = isAuthenticated,
+                preferredPlaybackQuality = selectedPlaybackQuality,
                 actionHandler = application.torrServeActionHandler,
                 linkBuilder = application.torrServeLinkBuilder,
                 onMarkedWatched = { watchedDetailsUrl ->

@@ -21,6 +21,7 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.TorrentLink
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
+import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeActionHandler
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeAvailabilityChecker
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeConfig
@@ -80,6 +81,76 @@ class DetailsRouteTest {
 
         composeRule.onNodeWithTag(torrServeButtonTag("$detailsUrl#0")).assertIsEnabled()
         composeRule.onNodeWithTag(torrServeButtonTag("$detailsUrl#1")).assertDoesNotExist()
+    }
+
+    @Test
+    fun route_usesPreferredQuality_whenMultipleRowsAreAvailable() {
+        val detailsUrl = "https://www.lostfilm.today/series/preferred"
+        val repository = RouteFakeDetailsRepository(
+            detailsResults = mapOf(
+                detailsUrl to mutableListOf(
+                    DetailsResult.Success(
+                        details = details(
+                            detailsUrl = detailsUrl,
+                            torrentLinks = listOf(
+                                TorrentLink(label = "1080p", url = "https://example.com/file-1080.torrent"),
+                                TorrentLink(label = "720p", url = "https://example.com/file-720.torrent"),
+                            ),
+                        ),
+                        isStale = false,
+                    ),
+                ),
+            ),
+        )
+
+        composeRule.setContent {
+            DetailsRoute(
+                detailsUrl = detailsUrl,
+                repository = repository,
+                preferredPlaybackQuality = PlaybackQualityPreference.Q720,
+                actionHandler = succeedingActionHandler(),
+                linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
+                onBack = {},
+            )
+        }
+
+        composeRule.waitForNodeWithTag(torrServeButtonTag("$detailsUrl#1"))
+        composeRule.onNodeWithTag(torrServeButtonTag("$detailsUrl#1")).assertExists()
+        composeRule.onNodeWithTag(torrServeButtonTag("$detailsUrl#0")).assertDoesNotExist()
+    }
+
+    @Test
+    fun route_disablesPlaybackWhenNothingSupportedRemains() {
+        val detailsUrl = "https://www.lostfilm.today/series/unsupported"
+        val repository = RouteFakeDetailsRepository(
+            detailsResults = mapOf(
+                detailsUrl to mutableListOf(
+                    DetailsResult.Success(
+                        details = details(
+                            detailsUrl = detailsUrl,
+                            torrentLinks = listOf(
+                                TorrentLink(label = "1080p", url = "ftp://example.com/file.torrent"),
+                            ),
+                        ),
+                        isStale = false,
+                    ),
+                ),
+            ),
+        )
+
+        composeRule.setContent {
+            DetailsRoute(
+                detailsUrl = detailsUrl,
+                repository = repository,
+                preferredPlaybackQuality = PlaybackQualityPreference.Q1080,
+                actionHandler = succeedingActionHandler(),
+                linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
+                onBack = {},
+            )
+        }
+
+        composeRule.waitForNodeWithTag("details-primary-action")
+        composeRule.onNodeWithTag("details-primary-action").assertIsNotEnabled()
     }
 
     @Test

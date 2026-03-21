@@ -10,7 +10,6 @@ data class DetailsStageUiModel(
     val heroEpisodeTitle: String,
     val heroStatusLine: String,
     val primaryAction: DetailsStageActionUiModel,
-    val qualityActions: List<DetailsStageActionUiModel>,
     val secondaryActions: List<DetailsStageActionUiModel>,
 )
 
@@ -24,32 +23,26 @@ data class DetailsStageActionUiModel(
     val enabled: Boolean = true,
 )
 
-enum class DetailsStageActionType { OPEN_TORRSERVE, OPEN_LINK, NONE }
+enum class DetailsStageActionType { OPEN_TORRSERVE, NONE }
 
 fun buildDetailsStageUi(
     state: DetailsUiState,
     isAuthenticated: Boolean,
-    torrentRows: List<DetailsTorrentRowUiModel>,
-    activeRowId: String?,
+    availableTorrentRowsCount: Int,
+    playbackRow: DetailsTorrentRowUiModel?,
     activeTorrServeRowId: String?,
     isTorrServeBusy: Boolean,
     torrServeMessageText: String? = null,
 ): DetailsStageUiModel {
     val details = state.details
-    val resolvedActiveRow = torrentRows.firstOrNull { it.rowId == activeRowId } ?: torrentRows.firstOrNull()
-    val qualityActions = torrentRows.map { row ->
-        row.toQualityAction(
-            isBusy = isTorrServeBusy && activeTorrServeRowId == row.rowId,
-            disableForBusy = isTorrServeBusy && row.isTorrServeSupported,
-        )
-    }
-    val primaryAction = qualityActions.firstOrNull { it.rowId == resolvedActiveRow?.rowId }
+    val isBusy = isTorrServeBusy && activeTorrServeRowId == playbackRow?.rowId
+    val primaryAction = playbackRow?.toPrimaryAction(isBusy = isBusy)
         ?: DetailsStageActionUiModel(
             actionId = "empty-primary",
             rowId = null,
             label = qualityStatusText(
                 hasDetails = details != null,
-                torrentRowsCount = torrentRows.size,
+                torrentRowsCount = availableTorrentRowsCount,
                 isAuthenticated = isAuthenticated,
             ) ?: "Загрузка",
             subtitle = "Нет доступного действия",
@@ -59,18 +52,17 @@ fun buildDetailsStageUi(
         )
 
     return DetailsStageUiModel(
-        activeRowId = resolvedActiveRow?.rowId,
+        activeRowId = playbackRow?.rowId,
         title = details?.titleRu ?: "",
         heroMetaLine = buildHeroMetaLine(details = details),
         heroEpisodeTitle = buildHeroEpisodeTitle(details = details),
         heroStatusLine = buildHeroStatusLine(
-            activeRow = resolvedActiveRow,
+            playbackRow = playbackRow,
             showStaleBanner = state.showStaleBanner,
-            isBusy = isTorrServeBusy && activeTorrServeRowId == resolvedActiveRow?.rowId,
+            isBusy = isBusy,
             torrServeMessageText = torrServeMessageText,
         ),
         primaryAction = primaryAction,
-        qualityActions = qualityActions,
         secondaryActions = emptyList(),
     )
 }
@@ -96,7 +88,7 @@ private fun buildHeroEpisodeTitle(details: ReleaseDetails?): String {
 }
 
 private fun buildHeroStatusLine(
-    activeRow: DetailsTorrentRowUiModel?,
+    playbackRow: DetailsTorrentRowUiModel?,
     showStaleBanner: Boolean,
     isBusy: Boolean,
     torrServeMessageText: String?,
@@ -104,35 +96,21 @@ private fun buildHeroStatusLine(
     if (!torrServeMessageText.isNullOrBlank()) return torrServeMessageText
     if (isBusy) return "Открывается..."
 
-    val quality = activeRow?.label ?: return ""
-    if (activeRow.isTorrServeSupported.not()) {
-        return "$quality • прямая ссылка"
-    }
-
+    val quality = playbackRow?.label ?: return ""
     val freshness = if (showStaleBanner) "данные из кэша" else "свежие данные"
     return "$quality • TorrServe • $freshness"
 }
 
-private fun DetailsTorrentRowUiModel.toQualityAction(
+private fun DetailsTorrentRowUiModel.toPrimaryAction(
     isBusy: Boolean,
-    disableForBusy: Boolean,
 ): DetailsStageActionUiModel {
-    val actionType = if (isTorrServeSupported) {
-        DetailsStageActionType.OPEN_TORRSERVE
-    } else {
-        DetailsStageActionType.OPEN_LINK
-    }
     return DetailsStageActionUiModel(
-        actionId = "quality-$rowId",
+        actionId = "playback-$rowId",
         rowId = rowId,
-        label = "Смотреть $label",
-        subtitle = when {
-            isBusy -> "Открывается..."
-            isTorrServeSupported -> "TorrServe"
-            else -> "Прямая ссылка"
-        },
+        label = "Смотреть",
+        subtitle = "$label • TorrServe",
         qualityLabel = label,
-        actionType = actionType,
-        enabled = !disableForBusy,
+        actionType = DetailsStageActionType.OPEN_TORRSERVE,
+        enabled = !isBusy,
     )
 }

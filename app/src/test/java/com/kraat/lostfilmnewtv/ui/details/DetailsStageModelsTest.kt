@@ -7,55 +7,38 @@ import org.junit.Test
 
 class DetailsStageModelsTest {
     @Test
-    fun buildStageUi_usesFirstTorrentRowAsDefaultActivePlayback() {
+    fun buildStageUi_usesResolvedPlaybackRow_asPrimaryWatchAction() {
+        val playbackRow = DetailsTorrentRowUiModel(
+            rowId = "row-1",
+            label = "720p",
+            url = "https://example.com/720",
+            isTorrServeSupported = true,
+        )
+
         val ui = buildDetailsStageUi(
             state = DetailsUiState(details = seriesDetails()),
             isAuthenticated = true,
-            torrentRows = listOf(
-                DetailsTorrentRowUiModel("row-0", "1080p", "https://example.com/1080"),
-                DetailsTorrentRowUiModel("row-1", "720p", "https://example.com/720"),
-            ),
-            activeRowId = null,
+            availableTorrentRowsCount = 2,
+            playbackRow = playbackRow,
             activeTorrServeRowId = null,
             isTorrServeBusy = false,
         )
 
-        assertEquals("row-0", ui.activeRowId)
-        assertEquals("1080p", ui.primaryAction.qualityLabel)
+        assertEquals("row-1", ui.activeRowId)
+        assertEquals("Смотреть", ui.primaryAction.label)
+        assertEquals("row-1", ui.primaryAction.rowId)
+        assertEquals("720p", ui.primaryAction.qualityLabel)
+        assertEquals("720p • TorrServe", ui.primaryAction.subtitle)
         assertEquals(DetailsStageActionType.OPEN_TORRSERVE, ui.primaryAction.actionType)
     }
 
     @Test
-    fun buildStageUi_usesDirectLinkAsPrimaryActionWhenTorrServeIsUnsupported() {
-        val ui = buildDetailsStageUi(
-            state = DetailsUiState(details = movieDetails()),
-            isAuthenticated = true,
-            torrentRows = listOf(
-                DetailsTorrentRowUiModel(
-                    rowId = "row-0",
-                    label = "WEBRip",
-                    url = "magnet:?xt=urn:btih:test",
-                    isTorrServeSupported = false,
-                ),
-            ),
-            activeRowId = "row-0",
-            activeTorrServeRowId = null,
-            isTorrServeBusy = false,
-        )
-
-        assertEquals(DetailsStageActionType.OPEN_LINK, ui.primaryAction.actionType)
-        assertEquals("WEBRip", ui.primaryAction.qualityLabel)
-    }
-
-    @Test
-    fun buildStageUi_hidesSecondaryOpenLinkAction_inReadableMode() {
+    fun buildStageUi_hidesSecondaryActions_inReadableMode() {
         val ui = buildDetailsStageUi(
             state = DetailsUiState(details = seriesDetails()),
             isAuthenticated = true,
-            torrentRows = listOf(
-                DetailsTorrentRowUiModel("row-0", "1080p", "https://example.com/1080"),
-            ),
-            activeRowId = "row-0",
+            availableTorrentRowsCount = 1,
+            playbackRow = DetailsTorrentRowUiModel("row-0", "1080p", "https://example.com/1080"),
             activeTorrServeRowId = null,
             isTorrServeBusy = false,
         )
@@ -70,15 +53,13 @@ class DetailsStageModelsTest {
                 details = seriesDetails(),
             ),
             isAuthenticated = true,
-            torrentRows = listOf(
-                DetailsTorrentRowUiModel(
-                    rowId = "row-0",
-                    label = "1080p",
-                    url = "https://example.com/1080",
-                    isTorrServeSupported = true,
-                ),
+            availableTorrentRowsCount = 1,
+            playbackRow = DetailsTorrentRowUiModel(
+                rowId = "row-0",
+                label = "1080p",
+                url = "https://example.com/1080",
+                isTorrServeSupported = true,
             ),
-            activeRowId = "row-0",
             activeTorrServeRowId = null,
             isTorrServeBusy = false,
         )
@@ -96,15 +77,13 @@ class DetailsStageModelsTest {
                 showStaleBanner = true,
             ),
             isAuthenticated = false,
-            torrentRows = listOf(
-                DetailsTorrentRowUiModel(
-                    rowId = "row-0",
-                    label = "WEBRip",
-                    url = "magnet:?xt=urn:btih:test",
-                    isTorrServeSupported = false,
-                ),
+            availableTorrentRowsCount = 1,
+            playbackRow = DetailsTorrentRowUiModel(
+                rowId = "row-0",
+                label = "1080p",
+                url = "https://example.com/1080",
+                isTorrServeSupported = true,
             ),
-            activeRowId = "row-0",
             activeTorrServeRowId = null,
             isTorrServeBusy = false,
             torrServeMessageText = "Не удалось открыть TorrServe",
@@ -115,24 +94,35 @@ class DetailsStageModelsTest {
     }
 
     @Test
-    fun buildStageUi_disablesAllTorrServeQualityActionsWhileBusy() {
+    fun buildStageUi_disablesPrimaryPlaybackActionWhileBusy() {
         val ui = buildDetailsStageUi(
             state = DetailsUiState(details = seriesDetails()),
             isAuthenticated = true,
-            torrentRows = listOf(
-                DetailsTorrentRowUiModel("row-0", "1080p", "https://example.com/1080", isTorrServeSupported = true),
-                DetailsTorrentRowUiModel("row-1", "720p", "https://example.com/720", isTorrServeSupported = true),
-                DetailsTorrentRowUiModel("row-2", "WEBRip", "magnet:?xt=urn:btih:test", isTorrServeSupported = false),
-            ),
-            activeRowId = "row-0",
+            availableTorrentRowsCount = 2,
+            playbackRow = DetailsTorrentRowUiModel("row-0", "1080p", "https://example.com/1080", isTorrServeSupported = true),
             activeTorrServeRowId = "row-0",
             isTorrServeBusy = true,
         )
 
-        assertEquals(false, ui.qualityActions.first { it.rowId == "row-0" }.enabled)
-        assertEquals(false, ui.qualityActions.first { it.rowId == "row-1" }.enabled)
-        assertEquals(true, ui.qualityActions.first { it.rowId == "row-2" }.enabled)
+        assertEquals(false, ui.primaryAction.enabled)
         assertEquals(emptyList<DetailsStageActionUiModel>(), ui.secondaryActions)
+    }
+
+    @Test
+    fun buildStageUi_usesDisabledPrimaryActionWhenNoPlaybackRowExists() {
+        val ui = buildDetailsStageUi(
+            state = DetailsUiState(details = seriesDetails()),
+            isAuthenticated = true,
+            availableTorrentRowsCount = 0,
+            playbackRow = null,
+            activeTorrServeRowId = null,
+            isTorrServeBusy = false,
+        )
+
+        assertEquals(null, ui.activeRowId)
+        assertEquals(DetailsStageActionType.NONE, ui.primaryAction.actionType)
+        assertEquals(false, ui.primaryAction.enabled)
+        assertEquals("Варианты качества не найдены", ui.primaryAction.label)
     }
 }
 
