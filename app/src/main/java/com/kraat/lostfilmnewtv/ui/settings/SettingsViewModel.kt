@@ -7,6 +7,7 @@ import com.kraat.lostfilmnewtv.updates.AppUpdateInfo
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,6 +23,8 @@ class SettingsViewModel(
     private val checkForUpdates: suspend () -> AppUpdateInfo,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
+    private var activeRefreshJob: Job? = null
+    private var refreshRequestToken: Long = 0
     private val _uiState = MutableStateFlow(
         SettingsUiState(
             playbackQuality = initialPlaybackQuality,
@@ -45,6 +48,9 @@ class SettingsViewModel(
     }
 
     fun onUpdateModeSelected(mode: UpdateCheckMode) {
+        if (mode == _uiState.value.updateMode) {
+            return
+        }
         persistUpdateMode(mode)
         _uiState.update { state ->
             state.copy(updateMode = mode)
@@ -59,16 +65,21 @@ class SettingsViewModel(
     }
 
     private fun refreshUpdateInfo() {
+        val requestToken = refreshRequestToken + 1
+        refreshRequestToken = requestToken
+        activeRefreshJob?.cancel()
         _uiState.update { state ->
             state.copy(
                 isCheckingForUpdates = true,
                 installUrl = null,
             )
         }
-        viewModelScope.launch(ioDispatcher) {
+        activeRefreshJob = viewModelScope.launch(ioDispatcher) {
             val updateInfo = checkForUpdates()
-            _uiState.update { state ->
-                state.toCheckedState(updateInfo)
+            if (refreshRequestToken == requestToken) {
+                _uiState.update { state ->
+                    state.toCheckedState(updateInfo)
+                }
             }
         }
     }
