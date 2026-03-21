@@ -1,10 +1,15 @@
 package com.kraat.lostfilmnewtv.tvchannel
 
+import android.util.Log
+
 class HomeChannelSyncManager(
     private val programSource: HomeChannelProgramSource,
     private val preferences: HomeChannelPreferences,
     private val publisher: HomeChannelPublisher,
     private val programLimit: Int = DEFAULT_PROGRAM_LIMIT,
+    private val onSyncFailure: (Throwable) -> Unit = { error ->
+        Log.w(TAG, "Launcher channel sync failed", error)
+    },
 ) {
     suspend fun syncNow() {
         try {
@@ -25,13 +30,14 @@ class HomeChannelSyncManager(
                     preferences.writeChannelId(result.channelId)
                 }
             }
-        } catch (_: Throwable) {
-            // Launcher integration must not crash the app.
+        } catch (error: Throwable) {
+            onSyncFailure(error)
         }
     }
 
     private companion object {
         const val DEFAULT_PROGRAM_LIMIT = 30
+        const val TAG = "HomeChannelSyncManager"
     }
 }
 
