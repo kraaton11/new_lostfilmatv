@@ -37,6 +37,7 @@ import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeActionHandler
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeAvailabilityChecker
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeSourceBuilder
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeUrlLauncher
+import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.updates.AppUpdateRepository
 import com.kraat.lostfilmnewtv.updates.GitHubRelease
 import com.kraat.lostfilmnewtv.updates.GitHubReleaseClient
@@ -319,6 +320,46 @@ class AppNavGraphTorrServeTest {
         composeRule.waitForText("Обновления")
         composeRule.onNodeWithTag("settings-update-mode-quiet").assertIsSelected()
         composeRule.waitForText("Последняя версия: 0.2.0")
+    }
+
+    @Test
+    fun settings_android_tv_channel_mode_persists_to_application_store_and_restores_through_nav_graph() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsName = "app-nav-tv-channel-settings"
+        context.deleteSharedPreferences(prefsName)
+        val store = PlaybackPreferencesStore(context, prefsName = prefsName)
+        TestLostFilmApplication.playbackPreferencesStoreOverride = store
+        var graphInstance by mutableIntStateOf(0)
+
+        composeRule.setContent {
+            LostFilmTheme {
+                key(graphInstance) {
+                    AppNavGraph()
+                }
+            }
+        }
+
+        composeRule.waitForText("Новые релизы")
+        composeRule.onNodeWithText("Настройки")
+            .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitForText("Канал Android TV")
+        composeRule.onNodeWithTag("settings-tv-channel-unwatched")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            store.readAndroidTvChannelMode() == AndroidTvChannelMode.UNWATCHED
+        }
+        assertEquals(AndroidTvChannelMode.UNWATCHED, store.readAndroidTvChannelMode())
+
+        composeRule.runOnIdle {
+            graphInstance += 1
+        }
+
+        composeRule.waitForText("Новые релизы")
+        composeRule.onNodeWithText("Настройки")
+            .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitForText("Канал Android TV")
+        composeRule.onNodeWithTag("settings-tv-channel-unwatched").assertIsSelected()
     }
 }
 

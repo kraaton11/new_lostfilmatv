@@ -17,6 +17,7 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeUp
 import androidx.compose.ui.unit.dp
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
+import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
 import org.junit.Assert.assertEquals
@@ -34,6 +35,7 @@ class SettingsScreenTest {
     fun settingsScreen_rendersUpdatesBlockAndInvokesCallbacks() {
         val clicked = mutableListOf<PlaybackQualityPreference>()
         val selectedModes = mutableListOf<UpdateCheckMode>()
+        val selectedChannelModes = mutableListOf<AndroidTvChannelMode>()
         var checkClicks = 0
         var installClicks = 0
 
@@ -43,12 +45,14 @@ class SettingsScreenTest {
                     selectedQuality = PlaybackQualityPreference.Q1080,
                     onQualitySelected = { clicked += it },
                     selectedUpdateMode = UpdateCheckMode.MANUAL,
+                    selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
                     installedVersionText = "0.1.0",
                     latestVersionText = "0.2.0",
                     statusText = "Доступно обновление",
                     isCheckingForUpdates = false,
                     installUrl = "https://example.test/app.apk",
                     onUpdateModeSelected = { selectedModes += it },
+                    onChannelModeSelected = { selectedChannelModes += it },
                     onCheckForUpdatesClick = { checkClicks += 1 },
                     onInstallUpdateClick = { installClicks += 1 },
                 )
@@ -57,6 +61,8 @@ class SettingsScreenTest {
 
         composeRule.onNodeWithTag("settings-quality-1080").assertIsSelected()
         composeRule.onNodeWithTag("settings-update-mode-manual").assertIsSelected()
+        composeRule.onNodeWithTag("settings-tv-channel-all-new").assertIsSelected()
+        composeRule.onNodeWithText("Канал Android TV").assertExists()
         assertEquals(1, composeRule.onAllNodesWithText("Установлена версия: 0.1.0").fetchSemanticsNodes().size)
         assertEquals(1, composeRule.onAllNodesWithText("Последняя версия: 0.2.0").fetchSemanticsNodes().size)
         assertEquals(1, composeRule.onAllNodesWithText("Доступно обновление").fetchSemanticsNodes().size)
@@ -66,6 +72,8 @@ class SettingsScreenTest {
             .performSemanticsAction(SemanticsActions.OnClick)
         composeRule.onNodeWithTag("settings-update-mode-quiet")
             .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.onNodeWithTag("settings-tv-channel-unwatched")
+            .performSemanticsAction(SemanticsActions.OnClick)
         composeRule.onNodeWithText("Проверить обновления")
             .performSemanticsAction(SemanticsActions.OnClick)
         composeRule.onNodeWithText("Скачать и установить")
@@ -73,6 +81,7 @@ class SettingsScreenTest {
 
         assertEquals(listOf(PlaybackQualityPreference.Q720), clicked)
         assertEquals(listOf(UpdateCheckMode.QUIET_CHECK), selectedModes)
+        assertEquals(listOf(AndroidTvChannelMode.UNWATCHED), selectedChannelModes)
         assertEquals(1, checkClicks)
         assertEquals(1, installClicks)
     }
@@ -85,12 +94,14 @@ class SettingsScreenTest {
                     selectedQuality = PlaybackQualityPreference.Q1080,
                     onQualitySelected = {},
                     selectedUpdateMode = UpdateCheckMode.MANUAL,
+                    selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
                     installedVersionText = "0.1.0",
                     latestVersionText = null,
                     statusText = null,
                     isCheckingForUpdates = false,
                     installUrl = null,
                     onUpdateModeSelected = {},
+                    onChannelModeSelected = {},
                     onCheckForUpdatesClick = {},
                     onInstallUpdateClick = {},
                 )
@@ -109,12 +120,14 @@ class SettingsScreenTest {
                     selectedQuality = PlaybackQualityPreference.Q1080,
                     onQualitySelected = {},
                     selectedUpdateMode = UpdateCheckMode.MANUAL,
+                    selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
                     installedVersionText = "0.1.0",
                     latestVersionText = null,
                     statusText = "Проверяем обновления...",
                     isCheckingForUpdates = true,
                     installUrl = null,
                     onUpdateModeSelected = {},
+                    onChannelModeSelected = {},
                     onCheckForUpdatesClick = {},
                     onInstallUpdateClick = {},
                 )
@@ -134,12 +147,14 @@ class SettingsScreenTest {
                         selectedQuality = PlaybackQualityPreference.Q1080,
                         onQualitySelected = {},
                         selectedUpdateMode = UpdateCheckMode.MANUAL,
+                        selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
                         installedVersionText = "0.1.0",
                         latestVersionText = "0.2.0",
                         statusText = "Доступно обновление",
                         isCheckingForUpdates = false,
                         installUrl = "https://example.test/app.apk",
                         onUpdateModeSelected = {},
+                        onChannelModeSelected = {},
                         onCheckForUpdatesClick = {},
                         onInstallUpdateClick = {},
                     )
