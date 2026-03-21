@@ -51,6 +51,26 @@ class AppUpdateRepositoryTest {
     }
 
     @Test
+    fun checkForUpdate_returnsUpToDate_whenInstalledVersionIsNewerThanLatestRelease() = runTest {
+        val repository = AppUpdateRepository(
+            installedVersion = "v2026.03.22.101",
+            releaseClient = fakeClient(
+                GitHubRelease(
+                    version = "v2026.03.21.100",
+                    apkUrl = "https://example.test/app-v2026.03.21.100.apk",
+                ),
+            ),
+        )
+
+        val updateInfo = repository.checkForUpdate()
+
+        assertEquals(
+            AppUpdateInfo.UpToDate(installedVersion = "v2026.03.22.101"),
+            updateInfo,
+        )
+    }
+
+    @Test
     fun checkForUpdate_returnsError_whenReleaseHasNoApkAsset() = runTest {
         val repository = AppUpdateRepository(
             installedVersion = "1.0.0",
