@@ -6,6 +6,8 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 data class DetailsStageUiModel(
     val activeRowId: String?,
     val title: String,
+    val heroMetaLine: String,
+    val heroStatusLine: String,
     val heroSubtitle: String,
     val metaChips: List<String>,
     val heroStats: List<String>,
@@ -45,6 +47,7 @@ fun buildDetailsStageUi(
     activeRowId: String?,
     activeTorrServeRowId: String?,
     isTorrServeBusy: Boolean,
+    torrServeMessageText: String? = null,
 ): DetailsStageUiModel {
     val details = state.details
     val resolvedActiveRow = torrentRows.firstOrNull { it.rowId == activeRowId } ?: torrentRows.firstOrNull()
@@ -88,6 +91,13 @@ fun buildDetailsStageUi(
     return DetailsStageUiModel(
         activeRowId = resolvedActiveRow?.rowId,
         title = details?.titleRu ?: "",
+        heroMetaLine = buildHeroMetaLine(details = details),
+        heroStatusLine = buildHeroStatusLine(
+            activeRow = resolvedActiveRow,
+            showStaleBanner = state.showStaleBanner,
+            isBusy = isTorrServeBusy && activeTorrServeRowId == resolvedActiveRow?.rowId,
+            torrServeMessageText = torrServeMessageText,
+        ),
         heroSubtitle = buildHeroSubtitle(
             details = details,
             activeRow = resolvedActiveRow,
@@ -112,6 +122,39 @@ fun buildDetailsStageUi(
             isBusy = isTorrServeBusy && activeTorrServeRowId == resolvedActiveRow?.rowId,
         ),
     )
+}
+
+private fun buildHeroMetaLine(details: ReleaseDetails?): String {
+    if (details == null) return ""
+
+    return when (details.kind) {
+        ReleaseKind.SERIES -> {
+            if (details.seasonNumber != null && details.episodeNumber != null) {
+                "Сезон ${details.seasonNumber}, серия ${details.episodeNumber}"
+            } else {
+                details.releaseDateRu
+            }
+        }
+        ReleaseKind.MOVIE -> details.releaseDateRu
+    }
+}
+
+private fun buildHeroStatusLine(
+    activeRow: DetailsTorrentRowUiModel?,
+    showStaleBanner: Boolean,
+    isBusy: Boolean,
+    torrServeMessageText: String?,
+): String {
+    if (!torrServeMessageText.isNullOrBlank()) return torrServeMessageText
+    if (isBusy) return "Открывается..."
+
+    val quality = activeRow?.label ?: return ""
+    if (activeRow.isTorrServeSupported.not()) {
+        return "$quality • прямая ссылка"
+    }
+
+    val freshness = if (showStaleBanner) "данные из кэша" else "свежие данные"
+    return "$quality • TorrServe • $freshness"
 }
 
 private fun DetailsTorrentRowUiModel.toQualityAction(

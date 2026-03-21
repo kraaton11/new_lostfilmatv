@@ -48,19 +48,18 @@ class DetailsStageModelsTest {
     }
 
     @Test
-    fun buildStageUi_usesOnlyExistingSignalsForTechCards() {
+    fun buildStageUi_exposesCompactHeroMetaAndStatusLines() {
         val ui = buildDetailsStageUi(
             state = DetailsUiState(
                 details = seriesDetails(),
-                showStaleBanner = true,
             ),
-            isAuthenticated = false,
+            isAuthenticated = true,
             torrentRows = listOf(
                 DetailsTorrentRowUiModel(
                     rowId = "row-0",
                     label = "1080p",
                     url = "https://example.com/1080",
-                    isTorrServeSupported = false,
+                    isTorrServeSupported = true,
                 ),
             ),
             activeRowId = "row-0",
@@ -68,10 +67,34 @@ class DetailsStageModelsTest {
             isTorrServeBusy = false,
         )
 
-        assertEquals(listOf("quality", "delivery", "release", "access", "freshness"), ui.techCards.map { it.cardId })
-        assertEquals("1080p", ui.techCards.first { it.cardId == "quality" }.value)
-        assertEquals("Требуется вход", ui.techCards.first { it.cardId == "access" }.value)
-        assertEquals("Кэш", ui.techCards.first { it.cardId == "freshness" }.label)
+        assertEquals("Сезон 1, серия 5", ui.heroMetaLine)
+        assertEquals("1080p • TorrServe • свежие данные", ui.heroStatusLine)
+    }
+
+    @Test
+    fun buildStageUi_usesSingleErrorStatusLine_forRowScopedTorrServeFallback() {
+        val ui = buildDetailsStageUi(
+            state = DetailsUiState(
+                details = movieDetails(),
+                showStaleBanner = true,
+            ),
+            isAuthenticated = false,
+            torrentRows = listOf(
+                DetailsTorrentRowUiModel(
+                    rowId = "row-0",
+                    label = "WEBRip",
+                    url = "magnet:?xt=urn:btih:test",
+                    isTorrServeSupported = false,
+                ),
+            ),
+            activeRowId = "row-0",
+            activeTorrServeRowId = null,
+            isTorrServeBusy = false,
+            torrServeMessageText = "Не удалось открыть TorrServe",
+        )
+
+        assertEquals("21 марта 2026", ui.heroMetaLine)
+        assertEquals("Не удалось открыть TorrServe", ui.heroStatusLine)
     }
 
     @Test
