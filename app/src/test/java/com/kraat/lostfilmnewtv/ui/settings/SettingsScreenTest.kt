@@ -1,6 +1,7 @@
 package com.kraat.lostfilmnewtv.ui.settings
 
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -37,6 +38,7 @@ class SettingsScreenTest {
                     installedVersionText = "0.1.0",
                     latestVersionText = "0.2.0",
                     statusText = "Доступно обновление",
+                    isCheckingForUpdates = false,
                     installUrl = "https://example.test/app.apk",
                     onUpdateModeSelected = { selectedModes += it },
                     onCheckForUpdatesClick = { checkClicks += 1 },
@@ -78,6 +80,7 @@ class SettingsScreenTest {
                     installedVersionText = "0.1.0",
                     latestVersionText = null,
                     statusText = null,
+                    isCheckingForUpdates = false,
                     installUrl = null,
                     onUpdateModeSelected = {},
                     onCheckForUpdatesClick = {},
@@ -88,5 +91,29 @@ class SettingsScreenTest {
 
         assertEquals(1, composeRule.onAllNodesWithText("Проверить обновления").fetchSemanticsNodes().size)
         assertEquals(0, composeRule.onAllNodesWithText("Скачать и установить").fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun settingsScreen_showsLoadingMessage_andDisablesCheckButton() {
+        composeRule.setContent {
+            LostFilmTheme {
+                SettingsScreen(
+                    selectedQuality = PlaybackQualityPreference.Q1080,
+                    onQualitySelected = {},
+                    selectedUpdateMode = UpdateCheckMode.MANUAL,
+                    installedVersionText = "0.1.0",
+                    latestVersionText = null,
+                    statusText = "Проверяем обновления...",
+                    isCheckingForUpdates = true,
+                    installUrl = null,
+                    onUpdateModeSelected = {},
+                    onCheckForUpdatesClick = {},
+                    onInstallUpdateClick = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Проверяем обновления...").assertExists()
+        composeRule.onNodeWithText("Проверяем...").assertIsNotEnabled()
     }
 }

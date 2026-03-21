@@ -86,6 +86,41 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun onCheckForUpdatesClick_showsLoadingState_andClearsStaleUpdateInfo() = runTest(dispatcher) {
+        val updateChecker = FakeUpdateChecker().apply {
+            enqueue(
+                AppUpdateInfo.UpdateAvailable(
+                    installedVersion = "1.0.0",
+                    latestVersion = "1.1.0",
+                    apkUrl = "https://example.test/app-1.1.0.apk",
+                ),
+            )
+        }
+        val nextResult = updateChecker.enqueueDeferred()
+        val viewModel = SettingsViewModel(
+            installedVersion = "1.0.0",
+            initialPlaybackQuality = PlaybackQualityPreference.Q1080,
+            initialUpdateMode = UpdateCheckMode.MANUAL,
+            checkForUpdates = updateChecker::invoke,
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onCheckForUpdatesClick()
+        advanceUntilIdle()
+
+        viewModel.onCheckForUpdatesClick()
+        runCurrent()
+
+        assertEquals(2, updateChecker.callCount)
+        assertEquals("Проверяем обновления...", viewModel.uiState.value.statusText)
+        assertEquals(true, viewModel.uiState.value.isCheckingForUpdates)
+        assertNull(viewModel.uiState.value.latestVersionText)
+        assertNull(viewModel.uiState.value.installUrl)
+
+        nextResult.complete(AppUpdateInfo.UpToDate(installedVersion = "1.0.0"))
+    }
+
+    @Test
     fun onUpdateModeSelected_persistsMode_andTriggersCheckWhenQuiet() = runTest(dispatcher) {
         val persistedModes = mutableListOf<UpdateCheckMode>()
         val updateChecker = FakeUpdateChecker()
@@ -185,6 +220,21 @@ class SettingsViewModelTest {
 
         assertEquals(listOf(PlaybackQualityPreference.Q720), persistedQualities)
         assertEquals(PlaybackQualityPreference.Q720, viewModel.uiState.value.playbackQuality)
+    }
+
+    @Test
+    fun onInstallUpdateFailed_showsUserFacingErrorMessage() = runTest(dispatcher) {
+        val viewModel = SettingsViewModel(
+            installedVersion = "1.0.0",
+            initialPlaybackQuality = PlaybackQualityPreference.Q1080,
+            initialUpdateMode = UpdateCheckMode.MANUAL,
+            checkForUpdates = { AppUpdateInfo.UpToDate(installedVersion = "1.0.0") },
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onInstallUpdateFailed()
+
+        assertEquals("Не удалось открыть обновление.", viewModel.uiState.value.statusText)
     }
 
     private class FakeUpdateChecker(
