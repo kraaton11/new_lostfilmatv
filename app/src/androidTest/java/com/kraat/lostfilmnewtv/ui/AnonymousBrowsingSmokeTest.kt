@@ -107,6 +107,8 @@ private class FakeAnonymousBrowsingRepository : LostFilmRepository {
             isStale = false,
         )
     }
+
+    override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean = true
 }
 
 private val SMOKE_SUMMARY = ReleaseSummary(
