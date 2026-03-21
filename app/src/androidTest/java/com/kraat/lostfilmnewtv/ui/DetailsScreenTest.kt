@@ -66,11 +66,11 @@ class DetailsScreenTest {
             torrentRows = rows,
         )
 
-        composeRule.onNodeWithText("Ссылки").assertIsDisplayed()
-        composeRule.onNodeWithText("Поддерживается").assertIsDisplayed()
-        composeRule.onNodeWithTag(openTag("supported")).assertIsDisplayed()
+        composeRule.onNodeWithText("Сигнал релиза").assertIsDisplayed()
+        assertTrue(composeRule.onAllNodesWithText("Поддерживается").fetchSemanticsNodes().isNotEmpty())
         composeRule.onNodeWithTag(torrServeTag("supported")).assertIsDisplayed()
         composeRule.onNodeWithTag(openTag("unsupported")).assertExists()
+        composeRule.onNodeWithTag("details-open-link").assertExists()
         composeRule.onNodeWithTag(torrServeTag("unsupported")).assertDoesNotExist()
     }
 
@@ -85,9 +85,9 @@ class DetailsScreenTest {
             torrentRows = rows,
         )
 
-        composeRule.onNodeWithText("Ссылки").assertIsDisplayed()
-        composeRule.onNodeWithText("Из torrentRows").assertIsDisplayed()
-        composeRule.onNodeWithTag(openTag("rendered")).assertIsDisplayed()
+        composeRule.onNodeWithText("Сигнал релиза").assertIsDisplayed()
+        assertTrue(composeRule.onAllNodesWithText("Из torrentRows").fetchSemanticsNodes().isNotEmpty())
+        composeRule.onNodeWithTag(torrServeTag("rendered")).assertIsDisplayed()
     }
 
     @Test
@@ -96,6 +96,24 @@ class DetailsScreenTest {
 
         assertTrue(composeRule.onAllNodesWithText("Необратимость").fetchSemanticsNodes().isNotEmpty())
         assertTrue(composeRule.onAllNodesWithText("Сезон 9, серия 13").fetchSemanticsNodes().isEmpty())
+    }
+
+    @Test
+    fun cinematicDetails_displaysReleaseSignalAndSecondaryOpenLinkAction() {
+        val rows = listOf(
+            row("first", "1080p", "https://example.com/1.torrent", true),
+            row("second", "720p", "https://example.com/2.torrent", true),
+        )
+
+        composeRule.setDetailsContent(
+            state = DetailsUiState(details = detailsWithRows(rows)),
+            torrentRows = rows,
+        )
+
+        composeRule.onNodeWithText("Сигнал релиза").assertIsDisplayed()
+        composeRule.onNodeWithTag(torrServeTag("first")).assertIsDisplayed()
+        composeRule.onNodeWithTag("details-open-link").assertIsDisplayed()
+        composeRule.onNodeWithTag("details-tech-quality").assertIsDisplayed()
     }
 
     @Test
@@ -112,39 +130,26 @@ class DetailsScreenTest {
             torrServeMessage = TorrServeMessage(rowId = "second", text = "Ошибка TorrServe"),
         )
 
-        composeRule.onNodeWithTag(openTag("first")).performSemanticsAction(SemanticsActions.RequestFocus)
-        composeRule.onNodeWithTag(openTag("first")).assertIsFocused()
-
-        composeRule.pressKey(openTag("first"), Key.DirectionRight)
+        composeRule.onNodeWithTag(torrServeTag("first")).performSemanticsAction(SemanticsActions.RequestFocus)
         composeRule.onNodeWithTag(torrServeTag("first")).assertIsFocused()
 
         composeRule.pressKey(torrServeTag("first"), Key.DirectionLeft)
-        composeRule.onNodeWithTag(openTag("first")).assertIsFocused()
+        composeRule.onNodeWithTag("details-tech-quality").assertIsFocused()
 
-        composeRule.pressKey(openTag("first"), Key.DirectionDown)
-        composeRule.onNodeWithTag(openTag("second")).assertIsFocused()
+        composeRule.pressKey("details-tech-quality", Key.DirectionUp)
+        composeRule.onNodeWithTag(torrServeTag("first")).assertIsFocused()
 
-        composeRule.pressKey(openTag("second"), Key.DirectionRight)
+        composeRule.pressKey(torrServeTag("first"), Key.DirectionDown)
         composeRule.onNodeWithTag(openTag("second")).assertIsFocused()
 
         composeRule.pressKey(openTag("second"), Key.DirectionDown)
-        composeRule.onNodeWithTag(openTag("third")).assertIsFocused()
-
-        composeRule.pressKey(openTag("third"), Key.DirectionRight)
         composeRule.onNodeWithTag(torrServeTag("third")).assertIsFocused()
 
-        composeRule.pressKey(torrServeTag("third"), Key.DirectionRight)
-        composeRule.onNodeWithTag(torrServeTag("third")).assertIsFocused()
-
-        composeRule.pressKey(torrServeTag("third"), Key.DirectionDown)
-        composeRule.onNodeWithTag(torrServeTag("third")).assertIsFocused()
-
-        composeRule.onNodeWithTag(openTag("second")).performSemanticsAction(SemanticsActions.RequestFocus)
+        composeRule.pressKey(torrServeTag("third"), Key.DirectionUp)
         composeRule.onNodeWithTag(openTag("second")).assertIsFocused()
-        composeRule.pressKey(openTag("second"), Key.DirectionUp)
-        composeRule.onNodeWithTag(openTag("first")).assertIsFocused()
 
-        composeRule.pressKey(openTag("first"), Key.DirectionUp)
+        composeRule.onNodeWithTag(torrServeTag("first")).performSemanticsAction(SemanticsActions.RequestFocus)
+        composeRule.pressKey(torrServeTag("first"), Key.DirectionUp)
         composeRule.onNodeWithText("Назад").assertIsFocused()
     }
 
@@ -168,23 +173,20 @@ class DetailsScreenTest {
             onOpenTorrServe = { rowId, url -> openedTorrServe += rowId to url },
         )
 
-        composeRule.onNodeWithTag(openTag("active")).assertIsEnabled().performClick()
+        composeRule.onNodeWithTag("details-open-link").assertIsEnabled().performClick()
         composeRule.onNodeWithTag(torrServeTag("active")).assertIsNotEnabled()
         composeRule.onNodeWithTag(torrServeTag("other")).assertIsNotEnabled()
         composeRule.onNodeWithTag(torrServeTag("unsupported")).assertDoesNotExist()
-        composeRule.onNodeWithTag(openTag("other")).performSemanticsAction(SemanticsActions.RequestFocus)
-        composeRule.onNodeWithTag(openTag("other")).assertIsFocused()
-        composeRule.pressKey(openTag("other"), Key.DirectionRight)
-        composeRule.onNodeWithTag(openTag("other")).assertIsFocused()
-        composeRule.onNodeWithText("Открывается...").assertIsDisplayed()
+        composeRule.onNodeWithTag(openTag("unsupported")).assertIsEnabled()
+        assertTrue(composeRule.onAllNodesWithText("Открывается...").fetchSemanticsNodes().isNotEmpty())
         composeRule.onNodeWithText("Не удалось открыть TorrServe").assertExists()
-        composeRule.onNodeWithText("TorrServe").assertExists()
+        assertTrue(composeRule.onAllNodesWithText("TorrServe").fetchSemanticsNodes().isNotEmpty())
         assertEquals(listOf("https://example.com/active.torrent"), openedLinks)
         assertTrue(openedTorrServe.isEmpty())
     }
 
     @Test
-    fun busyState_rightFromSupportedOpenLink_staysOnOpenLink() {
+    fun secondaryOpenLinkAction_opensActiveQualityLink() {
         val rows = listOf(
             row("supported", "Поддерживается", "https://example.com/file.torrent", true),
         )
@@ -211,16 +213,8 @@ class DetailsScreenTest {
             }
         }
 
-        composeRule.onNodeWithTag(openTag("supported")).performSemanticsAction(SemanticsActions.RequestFocus)
-        composeRule.onNodeWithTag(openTag("supported")).assertIsFocused()
-        composeRule.onNodeWithTag(openTag("supported")).performClick()
-        composeRule.onNodeWithTag(torrServeTag("supported")).assertIsNotEnabled()
-
-        composeRule.pressKey(openTag("supported"), Key.DirectionRight)
-        composeRule.pressKey(openTag("supported"), Key.Enter)
-
-        composeRule.onNodeWithTag(openTag("supported")).assertIsFocused()
-        assertEquals(2, openCount)
+        composeRule.onNodeWithTag("details-open-link").performClick()
+        assertEquals(1, openCount)
     }
 
     @Test
@@ -239,13 +233,13 @@ class DetailsScreenTest {
             torrentRows = rows,
         )
 
-        composeRule.onNodeWithTag(openTag("row-0")).performSemanticsAction(SemanticsActions.RequestFocus)
+        composeRule.onNodeWithTag(torrServeTag("row-0")).performSemanticsAction(SemanticsActions.RequestFocus)
         for (index in 0 until rows.lastIndex) {
-            composeRule.pressKey(openTag("row-$index"), Key.DirectionDown)
+            composeRule.pressKey(primaryActionTag("row-$index", index % 2 == 0), Key.DirectionDown)
         }
 
-        composeRule.onNodeWithTag(openTag("row-15")).assertIsFocused()
-        composeRule.onNodeWithTag(openTag("row-15")).assertIsDisplayed()
+        composeRule.onNodeWithTag(primaryActionTag("row-15", false)).assertIsFocused()
+        composeRule.onNodeWithTag(primaryActionTag("row-15", false)).assertIsDisplayed()
     }
 
     @Test
@@ -383,6 +377,9 @@ private fun detailsWithRows(
 private fun openTag(rowId: String) = "torrent-open-$rowId"
 
 private fun torrServeTag(rowId: String) = "torrent-torrserve-$rowId"
+
+private fun primaryActionTag(rowId: String, isSupported: Boolean) =
+    if (isSupported) torrServeTag(rowId) else openTag(rowId)
 
 private const val seriesDetailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
 private const val movieDetailsUrl = "https://www.lostfilm.today/movies/Irreversible"
