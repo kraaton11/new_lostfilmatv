@@ -48,6 +48,22 @@ class DetailsStageModelsTest {
     }
 
     @Test
+    fun buildStageUi_hidesSecondaryOpenLinkAction_inReadableMode() {
+        val ui = buildDetailsStageUi(
+            state = DetailsUiState(details = seriesDetails()),
+            isAuthenticated = true,
+            torrentRows = listOf(
+                DetailsTorrentRowUiModel("row-0", "1080p", "https://example.com/1080"),
+            ),
+            activeRowId = "row-0",
+            activeTorrServeRowId = null,
+            isTorrServeBusy = false,
+        )
+
+        assertEquals(emptyList<DetailsStageActionUiModel>(), ui.secondaryActions)
+    }
+
+    @Test
     fun buildStageUi_exposesCompactHeroMetaAndStatusLines() {
         val ui = buildDetailsStageUi(
             state = DetailsUiState(
@@ -115,7 +131,7 @@ class DetailsStageModelsTest {
         assertEquals(false, ui.qualityActions.first { it.rowId == "row-0" }.enabled)
         assertEquals(false, ui.qualityActions.first { it.rowId == "row-1" }.enabled)
         assertEquals(true, ui.qualityActions.first { it.rowId == "row-2" }.enabled)
-        assertEquals(true, ui.secondaryActions.first().enabled)
+        assertEquals(emptyList<DetailsStageActionUiModel>(), ui.secondaryActions)
     }
 }
 
