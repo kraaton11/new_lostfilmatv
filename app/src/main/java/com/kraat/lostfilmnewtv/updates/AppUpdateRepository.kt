@@ -1,5 +1,7 @@
 package com.kraat.lostfilmnewtv.updates
 
+import java.util.concurrent.CancellationException
+
 class AppUpdateRepository(
     private val installedVersion: String,
     private val releaseClient: GitHubReleaseClient,
@@ -23,6 +25,8 @@ class AppUpdateRepository(
                     apkUrl = latestRelease.apkUrl,
                 )
             }
+        } catch (error: CancellationException) {
+            throw error
         } catch (error: Exception) {
             AppUpdateInfo.Error(
                 installedVersion = installedVersion,
