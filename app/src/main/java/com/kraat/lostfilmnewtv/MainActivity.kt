@@ -29,9 +29,10 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         if (hasResumedOnce) {
-            (application as? LostFilmApplication)
-                ?.homeChannelBackgroundScheduler
-                ?.requestImmediateRefresh()
+            (application as? LostFilmApplication)?.let { app ->
+                app.homeChannelBackgroundScheduler.requestImmediateRefresh()
+                app.appUpdateBackgroundScheduler.requestImmediateRefresh()
+            }
         } else {
             hasResumedOnce = true
         }

@@ -5,7 +5,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.SavedStateHandle
@@ -28,13 +30,16 @@ import com.kraat.lostfilmnewtv.ui.details.DetailsRoute
 import com.kraat.lostfilmnewtv.ui.home.HomeScreen
 import com.kraat.lostfilmnewtv.ui.home.HomeViewModel
 import com.kraat.lostfilmnewtv.ui.settings.SettingsRoute
+import kotlinx.coroutines.launch
 
 private const val HOME_WATCHED_DETAILS_URL_KEY = "home.watched_details_url"
+private const val HOME_INSTALL_UPDATE_FAILED_MESSAGE = "Не удалось открыть обновление."
 
 @Composable
 fun AppNavGraph(initialDetailsUrl: String? = null) {
+    val context = LocalContext.current
     val navController = rememberNavController()
-    val application = LocalContext.current.applicationContext as LostFilmApplication
+    val application = context.applicationContext as LostFilmApplication
     val authViewModel: AuthViewModel = viewModel(
         key = "app-auth",
         factory = AuthViewModel.Factory(application.authRepository),
@@ -47,6 +52,7 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
 
     LaunchedEffect(application) {
         application.homeChannelBackgroundScheduler.syncForCurrentMode()
+        application.appUpdateBackgroundScheduler.syncForCurrentMode()
         application.homeChannelSyncManager.syncNow()
     }
 
@@ -75,12 +81,21 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                 },
             )
             val state by homeViewModel.uiState.collectAsStateWithLifecycle()
+            val savedAppUpdate by application.appUpdateCoordinator.savedUpdateState.collectAsStateWithLifecycle()
             val watchedDetailsUrl by backStackEntry.savedStateHandle
                 .getStateFlow<String?>(HOME_WATCHED_DETAILS_URL_KEY, null)
                 .collectAsStateWithLifecycle()
+            val scope = rememberCoroutineScope()
+            var homeAppUpdateStatusText by rememberSaveable { mutableStateOf<String?>(null) }
 
             LaunchedEffect(Unit) {
                 homeViewModel.onStart()
+            }
+
+            LaunchedEffect(savedAppUpdate) {
+                if (savedAppUpdate == null) {
+                    homeAppUpdateStatusText = null
+                }
             }
 
             LaunchedEffect(watchedDetailsUrl) {
@@ -108,6 +123,19 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                     navController.navigate(AppDestination.Settings.route)
                 },
                 isAuthenticated = isAuthenticated,
+                savedAppUpdate = savedAppUpdate,
+                appUpdateStatusText = homeAppUpdateStatusText,
+                onInstallUpdateClick = {
+                    savedAppUpdate?.let { update ->
+                        homeAppUpdateStatusText = null
+                        scope.launch {
+                            val opened = application.releaseApkLauncher.launch(context, update.apkUrl)
+                            if (!opened) {
+                                homeAppUpdateStatusText = HOME_INSTALL_UPDATE_FAILED_MESSAGE
+                            }
+                        }
+                    }
+                },
             )
         }
         composable(
@@ -140,8 +168,9 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
         composable(AppDestination.Settings.route) {
             SettingsRoute(
                 playbackPreferencesStore = application.playbackPreferencesStore,
-                appUpdateRepository = application.appUpdateRepository,
+                appUpdateCoordinator = application.appUpdateCoordinator,
                 onPlaybackQualityChanged = { selectedPlaybackQuality = it },
+                syncAppUpdateBackgroundSchedule = application.appUpdateBackgroundScheduler::syncForCurrentMode,
                 syncAndroidTvChannelBackgroundSchedule = application.homeChannelBackgroundScheduler::syncForCurrentMode,
                 syncAndroidTvChannel = application.homeChannelSyncManager::syncNow,
                 openInstallApk = application.releaseApkLauncher::launch,

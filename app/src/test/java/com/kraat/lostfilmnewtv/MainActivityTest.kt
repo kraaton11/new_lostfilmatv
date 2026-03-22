@@ -18,6 +18,7 @@ import com.kraat.lostfilmnewtv.tvchannel.HomeChannelProgramSource
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPublisher
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPublisherResult
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelSyncManager
+import com.kraat.lostfilmnewtv.updates.AppUpdateBackgroundScheduler as QuietAppUpdateBackgroundScheduler
 import android.view.View
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.WorkManager
@@ -38,11 +39,13 @@ class MainActivityTest {
     @Before
     fun setUp() {
         TestLostFilmApplication.homeChannelWorkManager = mock(WorkManager::class.java)
+        TestLostFilmApplication.appUpdateWorkManager = mock(WorkManager::class.java)
     }
 
     @After
     fun tearDown() {
         TestLostFilmApplication.homeChannelWorkManager = null
+        TestLostFilmApplication.appUpdateWorkManager = null
     }
 
     @Test
@@ -66,6 +69,18 @@ class MainActivityTest {
     fun returningToForeground_requestsImmediateChannelRefresh() {
         val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
         val workManager = checkNotNull(TestLostFilmApplication.homeChannelWorkManager)
+
+        assertEquals(0, enqueueUniqueWorkCount(workManager))
+
+        controller.pause().resume()
+
+        assertEquals(1, enqueueUniqueWorkCount(workManager))
+    }
+
+    @Test
+    fun returningToForeground_requestsImmediateQuietUpdateRefresh() {
+        val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
+        val workManager = checkNotNull(TestLostFilmApplication.appUpdateWorkManager)
 
         assertEquals(0, enqueueUniqueWorkCount(workManager))
 
@@ -131,6 +146,15 @@ class TestLostFilmApplication : LostFilmApplication() {
             readMode = { AndroidTvChannelMode.ALL_NEW },
             workManager = checkNotNull(homeChannelWorkManager) {
                 "homeChannelWorkManager must be set before creating the application"
+            },
+        )
+    }
+
+    override val appUpdateBackgroundScheduler: QuietAppUpdateBackgroundScheduler by lazy {
+        QuietAppUpdateBackgroundScheduler(
+            readMode = { com.kraat.lostfilmnewtv.updates.UpdateCheckMode.QUIET_CHECK },
+            workManager = checkNotNull(appUpdateWorkManager) {
+                "appUpdateWorkManager must be set before creating the application"
             },
         )
     }
@@ -218,5 +242,8 @@ class TestLostFilmApplication : LostFilmApplication() {
     companion object {
         @Volatile
         var homeChannelWorkManager: WorkManager? = null
+
+        @Volatile
+        var appUpdateWorkManager: WorkManager? = null
     }
 }

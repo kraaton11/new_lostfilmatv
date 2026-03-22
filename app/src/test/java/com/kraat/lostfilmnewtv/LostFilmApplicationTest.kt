@@ -5,6 +5,10 @@ import androidx.test.core.app.ApplicationProvider
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelBackgroundRefreshRunner
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelBackgroundScheduler
+import com.kraat.lostfilmnewtv.updates.AppUpdateAvailabilityStore
+import com.kraat.lostfilmnewtv.updates.AppUpdateInfo
+import com.kraat.lostfilmnewtv.updates.AppUpdateCoordinator
+import com.kraat.lostfilmnewtv.updates.AppUpdateBackgroundScheduler as QuietAppUpdateBackgroundScheduler
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertSame
 import org.junit.Test
@@ -43,6 +47,20 @@ class LostFilmApplicationTest {
 
         assertSame(application.homeChannelBackgroundRefreshRunner, application.homeChannelBackgroundRefreshRunner)
     }
+
+    @Test
+    fun appUpdateCoordinator_isExposedAsStableApplicationDependency() {
+        val application = ApplicationProvider.getApplicationContext<LostFilmApplication>()
+
+        assertSame(application.appUpdateCoordinator, application.appUpdateCoordinator)
+    }
+
+    @Test
+    fun appUpdateBackgroundScheduler_isExposedAsStableApplicationDependency() {
+        val application = ApplicationProvider.getApplicationContext<LostFilmApplication>()
+
+        assertSame(application.appUpdateBackgroundScheduler, application.appUpdateBackgroundScheduler)
+    }
 }
 
 class TestLostFilmApplicationForBackgroundDeps : LostFilmApplication() {
@@ -59,6 +77,25 @@ class TestLostFilmApplicationForBackgroundDeps : LostFilmApplication() {
     override val homeChannelBackgroundScheduler: HomeChannelBackgroundScheduler by lazy {
         HomeChannelBackgroundScheduler(
             readMode = { AndroidTvChannelMode.ALL_NEW },
+            workManager = mock(WorkManager::class.java),
+        )
+    }
+
+    override val appUpdateAvailabilityStore: AppUpdateAvailabilityStore by lazy {
+        AppUpdateAvailabilityStore(this, prefsName = "lostfilm-application-test-update-store")
+    }
+
+    override val appUpdateCoordinator: AppUpdateCoordinator by lazy {
+        AppUpdateCoordinator(
+            installedVersion = "1.0.0",
+            store = appUpdateAvailabilityStore,
+            checkForUpdates = { AppUpdateInfo.UpToDate(installedVersion = "1.0.0") },
+        )
+    }
+
+    override val appUpdateBackgroundScheduler: QuietAppUpdateBackgroundScheduler by lazy {
+        QuietAppUpdateBackgroundScheduler(
+            readMode = { com.kraat.lostfilmnewtv.updates.UpdateCheckMode.QUIET_CHECK },
             workManager = mock(WorkManager::class.java),
         )
     }

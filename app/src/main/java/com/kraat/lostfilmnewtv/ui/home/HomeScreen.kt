@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import com.kraat.lostfilmnewtv.BuildConfig
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
+import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 
@@ -37,6 +38,9 @@ fun HomeScreen(
     onAuthClick: () -> Unit = {},
     isAuthenticated: Boolean = false,
     appVersionText: String = BuildConfig.VERSION_NAME,
+    savedAppUpdate: SavedAppUpdate? = null,
+    appUpdateStatusText: String? = null,
+    onInstallUpdateClick: () -> Unit = {},
 ) {
     var focusedItemKey by rememberSaveable(state.items) {
         mutableStateOf(state.selectedItemKey ?: state.items.firstOrNull()?.detailsUrl)
@@ -114,14 +118,36 @@ fun HomeScreen(
             }
         }
 
-        Text(
-            text = appVersionText,
-            color = TextPrimary.copy(alpha = 0.56f),
-            fontSize = 16.sp,
+        Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(end = 48.dp, bottom = 24.dp),
-        )
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            appUpdateStatusText?.let { statusText ->
+                Text(
+                    text = statusText,
+                    color = TextPrimary.copy(alpha = 0.78f),
+                    fontSize = 16.sp,
+                )
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (savedAppUpdate != null) {
+                    Button(onClick = onInstallUpdateClick) {
+                        Text("Обновить")
+                    }
+                }
+                Text(
+                    text = appVersionText,
+                    color = TextPrimary.copy(alpha = 0.56f),
+                    fontSize = 16.sp,
+                )
+            }
+        }
     }
 }
 
