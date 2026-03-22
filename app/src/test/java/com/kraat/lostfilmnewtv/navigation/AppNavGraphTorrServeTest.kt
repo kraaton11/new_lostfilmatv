@@ -275,8 +275,8 @@ class AppNavGraphTorrServeTest {
         composeRule.onNodeWithText("Настройки")
             .performSemanticsAction(SemanticsActions.OnClick)
 
-        composeRule.waitForText("Качество по умолчанию")
         composeRule.waitForText("Обновления")
+        composeRule.onNodeWithTag("settings-section-updates").assertIsSelected()
         assertEquals(1, composeRule.onAllNodesWithText("Проверить обновления").fetchSemanticsNodes().size)
         composeRule.onNodeWithTag("settings-update-mode-manual").assertIsSelected()
     }
@@ -363,6 +363,8 @@ class AppNavGraphTorrServeTest {
 
         composeRule.waitForText("Новые релизы")
         composeRule.onNodeWithText("Настройки")
+            .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.onNodeWithTag("settings-section-quality")
             .performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitForText("Качество по умолчанию")
         composeRule.onNodeWithTag("settings-quality-720")
@@ -534,6 +536,8 @@ class AppNavGraphTorrServeTest {
         composeRule.waitForText("Новые релизы")
         composeRule.onNodeWithText("Настройки")
             .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.onNodeWithTag("settings-section-channel")
+            .performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitForText("Канал Android TV")
         composeRule.onNodeWithTag("settings-tv-channel-unwatched")
             .performSemanticsAction(SemanticsActions.OnClick)
@@ -549,6 +553,8 @@ class AppNavGraphTorrServeTest {
 
         composeRule.waitForText("Новые релизы")
         composeRule.onNodeWithText("Настройки")
+            .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.onNodeWithTag("settings-section-channel")
             .performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitForText("Канал Android TV")
         composeRule.onNodeWithTag("settings-tv-channel-unwatched").assertIsSelected()
