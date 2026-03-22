@@ -1,14 +1,15 @@
 package com.kraat.lostfilmnewtv.ui.home
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -36,6 +37,8 @@ fun HomeScreen(
     onEndReached: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onAuthClick: () -> Unit = {},
+    onRetry: () -> Unit = {},
+    onPagingRetry: () -> Unit = {},
     isAuthenticated: Boolean = false,
     appVersionText: String = BuildConfig.VERSION_NAME,
     savedAppUpdate: SavedAppUpdate? = null,
@@ -96,25 +99,94 @@ fun HomeScreen(
                 )
             }
 
-            if (state.items.isEmpty() && state.fullScreenErrorMessage != null) {
-                Text(
-                    text = state.fullScreenErrorMessage,
-                    color = TextPrimary,
-                    modifier = Modifier.padding(horizontal = 48.dp),
-                )
-            } else {
-                HomeRail(
-                    items = state.items,
-                    focusedItemKey = focusedItemKey,
-                    isPaging = state.isPaging,
-                    onItemFocused = { detailsUrl ->
-                        focusedItemKey = detailsUrl
-                        onItemFocused(detailsUrl)
-                    },
-                    onOpenDetails = onOpenDetails,
-                    onEndReached = onEndReached,
-                )
-                BottomInfoPanel(item = focusedItem)
+            if (state.fullScreenErrorMessage != null && state.items.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 48.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = state.fullScreenErrorMessage,
+                        color = TextPrimary,
+                        fontSize = 16.sp,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Button(onClick = onRetry) {
+                        Text("Повторить")
+                    }
+                }
+            }
+
+            when {
+                state.isInitialLoading && state.items.isEmpty() && state.fullScreenErrorMessage == null -> {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+                state.items.isEmpty() && state.fullScreenErrorMessage != null -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f)
+                            .padding(horizontal = 48.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                    ) {
+                        Text(
+                            text = state.fullScreenErrorMessage,
+                            color = TextPrimary,
+                            fontSize = 18.sp,
+                        )
+                        Button(onClick = onRetry) {
+                            Text("Повторить")
+                        }
+                    }
+                }
+                else -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                    ) {
+                        HomeRail(
+                            items = state.items,
+                            focusedItemKey = focusedItemKey,
+                            isPaging = state.isPaging,
+                            onItemFocused = { detailsUrl ->
+                                focusedItemKey = detailsUrl
+                                onItemFocused(detailsUrl)
+                            },
+                            onOpenDetails = onOpenDetails,
+                            onEndReached = onEndReached,
+                        )
+                        if (state.pagingErrorMessage != null) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 48.dp, vertical = 12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = state.pagingErrorMessage,
+                                    color = TextPrimary.copy(alpha = 0.78f),
+                                    fontSize = 16.sp,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Button(onClick = onPagingRetry) {
+                                    Text("Повторить")
+                                }
+                            }
+                        }
+                        BottomInfoPanel(item = focusedItem)
+                    }
+                }
             }
         }
 

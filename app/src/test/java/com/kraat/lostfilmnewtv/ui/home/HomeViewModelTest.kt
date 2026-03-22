@@ -137,6 +137,49 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun onPagingRetry_loadsNextPageWhenSoftPagingErrorPresent() = runTest(dispatcher) {
+        val firstItem = summary(detailsUrl = "https://www.lostfilm.today/series/a/season_1/episode_1/")
+        val secondItem = summary(
+            detailsUrl = "https://www.lostfilm.today/series/b/season_1/episode_1/",
+            titleRu = "Другой сериал",
+        )
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(
+                    pageNumber = 1,
+                    items = listOf(firstItem),
+                    hasNextPage = true,
+                    isStale = false,
+                    pagingErrorMessage = "Не удалось догрузить страницу",
+                ),
+                2 to PageState.Content(
+                    pageNumber = 2,
+                    items = listOf(firstItem, secondItem),
+                    hasNextPage = false,
+                    isStale = false,
+                ),
+            ),
+        )
+        val viewModel = HomeViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+
+        assertEquals("Не удалось догрузить страницу", viewModel.uiState.value.pagingErrorMessage)
+
+        repository.pageRequests.clear()
+        viewModel.onPagingRetry()
+        advanceUntilIdle()
+
+        assertEquals(listOf(2), repository.pageRequests)
+        assertEquals(null, viewModel.uiState.value.pagingErrorMessage)
+    }
+
+    @Test
     fun onItemWatched_marksExistingItemAndSelectedCardImmediately() = runTest(dispatcher) {
         val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
         val repository = FakeLostFilmRepository(
