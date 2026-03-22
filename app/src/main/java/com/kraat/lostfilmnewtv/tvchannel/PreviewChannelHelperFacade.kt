@@ -1,12 +1,14 @@
 package com.kraat.lostfilmnewtv.tvchannel
 
+import android.content.ContentUris
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.database.Cursor
 import android.graphics.Bitmap
-import android.net.Uri
+import android.provider.BaseColumns
 import androidx.tvprovider.media.tv.PreviewChannel
 import androidx.tvprovider.media.tv.PreviewChannelHelper
-import androidx.tvprovider.media.tv.PreviewProgram
 import androidx.tvprovider.media.tv.TvContractCompat
 import com.kraat.lostfilmnewtv.MainActivity
 
@@ -66,31 +68,43 @@ class AndroidXPreviewChannelHelperFacade(
         val uri = TvContractCompat.buildPreviewProgramsUriForChannel(channelId)
         return appContext.contentResolver.query(
             uri,
-            PreviewProgram.PROJECTION,
+            PREVIEW_PROGRAM_PROJECTION,
             null,
             null,
             null,
         )?.use { cursor ->
             buildList {
                 while (cursor.moveToNext()) {
-                    add(PreviewProgram.fromCursor(cursor).toRecord(appContext))
+                    add(cursor.toPreviewProgramRecord(appContext))
                 }
             }
         } ?: emptyList()
     }
 
     override suspend fun upsertProgram(program: PreviewProgramRecord): Long {
-        val previewProgram = program.toPreviewProgram()
         return if (program.programId == null) {
-            helper.publishPreviewProgram(previewProgram)
+            val uri = appContext.contentResolver.insert(
+                TvContractCompat.PreviewPrograms.CONTENT_URI,
+                program.toContentValues(),
+            ) ?: error("Preview program insertion failed")
+            ContentUris.parseId(uri)
         } else {
-            helper.updatePreviewProgram(program.programId, previewProgram)
+            appContext.contentResolver.update(
+                TvContractCompat.buildPreviewProgramUri(program.programId),
+                program.toContentValues(),
+                null,
+                null,
+            )
             program.programId
         }
     }
 
     override suspend fun deleteProgram(programId: Long) {
-        helper.deletePreviewProgram(programId)
+        appContext.contentResolver.delete(
+            TvContractCompat.buildPreviewProgramUri(programId),
+            null,
+            null,
+        )
     }
 
     override suspend fun deleteChannel(channelId: Long) {
@@ -108,31 +122,66 @@ private fun PreviewChannelRecord.toPreviewChannel(): PreviewChannel {
     return builder.build()
 }
 
-private fun PreviewProgramRecord.toPreviewProgram(): PreviewProgram {
-    return PreviewProgram.Builder()
-        .setChannelId(channelId)
-        .setWeight(weight)
-        .setType(type)
-        .setTitle(title)
-        .setDescription(description)
-        .setPosterArtUri(Uri.parse(posterUrl))
-        .setIntent(launchIntent)
-        .setInternalProviderId(internalProviderId)
-        .setBrowsable(true)
-        .build()
+internal fun PreviewProgramRecord.toContentValues(): ContentValues {
+    return ContentValues().apply {
+        put(TvContractCompat.PreviewPrograms.COLUMN_CHANNEL_ID, channelId)
+        put(TvContractCompat.PreviewPrograms.COLUMN_WEIGHT, weight)
+        put(TvContractCompat.PreviewProgramColumns.COLUMN_TYPE, type)
+        put(COLUMN_TITLE, title)
+        put(COLUMN_SHORT_DESCRIPTION, description)
+        put(COLUMN_POSTER_ART_URI, posterUrl)
+        put(TvContractCompat.PreviewProgramColumns.COLUMN_INTENT_URI, launchIntent.toUri(Intent.URI_INTENT_SCHEME))
+        put(TvContractCompat.PreviewProgramColumns.COLUMN_INTERNAL_PROVIDER_ID, internalProviderId)
+        put(TvContractCompat.PreviewProgramColumns.COLUMN_BROWSABLE, 1)
+    }
 }
 
-private fun PreviewProgram.toRecord(context: Context): PreviewProgramRecord {
+internal fun Cursor.toPreviewProgramRecord(context: Context): PreviewProgramRecord {
     val fallbackIntent = Intent(context, MainActivity::class.java)
+    val intentUri = getStringOrNull(TvContractCompat.PreviewProgramColumns.COLUMN_INTENT_URI)
     return PreviewProgramRecord(
-        programId = id,
-        internalProviderId = internalProviderId.orEmpty(),
-        channelId = channelId,
-        title = title.orEmpty(),
-        description = description.orEmpty(),
-        posterUrl = posterArtUri?.toString().orEmpty(),
-        launchIntent = runCatching { intent }.getOrElse { fallbackIntent },
-        type = type,
-        weight = weight,
+        programId = getLong(BaseColumns._ID),
+        internalProviderId = getStringOrNull(TvContractCompat.PreviewProgramColumns.COLUMN_INTERNAL_PROVIDER_ID).orEmpty(),
+        channelId = getLong(TvContractCompat.PreviewPrograms.COLUMN_CHANNEL_ID),
+        title = getStringOrNull(COLUMN_TITLE).orEmpty(),
+        description = getStringOrNull(COLUMN_SHORT_DESCRIPTION).orEmpty(),
+        posterUrl = getStringOrNull(COLUMN_POSTER_ART_URI).orEmpty(),
+        launchIntent = runCatching {
+            Intent.parseUri(intentUri, Intent.URI_INTENT_SCHEME)
+        }.getOrElse { fallbackIntent },
+        type = getInt(TvContractCompat.PreviewProgramColumns.COLUMN_TYPE),
+        weight = getInt(TvContractCompat.PreviewPrograms.COLUMN_WEIGHT),
     )
 }
+
+private fun Cursor.getStringOrNull(columnName: String): String? {
+    return if (isNull(getColumnIndexOrThrow(columnName))) {
+        null
+    } else {
+        getString(getColumnIndexOrThrow(columnName))
+    }
+}
+
+private fun Cursor.getInt(columnName: String): Int {
+    return getInt(getColumnIndexOrThrow(columnName))
+}
+
+private fun Cursor.getLong(columnName: String): Long {
+    return getLong(getColumnIndexOrThrow(columnName))
+}
+
+private val PREVIEW_PROGRAM_PROJECTION = arrayOf(
+    BaseColumns._ID,
+    TvContractCompat.PreviewPrograms.COLUMN_CHANNEL_ID,
+    TvContractCompat.PreviewPrograms.COLUMN_WEIGHT,
+    TvContractCompat.PreviewProgramColumns.COLUMN_TYPE,
+    TvContractCompat.PreviewProgramColumns.COLUMN_INTERNAL_PROVIDER_ID,
+    COLUMN_TITLE,
+    COLUMN_SHORT_DESCRIPTION,
+    COLUMN_POSTER_ART_URI,
+    TvContractCompat.PreviewProgramColumns.COLUMN_INTENT_URI,
+)
+
+private const val COLUMN_TITLE = "title"
+private const val COLUMN_SHORT_DESCRIPTION = "short_description"
+private const val COLUMN_POSTER_ART_URI = "poster_art_uri"
