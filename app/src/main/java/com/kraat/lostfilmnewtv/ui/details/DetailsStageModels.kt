@@ -6,9 +6,7 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 data class DetailsStageUiModel(
     val activeRowId: String?,
     val title: String,
-    val heroMetaLine: String,
     val heroEpisodeTitle: String,
-    val heroStatusLine: String,
     val bottomInfoLine: String,
     val primaryAction: DetailsStageActionUiModel,
     val secondaryActions: List<DetailsStageActionUiModel>,
@@ -57,17 +55,11 @@ fun buildDetailsStageUi(
     return DetailsStageUiModel(
         activeRowId = playbackRow?.rowId,
         title = details?.titleRu ?: "",
-        heroMetaLine = buildHeroMetaLine(details = details),
         heroEpisodeTitle = buildHeroEpisodeTitle(details = details),
-        heroStatusLine = bottomInfoLine,
         bottomInfoLine = bottomInfoLine,
         primaryAction = primaryAction,
         secondaryActions = emptyList(),
     )
-}
-
-private fun buildHeroMetaLine(details: ReleaseDetails?): String {
-    return ""
 }
 
 private fun buildHeroEpisodeTitle(details: ReleaseDetails?): String {

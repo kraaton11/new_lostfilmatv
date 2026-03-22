@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -46,19 +47,18 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
+import com.kraat.lostfilmnewtv.ui.theme.DetailsAccentBlue
+import com.kraat.lostfilmnewtv.ui.theme.DetailsAccentGold
+import com.kraat.lostfilmnewtv.ui.theme.DetailsAccentGoldFocus
+import com.kraat.lostfilmnewtv.ui.theme.DetailsBorderDefault
+import com.kraat.lostfilmnewtv.ui.theme.DetailsStatusError
+import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceCard
+import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceFocused
+import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceReadable
+import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceSoft
+import com.kraat.lostfilmnewtv.ui.theme.DetailsTextMuted
+import com.kraat.lostfilmnewtv.ui.theme.DetailsTextSecondary
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
-
-private val AccentGold = Color(0xFFF2C46E)
-private val AccentGoldFocus = Color(0xFFFFE0A8)
-private val AccentBlue = Color(0xFF86C8FF)
-private val SurfaceCard = Color(0xCC08111A)
-private val SurfaceSoft = Color(0xB30B1520)
-private val SurfaceFocused = Color(0xFF16293C)
-private val SurfaceReadable = Color(0xE6142432)
-private val BorderDefault = Color(0x1FFFFFFF)
-private val TextSecondary = Color(0xFFCCDAE6)
-private val TextMuted = Color(0xFF8FA7BB)
-private val StatusError = Color(0xFFE07060)
 
 @Composable
 fun DetailsScreen(
@@ -105,6 +105,7 @@ fun DetailsScreen(
 ) {
     when {
         state.errorMessage != null -> ErrorState(message = state.errorMessage, onRetry = onRetry)
+        state.isLoading && state.details == null -> LoadingState()
         else -> ContentState(
             state = state,
             isAuthenticated = isAuthenticated,
@@ -115,6 +116,21 @@ fun DetailsScreen(
             isTorrServeBusy = isTorrServeBusy,
             onBack = onBack,
             onOpenTorrServe = onOpenTorrServe,
+        )
+    }
+}
+
+@Composable
+private fun LoadingState() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BackgroundPrimary),
+        contentAlignment = Alignment.Center,
+    ) {
+        CircularProgressIndicator(
+            modifier = Modifier.testTag("details-loading"),
+            color = DetailsAccentGold,
         )
     }
 }
@@ -131,7 +147,7 @@ private fun ErrorState(message: String, onRetry: () -> Unit) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
-            Text(text = message, color = TextSecondary, fontSize = 18.sp)
+            Text(text = message, color = DetailsTextSecondary, fontSize = 18.sp)
             StageButton(
                 label = "Повторить",
                 subtitle = "Перезагрузить details",
@@ -190,7 +206,16 @@ private fun ContentState(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(start = 72.dp, top = 48.dp, end = 72.dp, bottom = 56.dp),
+                verticalArrangement = Arrangement.spacedBy(20.dp),
             ) {
+                if (state.showStaleBanner) {
+                    InfoBanner(
+                        text = "Показаны сохранённые данные",
+                        modifier = Modifier
+                            .width(420.dp)
+                            .testTag("details-stale-banner"),
+                    )
+                }
                 HeroStage(
                     details = details,
                     stageUi = stageUi,
@@ -275,14 +300,6 @@ private fun HeroStage(
             modifier = Modifier.width(520.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            if (stageUi.heroMetaLine.isNotBlank()) {
-                Text(
-                    text = stageUi.heroMetaLine,
-                    color = TextSecondary,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                )
-            }
             Text(
                 text = stageUi.title.ifBlank { "Details" },
                 color = TextPrimary,
@@ -320,6 +337,32 @@ private fun HeroStage(
 }
 
 @Composable
+private fun InfoBanner(
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(24.dp))
+            .background(DetailsSurfaceReadable)
+            .border(
+                width = 1.5.dp,
+                color = DetailsAccentBlue.copy(alpha = 0.42f),
+                shape = RoundedCornerShape(24.dp),
+            )
+            .padding(horizontal = 22.dp, vertical = 18.dp),
+    ) {
+        Text(
+            text = text,
+            color = TextPrimary,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.SemiBold,
+            lineHeight = 24.sp,
+        )
+    }
+}
+
+@Composable
 private fun PosterCard(details: ReleaseDetails?) {
     Box(
         modifier = Modifier
@@ -331,7 +374,7 @@ private fun PosterCard(details: ReleaseDetails?) {
                     listOf(Color(0xFF3F586E), Color(0xFF172734), Color(0xFF0A131B)),
                 ),
             )
-            .border(1.dp, BorderDefault, RoundedCornerShape(28.dp)),
+            .border(1.dp, DetailsBorderDefault, RoundedCornerShape(28.dp)),
     ) {
         if (details != null) {
             AsyncImage(
@@ -367,10 +410,10 @@ private fun BottomInfoStrip(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(24.dp))
-            .background(if (isError) Color(0xCC2A0E10) else SurfaceReadable)
+            .background(if (isError) Color(0xCC2A0E10) else DetailsSurfaceReadable)
             .border(
                 width = 1.5.dp,
-                color = if (isError) StatusError else AccentBlue.copy(alpha = 0.42f),
+                color = if (isError) DetailsStatusError else DetailsAccentBlue.copy(alpha = 0.42f),
                 shape = RoundedCornerShape(24.dp),
             )
             .padding(horizontal = 22.dp, vertical = 18.dp),
@@ -403,20 +446,20 @@ private fun StageButton(
     )
 
     val background = when {
-        !enabled -> SurfaceSoft.copy(alpha = 0.6f)
-        isPrimary -> AccentGold
-        isFocused -> SurfaceFocused
-        isSecondary -> SurfaceSoft
-        else -> SurfaceCard
+        !enabled -> DetailsSurfaceSoft.copy(alpha = 0.6f)
+        isPrimary -> DetailsAccentGold
+        isFocused -> DetailsSurfaceFocused
+        isSecondary -> DetailsSurfaceSoft
+        else -> DetailsSurfaceCard
     }
     val border = when {
-        isPrimary && isFocused -> AccentGoldFocus
-        isPrimary -> AccentGold
-        isFocused -> AccentBlue
-        else -> BorderDefault
+        isPrimary && isFocused -> DetailsAccentGoldFocus
+        isPrimary -> DetailsAccentGold
+        isFocused -> DetailsAccentBlue
+        else -> DetailsBorderDefault
     }
     val textColor = if (isPrimary) Color(0xFF17120D) else TextPrimary
-    val subtitleColor = if (isPrimary) Color(0xFF473317) else TextMuted
+    val subtitleColor = if (isPrimary) Color(0xFF473317) else DetailsTextMuted
 
     Button(
         onClick = onClick,
@@ -424,7 +467,7 @@ private fun StageButton(
         shape = RoundedCornerShape(22.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = background,
-            disabledContainerColor = SurfaceSoft.copy(alpha = 0.55f),
+            disabledContainerColor = DetailsSurfaceSoft.copy(alpha = 0.55f),
         ),
         modifier = modifier
             .fillMaxWidth()
@@ -441,14 +484,14 @@ private fun StageButton(
         ) {
             Text(
                 text = label,
-                color = if (enabled) textColor else TextMuted,
+                color = if (enabled) textColor else DetailsTextMuted,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
                 lineHeight = 20.sp,
             )
             Text(
                 text = subtitle,
-                color = if (enabled) subtitleColor else TextMuted.copy(alpha = 0.8f),
+                color = if (enabled) subtitleColor else DetailsTextMuted.copy(alpha = 0.8f),
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
                 letterSpacing = 0.6.sp,
