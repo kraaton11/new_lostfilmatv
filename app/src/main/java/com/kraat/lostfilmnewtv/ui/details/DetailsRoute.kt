@@ -39,6 +39,7 @@ fun DetailsRoute(
     linkBuilder: TorrServeLinkBuilder,
     onBack: () -> Unit,
     onMarkedWatched: (String) -> Unit = {},
+    onChannelContentChanged: suspend () -> Unit = {},
     openTorrServe: suspend (Context, String) -> TorrServeOpenResult = actionHandler::open,
 ) {
     val detailsViewModel: DetailsViewModel = viewModel(
@@ -113,6 +114,7 @@ fun DetailsRoute(
                                 )
                                 if (marked) {
                                     onMarkedWatched(currentDetails.detailsUrl)
+                                    onChannelContentChanged()
                                 }
                             }
                         }

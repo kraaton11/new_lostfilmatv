@@ -3,6 +3,7 @@ package com.kraat.lostfilmnewtv.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
+import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.updates.AppUpdateInfo
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 import kotlinx.coroutines.CoroutineDispatcher
@@ -18,8 +19,12 @@ class SettingsViewModel(
     installedVersion: String,
     initialPlaybackQuality: PlaybackQualityPreference,
     initialUpdateMode: UpdateCheckMode,
+    initialChannelMode: AndroidTvChannelMode = AndroidTvChannelMode.ALL_NEW,
     private val persistPlaybackQuality: (PlaybackQualityPreference) -> Unit = {},
     private val persistUpdateMode: (UpdateCheckMode) -> Unit = {},
+    private val persistChannelMode: (AndroidTvChannelMode) -> Unit = {},
+    private val syncAndroidTvChannelBackgroundSchedule: () -> Unit = {},
+    private val syncAndroidTvChannel: suspend () -> Unit = {},
     private val checkForUpdates: suspend () -> AppUpdateInfo,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
@@ -29,6 +34,7 @@ class SettingsViewModel(
         SettingsUiState(
             playbackQuality = initialPlaybackQuality,
             updateMode = initialUpdateMode,
+            channelMode = initialChannelMode,
             installedVersionText = installedVersion,
         ),
     )
@@ -57,6 +63,20 @@ class SettingsViewModel(
         }
         if (mode == UpdateCheckMode.QUIET_CHECK) {
             refreshUpdateInfo()
+        }
+    }
+
+    fun onChannelModeSelected(mode: AndroidTvChannelMode) {
+        if (mode == _uiState.value.channelMode) {
+            return
+        }
+        persistChannelMode(mode)
+        _uiState.update { state ->
+            state.copy(channelMode = mode)
+        }
+        viewModelScope.launch(ioDispatcher) {
+            syncAndroidTvChannelBackgroundSchedule()
+            syncAndroidTvChannel()
         }
     }
 
