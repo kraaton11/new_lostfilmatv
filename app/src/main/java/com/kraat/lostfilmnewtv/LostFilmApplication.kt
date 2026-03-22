@@ -147,7 +147,7 @@ open class LostFilmApplication : Application(), HomeChannelBackgroundRefreshRunn
     val torrServeLinkBuilder: TorrServeLinkBuilder by lazy { TorrServeLinkBuilder(torrServeConfig) }
     val torrServeAvailabilityProbe: TorrServeAvailabilityProbe by lazy { TorrServeAvailabilityProbe(applicationContext) }
     val torrServeLauncher: TorrServeLauncher by lazy { TorrServeLauncher() }
-    open val releaseApkLauncher: ReleaseApkLauncher by lazy { ReleaseApkLauncher() }
+    open val releaseApkLauncher: ReleaseApkLauncher by lazy { ReleaseApkLauncher(okHttpClient) }
     open val torrServeActionHandler: TorrServeActionHandler by lazy {
         TorrServeActionHandler(torrServeLinkBuilder, torrServeAvailabilityProbe, torrServeLauncher)
     }

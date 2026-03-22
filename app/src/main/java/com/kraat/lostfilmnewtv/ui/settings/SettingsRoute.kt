@@ -24,7 +24,7 @@ fun SettingsRoute(
     syncAndroidTvChannelBackgroundSchedule: () -> Unit = {},
     syncAndroidTvChannel: suspend () -> Unit = {},
     installedVersion: String = BuildConfig.VERSION_NAME,
-    openInstallApk: suspend (Context, String) -> Boolean = { _, _ -> false },
+    openInstallApk: suspend (Context, String, (Boolean) -> Unit) -> Boolean = { _, _, _ -> false },
 ) {
     val settingsViewModel: SettingsViewModel = viewModel(
         key = "settings",
@@ -57,6 +57,7 @@ fun SettingsRoute(
         latestVersionText = state.value.savedAppUpdate?.latestVersion ?: state.value.latestVersionText,
         statusText = state.value.statusText,
         isCheckingForUpdates = state.value.isCheckingForUpdates,
+        isDownloadingUpdate = state.value.isDownloadingUpdate,
         installUrl = state.value.installUrl,
         onUpdateModeSelected = settingsViewModel::onUpdateModeSelected,
         onChannelModeSelected = settingsViewModel::onChannelModeSelected,
@@ -64,7 +65,9 @@ fun SettingsRoute(
         onInstallUpdateClick = {
             state.value.installUrl?.let { installUrl ->
                 scope.launch {
-                    val opened = openInstallApk(context, installUrl)
+                    val opened = openInstallApk(context, installUrl) { downloading ->
+                        settingsViewModel.onInstallDownloadProgress(downloading)
+                    }
                     if (!opened) {
                         settingsViewModel.onInstallUpdateFailed()
                     }

@@ -14,5 +14,6 @@ data class SettingsUiState(
     val latestVersionText: String? = null,
     val statusText: String? = null,
     val isCheckingForUpdates: Boolean = false,
+    val isDownloadingUpdate: Boolean = false,
     val installUrl: String? = null,
 )

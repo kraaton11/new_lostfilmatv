@@ -34,6 +34,7 @@ import kotlinx.coroutines.launch
 
 private const val HOME_WATCHED_DETAILS_URL_KEY = "home.watched_details_url"
 private const val HOME_INSTALL_UPDATE_FAILED_MESSAGE = "Не удалось открыть обновление."
+private const val HOME_DOWNLOADING_UPDATE_MESSAGE = "Скачивание обновления…"
 
 @Composable
 fun AppNavGraph(initialDetailsUrl: String? = null) {
@@ -127,9 +128,17 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                 appUpdateStatusText = homeAppUpdateStatusText,
                 onInstallUpdateClick = {
                     savedAppUpdate?.let { update ->
-                        homeAppUpdateStatusText = null
                         scope.launch {
-                            val opened = application.releaseApkLauncher.launch(context, update.apkUrl)
+                            val opened = application.releaseApkLauncher.launch(
+                                context,
+                                update.apkUrl,
+                            ) { downloading ->
+                                homeAppUpdateStatusText = if (downloading) {
+                                    HOME_DOWNLOADING_UPDATE_MESSAGE
+                                } else {
+                                    null
+                                }
+                            }
                             if (!opened) {
                                 homeAppUpdateStatusText = HOME_INSTALL_UPDATE_FAILED_MESSAGE
                             }

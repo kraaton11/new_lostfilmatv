@@ -48,6 +48,7 @@ fun SettingsScreen(
     latestVersionText: String?,
     statusText: String?,
     isCheckingForUpdates: Boolean,
+    isDownloadingUpdate: Boolean = false,
     installUrl: String?,
     onUpdateModeSelected: (UpdateCheckMode) -> Unit,
     onChannelModeSelected: (AndroidTvChannelMode) -> Unit,
@@ -122,6 +123,7 @@ fun SettingsScreen(
                                 latestVersionText = latestVersionText,
                                 statusText = statusText,
                                 isCheckingForUpdates = isCheckingForUpdates,
+                                isDownloadingUpdate = isDownloadingUpdate,
                                 installUrl = installUrl,
                                 onUpdateModeSelected = onUpdateModeSelected,
                                 onCheckForUpdatesClick = onCheckForUpdatesClick,
@@ -212,6 +214,7 @@ private fun UpdatesSectionContent(
     latestVersionText: String?,
     statusText: String?,
     isCheckingForUpdates: Boolean,
+    isDownloadingUpdate: Boolean,
     installUrl: String?,
     onUpdateModeSelected: (UpdateCheckMode) -> Unit,
     onCheckForUpdatesClick: () -> Unit,
@@ -222,6 +225,7 @@ private fun UpdatesSectionContent(
             installedVersionText = installedVersionText,
             latestVersionText = latestVersionText,
             statusText = statusText,
+            isDownloadingUpdate = isDownloadingUpdate,
         )
         Text(
             text = "Режим проверки",
@@ -252,11 +256,14 @@ private fun UpdatesSectionContent(
         if (!installUrl.isNullOrBlank()) {
             Button(
                 onClick = onInstallUpdateClick,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("settings-install-update"),
+                enabled = !isDownloadingUpdate,
                 colors = secondaryButtonColors(),
             ) {
                 Text(
-                    text = "Скачать и установить",
+                    text = if (isDownloadingUpdate) "Скачивание…" else "Скачать и установить",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Medium,
                 )
@@ -270,7 +277,12 @@ private fun UpdatesStatusCard(
     installedVersionText: String,
     latestVersionText: String?,
     statusText: String?,
+    isDownloadingUpdate: Boolean,
 ) {
+    val statusLine = when {
+        isDownloadingUpdate -> "Скачивание обновления…"
+        else -> statusText
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -280,7 +292,7 @@ private fun UpdatesStatusCard(
     ) {
         SettingsValueRow(text = "Установлена версия: $installedVersionText")
         SettingsValueRow(text = "Последняя версия: ${latestVersionText ?: "-"}")
-        statusText?.let { SettingsValueRow(text = it) }
+        statusLine?.let { SettingsValueRow(text = it) }
     }
 }
 
