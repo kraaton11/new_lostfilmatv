@@ -11,6 +11,40 @@ import org.junit.Test
 
 class HomeChannelBackgroundRefreshRunnerTest {
     @Test
+    fun recentlyRefreshedFirstPage_skipsWithoutRefreshingOrSyncing() = runTest {
+        val calls = RefreshRunnerCalls()
+        val runner = HomeChannelBackgroundRefreshRunner(
+            readMode = { AndroidTvChannelMode.ALL_NEW },
+            readSession = {
+                calls.readSessionCalls += 1
+                null
+            },
+            isSessionExpired = {
+                calls.isSessionExpiredCalls += 1
+                false
+            },
+            refreshFirstPage = {
+                calls.refreshFirstPageCalls += 1
+                contentPageState()
+            },
+            syncChannel = {
+                calls.syncChannelCalls += 1
+            },
+            readFirstPageFetchedAt = { 10_000L },
+            clock = { 10_000L + 29 * 60 * 1000L },
+            minRefreshIntervalMs = 30 * 60 * 1000L,
+        )
+
+        val outcome = runner.run()
+
+        assertEquals(HomeChannelBackgroundRefreshOutcome.SKIPPED_RECENTLY_REFRESHED, outcome)
+        assertEquals(0, calls.readSessionCalls)
+        assertEquals(0, calls.isSessionExpiredCalls)
+        assertEquals(0, calls.refreshFirstPageCalls)
+        assertEquals(0, calls.syncChannelCalls)
+    }
+
+    @Test
     fun disabledMode_skipsWithoutRefreshingOrSyncing() = runTest {
         val calls = RefreshRunnerCalls()
         val runner = HomeChannelBackgroundRefreshRunner(
@@ -42,10 +76,41 @@ class HomeChannelBackgroundRefreshRunnerTest {
     }
 
     @Test
-    fun missingSession_skipsWithoutRefreshingOrSyncing() = runTest {
+    fun allNewMode_missingSession_refreshesAndSyncs() = runTest {
         val calls = RefreshRunnerCalls()
         val runner = HomeChannelBackgroundRefreshRunner(
             readMode = { AndroidTvChannelMode.ALL_NEW },
+            readSession = {
+                calls.readSessionCalls += 1
+                null
+            },
+            isSessionExpired = {
+                calls.isSessionExpiredCalls += 1
+                false
+            },
+            refreshFirstPage = {
+                calls.refreshFirstPageCalls += 1
+                contentPageState()
+            },
+            syncChannel = {
+                calls.syncChannelCalls += 1
+            },
+        )
+
+        val outcome = runner.run()
+
+        assertEquals(HomeChannelBackgroundRefreshOutcome.REFRESHED, outcome)
+        assertEquals(0, calls.readSessionCalls)
+        assertEquals(0, calls.isSessionExpiredCalls)
+        assertEquals(1, calls.refreshFirstPageCalls)
+        assertEquals(1, calls.syncChannelCalls)
+    }
+
+    @Test
+    fun unwatchedMode_missingSession_skipsWithoutRefreshingOrSyncing() = runTest {
+        val calls = RefreshRunnerCalls()
+        val runner = HomeChannelBackgroundRefreshRunner(
+            readMode = { AndroidTvChannelMode.UNWATCHED },
             readSession = {
                 calls.readSessionCalls += 1
                 null
@@ -73,7 +138,38 @@ class HomeChannelBackgroundRefreshRunnerTest {
     }
 
     @Test
-    fun expiredSession_skipsWithoutRefreshingOrSyncing() = runTest {
+    fun allNewMode_expiredSession_refreshesAndSyncs() = runTest {
+        val calls = RefreshRunnerCalls()
+        val runner = HomeChannelBackgroundRefreshRunner(
+            readMode = { AndroidTvChannelMode.ALL_NEW },
+            readSession = {
+                calls.readSessionCalls += 1
+                testSession()
+            },
+            isSessionExpired = {
+                calls.isSessionExpiredCalls += 1
+                true
+            },
+            refreshFirstPage = {
+                calls.refreshFirstPageCalls += 1
+                contentPageState()
+            },
+            syncChannel = {
+                calls.syncChannelCalls += 1
+            },
+        )
+
+        val outcome = runner.run()
+
+        assertEquals(HomeChannelBackgroundRefreshOutcome.REFRESHED, outcome)
+        assertEquals(0, calls.readSessionCalls)
+        assertEquals(0, calls.isSessionExpiredCalls)
+        assertEquals(1, calls.refreshFirstPageCalls)
+        assertEquals(1, calls.syncChannelCalls)
+    }
+
+    @Test
+    fun unwatchedMode_expiredSession_skipsWithoutRefreshingOrSyncing() = runTest {
         val calls = RefreshRunnerCalls()
         val runner = HomeChannelBackgroundRefreshRunner(
             readMode = { AndroidTvChannelMode.UNWATCHED },
@@ -107,7 +203,7 @@ class HomeChannelBackgroundRefreshRunnerTest {
     fun contentResult_refreshesPageOneAndSyncsChannel() = runTest {
         val calls = RefreshRunnerCalls()
         val runner = HomeChannelBackgroundRefreshRunner(
-            readMode = { AndroidTvChannelMode.ALL_NEW },
+            readMode = { AndroidTvChannelMode.UNWATCHED },
             readSession = {
                 calls.readSessionCalls += 1
                 testSession()

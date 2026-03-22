@@ -32,16 +32,25 @@ class LostFilmRepositoryImpl(
 
         return try {
             val fetchedAt = clock()
+            val hasAuthenticatedSession = hasAuthenticatedSession()
             val html = httpClient.fetchNewPage(pageNumber)
             val parsedItems = listParser.parse(
                 html = html,
                 pageNumber = pageNumber,
                 fetchedAt = fetchedAt,
             )
+            val itemsToPersist = if (hasAuthenticatedSession) {
+                parsedItems
+            } else {
+                preserveWatchedState(
+                    pageNumber = pageNumber,
+                    parsedItems = parsedItems,
+                )
+            }
 
             releaseDao.replacePage(
                 pageNumber = pageNumber,
-                summaries = parsedItems.toSummaryEntities(),
+                summaries = itemsToPersist.toSummaryEntities(),
                 metadata = PageCacheMetadataEntity(
                     pageNumber = pageNumber,
                     fetchedAt = fetchedAt,
@@ -184,6 +193,21 @@ class LostFilmRepositoryImpl(
 
     private suspend fun cleanupExpiredData() {
         releaseDao.deleteExpiredData(clock() - RETENTION_WINDOW_MS)
+    }
+
+    private suspend fun preserveWatchedState(
+        pageNumber: Int,
+        parsedItems: List<com.kraat.lostfilmnewtv.data.model.ReleaseSummary>,
+    ): List<com.kraat.lostfilmnewtv.data.model.ReleaseSummary> {
+        val existingWatchedByUrl = releaseDao.getPageSummaries(pageNumber)
+            .associate { entity -> entity.detailsUrl to entity.isWatched }
+        return parsedItems.map { item ->
+            if (existingWatchedByUrl[item.detailsUrl] == true) {
+                item.copy(isWatched = true)
+            } else {
+                item
+            }
+        }
     }
 
     private suspend fun parseDetails(

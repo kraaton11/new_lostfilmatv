@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv
 
+import android.content.Intent
 import com.kraat.lostfilmnewtv.data.auth.AuthCompletionResult
 import com.kraat.lostfilmnewtv.data.auth.AuthRepositoryContract
 import com.kraat.lostfilmnewtv.data.model.AuthState
@@ -9,6 +10,8 @@ import com.kraat.lostfilmnewtv.data.model.PairingStatus
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
+import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelBackgroundScheduler
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPreferences
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelProgram
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelProgramSource
@@ -16,16 +19,32 @@ import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPublisher
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPublisherResult
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelSyncManager
 import android.view.View
+import androidx.test.core.app.ApplicationProvider
+import androidx.work.WorkManager
 import org.junit.Assert.assertEquals
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.mockingDetails
 
 @RunWith(RobolectricTestRunner::class)
 @Config(application = TestLostFilmApplication::class)
 class MainActivityTest {
+    @Before
+    fun setUp() {
+        TestLostFilmApplication.homeChannelWorkManager = mock(WorkManager::class.java)
+    }
+
+    @After
+    fun tearDown() {
+        TestLostFilmApplication.homeChannelWorkManager = null
+    }
+
     @Test
     fun onCreate_enablesImmersiveFullscreen() {
         val activity = Robolectric.buildActivity(MainActivity::class.java).setup().get()
@@ -43,6 +62,46 @@ class MainActivityTest {
         assertEquals(EXPECTED_FULLSCREEN_FLAGS, activity.window.decorView.systemUiVisibility)
     }
 
+    @Test
+    fun returningToForeground_requestsImmediateChannelRefresh() {
+        val controller = Robolectric.buildActivity(MainActivity::class.java).setup()
+        val workManager = checkNotNull(TestLostFilmApplication.homeChannelWorkManager)
+
+        assertEquals(0, enqueueUniqueWorkCount(workManager))
+
+        controller.pause().resume()
+
+        assertEquals(1, enqueueUniqueWorkCount(workManager))
+    }
+
+    @Test
+    fun bootCompletedBroadcast_requestsPeriodicAndImmediateChannelRefresh() {
+        val application = ApplicationProvider.getApplicationContext<TestLostFilmApplication>()
+        val workManager = checkNotNull(TestLostFilmApplication.homeChannelWorkManager)
+
+        HomeChannelRefreshBootstrapReceiver().onReceive(
+            application,
+            Intent(Intent.ACTION_BOOT_COMPLETED),
+        )
+
+        assertEquals(1, enqueueUniquePeriodicWorkCount(workManager))
+        assertEquals(1, enqueueUniqueWorkCount(workManager))
+    }
+
+    @Test
+    fun packageReplacedBroadcast_requestsPeriodicAndImmediateChannelRefresh() {
+        val application = ApplicationProvider.getApplicationContext<TestLostFilmApplication>()
+        val workManager = checkNotNull(TestLostFilmApplication.homeChannelWorkManager)
+
+        HomeChannelRefreshBootstrapReceiver().onReceive(
+            application,
+            Intent(Intent.ACTION_MY_PACKAGE_REPLACED),
+        )
+
+        assertEquals(1, enqueueUniquePeriodicWorkCount(workManager))
+        assertEquals(1, enqueueUniqueWorkCount(workManager))
+    }
+
     private companion object {
         const val EXPECTED_FULLSCREEN_FLAGS =
             View.SYSTEM_UI_FLAG_LAYOUT_STABLE or
@@ -54,7 +113,28 @@ class MainActivityTest {
     }
 }
 
+private fun enqueueUniqueWorkCount(workManager: WorkManager): Int {
+    return mockingDetails(workManager).invocations.count {
+        it.method.name == "enqueueUniqueWork"
+    }
+}
+
+private fun enqueueUniquePeriodicWorkCount(workManager: WorkManager): Int {
+    return mockingDetails(workManager).invocations.count {
+        it.method.name == "enqueueUniquePeriodicWork"
+    }
+}
+
 class TestLostFilmApplication : LostFilmApplication() {
+    override val homeChannelBackgroundScheduler: HomeChannelBackgroundScheduler by lazy {
+        HomeChannelBackgroundScheduler(
+            readMode = { AndroidTvChannelMode.ALL_NEW },
+            workManager = checkNotNull(homeChannelWorkManager) {
+                "homeChannelWorkManager must be set before creating the application"
+            },
+        )
+    }
+
     override val authRepository: AuthRepositoryContract by lazy {
         object : AuthRepositoryContract {
             override suspend fun getAuthState(): AuthState = AuthState(isAuthenticated = false)
@@ -133,5 +213,10 @@ class TestLostFilmApplication : LostFilmApplication() {
             },
             onSyncFailure = {},
         )
+    }
+
+    companion object {
+        @Volatile
+        var homeChannelWorkManager: WorkManager? = null
     }
 }

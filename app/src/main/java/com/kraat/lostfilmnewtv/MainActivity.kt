@@ -13,6 +13,8 @@ import com.kraat.lostfilmnewtv.navigation.AppNavGraph
 import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
 
 class MainActivity : ComponentActivity() {
+    private var hasResumedOnce = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         hideLauncherBars()
@@ -24,6 +26,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        if (hasResumedOnce) {
+            (application as? LostFilmApplication)
+                ?.homeChannelBackgroundScheduler
+                ?.requestImmediateRefresh()
+        } else {
+            hasResumedOnce = true
+        }
+    }
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) {

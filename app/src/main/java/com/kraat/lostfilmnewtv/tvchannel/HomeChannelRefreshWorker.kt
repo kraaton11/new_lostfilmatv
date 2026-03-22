@@ -24,6 +24,7 @@ internal fun HomeChannelBackgroundRefreshOutcome.toWorkerResult(): ListenableWor
     return when (this) {
         HomeChannelBackgroundRefreshOutcome.SKIPPED_DISABLED,
         HomeChannelBackgroundRefreshOutcome.SKIPPED_UNAUTHENTICATED,
+        HomeChannelBackgroundRefreshOutcome.SKIPPED_RECENTLY_REFRESHED,
         HomeChannelBackgroundRefreshOutcome.REFRESHED,
         -> ListenableWorker.Result.success()
 

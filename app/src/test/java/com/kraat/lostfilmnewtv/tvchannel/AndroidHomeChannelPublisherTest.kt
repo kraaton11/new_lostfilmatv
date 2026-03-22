@@ -33,6 +33,7 @@ class AndroidHomeChannelPublisherTest {
         assertEquals(42L, result.channelId)
         assertEquals(1, facade.publishDefaultChannelCalls)
         assertEquals(1, facade.publishedChannels.size)
+        assertEquals(listOf(42L), facade.requestedBrowsableChannelIds)
         assertEquals(testLogo, facade.publishedChannels.single().logoBitmap)
         assertEquals(listOf("https://example.com/1"), facade.upsertedPrograms.map { it.internalProviderId })
         assertEquals(
@@ -46,7 +47,7 @@ class AndroidHomeChannelPublisherTest {
     }
 
     @Test
-    fun reconcile_existingChannel_updatesProgramsAndDeletesMissingOnes() = runTestPublisher {
+    fun reconcile_existingChannel_republishesWholeRowFromScratch() = runTestPublisher {
         val facade = RecordingPreviewFacade(
             existingPrograms = listOf(
                 PreviewProgramRecord(
@@ -85,10 +86,40 @@ class AndroidHomeChannelPublisherTest {
         )
 
         assertEquals(0, facade.publishDefaultChannelCalls)
-        assertEquals(listOf(8L), facade.deletedProgramIds)
+        assertEquals(listOf(42L), facade.requestedBrowsableChannelIds)
+        assertEquals(listOf(7L, 8L), facade.deletedProgramIds)
         assertEquals(
             listOf("https://example.com/keep", "https://example.com/add"),
             facade.upsertedPrograms.map { it.internalProviderId },
+        )
+        assertEquals(
+            listOf(null, null),
+            facade.upsertedPrograms.map { it.programId },
+        )
+    }
+
+    @Test
+    fun reconcile_assignsDescendingWeights_soNewestProgramStaysFirst() = runTestPublisher {
+        val facade = RecordingPreviewFacade()
+        val publisher = AndroidHomeChannelPublisher(
+            appContext = context,
+            helperFacade = facade,
+            channelLogoProvider = { testLogo },
+        )
+
+        publisher.reconcile(
+            mode = AndroidTvChannelMode.ALL_NEW,
+            existingChannelId = 42L,
+            programs = listOf(
+                program("https://example.com/1"),
+                program("https://example.com/2"),
+                program("https://example.com/3"),
+            ),
+        )
+
+        assertEquals(
+            listOf(3, 2, 1),
+            facade.upsertedPrograms.map { it.weight },
         )
     }
 }
@@ -109,6 +140,7 @@ private class RecordingPreviewFacade(
     val publishedChannels = mutableListOf<PreviewChannelRecord>()
     val upsertedPrograms = mutableListOf<PreviewProgramRecord>()
     val deletedProgramIds = mutableListOf<Long>()
+    val requestedBrowsableChannelIds = mutableListOf<Long>()
 
     override suspend fun channelExists(channelId: Long): Boolean = channelId == 42L
 
@@ -135,6 +167,10 @@ private class RecordingPreviewFacade(
             .filterNot { it.programId == programId }
             .associateBy { it.internalProviderId }
             .toMutableMap()
+    }
+
+    override suspend fun requestChannelBrowsable(channelId: Long) {
+        requestedBrowsableChannelIds += channelId
     }
 
     override suspend fun deleteChannel(channelId: Long) = Unit

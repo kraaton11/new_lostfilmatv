@@ -22,6 +22,14 @@ class HomeChannelRefreshWorkerTest {
     }
 
     @Test
+    fun skippedRecentlyRefreshed_mapsToSuccess() {
+        assertEquals(
+            ListenableWorker.Result.success(),
+            HomeChannelBackgroundRefreshOutcome.SKIPPED_RECENTLY_REFRESHED.toWorkerResult(),
+        )
+    }
+
+    @Test
     fun refreshed_mapsToSuccess() {
         assertEquals(
             ListenableWorker.Result.success(),
