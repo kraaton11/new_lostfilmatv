@@ -5,7 +5,6 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.TorrentLink
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Test
 
 class DetailsTorrentModelsTest {
@@ -63,49 +62,5 @@ class DetailsTorrentModelsTest {
         val rows = details.toTorrentRows()
 
         assertFalse(rows.iterator().hasNext())
-    }
-
-    @Test
-    fun qualityStatus_showsLoginHintWhenNotAuthenticatedAndNoRows() {
-        val status = qualityStatusText(
-            hasDetails = true,
-            torrentRowsCount = 0,
-            isAuthenticated = false,
-        )
-
-        assertEquals("Войдите в LostFilm, чтобы загрузить варианты качества", status)
-    }
-
-    @Test
-    fun qualityStatus_showsMissingQualityHintWhenAuthenticatedAndNoRows() {
-        val status = qualityStatusText(
-            hasDetails = true,
-            torrentRowsCount = 0,
-            isAuthenticated = true,
-        )
-
-        assertEquals("Варианты качества не найдены", status)
-    }
-
-    @Test
-    fun qualityStatus_showsFoundCountWhenRowsExist() {
-        val status = qualityStatusText(
-            hasDetails = true,
-            torrentRowsCount = 3,
-            isAuthenticated = true,
-        )
-
-        assertEquals("Найдено 3 варианта качества", status)
-    }
-
-    @Test
-    fun qualityStatus_isHiddenWithoutLoadedDetails() {
-        val status = qualityStatusText(
-            hasDetails = false,
-            torrentRowsCount = 0,
-            isAuthenticated = false,
-        )
-
-        assertNull(status)
     }
 }

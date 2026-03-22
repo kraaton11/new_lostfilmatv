@@ -23,19 +23,3 @@ fun ReleaseDetails.toTorrentRows(): List<DetailsTorrentRowUiModel> {
         )
     }
 }
-
-fun qualityStatusText(
-    hasDetails: Boolean,
-    torrentRowsCount: Int,
-    isAuthenticated: Boolean,
-): String? {
-    if (!hasDetails) {
-        return null
-    }
-
-    return when {
-        torrentRowsCount > 0 -> "Найдено $torrentRowsCount варианта качества".replace("1 варианта", "1 вариант")
-        !isAuthenticated -> "Войдите в LostFilm, чтобы загрузить варианты качества"
-        else -> "Варианты качества не найдены"
-    }
-}

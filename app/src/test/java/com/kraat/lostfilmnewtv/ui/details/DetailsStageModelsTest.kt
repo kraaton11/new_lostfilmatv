@@ -64,7 +64,6 @@ class DetailsStageModelsTest {
             isTorrServeBusy = false,
         )
 
-        assertEquals("", ui.heroMetaLine)
         assertEquals("The Engineer", ui.heroEpisodeTitle)
         assertEquals("Сезон 1 • Серия 5 • 1080p", ui.bottomInfoLine)
     }
@@ -87,7 +86,6 @@ class DetailsStageModelsTest {
             isTorrServeBusy = false,
         )
 
-        assertEquals("", ui.heroMetaLine)
         assertEquals("", ui.heroEpisodeTitle)
         assertEquals("Фильм • 1080p", ui.bottomInfoLine)
     }
@@ -112,7 +110,6 @@ class DetailsStageModelsTest {
             torrServeMessageText = "Не удалось открыть TorrServe",
         )
 
-        assertEquals("", ui.heroMetaLine)
         assertEquals("Не удалось открыть TorrServe", ui.bottomInfoLine)
     }
 

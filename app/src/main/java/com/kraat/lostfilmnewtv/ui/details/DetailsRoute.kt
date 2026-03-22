@@ -8,6 +8,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.SavedStateHandle
@@ -21,12 +22,8 @@ import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeActionHandler
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeLinkBuilder
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeOpenResult
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 @Composable
@@ -48,9 +45,7 @@ fun DetailsRoute(
     )
     val state by detailsViewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val scope = remember(detailsUrl) {
-        CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    }
+    val scope = rememberCoroutineScope()
     val supportedTorrentRows = remember(
         state.details?.torrentLinks,
         detailsUrl,
@@ -85,7 +80,6 @@ fun DetailsRoute(
             requestToken += 1
             inFlightJob?.cancel()
             inFlightJob = null
-            scope.cancel()
         }
     }
 
