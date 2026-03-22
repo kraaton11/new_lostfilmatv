@@ -31,19 +31,24 @@ class LostFilmAuthDetector:
         normalized_html = html.lower()
         normalized_cookie_names = {cookie_name.lower() for cookie_name in cookie_names}
         normalized_path = path.lower()
-
-        if any(marker in normalized_html for marker in self._ANONYMOUS_MARKERS):
-            return False
-        if not self._REQUIRED_COOKIE_NAMES.issubset(normalized_cookie_names):
-            return False
-        if any(marker in normalized_html for marker in self._PROFILE_PAGE_MARKERS):
-            return True
-        if (
+        has_anonymous_markers = any(marker in normalized_html for marker in self._ANONYMOUS_MARKERS)
+        has_profile_markers = any(marker in normalized_html for marker in self._PROFILE_PAGE_MARKERS)
+        has_home_markers = all(marker in normalized_html for marker in self._HOME_PAGE_MARKERS)
+        has_avatar_marker = any(marker in normalized_html for marker in self._HOME_PAGE_AVATAR_MARKERS)
+        has_post_login_root_cookies = (
             login_succeeded
             and normalized_path == "/"
             and self._POST_LOGIN_ROOT_COOKIE_NAMES.issubset(normalized_cookie_names)
-        ):
-            return True
-        return all(marker in normalized_html for marker in self._HOME_PAGE_MARKERS) and any(
-            marker in normalized_html for marker in self._HOME_PAGE_AVATAR_MARKERS
         )
+
+        if not self._REQUIRED_COOKIE_NAMES.issubset(normalized_cookie_names):
+            return False
+        if has_profile_markers:
+            return True
+        if has_post_login_root_cookies and has_home_markers and has_avatar_marker:
+            return True
+        if has_anonymous_markers:
+            return False
+        if has_post_login_root_cookies:
+            return True
+        return has_home_markers and has_avatar_marker

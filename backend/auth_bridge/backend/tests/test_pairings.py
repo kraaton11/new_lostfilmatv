@@ -14,6 +14,8 @@ class PairingsApiTest(unittest.TestCase):
     def setUp(self) -> None:
         self.client = TestClient(app)
         app.state.pairing_service.reset()
+        app.state.create_pairing_rate_limiter.clear()
+        app.state.proxy_rate_limiter.clear()
 
     def test_create_pairing_returns_tv_secret_and_phone_verifier(self) -> None:
         response = self.client.post("/api/pairings")
@@ -204,3 +206,73 @@ class PairingsApiTest(unittest.TestCase):
         )
 
         self.assertEqual(expired_finalize.status_code, 410)
+
+    def test_finalize_clears_proxy_session_state(self) -> None:
+        pairing = self.client.post("/api/pairings").json()
+        app.state.pairing_service.confirm_pairing(
+            pairing_id=pairing["pairingId"],
+            session_payload={
+                "cookies": [
+                    {
+                        "name": "lf_session",
+                        "value": "cookie-value",
+                        "domain": ".lostfilm.today",
+                        "path": "/",
+                    }
+                ],
+                "accountId": "demo-account",
+            },
+        )
+        app.state.proxy_session_store.get_or_create(pairing["pairingId"]).cookie_jar.set(
+            "lf_session",
+            "proxy-cookie",
+            domain=".lostfilm.today",
+            path="/",
+        )
+
+        self.client.post(
+            f"/api/pairings/{pairing['pairingId']}/claim",
+            headers={"X-Pairing-Secret": pairing["pairingSecret"]},
+        )
+        finalize = self.client.post(
+            f"/api/pairings/{pairing['pairingId']}/finalize",
+            headers={"X-Pairing-Secret": pairing["pairingSecret"]},
+        )
+
+        self.assertEqual(finalize.status_code, 204)
+        self.assertIsNone(app.state.proxy_session_store.get(pairing["pairingId"]))
+
+    def test_release_clears_proxy_session_state(self) -> None:
+        pairing = self.client.post("/api/pairings").json()
+        app.state.pairing_service.confirm_pairing(
+            pairing_id=pairing["pairingId"],
+            session_payload={
+                "cookies": [
+                    {
+                        "name": "lf_session",
+                        "value": "cookie-value",
+                        "domain": ".lostfilm.today",
+                        "path": "/",
+                    }
+                ],
+                "accountId": "demo-account",
+            },
+        )
+        app.state.proxy_session_store.get_or_create(pairing["pairingId"]).cookie_jar.set(
+            "lf_session",
+            "proxy-cookie",
+            domain=".lostfilm.today",
+            path="/",
+        )
+
+        self.client.post(
+            f"/api/pairings/{pairing['pairingId']}/claim",
+            headers={"X-Pairing-Secret": pairing["pairingSecret"]},
+        )
+        release = self.client.post(
+            f"/api/pairings/{pairing['pairingId']}/release",
+            headers={"X-Pairing-Secret": pairing["pairingSecret"]},
+        )
+
+        self.assertEqual(release.status_code, 204)
+        self.assertIsNone(app.state.proxy_session_store.get(pairing["pairingId"]))

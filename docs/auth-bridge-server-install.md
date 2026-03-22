@@ -67,6 +67,7 @@ Notes:
 
 - `AUTH_BRIDGE_PUBLIC_BASE_URL` is the canonical public origin
 - `AUTH_BRIDGE_PUBLIC_BASE_DOMAIN` is what the backend uses to mint `https://<phone_verifier>.auth.bazuka.pp.ua/`
+- both values are required by `docker compose`; the stack should fail fast if either one is missing
 - keep `BACKEND_PORT` bound only to `127.0.0.1`; TLS should terminate at the reverse proxy
 
 ## Load The Docker Image
@@ -130,7 +131,7 @@ If Caddy is responsible for obtaining the wildcard certificate, configure a DNS 
 ### 1. Local container health
 
 ```bash
-curl -fsS http://127.0.0.1:18015/health/live
+curl -fsS http://127.0.0.1:18015/health/ready
 ```
 
 Expected:
@@ -142,7 +143,7 @@ Expected:
 ### 2. Public HTTPS health
 
 ```bash
-curl -fsS https://auth.bazuka.pp.ua/health/live
+curl -fsS https://auth.bazuka.pp.ua/health/ready
 ```
 
 Expected:
@@ -181,6 +182,8 @@ Check:
 - `.env` was created next to `docker-compose.yml`
 - container was restarted after the env change
 - `AUTH_BRIDGE_PUBLIC_BASE_URL` and `AUTH_BRIDGE_PUBLIC_BASE_DOMAIN` are both set
+
+If `docker compose config` fails before startup, check that both variables are present in `.env` or exported in the shell.
 
 Then restart:
 

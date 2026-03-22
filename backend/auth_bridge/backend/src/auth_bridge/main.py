@@ -73,6 +73,14 @@ def create_app() -> FastAPI:
         max_requests=settings.login_rate_limit_max_requests,
         window_seconds=settings.login_rate_limit_window_seconds,
     )
+    create_pairing_rate_limiter = SlidingWindowRateLimiter(
+        max_requests=settings.create_pairing_rate_limit_max_requests,
+        window_seconds=settings.create_pairing_rate_limit_window_seconds,
+    )
+    proxy_rate_limiter = SlidingWindowRateLimiter(
+        max_requests=settings.proxy_rate_limit_max_requests,
+        window_seconds=settings.proxy_rate_limit_window_seconds,
+    )
     lostfilm_auth_detector = LostFilmAuthDetector()
     lostfilm_proxy_service = LostFilmProxyService(
         base_url=settings.lostfilm_base_url,
@@ -82,6 +90,8 @@ def create_app() -> FastAPI:
     app.state.pairing_service = pairing_service
     app.state.proxy_session_store = proxy_session_store
     app.state.login_rate_limiter = login_rate_limiter
+    app.state.create_pairing_rate_limiter = create_pairing_rate_limiter
+    app.state.proxy_rate_limiter = proxy_rate_limiter
     app.state.lostfilm_auth_detector = lostfilm_auth_detector
     app.state.lostfilm_proxy_service = lostfilm_proxy_service
     app.state.lostfilm_login_client_factory = lambda: LostFilmLoginClient(base_url=settings.lostfilm_base_url)

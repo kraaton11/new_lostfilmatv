@@ -5,8 +5,8 @@ services:
     ports:
       - "127.0.0.1:${BACKEND_PORT:-18015}:8000"
     environment:
-      AUTH_BRIDGE_PUBLIC_BASE_URL: ${AUTH_BRIDGE_PUBLIC_BASE_URL}
-      AUTH_BRIDGE_PUBLIC_BASE_DOMAIN: ${AUTH_BRIDGE_PUBLIC_BASE_DOMAIN}
+      AUTH_BRIDGE_PUBLIC_BASE_URL: ${AUTH_BRIDGE_PUBLIC_BASE_URL:?set AUTH_BRIDGE_PUBLIC_BASE_URL}
+      AUTH_BRIDGE_PUBLIC_BASE_DOMAIN: ${AUTH_BRIDGE_PUBLIC_BASE_DOMAIN:?set AUTH_BRIDGE_PUBLIC_BASE_DOMAIN}
       AUTH_BRIDGE_LOSTFILM_BASE_URL: ${AUTH_BRIDGE_LOSTFILM_BASE_URL:-https://www.lostfilm.today}
       AUTH_BRIDGE_PAIRING_TTL_SECONDS: ${AUTH_BRIDGE_PAIRING_TTL_SECONDS:-600}
       AUTH_BRIDGE_PAIRING_POLL_INTERVAL_SECONDS: ${AUTH_BRIDGE_PAIRING_POLL_INTERVAL_SECONDS:-5}
@@ -17,7 +17,7 @@ services:
       test:
         [
           "CMD-SHELL",
-          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/live', timeout=3)\"",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)\"",
         ]
       interval: 30s
       timeout: 5s

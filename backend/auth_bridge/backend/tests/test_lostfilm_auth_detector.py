@@ -64,6 +64,32 @@ class LostFilmAuthDetectorTest(unittest.TestCase):
 
         self.assertTrue(self.detector.is_authenticated(html, ["lf_session", "PHPSESSID"]))
 
+    def test_detector_accepts_post_login_root_with_home_markers_even_if_refresh_shim_is_present(self) -> None:
+        html = """
+        <html>
+          <head>
+            <meta http-equiv="refresh" content="0;url=/" />
+          </head>
+          <body>
+            <script>location.replace("/");</script>
+            <div class="user-pane">
+              <a href="/my" title="Перейти в личный кабинет">
+                <img src="/Static/Users/c/c/f/avatar.jpg" class="imgavatar">
+              </a>
+            </div>
+          </body>
+        </html>
+        """
+
+        self.assertTrue(
+            self.detector.is_authenticated(
+                html,
+                ["lf_session", "lf_udv", "PHPSESSID"],
+                path="/",
+                login_succeeded=True,
+            )
+        )
+
     def test_detector_rejects_anonymous_home_page_without_profile_markers(self) -> None:
         html = """
         <html>
