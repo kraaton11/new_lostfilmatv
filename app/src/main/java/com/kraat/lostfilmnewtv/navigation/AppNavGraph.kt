@@ -73,13 +73,11 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
     ) {
         composable(AppDestination.Home.route) { backStackEntry ->
             val homeViewModel: HomeViewModel = viewModel(
-                factory = repositoryViewModelFactory(application.repository) { repository ->
-                    HomeViewModel(
-                        repository = repository,
-                        savedStateHandle = SavedStateHandle(),
-                        onChannelContentChanged = application.homeChannelSyncManager::syncNow,
-                    )
-                },
+                factory = homeViewModelFactory(
+                    repository = application.repository,
+                    savedStateHandle = backStackEntry.savedStateHandle,
+                    onChannelContentChanged = application.homeChannelSyncManager::syncNow,
+                ),
             )
             val state by homeViewModel.uiState.collectAsStateWithLifecycle()
             val savedAppUpdate by application.appUpdateCoordinator.savedUpdateState.collectAsStateWithLifecycle()
@@ -113,6 +111,8 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                     navController.navigate(AppDestination.Details.createRoute(detailsUrl))
                 },
                 onEndReached = homeViewModel::onEndReached,
+                onRetry = homeViewModel::onRetry,
+                onPagingRetry = homeViewModel::onPagingRetry,
                 onAuthClick = {
                     if (isAuthenticated) {
                         authViewModel.logout()
@@ -199,14 +199,22 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
     }
 }
 
-private fun <T : ViewModel> repositoryViewModelFactory(
+private fun homeViewModelFactory(
     repository: LostFilmRepository,
-    creator: (LostFilmRepository) -> T,
+    savedStateHandle: SavedStateHandle,
+    onChannelContentChanged: suspend () -> Unit,
 ): ViewModelProvider.Factory {
     return object : ViewModelProvider.Factory {
         override fun <VM : ViewModel> create(modelClass: Class<VM>): VM {
+            if (modelClass != HomeViewModel::class.java) {
+                throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
+            }
             @Suppress("UNCHECKED_CAST")
-            return creator(repository) as VM
+            return HomeViewModel(
+                repository = repository,
+                savedStateHandle = savedStateHandle,
+                onChannelContentChanged = onChannelContentChanged,
+            ) as VM
         }
     }
 }

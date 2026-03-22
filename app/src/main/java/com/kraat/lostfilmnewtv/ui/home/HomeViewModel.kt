@@ -25,6 +25,7 @@ class HomeViewModel(
     private val _uiState = MutableStateFlow(
         HomeUiState(
             selectedItemKey = savedStateHandle[FOCUS_KEY],
+            isInitialLoading = true,
         ),
     )
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
@@ -42,6 +43,14 @@ class HomeViewModel(
 
     fun onRetry() {
         loadPage(pageNumber = 1, isPagingRequest = false)
+    }
+
+    fun onPagingRetry() {
+        val state = _uiState.value
+        if (state.pagingErrorMessage == null || state.isPaging || state.isInitialLoading || !state.hasNextPage) {
+            return
+        }
+        loadPage(pageNumber = state.nextPage, isPagingRequest = true)
     }
 
     fun onEndReached() {
