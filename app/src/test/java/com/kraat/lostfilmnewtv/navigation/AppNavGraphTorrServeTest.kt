@@ -854,11 +854,17 @@ private class NoOpLauncher : TorrServeUrlLauncher {
 
 private class RecordingReleaseApkLauncher(
     private val launchResult: Boolean = true,
-) : ReleaseApkLauncher() {
+) : ReleaseApkLauncher(okhttp3.OkHttpClient()) {
     val launchedUrls = CopyOnWriteArrayList<String>()
 
-    override suspend fun launch(context: Context, apkUrl: String): Boolean {
+    override suspend fun launch(
+        context: Context,
+        apkUrl: String,
+        onDownloadingChange: (Boolean) -> Unit,
+    ): Boolean {
         launchedUrls += apkUrl
+        onDownloadingChange(true)
+        onDownloadingChange(false)
         return launchResult
     }
 }

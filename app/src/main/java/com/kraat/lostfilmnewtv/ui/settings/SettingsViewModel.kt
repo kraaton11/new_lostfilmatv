@@ -55,6 +55,7 @@ class SettingsViewModel(
                     state.copy(
                         savedAppUpdate = savedUpdate,
                         installUrl = savedUpdate?.apkUrl,
+                        isDownloadingUpdate = false,
                     )
                 }
             }
@@ -108,7 +109,16 @@ class SettingsViewModel(
 
     fun onInstallUpdateFailed() {
         _uiState.update { state ->
-            state.copy(statusText = INSTALL_UPDATE_FAILED_MESSAGE)
+            state.copy(
+                statusText = INSTALL_UPDATE_FAILED_MESSAGE,
+                isDownloadingUpdate = false,
+            )
+        }
+    }
+
+    fun onInstallDownloadProgress(isDownloading: Boolean) {
+        _uiState.update { state ->
+            state.copy(isDownloadingUpdate = isDownloading)
         }
     }
 
@@ -120,6 +130,7 @@ class SettingsViewModel(
             state.copy(
                 statusText = CHECKING_UPDATES_MESSAGE,
                 isCheckingForUpdates = true,
+                isDownloadingUpdate = false,
             )
         }
         activeRefreshJob = viewModelScope.launch(ioDispatcher) {
@@ -141,6 +152,7 @@ private fun SettingsUiState.toCheckedState(refreshResult: AppUpdateRefreshResult
             latestVersionText = refreshResult.installedVersion,
             statusText = "Установлена последняя версия",
             isCheckingForUpdates = false,
+            isDownloadingUpdate = false,
             installUrl = null,
         )
 
@@ -149,6 +161,7 @@ private fun SettingsUiState.toCheckedState(refreshResult: AppUpdateRefreshResult
             latestVersionText = refreshResult.savedUpdate.latestVersion,
             statusText = "Доступно обновление",
             isCheckingForUpdates = false,
+            isDownloadingUpdate = false,
             installUrl = refreshResult.savedUpdate.apkUrl,
         )
 
@@ -156,6 +169,7 @@ private fun SettingsUiState.toCheckedState(refreshResult: AppUpdateRefreshResult
             installedVersionText = refreshResult.installedVersion,
             statusText = refreshResult.message,
             isCheckingForUpdates = false,
+            isDownloadingUpdate = false,
         )
 
         is AppUpdateRefreshResult.FailedEmpty -> copy(
@@ -164,6 +178,7 @@ private fun SettingsUiState.toCheckedState(refreshResult: AppUpdateRefreshResult
             latestVersionText = null,
             statusText = refreshResult.message,
             isCheckingForUpdates = false,
+            isDownloadingUpdate = false,
             installUrl = null,
         )
     }

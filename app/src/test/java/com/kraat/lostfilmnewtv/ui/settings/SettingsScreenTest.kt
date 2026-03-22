@@ -207,4 +207,32 @@ class SettingsScreenTest {
         composeRule.onNodeWithText("Проверяем обновления...").assertExists()
         composeRule.onNodeWithText("Проверяем...").assertIsNotEnabled()
     }
+
+    @Test
+    fun settingsScreen_updatesSection_showsDownloadMessage_andDisablesInstallButton() {
+        composeRule.setContent {
+            LostFilmTheme {
+                SettingsScreen(
+                    selectedQuality = PlaybackQualityPreference.Q1080,
+                    onQualitySelected = {},
+                    selectedUpdateMode = UpdateCheckMode.MANUAL,
+                    selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
+                    installedVersionText = "0.1.0",
+                    latestVersionText = "0.2.0",
+                    statusText = "Доступно обновление",
+                    isCheckingForUpdates = false,
+                    isDownloadingUpdate = true,
+                    installUrl = "https://example.test/app.apk",
+                    onUpdateModeSelected = {},
+                    onChannelModeSelected = {},
+                    onCheckForUpdatesClick = {},
+                    onInstallUpdateClick = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Скачивание обновления…").assertExists()
+        composeRule.onNodeWithTag("settings-install-update").assertIsNotEnabled()
+        composeRule.onNodeWithText("Скачивание…").assertExists()
+    }
 }
