@@ -46,6 +46,7 @@ import com.kraat.lostfilmnewtv.tvchannel.HomeChannelProgramSource
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPublisher
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPublisherResult
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelSyncManager
+import com.kraat.lostfilmnewtv.updates.AppUpdateBackgroundScheduler as QuietAppUpdateBackgroundScheduler
 import com.kraat.lostfilmnewtv.updates.AppUpdateRepository
 import com.kraat.lostfilmnewtv.updates.GitHubRelease
 import com.kraat.lostfilmnewtv.updates.GitHubReleaseClient
@@ -84,6 +85,7 @@ class AppNavGraphTorrServeTest {
         TestLostFilmApplication.releaseApkLauncherOverride = null
         TestLostFilmApplication.homeChannelSyncManagerOverride = testHomeChannelSyncManager()
         TestLostFilmApplication.homeChannelBackgroundSchedulerOverride = testHomeChannelBackgroundScheduler()
+        TestLostFilmApplication.appUpdateBackgroundSchedulerOverride = testAppUpdateBackgroundScheduler()
         TestLostFilmApplication.homeChannelBackgroundRefreshRunnerOverride = null
         torrServeOpenCalls.set(0)
         TestLostFilmApplication.torrServeActionHandlerOverride = unavailableTorrServeActionHandler()
@@ -111,6 +113,7 @@ class AppNavGraphTorrServeTest {
         TestLostFilmApplication.releaseApkLauncherOverride = null
         TestLostFilmApplication.homeChannelSyncManagerOverride = null
         TestLostFilmApplication.homeChannelBackgroundSchedulerOverride = null
+        TestLostFilmApplication.appUpdateBackgroundSchedulerOverride = null
         TestLostFilmApplication.homeChannelBackgroundRefreshRunnerOverride = null
     }
 
@@ -183,6 +186,45 @@ class AppNavGraphTorrServeTest {
         TestLostFilmApplication.repositoryOverride = BlockingAppNavGraphRepository(pageResult)
         TestLostFilmApplication.homeChannelBackgroundSchedulerOverride = HomeChannelBackgroundScheduler(
             readMode = { AndroidTvChannelMode.ALL_NEW },
+            workManager = workManager,
+        )
+
+        composeRule.setContent {
+            LostFilmTheme {
+                AppNavGraph()
+            }
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            mockingDetails(workManager).invocations.count {
+                it.method.name == "enqueueUniquePeriodicWork"
+            } == 1
+        }
+        assertEquals(
+            1,
+            mockingDetails(workManager).invocations.count {
+                it.method.name == "enqueueUniquePeriodicWork"
+            },
+        )
+
+        pageResult.complete(
+            PageState.Content(
+                pageNumber = 1,
+                items = listOf(TEST_SUMMARY),
+                hasNextPage = false,
+                isStale = false,
+            ),
+        )
+        composeRule.waitForText("Новые релизы")
+    }
+
+    @Test
+    fun startup_composition_schedules_background_update_refresh_once() {
+        val pageResult = CompletableDeferred<PageState>()
+        val workManager = mock(WorkManager::class.java)
+        TestLostFilmApplication.repositoryOverride = BlockingAppNavGraphRepository(pageResult)
+        TestLostFilmApplication.appUpdateBackgroundSchedulerOverride = QuietAppUpdateBackgroundScheduler(
+            readMode = { UpdateCheckMode.QUIET_CHECK },
             workManager = workManager,
         )
 
@@ -584,6 +626,9 @@ class TestLostFilmApplication : LostFilmApplication() {
     override val homeChannelBackgroundScheduler: HomeChannelBackgroundScheduler
         get() = homeChannelBackgroundSchedulerOverride ?: super.homeChannelBackgroundScheduler
 
+    override val appUpdateBackgroundScheduler: QuietAppUpdateBackgroundScheduler
+        get() = appUpdateBackgroundSchedulerOverride ?: super.appUpdateBackgroundScheduler
+
     override val homeChannelBackgroundRefreshRunner: HomeChannelBackgroundRefreshRunner
         get() = homeChannelBackgroundRefreshRunnerOverride ?: super.homeChannelBackgroundRefreshRunner
 
@@ -611,6 +656,9 @@ class TestLostFilmApplication : LostFilmApplication() {
 
         @Volatile
         var homeChannelBackgroundSchedulerOverride: HomeChannelBackgroundScheduler? = null
+
+        @Volatile
+        var appUpdateBackgroundSchedulerOverride: QuietAppUpdateBackgroundScheduler? = null
 
         @Volatile
         var homeChannelBackgroundRefreshRunnerOverride: HomeChannelBackgroundRefreshRunner? = null
@@ -659,6 +707,13 @@ private fun testHomeChannelSyncManager(
 private fun testHomeChannelBackgroundScheduler(): HomeChannelBackgroundScheduler {
     return HomeChannelBackgroundScheduler(
         readMode = { AndroidTvChannelMode.ALL_NEW },
+        workManager = mock(WorkManager::class.java),
+    )
+}
+
+private fun testAppUpdateBackgroundScheduler(): QuietAppUpdateBackgroundScheduler {
+    return QuietAppUpdateBackgroundScheduler(
+        readMode = { UpdateCheckMode.QUIET_CHECK },
         workManager = mock(WorkManager::class.java),
     )
 }
