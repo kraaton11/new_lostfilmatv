@@ -32,7 +32,7 @@ import com.kraat.lostfilmnewtv.ui.settings.SettingsRoute
 private const val HOME_WATCHED_DETAILS_URL_KEY = "home.watched_details_url"
 
 @Composable
-fun AppNavGraph() {
+fun AppNavGraph(initialDetailsUrl: String? = null) {
     val navController = rememberNavController()
     val application = LocalContext.current.applicationContext as LostFilmApplication
     val authViewModel: AuthViewModel = viewModel(
@@ -45,6 +45,21 @@ fun AppNavGraph() {
         mutableStateOf(application.playbackPreferencesStore.readDefaultQuality())
     }
 
+    LaunchedEffect(application) {
+        application.homeChannelBackgroundScheduler.syncForCurrentMode()
+        application.homeChannelSyncManager.syncNow()
+    }
+
+    LaunchedEffect(initialDetailsUrl) {
+        initialDetailsUrl
+            ?.takeIf { it.isNotBlank() }
+            ?.let { detailsUrl ->
+                navController.navigate(AppDestination.Details.createRoute(detailsUrl)) {
+                    launchSingleTop = true
+                }
+            }
+    }
+
     NavHost(
         navController = navController,
         startDestination = AppDestination.Home.route,
@@ -55,6 +70,7 @@ fun AppNavGraph() {
                     HomeViewModel(
                         repository = repository,
                         savedStateHandle = SavedStateHandle(),
+                        onChannelContentChanged = application.homeChannelSyncManager::syncNow,
                     )
                 },
             )
@@ -117,6 +133,7 @@ fun AppNavGraph() {
                         ?.savedStateHandle
                         ?.set(HOME_WATCHED_DETAILS_URL_KEY, watchedDetailsUrl)
                 },
+                onChannelContentChanged = application.homeChannelSyncManager::syncNow,
                 onBack = { navController.popBackStack() },
             )
         }
@@ -125,6 +142,8 @@ fun AppNavGraph() {
                 playbackPreferencesStore = application.playbackPreferencesStore,
                 appUpdateRepository = application.appUpdateRepository,
                 onPlaybackQualityChanged = { selectedPlaybackQuality = it },
+                syncAndroidTvChannelBackgroundSchedule = application.homeChannelBackgroundScheduler::syncForCurrentMode,
+                syncAndroidTvChannel = application.homeChannelSyncManager::syncNow,
                 openInstallApk = application.releaseApkLauncher::launch,
             )
         }

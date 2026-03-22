@@ -20,6 +20,8 @@ fun SettingsRoute(
     playbackPreferencesStore: PlaybackPreferencesStore,
     appUpdateRepository: AppUpdateRepository,
     onPlaybackQualityChanged: (PlaybackQualityPreference) -> Unit = {},
+    syncAndroidTvChannelBackgroundSchedule: () -> Unit = {},
+    syncAndroidTvChannel: suspend () -> Unit = {},
     installedVersion: String = BuildConfig.VERSION_NAME,
     openInstallApk: suspend (Context, String) -> Boolean = { _, _ -> false },
 ) {
@@ -29,6 +31,8 @@ fun SettingsRoute(
             playbackPreferencesStore = playbackPreferencesStore,
             appUpdateRepository = appUpdateRepository,
             installedVersion = installedVersion,
+            syncAndroidTvChannelBackgroundSchedule = syncAndroidTvChannelBackgroundSchedule,
+            syncAndroidTvChannel = syncAndroidTvChannel,
         ),
     )
     val state = settingsViewModel.uiState.collectAsStateWithLifecycle()
@@ -46,12 +50,14 @@ fun SettingsRoute(
             onPlaybackQualityChanged(quality)
         },
         selectedUpdateMode = state.value.updateMode,
+        selectedChannelMode = state.value.channelMode,
         installedVersionText = state.value.installedVersionText,
         latestVersionText = state.value.latestVersionText,
         statusText = state.value.statusText,
         isCheckingForUpdates = state.value.isCheckingForUpdates,
         installUrl = state.value.installUrl,
         onUpdateModeSelected = settingsViewModel::onUpdateModeSelected,
+        onChannelModeSelected = settingsViewModel::onChannelModeSelected,
         onCheckForUpdatesClick = settingsViewModel::onCheckForUpdatesClick,
         onInstallUpdateClick = {
             state.value.installUrl?.let { installUrl ->
@@ -70,6 +76,8 @@ private fun settingsViewModelFactory(
     playbackPreferencesStore: PlaybackPreferencesStore,
     appUpdateRepository: AppUpdateRepository,
     installedVersion: String,
+    syncAndroidTvChannelBackgroundSchedule: () -> Unit,
+    syncAndroidTvChannel: suspend () -> Unit,
 ): ViewModelProvider.Factory {
     return object : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -78,8 +86,12 @@ private fun settingsViewModelFactory(
                 installedVersion = installedVersion,
                 initialPlaybackQuality = playbackPreferencesStore.readDefaultQuality(),
                 initialUpdateMode = playbackPreferencesStore.readUpdateCheckMode(),
+                initialChannelMode = playbackPreferencesStore.readAndroidTvChannelMode(),
                 persistPlaybackQuality = playbackPreferencesStore::writeDefaultQuality,
                 persistUpdateMode = playbackPreferencesStore::writeUpdateCheckMode,
+                persistChannelMode = playbackPreferencesStore::writeAndroidTvChannelMode,
+                syncAndroidTvChannelBackgroundSchedule = syncAndroidTvChannelBackgroundSchedule,
+                syncAndroidTvChannel = syncAndroidTvChannel,
                 checkForUpdates = appUpdateRepository::checkForUpdate,
             ) as T
         }

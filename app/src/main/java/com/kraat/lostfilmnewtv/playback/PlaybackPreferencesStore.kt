@@ -1,6 +1,7 @@
 package com.kraat.lostfilmnewtv.playback
 
 import android.content.Context
+import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 
 class PlaybackPreferencesStore(
@@ -33,9 +34,43 @@ class PlaybackPreferencesStore(
             .apply()
     }
 
+    fun readAndroidTvChannelMode(): AndroidTvChannelMode {
+        return AndroidTvChannelMode.fromStorageValue(
+            prefs.getString(KEY_ANDROID_TV_CHANNEL_MODE, null),
+        )
+    }
+
+    fun writeAndroidTvChannelMode(value: AndroidTvChannelMode) {
+        prefs.edit()
+            .putString(KEY_ANDROID_TV_CHANNEL_MODE, value.storageValue)
+            .apply()
+    }
+
+    fun readAndroidTvChannelId(): Long? {
+        return if (prefs.contains(KEY_ANDROID_TV_CHANNEL_ID)) {
+            prefs.getLong(KEY_ANDROID_TV_CHANNEL_ID, 0L)
+        } else {
+            null
+        }
+    }
+
+    fun writeAndroidTvChannelId(value: Long) {
+        prefs.edit()
+            .putLong(KEY_ANDROID_TV_CHANNEL_ID, value)
+            .apply()
+    }
+
+    fun clearAndroidTvChannelId() {
+        prefs.edit()
+            .remove(KEY_ANDROID_TV_CHANNEL_ID)
+            .apply()
+    }
+
     private companion object {
         const val DEFAULT_PREFS_NAME = "lostfilm_playback_prefs"
         const val KEY_DEFAULT_QUALITY = "default_quality"
         const val KEY_UPDATE_CHECK_MODE = "update_check_mode"
+        const val KEY_ANDROID_TV_CHANNEL_MODE = "android_tv_channel_mode"
+        const val KEY_ANDROID_TV_CHANNEL_ID = "android_tv_channel_id"
     }
 }

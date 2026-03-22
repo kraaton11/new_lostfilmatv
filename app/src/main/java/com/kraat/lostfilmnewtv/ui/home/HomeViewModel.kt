@@ -19,6 +19,7 @@ private const val FOCUS_KEY = "home.focused_item_key"
 class HomeViewModel(
     private val repository: LostFilmRepository,
     private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
+    private val onChannelContentChanged: suspend () -> Unit = {},
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(
@@ -120,6 +121,7 @@ class HomeViewModel(
                             hasNextPage = result.hasNextPage,
                         )
                     }
+                    onChannelContentChanged()
                 }
 
                 is PageState.Error -> {

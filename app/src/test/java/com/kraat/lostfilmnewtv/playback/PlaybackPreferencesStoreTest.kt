@@ -2,8 +2,10 @@ package com.kraat.lostfilmnewtv.playback
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -68,5 +70,57 @@ class PlaybackPreferencesStoreTest {
 
         assertEquals(PlaybackQualityPreference.Q720, recreatedStore.readDefaultQuality())
         assertEquals(UpdateCheckMode.QUIET_CHECK, recreatedStore.readUpdateCheckMode())
+    }
+
+    @Test
+    fun readAndroidTvChannelMode_returnsAllNew_whenNothingWasSaved() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsName = "playback-store-tv-channel-default"
+        context.deleteSharedPreferences(prefsName)
+        val store = PlaybackPreferencesStore(context, prefsName = prefsName)
+
+        assertEquals(AndroidTvChannelMode.ALL_NEW, store.readAndroidTvChannelMode())
+    }
+
+    @Test
+    fun readAndroidTvChannelId_returnsNull_whenNothingWasSaved() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsName = "playback-store-tv-channel-id-default"
+        context.deleteSharedPreferences(prefsName)
+        val store = PlaybackPreferencesStore(context, prefsName = prefsName)
+
+        assertNull(store.readAndroidTvChannelId())
+    }
+
+    @Test
+    fun writeAndroidTvChannelModeAndChannelId_persistTogether() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsName = "playback-store-tv-channel-write"
+        context.deleteSharedPreferences(prefsName)
+        val store = PlaybackPreferencesStore(context, prefsName = prefsName)
+
+        store.writeAndroidTvChannelMode(AndroidTvChannelMode.UNWATCHED)
+        store.writeAndroidTvChannelId(42L)
+
+        val recreatedStore = PlaybackPreferencesStore(context, prefsName = prefsName)
+
+        assertEquals(AndroidTvChannelMode.UNWATCHED, recreatedStore.readAndroidTvChannelMode())
+        assertEquals(42L, recreatedStore.readAndroidTvChannelId())
+    }
+
+    @Test
+    fun clearAndroidTvChannelId_removesOnlyStoredChannelId() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsName = "playback-store-tv-channel-clear"
+        context.deleteSharedPreferences(prefsName)
+        val store = PlaybackPreferencesStore(context, prefsName = prefsName)
+
+        store.writeAndroidTvChannelMode(AndroidTvChannelMode.DISABLED)
+        store.writeAndroidTvChannelId(99L)
+
+        store.clearAndroidTvChannelId()
+
+        assertEquals(AndroidTvChannelMode.DISABLED, store.readAndroidTvChannelMode())
+        assertNull(store.readAndroidTvChannelId())
     }
 }
