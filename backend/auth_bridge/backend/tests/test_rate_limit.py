@@ -60,6 +60,16 @@ class SlidingWindowRateLimiterTest(unittest.TestCase):
         time.sleep(1.05)
         limiter.check("key-a")  # Should not raise
 
+    def test_prunes_stale_buckets_after_window_expiry(self) -> None:
+        limiter = SlidingWindowRateLimiter(max_requests=1, window_seconds=1)
+        limiter.check("stale-key")
+
+        time.sleep(1.05)
+        limiter.check("fresh-key")
+
+        self.assertNotIn("stale-key", limiter._buckets)
+        self.assertIn("fresh-key", limiter._buckets)
+
 
 class PhoneFlowRateLimitKeyTest(unittest.TestCase):
     def test_extract_client_ip_prefers_first_forwarded_for_ip(self) -> None:
@@ -130,6 +140,8 @@ class RateLimiterIntegrationTest(unittest.TestCase):
 
         self.app = app
         self.app.state.pairing_service.reset()
+        self.app.state.create_pairing_rate_limiter.clear()
+        self.app.state.proxy_rate_limiter.clear()
         # Replace the real limiter with a very tight one for testing
         self._original_limiter = self.app.state.login_rate_limiter
         tight_limiter = SlidingWindowRateLimiter(max_requests=2, window_seconds=60)
@@ -200,6 +212,40 @@ class RateLimiterIntegrationTest(unittest.TestCase):
         self.assertNotEqual(r1.status_code, 429)
         self.assertNotEqual(r2.status_code, 429)
         self.assertNotEqual(r3.status_code, 429)
+
+
+class PairingCreationRateLimiterIntegrationTest(unittest.TestCase):
+    def setUp(self) -> None:
+        from auth_bridge.main import app
+        from auth_bridge.middleware.rate_limit import SlidingWindowRateLimiter
+        from fastapi.testclient import TestClient
+
+        self.app = app
+        self.app.state.pairing_service.reset()
+        self.app.state.create_pairing_rate_limiter.clear()
+        self.app.state.proxy_rate_limiter.clear()
+        self._had_original_limiter = hasattr(self.app.state, "create_pairing_rate_limiter")
+        self._original_limiter = getattr(self.app.state, "create_pairing_rate_limiter", None)
+        self.app.state.create_pairing_rate_limiter = SlidingWindowRateLimiter(max_requests=2, window_seconds=60)
+        self.client = TestClient(app)
+
+    def tearDown(self) -> None:
+        if self._had_original_limiter:
+            self.app.state.create_pairing_rate_limiter = self._original_limiter
+        else:
+            delattr(self.app.state, "create_pairing_rate_limiter")
+
+    def test_create_pairing_rate_limit_blocks_after_max_requests(self) -> None:
+        headers = {"X-Forwarded-For": "203.0.113.7"}
+
+        r1 = self.client.post("/api/pairings", headers=headers)
+        r2 = self.client.post("/api/pairings", headers=headers)
+        r3 = self.client.post("/api/pairings", headers=headers)
+
+        self.assertEqual(r1.status_code, 201)
+        self.assertEqual(r2.status_code, 201)
+        self.assertEqual(r3.status_code, 429)
+        self.assertIn("Too many pairing requests", r3.json()["detail"])
 
 
 class _AlwaysFailsClient:

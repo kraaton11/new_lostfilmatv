@@ -20,6 +20,13 @@ class ProxyResponse:
 
 
 class LostFilmProxyService:
+    _FORWARD_REQUEST_HEADERS = {
+        "accept",
+        "accept-language",
+        "content-type",
+        "user-agent",
+        "x-requested-with",
+    }
     _HOP_BY_HOP_HEADERS = {
         "connection",
         "content-length",
@@ -104,7 +111,7 @@ class LostFilmProxyService:
         return {
             key: value
             for key, value in headers.items()
-            if key.lower() not in self._HOP_BY_HOP_HEADERS
+            if key.lower() in self._FORWARD_REQUEST_HEADERS
         }
 
     def _rewrite_response_headers(self, headers: Mapping[str, str], wildcard_host: str) -> dict[str, str]:

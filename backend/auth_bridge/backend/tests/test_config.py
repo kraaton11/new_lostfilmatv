@@ -18,6 +18,24 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(settings.public_base_url, "https://auth.bazuka.pp.ua")
         self.assertEqual(settings.wildcard_base_domain, "auth.bazuka.pp.ua")
 
+    def test_public_base_url_must_use_https(self) -> None:
+        with self.assertRaises(ValueError):
+            Settings(public_base_url="http://auth.bazuka.pp.ua")
+
+    def test_public_base_domain_must_be_host_only(self) -> None:
+        with self.assertRaises(ValueError):
+            Settings(
+                public_base_url="https://auth.bazuka.pp.ua",
+                public_base_domain="https://auth.bazuka.pp.ua/path",
+            )
+
+    def test_public_base_domain_cannot_include_path_or_query(self) -> None:
+        with self.assertRaises(ValueError):
+            Settings(
+                public_base_url="https://auth.bazuka.pp.ua",
+                public_base_domain="auth.bazuka.pp.ua/path?x=1",
+            )
+
     def test_public_base_domain_uses_explicit_wildcard_env(self) -> None:
         with patch.dict(
             os.environ,

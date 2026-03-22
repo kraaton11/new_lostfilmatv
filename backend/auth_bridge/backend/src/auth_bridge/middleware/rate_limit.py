@@ -49,13 +49,11 @@ class SlidingWindowRateLimiter:
         with self._lock:
             now = datetime.now(UTC)
             cutoff = now - timedelta(seconds=self._window_seconds)
+            self._prune_expired_buckets(cutoff)
             buckets: list[deque[datetime]] = []
 
             for key in unique_keys:
                 bucket = self._buckets.setdefault(key, deque())
-                while bucket and bucket[0] < cutoff:
-                    bucket.popleft()
-
                 if len(bucket) >= self._max_requests:
                     logger.warning(
                         "Rate limit exceeded for key=%s (%d requests in %ds window)",
@@ -70,10 +68,31 @@ class SlidingWindowRateLimiter:
             for bucket in buckets:
                 bucket.append(now)
 
+    def _prune_expired_buckets(self, cutoff: datetime) -> None:
+        stale_keys: list[str] = []
+        for key, bucket in self._buckets.items():
+            while bucket and bucket[0] < cutoff:
+                bucket.popleft()
+            if not bucket:
+                stale_keys.append(key)
+
+        for key in stale_keys:
+            self._buckets.pop(key, None)
+
     def reset(self, key: str) -> None:
         """Clear the bucket for a key (useful for tests)."""
         with self._lock:
             self._buckets.pop(key, None)
+
+    def reset_many(self, keys: Iterable[str]) -> None:
+        """Clear multiple buckets at once."""
+        unique_keys = tuple(dict.fromkeys(keys))
+        if not unique_keys:
+            return
+
+        with self._lock:
+            for key in unique_keys:
+                self._buckets.pop(key, None)
 
     def clear(self) -> None:
         """Clear all buckets."""
@@ -114,6 +133,20 @@ def build_phone_flow_rate_limit_keys(client_ip: str, phone_verifier: str, userna
     if normalized_username:
         keys.append(_build_rate_limit_key("phone-flow:ip+username", normalized_client_ip, normalized_username))
     return tuple(keys)
+
+
+def build_pairing_creation_rate_limit_keys(client_ip: str) -> tuple[str, ...]:
+    normalized_client_ip = (client_ip or "unknown").strip().lower() or "unknown"
+    return (_build_rate_limit_key("pairings:create:ip", normalized_client_ip),)
+
+
+def build_proxy_rate_limit_keys(client_ip: str, phone_verifier: str) -> tuple[str, ...]:
+    normalized_client_ip = (client_ip or "unknown").strip().lower() or "unknown"
+    normalized_phone_verifier = phone_verifier.strip().lower()
+    return (
+        _build_rate_limit_key("proxy:ip", normalized_client_ip),
+        _build_rate_limit_key("proxy:ip+verifier", normalized_client_ip, normalized_phone_verifier),
+    )
 
 
 def _build_rate_limit_key(scope: str, *parts: str) -> str:

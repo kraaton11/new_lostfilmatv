@@ -76,6 +76,8 @@ class PhoneFlowTest(unittest.TestCase):
         app.state.login_rate_limiter = SlidingWindowRateLimiter(max_requests=1000, window_seconds=60)
         self.client = TestClient(app)
         app.state.pairing_service.reset()
+        app.state.create_pairing_rate_limiter.clear()
+        app.state.proxy_rate_limiter.clear()
 
     def tearDown(self) -> None:
         app.state.lostfilm_login_client_factory = self._original_login_client_factory

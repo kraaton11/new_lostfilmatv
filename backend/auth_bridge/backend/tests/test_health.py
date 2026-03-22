@@ -14,6 +14,8 @@ class HealthEndpointTest(unittest.TestCase):
     def setUp(self) -> None:
         self.client = TestClient(app)
         app.state.pairing_service.reset()
+        app.state.create_pairing_rate_limiter.clear()
+        app.state.proxy_rate_limiter.clear()
 
     def test_live_health_returns_ok_status(self) -> None:
         response = self.client.get("/health/live")

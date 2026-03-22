@@ -105,6 +105,87 @@ class LostFilmProxyServiceTest(unittest.TestCase):
         self.assertEqual(seen_request["url"], "https://www.lostfilm.today/login?return=1")
         self.assertIn("lf_session=cookie-1", seen_request["cookie"])
 
+    def test_proxy_drops_sensitive_client_request_headers(self) -> None:
+        pairing_store = InMemoryPairingStore(ttl_seconds=600)
+        proxy_session_store = ProxySessionStore(pairing_store)
+        pairing = pairing_store.save(
+            pairing_id="pairing-1",
+            pairing_secret="secret-1",
+            phone_verifier="verifier-1",
+            user_code="ABC123",
+        )
+        seen_headers: dict[str, str | None] = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            for header_name in [
+                "accept",
+                "accept-language",
+                "content-type",
+                "user-agent",
+                "x-requested-with",
+                "origin",
+                "referer",
+                "authorization",
+                "forwarded",
+                "x-forwarded-for",
+                "x-forwarded-host",
+                "x-real-ip",
+                "host",
+                "cookie",
+                "set-cookie",
+            ]:
+                seen_headers[header_name] = request.headers.get(header_name)
+            return httpx.Response(200, text="proxied ok")
+
+        proxy_service = LostFilmProxyService(
+            base_url="https://www.lostfilm.today",
+            proxy_session_store=proxy_session_store,
+            transport=httpx.MockTransport(handler),
+        )
+
+        proxy_service.proxy(
+            pairing_id=pairing.pairing_id,
+            wildcard_host="verifier-1.auth.example.test",
+            method="POST",
+            path="/login",
+            query_string="",
+            headers={
+                "Accept": "text/html,application/xhtml+xml",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Content-Type": "application/x-www-form-urlencoded",
+                "User-Agent": "Mozilla/5.0",
+                "X-Requested-With": "XMLHttpRequest",
+                "Origin": "https://evil.example",
+                "Referer": "https://evil.example/login",
+                "Authorization": "Bearer secret",
+                "Forwarded": "for=1.2.3.4",
+                "X-Forwarded-For": "1.2.3.4",
+                "X-Forwarded-Host": "evil.example",
+                "X-Real-IP": "1.2.3.4",
+                "Host": "evil.example",
+                "Cookie": "session=bad",
+                "Set-Cookie": "bad=1",
+                "Connection": "keep-alive",
+            },
+            body=b"username=test",
+        )
+
+        self.assertEqual(seen_headers["accept"], "text/html,application/xhtml+xml")
+        self.assertEqual(seen_headers["accept-language"], "en-US,en;q=0.9")
+        self.assertEqual(seen_headers["content-type"], "application/x-www-form-urlencoded")
+        self.assertEqual(seen_headers["user-agent"], "Mozilla/5.0")
+        self.assertEqual(seen_headers["x-requested-with"], "XMLHttpRequest")
+        self.assertIsNone(seen_headers["origin"])
+        self.assertIsNone(seen_headers["referer"])
+        self.assertIsNone(seen_headers["authorization"])
+        self.assertIsNone(seen_headers["forwarded"])
+        self.assertIsNone(seen_headers["x-forwarded-for"])
+        self.assertIsNone(seen_headers["x-forwarded-host"])
+        self.assertIsNone(seen_headers["x-real-ip"])
+        self.assertNotEqual(seen_headers["host"], "evil.example")
+        self.assertIsNone(seen_headers["cookie"])
+        self.assertIsNone(seen_headers["set-cookie"])
+
     def test_proxy_captures_upstream_set_cookie_into_store(self) -> None:
         pairing_store = InMemoryPairingStore(ttl_seconds=600)
         proxy_session_store = ProxySessionStore(pairing_store)
