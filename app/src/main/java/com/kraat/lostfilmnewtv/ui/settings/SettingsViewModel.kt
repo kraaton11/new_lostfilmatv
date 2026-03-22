@@ -4,7 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
-import com.kraat.lostfilmnewtv.updates.AppUpdateInfo
+import com.kraat.lostfilmnewtv.updates.AppUpdateRefreshResult
+import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -12,6 +13,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -23,11 +26,14 @@ class SettingsViewModel(
     private val persistPlaybackQuality: (PlaybackQualityPreference) -> Unit = {},
     private val persistUpdateMode: (UpdateCheckMode) -> Unit = {},
     private val persistChannelMode: (AndroidTvChannelMode) -> Unit = {},
+    savedUpdateState: StateFlow<SavedAppUpdate?>,
+    private val refreshSavedUpdateState: suspend () -> AppUpdateRefreshResult,
+    private val syncAppUpdateBackgroundSchedule: () -> Unit = {},
     private val syncAndroidTvChannelBackgroundSchedule: () -> Unit = {},
     private val syncAndroidTvChannel: suspend () -> Unit = {},
-    private val checkForUpdates: suspend () -> AppUpdateInfo,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
+    private val initialSavedUpdate = savedUpdateState.value
     private var activeRefreshJob: Job? = null
     private var refreshRequestToken: Long = 0
     private val _uiState = MutableStateFlow(
@@ -36,9 +42,24 @@ class SettingsViewModel(
             updateMode = initialUpdateMode,
             channelMode = initialChannelMode,
             installedVersionText = installedVersion,
+            savedAppUpdate = initialSavedUpdate,
+            installUrl = initialSavedUpdate?.apkUrl,
         ),
     )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
+
+    init {
+        viewModelScope.launch(ioDispatcher) {
+            savedUpdateState.drop(1).collectLatest { savedUpdate ->
+                _uiState.update { state ->
+                    state.copy(
+                        savedAppUpdate = savedUpdate,
+                        installUrl = savedUpdate?.apkUrl,
+                    )
+                }
+            }
+        }
+    }
 
     fun onScreenShown() {
         if (_uiState.value.updateMode == UpdateCheckMode.QUIET_CHECK) {
@@ -61,6 +82,7 @@ class SettingsViewModel(
         _uiState.update { state ->
             state.copy(updateMode = mode)
         }
+        syncAppUpdateBackgroundSchedule()
         if (mode == UpdateCheckMode.QUIET_CHECK) {
             refreshUpdateInfo()
         }
@@ -96,45 +118,51 @@ class SettingsViewModel(
         activeRefreshJob?.cancel()
         _uiState.update { state ->
             state.copy(
-                latestVersionText = null,
                 statusText = CHECKING_UPDATES_MESSAGE,
                 isCheckingForUpdates = true,
-                installUrl = null,
             )
         }
         activeRefreshJob = viewModelScope.launch(ioDispatcher) {
-            val updateInfo = checkForUpdates()
+            val refreshResult = refreshSavedUpdateState()
             if (refreshRequestToken == requestToken) {
                 _uiState.update { state ->
-                    state.toCheckedState(updateInfo)
+                    state.toCheckedState(refreshResult)
                 }
             }
         }
     }
 }
 
-private fun SettingsUiState.toCheckedState(updateInfo: AppUpdateInfo): SettingsUiState {
-    return when (updateInfo) {
-        is AppUpdateInfo.UpToDate -> copy(
-            installedVersionText = updateInfo.installedVersion,
-            latestVersionText = updateInfo.installedVersion,
+private fun SettingsUiState.toCheckedState(refreshResult: AppUpdateRefreshResult): SettingsUiState {
+    return when (refreshResult) {
+        is AppUpdateRefreshResult.UpToDate -> copy(
+            installedVersionText = refreshResult.installedVersion,
+            savedAppUpdate = null,
+            latestVersionText = refreshResult.installedVersion,
             statusText = "Установлена последняя версия",
             isCheckingForUpdates = false,
             installUrl = null,
         )
 
-        is AppUpdateInfo.UpdateAvailable -> copy(
-            installedVersionText = updateInfo.installedVersion,
-            latestVersionText = updateInfo.latestVersion,
+        is AppUpdateRefreshResult.UpdateSaved -> copy(
+            savedAppUpdate = refreshResult.savedUpdate,
+            latestVersionText = refreshResult.savedUpdate.latestVersion,
             statusText = "Доступно обновление",
             isCheckingForUpdates = false,
-            installUrl = updateInfo.apkUrl,
+            installUrl = refreshResult.savedUpdate.apkUrl,
         )
 
-        is AppUpdateInfo.Error -> copy(
-            installedVersionText = updateInfo.installedVersion,
+        is AppUpdateRefreshResult.FailedKeptPrevious -> copy(
+            installedVersionText = refreshResult.installedVersion,
+            statusText = refreshResult.message,
+            isCheckingForUpdates = false,
+        )
+
+        is AppUpdateRefreshResult.FailedEmpty -> copy(
+            installedVersionText = refreshResult.installedVersion,
+            savedAppUpdate = null,
             latestVersionText = null,
-            statusText = updateInfo.message,
+            statusText = refreshResult.message,
             isCheckingForUpdates = false,
             installUrl = null,
         )

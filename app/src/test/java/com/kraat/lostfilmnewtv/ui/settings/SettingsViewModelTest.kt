@@ -2,10 +2,12 @@ package com.kraat.lostfilmnewtv.ui.settings
 
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
-import com.kraat.lostfilmnewtv.updates.AppUpdateInfo
+import com.kraat.lostfilmnewtv.updates.AppUpdateRefreshResult
+import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
@@ -19,119 +21,128 @@ class SettingsViewModelTest {
     private val dispatcher = StandardTestDispatcher()
 
     @Test
-    fun manualMode_onScreenShown_doesNotAutoCheck() = runTest(dispatcher) {
-        val updateChecker = FakeUpdateChecker().apply {
-            enqueue(AppUpdateInfo.UpToDate(installedVersion = "1.0.0"))
-        }
+    fun manualMode_onScreenShown_doesNotRefreshButStillShowsSavedUpdate() = runTest(dispatcher) {
+        val savedUpdateState = MutableStateFlow(
+            SavedAppUpdate(
+                latestVersion = "1.1.0",
+                apkUrl = "https://example.test/app-1.1.0.apk",
+            ),
+        )
+        val refresher = FakeUpdateRefresher()
         val viewModel = SettingsViewModel(
             installedVersion = "1.0.0",
             initialPlaybackQuality = PlaybackQualityPreference.Q1080,
             initialUpdateMode = UpdateCheckMode.MANUAL,
-            checkForUpdates = updateChecker::invoke,
+            savedUpdateState = savedUpdateState,
+            refreshSavedUpdateState = refresher::invoke,
             ioDispatcher = dispatcher,
         )
 
+        advanceUntilIdle()
         viewModel.onScreenShown()
         advanceUntilIdle()
 
-        assertEquals(0, updateChecker.callCount)
-        assertNull(viewModel.uiState.value.latestVersionText)
-        assertNull(viewModel.uiState.value.installUrl)
+        assertEquals(0, refresher.callCount)
+        assertEquals(savedUpdateState.value, viewModel.uiState.value.savedAppUpdate)
+        assertEquals("https://example.test/app-1.1.0.apk", viewModel.uiState.value.installUrl)
     }
 
     @Test
     fun quietMode_onScreenShown_runsAutoCheck() = runTest(dispatcher) {
-        val updateChecker = FakeUpdateChecker().apply {
-            enqueue(AppUpdateInfo.UpToDate(installedVersion = "1.0.0"))
+        val refresher = FakeUpdateRefresher().apply {
+            enqueue(AppUpdateRefreshResult.UpToDate(installedVersion = "1.0.0"))
         }
         val viewModel = SettingsViewModel(
             installedVersion = "1.0.0",
             initialPlaybackQuality = PlaybackQualityPreference.Q1080,
             initialUpdateMode = UpdateCheckMode.QUIET_CHECK,
-            checkForUpdates = updateChecker::invoke,
+            savedUpdateState = MutableStateFlow(null),
+            refreshSavedUpdateState = refresher::invoke,
             ioDispatcher = dispatcher,
         )
 
         viewModel.onScreenShown()
         advanceUntilIdle()
 
-        assertEquals(1, updateChecker.callCount)
+        assertEquals(1, refresher.callCount)
         assertEquals("1.0.0", viewModel.uiState.value.installedVersionText)
+        assertEquals("1.0.0", viewModel.uiState.value.latestVersionText)
         assertEquals("Установлена последняя версия", viewModel.uiState.value.statusText)
     }
 
     @Test
     fun onCheckForUpdatesClick_emitsUpdateAvailableState() = runTest(dispatcher) {
-        val updateChecker = FakeUpdateChecker().apply {
-            enqueue(AppUpdateInfo.UpdateAvailable(
-                installedVersion = "1.0.0",
-                latestVersion = "1.1.0",
-                apkUrl = "https://example.test/app-1.1.0.apk",
-            ))
+        val refresher = FakeUpdateRefresher().apply {
+            enqueue(
+                AppUpdateRefreshResult.UpdateSaved(
+                    savedUpdate = SavedAppUpdate(
+                        latestVersion = "1.1.0",
+                        apkUrl = "https://example.test/app-1.1.0.apk",
+                    ),
+                ),
+            )
         }
         val viewModel = SettingsViewModel(
             installedVersion = "1.0.0",
             initialPlaybackQuality = PlaybackQualityPreference.Q1080,
             initialUpdateMode = UpdateCheckMode.MANUAL,
-            checkForUpdates = updateChecker::invoke,
+            savedUpdateState = MutableStateFlow(null),
+            refreshSavedUpdateState = refresher::invoke,
             ioDispatcher = dispatcher,
         )
 
         viewModel.onCheckForUpdatesClick()
         advanceUntilIdle()
 
-        assertEquals(1, updateChecker.callCount)
+        assertEquals(1, refresher.callCount)
         assertEquals("1.1.0", viewModel.uiState.value.latestVersionText)
         assertEquals("Доступно обновление", viewModel.uiState.value.statusText)
         assertEquals("https://example.test/app-1.1.0.apk", viewModel.uiState.value.installUrl)
     }
 
     @Test
-    fun onCheckForUpdatesClick_showsLoadingState_andClearsStaleUpdateInfo() = runTest(dispatcher) {
-        val updateChecker = FakeUpdateChecker().apply {
-            enqueue(
-                AppUpdateInfo.UpdateAvailable(
-                    installedVersion = "1.0.0",
-                    latestVersion = "1.1.0",
-                    apkUrl = "https://example.test/app-1.1.0.apk",
-                ),
-            )
-        }
-        val nextResult = updateChecker.enqueueDeferred()
+    fun onCheckForUpdatesClick_showsLoadingState_andKeepsSavedInstallActionWhenAlreadyPresent() = runTest(dispatcher) {
+        val savedUpdate = SavedAppUpdate(
+            latestVersion = "1.1.0",
+            apkUrl = "https://example.test/app-1.1.0.apk",
+        )
+        val refresher = FakeUpdateRefresher()
+        refresher.enqueueDeferred()
         val viewModel = SettingsViewModel(
             installedVersion = "1.0.0",
             initialPlaybackQuality = PlaybackQualityPreference.Q1080,
             initialUpdateMode = UpdateCheckMode.MANUAL,
-            checkForUpdates = updateChecker::invoke,
+            savedUpdateState = MutableStateFlow(savedUpdate),
+            refreshSavedUpdateState = refresher::invoke,
             ioDispatcher = dispatcher,
         )
 
-        viewModel.onCheckForUpdatesClick()
         advanceUntilIdle()
-
         viewModel.onCheckForUpdatesClick()
         runCurrent()
 
-        assertEquals(2, updateChecker.callCount)
+        assertEquals(1, refresher.callCount)
         assertEquals("Проверяем обновления...", viewModel.uiState.value.statusText)
         assertEquals(true, viewModel.uiState.value.isCheckingForUpdates)
-        assertNull(viewModel.uiState.value.latestVersionText)
-        assertNull(viewModel.uiState.value.installUrl)
-
-        nextResult.complete(AppUpdateInfo.UpToDate(installedVersion = "1.0.0"))
+        assertEquals(savedUpdate, viewModel.uiState.value.savedAppUpdate)
+        assertEquals(savedUpdate.apkUrl, viewModel.uiState.value.installUrl)
     }
 
     @Test
-    fun onUpdateModeSelected_persistsMode_andTriggersCheckWhenQuiet() = runTest(dispatcher) {
+    fun onUpdateModeSelected_persistsMode_triggersRefreshWhenQuiet_andSyncsBackgroundSchedule() = runTest(dispatcher) {
         val persistedModes = mutableListOf<UpdateCheckMode>()
-        val updateChecker = FakeUpdateChecker()
-        updateChecker.enqueue(AppUpdateInfo.UpToDate(installedVersion = "1.0.0"))
+        var scheduleCalls = 0
+        val refresher = FakeUpdateRefresher().apply {
+            enqueue(AppUpdateRefreshResult.UpToDate(installedVersion = "1.0.0"))
+        }
         val viewModel = SettingsViewModel(
             installedVersion = "1.0.0",
             initialPlaybackQuality = PlaybackQualityPreference.Q1080,
             initialUpdateMode = UpdateCheckMode.MANUAL,
             persistUpdateMode = { persistedModes += it },
-            checkForUpdates = updateChecker::invoke,
+            savedUpdateState = MutableStateFlow(null),
+            refreshSavedUpdateState = refresher::invoke,
+            syncAppUpdateBackgroundSchedule = { scheduleCalls += 1 },
             ioDispatcher = dispatcher,
         )
 
@@ -140,19 +151,23 @@ class SettingsViewModelTest {
 
         assertEquals(listOf(UpdateCheckMode.QUIET_CHECK), persistedModes)
         assertEquals(UpdateCheckMode.QUIET_CHECK, viewModel.uiState.value.updateMode)
-        assertEquals(1, updateChecker.callCount)
+        assertEquals(1, refresher.callCount)
+        assertEquals(1, scheduleCalls)
     }
 
     @Test
-    fun onUpdateModeSelected_sameMode_doesNotPersistAgainOrTriggerCheck() = runTest(dispatcher) {
+    fun onUpdateModeSelected_sameMode_doesNotPersistAgainTriggerRefreshOrReschedule() = runTest(dispatcher) {
         val persistedModes = mutableListOf<UpdateCheckMode>()
-        val updateChecker = FakeUpdateChecker()
+        var scheduleCalls = 0
+        val refresher = FakeUpdateRefresher()
         val viewModel = SettingsViewModel(
             installedVersion = "1.0.0",
             initialPlaybackQuality = PlaybackQualityPreference.Q1080,
             initialUpdateMode = UpdateCheckMode.QUIET_CHECK,
             persistUpdateMode = { persistedModes += it },
-            checkForUpdates = updateChecker::invoke,
+            savedUpdateState = MutableStateFlow(null),
+            refreshSavedUpdateState = refresher::invoke,
+            syncAppUpdateBackgroundSchedule = { scheduleCalls += 1 },
             ioDispatcher = dispatcher,
         )
 
@@ -160,8 +175,109 @@ class SettingsViewModelTest {
         advanceUntilIdle()
 
         assertEquals(emptyList<UpdateCheckMode>(), persistedModes)
-        assertEquals(0, updateChecker.callCount)
+        assertEquals(0, refresher.callCount)
+        assertEquals(0, scheduleCalls)
         assertEquals(UpdateCheckMode.QUIET_CHECK, viewModel.uiState.value.updateMode)
+    }
+
+    @Test
+    fun onUpdateModeSelected_switchingBackToManual_persistsAndReschedulesWithoutRefresh() = runTest(dispatcher) {
+        val persistedModes = mutableListOf<UpdateCheckMode>()
+        var scheduleCalls = 0
+        val refresher = FakeUpdateRefresher()
+        val viewModel = SettingsViewModel(
+            installedVersion = "1.0.0",
+            initialPlaybackQuality = PlaybackQualityPreference.Q1080,
+            initialUpdateMode = UpdateCheckMode.QUIET_CHECK,
+            persistUpdateMode = { persistedModes += it },
+            savedUpdateState = MutableStateFlow(null),
+            refreshSavedUpdateState = refresher::invoke,
+            syncAppUpdateBackgroundSchedule = { scheduleCalls += 1 },
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onUpdateModeSelected(UpdateCheckMode.MANUAL)
+        advanceUntilIdle()
+
+        assertEquals(listOf(UpdateCheckMode.MANUAL), persistedModes)
+        assertEquals(UpdateCheckMode.MANUAL, viewModel.uiState.value.updateMode)
+        assertEquals(0, refresher.callCount)
+        assertEquals(1, scheduleCalls)
+    }
+
+    @Test
+    fun refreshError_keepsExistingInstallUrl_whenSavedUpdateWasAlreadyPresent() = runTest(dispatcher) {
+        val savedUpdate = SavedAppUpdate(
+            latestVersion = "1.1.0",
+            apkUrl = "https://example.test/app-1.1.0.apk",
+        )
+        val refresher = FakeUpdateRefresher().apply {
+            enqueue(
+                AppUpdateRefreshResult.FailedKeptPrevious(
+                    installedVersion = "1.0.0",
+                    message = "Не удалось проверить обновления.",
+                ),
+            )
+        }
+        val viewModel = SettingsViewModel(
+            installedVersion = "1.0.0",
+            initialPlaybackQuality = PlaybackQualityPreference.Q1080,
+            initialUpdateMode = UpdateCheckMode.MANUAL,
+            savedUpdateState = MutableStateFlow(savedUpdate),
+            refreshSavedUpdateState = refresher::invoke,
+            ioDispatcher = dispatcher,
+        )
+
+        advanceUntilIdle()
+        viewModel.onCheckForUpdatesClick()
+        advanceUntilIdle()
+
+        assertEquals("Не удалось проверить обновления.", viewModel.uiState.value.statusText)
+        assertEquals(savedUpdate, viewModel.uiState.value.savedAppUpdate)
+        assertEquals(savedUpdate.apkUrl, viewModel.uiState.value.installUrl)
+    }
+
+    @Test
+    fun overlappingRefreshes_doNotLetOlderResultOverwriteLatestState() = runTest(dispatcher) {
+        val refresher = FakeUpdateRefresher()
+        val firstResult = refresher.enqueueDeferred()
+        val secondResult = refresher.enqueueDeferred()
+        val viewModel = SettingsViewModel(
+            installedVersion = "1.0.0",
+            initialPlaybackQuality = PlaybackQualityPreference.Q1080,
+            initialUpdateMode = UpdateCheckMode.MANUAL,
+            savedUpdateState = MutableStateFlow(null),
+            refreshSavedUpdateState = refresher::invoke,
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onCheckForUpdatesClick()
+        runCurrent()
+        viewModel.onCheckForUpdatesClick()
+        runCurrent()
+
+        secondResult.complete(
+            AppUpdateRefreshResult.UpdateSaved(
+                savedUpdate = SavedAppUpdate(
+                    latestVersion = "1.2.0",
+                    apkUrl = "https://example.test/app-1.2.0.apk",
+                ),
+            ),
+        )
+        advanceUntilIdle()
+
+        firstResult.complete(
+            AppUpdateRefreshResult.FailedEmpty(
+                installedVersion = "1.0.0",
+                message = "stale result",
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals(2, refresher.callCount)
+        assertEquals("1.2.0", viewModel.uiState.value.latestVersionText)
+        assertEquals("Доступно обновление", viewModel.uiState.value.statusText)
+        assertEquals("https://example.test/app-1.2.0.apk", viewModel.uiState.value.installUrl)
     }
 
     @Test
@@ -175,9 +291,10 @@ class SettingsViewModelTest {
             initialUpdateMode = UpdateCheckMode.MANUAL,
             initialChannelMode = AndroidTvChannelMode.ALL_NEW,
             persistChannelMode = { persistedModes += it },
+            savedUpdateState = MutableStateFlow(null),
+            refreshSavedUpdateState = { AppUpdateRefreshResult.UpToDate(installedVersion = "1.0.0") },
             syncAndroidTvChannelBackgroundSchedule = { scheduleCalls += 1 },
             syncAndroidTvChannel = { syncCalls += 1 },
-            checkForUpdates = { AppUpdateInfo.UpToDate(installedVersion = "1.0.0") },
             ioDispatcher = dispatcher,
         )
 
@@ -201,9 +318,10 @@ class SettingsViewModelTest {
             initialUpdateMode = UpdateCheckMode.MANUAL,
             initialChannelMode = AndroidTvChannelMode.ALL_NEW,
             persistChannelMode = { persistedModes += it },
+            savedUpdateState = MutableStateFlow(null),
+            refreshSavedUpdateState = { AppUpdateRefreshResult.UpToDate(installedVersion = "1.0.0") },
             syncAndroidTvChannelBackgroundSchedule = { scheduleCalls += 1 },
             syncAndroidTvChannel = { syncCalls += 1 },
-            checkForUpdates = { AppUpdateInfo.UpToDate(installedVersion = "1.0.0") },
             ioDispatcher = dispatcher,
         )
 
@@ -227,9 +345,10 @@ class SettingsViewModelTest {
             initialUpdateMode = UpdateCheckMode.MANUAL,
             initialChannelMode = AndroidTvChannelMode.DISABLED,
             persistChannelMode = { persistedModes += it },
+            savedUpdateState = MutableStateFlow(null),
+            refreshSavedUpdateState = { AppUpdateRefreshResult.UpToDate(installedVersion = "1.0.0") },
             syncAndroidTvChannelBackgroundSchedule = { scheduleCalls += 1 },
             syncAndroidTvChannel = { syncCalls += 1 },
-            checkForUpdates = { AppUpdateInfo.UpToDate(installedVersion = "1.0.0") },
             ioDispatcher = dispatcher,
         )
 
@@ -243,47 +362,6 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun overlappingChecks_doNotLetOlderResultOverwriteLatestState() = runTest(dispatcher) {
-        val updateChecker = FakeUpdateChecker()
-        val firstResult = updateChecker.enqueueDeferred()
-        val secondResult = updateChecker.enqueueDeferred()
-        val viewModel = SettingsViewModel(
-            installedVersion = "1.0.0",
-            initialPlaybackQuality = PlaybackQualityPreference.Q1080,
-            initialUpdateMode = UpdateCheckMode.MANUAL,
-            checkForUpdates = updateChecker::invoke,
-            ioDispatcher = dispatcher,
-        )
-
-        viewModel.onCheckForUpdatesClick()
-        runCurrent()
-        viewModel.onCheckForUpdatesClick()
-        runCurrent()
-
-        secondResult.complete(
-            AppUpdateInfo.UpdateAvailable(
-                installedVersion = "1.0.0",
-                latestVersion = "1.2.0",
-                apkUrl = "https://example.test/app-1.2.0.apk",
-            ),
-        )
-        advanceUntilIdle()
-
-        firstResult.complete(
-            AppUpdateInfo.Error(
-                installedVersion = "1.0.0",
-                message = "stale result",
-            ),
-        )
-        advanceUntilIdle()
-
-        assertEquals(2, updateChecker.callCount)
-        assertEquals("1.2.0", viewModel.uiState.value.latestVersionText)
-        assertEquals("Доступно обновление", viewModel.uiState.value.statusText)
-        assertEquals("https://example.test/app-1.2.0.apk", viewModel.uiState.value.installUrl)
-    }
-
-    @Test
     fun onPlaybackQualitySelected_persistsQualityAndUpdatesState() = runTest(dispatcher) {
         val persistedQualities = mutableListOf<PlaybackQualityPreference>()
         val viewModel = SettingsViewModel(
@@ -291,7 +369,8 @@ class SettingsViewModelTest {
             initialPlaybackQuality = PlaybackQualityPreference.Q1080,
             initialUpdateMode = UpdateCheckMode.MANUAL,
             persistPlaybackQuality = { persistedQualities += it },
-            checkForUpdates = { AppUpdateInfo.UpToDate(installedVersion = "1.0.0") },
+            savedUpdateState = MutableStateFlow(null),
+            refreshSavedUpdateState = { AppUpdateRefreshResult.UpToDate(installedVersion = "1.0.0") },
             ioDispatcher = dispatcher,
         )
 
@@ -307,7 +386,8 @@ class SettingsViewModelTest {
             installedVersion = "1.0.0",
             initialPlaybackQuality = PlaybackQualityPreference.Q1080,
             initialUpdateMode = UpdateCheckMode.MANUAL,
-            checkForUpdates = { AppUpdateInfo.UpToDate(installedVersion = "1.0.0") },
+            savedUpdateState = MutableStateFlow(null),
+            refreshSavedUpdateState = { AppUpdateRefreshResult.UpToDate(installedVersion = "1.0.0") },
             ioDispatcher = dispatcher,
         )
 
@@ -316,24 +396,23 @@ class SettingsViewModelTest {
         assertEquals("Не удалось открыть обновление.", viewModel.uiState.value.statusText)
     }
 
-    private class FakeUpdateChecker(
-    ) {
-        private val deferredResults = ArrayDeque<CompletableDeferred<AppUpdateInfo>>()
+    private class FakeUpdateRefresher {
+        private val deferredResults = ArrayDeque<CompletableDeferred<AppUpdateRefreshResult>>()
         var callCount: Int = 0
             private set
 
-        fun enqueue(result: AppUpdateInfo) {
+        fun enqueue(result: AppUpdateRefreshResult) {
             deferredResults += CompletableDeferred(result)
         }
 
-        fun enqueueDeferred(): CompletableDeferred<AppUpdateInfo> {
-            return CompletableDeferred<AppUpdateInfo>().also { deferredResults += it }
+        fun enqueueDeferred(): CompletableDeferred<AppUpdateRefreshResult> {
+            return CompletableDeferred<AppUpdateRefreshResult>().also { deferredResults += it }
         }
 
-        suspend operator fun invoke(): AppUpdateInfo {
+        suspend operator fun invoke(): AppUpdateRefreshResult {
             callCount += 1
             return checkNotNull(deferredResults.removeFirstOrNull()) {
-                "Missing fake result for update check $callCount"
+                "Missing fake refresh result for call $callCount"
             }.await()
         }
     }

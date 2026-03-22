@@ -46,11 +46,15 @@ import com.kraat.lostfilmnewtv.tvchannel.HomeChannelProgramSource
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPublisher
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPublisherResult
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelSyncManager
+import com.kraat.lostfilmnewtv.updates.AppUpdateAvailabilityStore
 import com.kraat.lostfilmnewtv.updates.AppUpdateBackgroundScheduler as QuietAppUpdateBackgroundScheduler
+import com.kraat.lostfilmnewtv.updates.AppUpdateCoordinator
+import com.kraat.lostfilmnewtv.updates.AppUpdateInfo
 import com.kraat.lostfilmnewtv.updates.AppUpdateRepository
 import com.kraat.lostfilmnewtv.updates.GitHubRelease
 import com.kraat.lostfilmnewtv.updates.GitHubReleaseClient
 import com.kraat.lostfilmnewtv.updates.ReleaseApkLauncher
+import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 import com.kraat.lostfilmnewtv.ui.home.posterTag
 import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
@@ -82,6 +86,7 @@ class AppNavGraphTorrServeTest {
         TestLostFilmApplication.repositoryOverride = FakeAppNavGraphRepository()
         TestLostFilmApplication.authRepositoryOverride = FakeAuthRepository()
         TestLostFilmApplication.appUpdateRepositoryOverride = null
+        TestLostFilmApplication.appUpdateCoordinatorOverride = null
         TestLostFilmApplication.releaseApkLauncherOverride = null
         TestLostFilmApplication.homeChannelSyncManagerOverride = testHomeChannelSyncManager()
         TestLostFilmApplication.homeChannelBackgroundSchedulerOverride = testHomeChannelBackgroundScheduler()
@@ -110,6 +115,7 @@ class AppNavGraphTorrServeTest {
         TestLostFilmApplication.torrServeActionHandlerOverride = null
         TestLostFilmApplication.playbackPreferencesStoreOverride = null
         TestLostFilmApplication.appUpdateRepositoryOverride = null
+        TestLostFilmApplication.appUpdateCoordinatorOverride = null
         TestLostFilmApplication.releaseApkLauncherOverride = null
         TestLostFilmApplication.homeChannelSyncManagerOverride = null
         TestLostFilmApplication.homeChannelBackgroundSchedulerOverride = null
@@ -273,6 +279,66 @@ class AppNavGraphTorrServeTest {
         composeRule.waitForText("Обновления")
         assertEquals(1, composeRule.onAllNodesWithText("Проверить обновления").fetchSemanticsNodes().size)
         composeRule.onNodeWithTag("settings-update-mode-manual").assertIsSelected()
+    }
+
+    @Test
+    fun home_shows_saved_update_button_and_launches_install_via_nav_graph() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        TestLostFilmApplication.appUpdateCoordinatorOverride = testAppUpdateCoordinator(
+            context = context,
+            prefsName = "app-nav-home-saved-update",
+            savedUpdate = SavedAppUpdate(
+                latestVersion = "0.2.0",
+                apkUrl = TEST_APK_URL,
+            ),
+        )
+        val launcher = RecordingReleaseApkLauncher()
+        TestLostFilmApplication.releaseApkLauncherOverride = launcher
+
+        composeRule.setContent {
+            LostFilmTheme {
+                AppNavGraph()
+            }
+        }
+
+        composeRule.waitForText("Новые релизы")
+        composeRule.waitForText("Обновить")
+        composeRule.onNodeWithText("Обновить")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            launcher.launchedUrls == listOf(TEST_APK_URL)
+        }
+        assertEquals(listOf(TEST_APK_URL), launcher.launchedUrls)
+    }
+
+    @Test
+    fun home_install_failure_shows_user_facing_message_via_nav_graph() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        TestLostFilmApplication.appUpdateCoordinatorOverride = testAppUpdateCoordinator(
+            context = context,
+            prefsName = "app-nav-home-saved-update-failure",
+            savedUpdate = SavedAppUpdate(
+                latestVersion = "0.2.0",
+                apkUrl = TEST_APK_URL,
+            ),
+        )
+        val launcher = RecordingReleaseApkLauncher(launchResult = false)
+        TestLostFilmApplication.releaseApkLauncherOverride = launcher
+
+        composeRule.setContent {
+            LostFilmTheme {
+                AppNavGraph()
+            }
+        }
+
+        composeRule.waitForText("Новые релизы")
+        composeRule.waitForText("Обновить")
+        composeRule.onNodeWithText("Обновить")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        composeRule.waitForText("Не удалось открыть обновление.")
+        assertEquals(listOf(TEST_APK_URL), launcher.launchedUrls)
     }
 
     @Test
@@ -617,6 +683,9 @@ class TestLostFilmApplication : LostFilmApplication() {
     override val appUpdateRepository: AppUpdateRepository
         get() = appUpdateRepositoryOverride ?: super.appUpdateRepository
 
+    override val appUpdateCoordinator: AppUpdateCoordinator
+        get() = appUpdateCoordinatorOverride ?: super.appUpdateCoordinator
+
     override val releaseApkLauncher: ReleaseApkLauncher
         get() = releaseApkLauncherOverride ?: super.releaseApkLauncher
 
@@ -647,6 +716,9 @@ class TestLostFilmApplication : LostFilmApplication() {
 
         @Volatile
         var appUpdateRepositoryOverride: AppUpdateRepository? = null
+
+        @Volatile
+        var appUpdateCoordinatorOverride: AppUpdateCoordinator? = null
 
         @Volatile
         var releaseApkLauncherOverride: ReleaseApkLauncher? = null
@@ -715,6 +787,23 @@ private fun testAppUpdateBackgroundScheduler(): QuietAppUpdateBackgroundSchedule
     return QuietAppUpdateBackgroundScheduler(
         readMode = { UpdateCheckMode.QUIET_CHECK },
         workManager = mock(WorkManager::class.java),
+    )
+}
+
+private fun testAppUpdateCoordinator(
+    context: Context,
+    prefsName: String,
+    savedUpdate: SavedAppUpdate?,
+): AppUpdateCoordinator {
+    context.deleteSharedPreferences(prefsName)
+    val store = AppUpdateAvailabilityStore(context, prefsName = prefsName)
+    if (savedUpdate != null) {
+        store.writeSavedUpdate(savedUpdate)
+    }
+    return AppUpdateCoordinator(
+        installedVersion = "0.1.0",
+        store = store,
+        checkForUpdates = { AppUpdateInfo.UpToDate(installedVersion = "0.1.0") },
     )
 }
 
