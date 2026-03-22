@@ -37,14 +37,6 @@ fun BottomInfoPanel(item: ReleaseSummary?) {
             )
         }
 
-        if (item?.kind == ReleaseKind.SERIES && item.seasonNumber != null && item.episodeNumber != null) {
-            Text(
-                text = "Сезон ${item.seasonNumber}, серия ${item.episodeNumber}",
-                color = TextPrimary.copy(alpha = 0.72f),
-                fontSize = 18.sp,
-            )
-        }
-
         if (item != null) {
             Text(
                 text = item.releaseDateRu,
