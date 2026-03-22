@@ -15,6 +15,8 @@ interface PreviewChannelHelperFacade {
 
     suspend fun publishDefaultChannel(channel: PreviewChannelRecord): Long
 
+    suspend fun requestChannelBrowsable(channelId: Long)
+
     suspend fun getPrograms(channelId: Long): List<PreviewProgramRecord>
 
     suspend fun upsertProgram(program: PreviewProgramRecord): Long
@@ -54,6 +56,10 @@ class AndroidXPreviewChannelHelperFacade(
 
     override suspend fun publishDefaultChannel(channel: PreviewChannelRecord): Long {
         return helper.publishDefaultChannel(channel.toPreviewChannel())
+    }
+
+    override suspend fun requestChannelBrowsable(channelId: Long) {
+        TvContractCompat.requestChannelBrowsable(appContext, channelId)
     }
 
     override suspend fun getPrograms(channelId: Long): List<PreviewProgramRecord> {

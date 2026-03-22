@@ -109,6 +109,7 @@ open class LostFilmApplication : Application(), HomeChannelBackgroundRefreshRunn
             isSessionExpired = sessionStore::isExpired,
             refreshFirstPage = { repository.loadPage(pageNumber = 1) },
             syncChannel = homeChannelSyncManager::syncNow,
+            readFirstPageFetchedAt = { database.releaseDao().getPageMetadata(pageNumber = 1)?.fetchedAt },
         )
     }
 

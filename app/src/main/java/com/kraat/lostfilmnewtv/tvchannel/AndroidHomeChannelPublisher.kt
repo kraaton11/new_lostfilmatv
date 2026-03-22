@@ -22,29 +22,29 @@ class AndroidHomeChannelPublisher(
         programs: List<HomeChannelProgram>,
     ): HomeChannelPublisherResult {
         val channelId = resolveChannelId(existingChannelId)
-        val existingPrograms = helperFacade.getPrograms(channelId).associateBy { it.internalProviderId }
-        val desiredInternalProviderIds = linkedSetOf<String>()
+        helperFacade.requestChannelBrowsable(channelId)
+        val existingProgramIds = helperFacade.getPrograms(channelId)
+            .mapNotNull { it.programId }
+
+        // Re-publish the whole row to force launcher refresh on devices that keep
+        // stale card metadata or horizontal position across update-in-place calls.
+        for (programId in existingProgramIds) {
+            helperFacade.deleteProgram(programId)
+        }
 
         programs.forEachIndexed { index, program ->
-            desiredInternalProviderIds += program.internalProviderId
             helperFacade.upsertProgram(
                 PreviewProgramRecord(
-                    programId = existingPrograms[program.internalProviderId]?.programId,
                     internalProviderId = program.internalProviderId,
                     channelId = channelId,
                     title = program.title,
                     description = program.description,
                     posterUrl = program.posterUrl,
                     launchIntent = AppLaunchTarget.createDetailsIntent(appContext, program.detailsUrl),
-                    weight = index,
+                    weight = programs.size - index,
                 ),
             )
         }
-
-        existingPrograms.values
-            .filterNot { it.internalProviderId in desiredInternalProviderIds }
-            .mapNotNull { it.programId }
-            .forEach { helperFacade.deleteProgram(it) }
 
         return HomeChannelPublisherResult(channelId)
     }
