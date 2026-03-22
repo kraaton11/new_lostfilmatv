@@ -10,7 +10,7 @@ class QrCodeGeneratorTest {
     @Test
     fun generateMatrix_returnsRequestedSize() {
         val matrix = QrCodeGenerator.generateMatrix(
-            content = "http://192.168.2.168:18015/pair/example",
+            content = "https://example-phone.auth.example.test/",
             size = 256,
         )
 

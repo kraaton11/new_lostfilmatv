@@ -12,7 +12,6 @@ from auth_bridge.api.wildcard_proxy import attach_wildcard_proxy_router
 from auth_bridge.config import get_settings
 from auth_bridge.middleware.rate_limit import SlidingWindowRateLimiter
 from auth_bridge.services.lostfilm_auth_detector import LostFilmAuthDetector
-from auth_bridge.services.lostfilm_login_client import LostFilmLoginClient
 from auth_bridge.services.lostfilm_proxy_service import LostFilmProxyService
 from auth_bridge.services.pairing_service import PairingService
 from auth_bridge.services.pairing_store import InMemoryPairingStore
@@ -51,7 +50,7 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger = logging.getLogger(__name__)
     logger.info("Auth Bridge starting up")
     yield
-    # Graceful shutdown: close all open httpx sessions held inside pairing records
+    # Graceful shutdown: clear all pairing and proxy-session state.
     logger.info("Auth Bridge shutting down — clearing pairing store")
     app.state.pairing_service.reset()
     logger.info("Auth Bridge shutdown complete")
@@ -69,10 +68,6 @@ def create_app() -> FastAPI:
         settings=settings,
     )
     proxy_session_store = ProxySessionStore(pairing_store)
-    login_rate_limiter = SlidingWindowRateLimiter(
-        max_requests=settings.login_rate_limit_max_requests,
-        window_seconds=settings.login_rate_limit_window_seconds,
-    )
     create_pairing_rate_limiter = SlidingWindowRateLimiter(
         max_requests=settings.create_pairing_rate_limit_max_requests,
         window_seconds=settings.create_pairing_rate_limit_window_seconds,
@@ -89,16 +84,14 @@ def create_app() -> FastAPI:
 
     app.state.pairing_service = pairing_service
     app.state.proxy_session_store = proxy_session_store
-    app.state.login_rate_limiter = login_rate_limiter
     app.state.create_pairing_rate_limiter = create_pairing_rate_limiter
     app.state.proxy_rate_limiter = proxy_rate_limiter
     app.state.lostfilm_auth_detector = lostfilm_auth_detector
     app.state.lostfilm_proxy_service = lostfilm_proxy_service
-    app.state.lostfilm_login_client_factory = lambda: LostFilmLoginClient(base_url=settings.lostfilm_base_url)
 
     app.include_router(build_health_router(pairing_service))
     app.include_router(build_pairings_router(pairing_service))
-    attach_phone_flow_router(app, pairing_service, login_rate_limiter)
+    attach_phone_flow_router(app, pairing_service)
     attach_wildcard_proxy_router(app, pairing_service)
 
     return app

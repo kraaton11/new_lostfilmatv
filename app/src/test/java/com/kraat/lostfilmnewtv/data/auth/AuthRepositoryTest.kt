@@ -256,7 +256,7 @@ class AuthRepositoryTest {
               "pairingSecret": "secret-456",
               "phoneVerifier": "phone-789",
               "userCode": "ABC123",
-              "verificationUrl": "https://auth.example.test/pair/phone-789",
+              "verificationUrl": "https://phone-789.auth.example.test/",
               "status": "pending",
               "expiresIn": 120,
               "pollInterval": 5

@@ -26,10 +26,6 @@ class Settings(BaseSettings):
     pairing_ttl_seconds: int = 600
     pairing_poll_interval_seconds: int = 5
     claim_lease_ttl_seconds: int = 60
-
-    # Rate limiting: max login/challenge submissions per phone_verifier per window
-    login_rate_limit_max_requests: int = 10
-    login_rate_limit_window_seconds: int = 300  # 5 minutes
     create_pairing_rate_limit_max_requests: int = 10
     create_pairing_rate_limit_window_seconds: int = 60
     proxy_rate_limit_max_requests: int = 60

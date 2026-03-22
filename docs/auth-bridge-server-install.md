@@ -163,6 +163,7 @@ Expected:
 - response contains `phoneVerifier`
 - `verificationUrl` matches `https://<phone_verifier>.auth.bazuka.pp.ua/`
 - `verificationUrl` does not contain `/pair/`
+- the TV should treat `verificationUrl` as an opaque URL and render it directly into the QR code
 
 ### 4. Wildcard host reaches the backend
 
@@ -172,6 +173,16 @@ Expected:
 
 - page shows `Connect your TV`
 - page contains a `Continue in LostFilm` link
+- after login, the backend should capture the upstream LostFilm cookie jar and later expose it to the TV only through `/api/pairings/{pairingId}/claim`
+
+### 5. Legacy pair links only redirect into the wildcard flow
+
+If you still have an old URL like `https://auth.bazuka.pp.ua/pair/<phone_verifier>`, open it in a browser.
+
+Expected:
+
+- the backend returns a temporary redirect to `https://<phone_verifier>.auth.bazuka.pp.ua/`
+- the backend does not render a standalone login form on `/pair/...`
 
 ## Troubleshooting
 
@@ -199,6 +210,7 @@ Check:
 - wildcard DNS exists for `*.auth.bazuka.pp.ua`
 - reverse proxy accepts both the apex host and wildcard hosts
 - wildcard TLS certificate is valid
+- if an old `/pair/...` link exists anywhere, it should redirect into the wildcard host instead of rendering its own login page
 
 ### Public health works but wildcard pages return the wrong site
 
@@ -211,3 +223,4 @@ Check both sides:
 - Android app must use `https://auth.bazuka.pp.ua`
 - pairing response must contain wildcard `verificationUrl`
 - phone browser must stay on `*.auth.bazuka.pp.ua` during login
+- the TV should receive cookies only by claiming `SessionPayload` from the auth bridge after confirmation

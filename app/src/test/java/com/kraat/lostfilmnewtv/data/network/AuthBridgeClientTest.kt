@@ -65,7 +65,7 @@ class AuthBridgeClientTest {
         pairingSecret = "secret-456",
         phoneVerifier = "phone-789",
         userCode = "ABC123",
-        verificationUrl = "https://auth.example.test/pair/phone-789",
+        verificationUrl = "https://phone-789.auth.example.test/",
         status = PairingStatus.CONFIRMED,
         expiresIn = 120,
         pollInterval = 5,
