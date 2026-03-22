@@ -26,6 +26,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,6 +35,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -284,6 +287,14 @@ private fun HeroStage(
     stageUi: DetailsStageUiModel,
     onOpenTorrServe: () -> Unit,
 ) {
+    val primaryActionRequester = remember(stageUi.primaryAction.actionId) { FocusRequester() }
+
+    LaunchedEffect(stageUi.primaryAction.actionId, stageUi.primaryAction.enabled) {
+        if (stageUi.primaryAction.enabled) {
+            primaryActionRequester.requestFocus()
+        }
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth(),
@@ -317,6 +328,7 @@ private fun HeroStage(
                 onClick = onOpenTorrServe,
                 modifier = Modifier
                     .width(248.dp)
+                    .focusRequester(primaryActionRequester)
                     .testTag(primaryActionTag(stageUi.primaryAction)),
                 isPrimary = true,
                 enabled = stageUi.primaryAction.enabled,

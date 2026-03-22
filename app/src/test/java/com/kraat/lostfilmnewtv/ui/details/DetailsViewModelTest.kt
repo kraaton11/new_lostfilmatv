@@ -8,7 +8,9 @@ import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.navigation.AppDestination
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -109,6 +111,52 @@ class DetailsViewModelTest {
 
         assertNull(viewModel.uiState.value.errorMessage)
     }
+
+    @Test
+    fun retry_ignoresOlderLoadResult_whenPreviousRequestFinishesLater() = runTest(dispatcher) {
+        val firstResult = CompletableDeferred<DetailsResult>()
+        val secondResult = CompletableDeferred<DetailsResult>()
+        val repository = SequencedDetailsRepository(
+            results = listOf(firstResult, secondResult),
+        )
+        val viewModel = DetailsViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(AppDestination.Details.detailsUrlArg to "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"),
+            ),
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        runCurrent()
+        viewModel.onRetry()
+        runCurrent()
+
+        secondResult.complete(
+            DetailsResult.Success(
+                details = details(
+                    kind = ReleaseKind.SERIES,
+                    titleRu = "Recovered",
+                    seasonNumber = 9,
+                    episodeNumber = 13,
+                    releaseDateRu = "14 марта 2026",
+                ),
+                isStale = false,
+            ),
+        )
+        advanceUntilIdle()
+
+        firstResult.complete(
+            DetailsResult.Error(
+                detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/",
+                message = "boom",
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals("Recovered", viewModel.uiState.value.details?.titleRu)
+        assertNull(viewModel.uiState.value.errorMessage)
+    }
 }
 
 private class FakeDetailsRepository(
@@ -119,6 +167,22 @@ private class FakeDetailsRepository(
     }
 
     override suspend fun loadDetails(detailsUrl: String): DetailsResult = detailsResult
+
+    override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean = false
+}
+
+private class SequencedDetailsRepository(
+    private val results: List<CompletableDeferred<DetailsResult>>,
+) : LostFilmRepository {
+    private var index = 0
+
+    override suspend fun loadPage(pageNumber: Int): PageState {
+        error("Page loading is not used in details tests")
+    }
+
+    override suspend fun loadDetails(detailsUrl: String): DetailsResult {
+        return results[index++].await()
+    }
 
     override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean = false
 }
