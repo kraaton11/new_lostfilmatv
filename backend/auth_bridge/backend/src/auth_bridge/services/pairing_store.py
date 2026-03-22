@@ -61,6 +61,32 @@ class InMemoryPairingStore:
     def register_cleanup_callback(self, callback: Callable[[PairingRecord], None]) -> None:
         self._cleanup_callbacks.append(callback)
 
+    def healthcheck(self) -> None:
+        """
+        Validate that the store's public indexes still point to the same records.
+
+        This is intentionally read-only so readiness checks do not mutate live state.
+        """
+        for pairing_id, record in self._records_by_id.items():
+            if self._pairing_id_by_code.get(record.user_code) != pairing_id:
+                raise RuntimeError("pairing store user-code index is inconsistent")
+            if self._pairing_id_by_verifier.get(record.phone_verifier) != pairing_id:
+                raise RuntimeError("pairing store phone-verifier index is inconsistent")
+
+        for user_code, pairing_id in self._pairing_id_by_code.items():
+            record = self._records_by_id.get(pairing_id)
+            if record is None or record.user_code != user_code:
+                raise RuntimeError("pairing store contains dangling user-code index")
+
+        for phone_verifier, pairing_id in self._pairing_id_by_verifier.items():
+            record = self._records_by_id.get(pairing_id)
+            if record is None or record.phone_verifier != phone_verifier:
+                raise RuntimeError("pairing store contains dangling phone-verifier index")
+
+        for callback in self._cleanup_callbacks:
+            if not callable(callback):
+                raise RuntimeError("pairing store cleanup callback is not callable")
+
     def save(self, pairing_id: str, pairing_secret: str, phone_verifier: str, user_code: str) -> PairingRecord:
         self.prune_expired()
         now = datetime.now(UTC)

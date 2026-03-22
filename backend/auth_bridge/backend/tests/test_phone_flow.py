@@ -132,7 +132,7 @@ class PhoneFlowTest(unittest.TestCase):
 
     def test_expired_pair_page_shows_expired_state(self) -> None:
         pairing = self.client.post("/api/pairings").json()
-        record = app.state.pairing_service._store.get(pairing["pairingId"])
+        record = app.state.pairing_service.get_pairing(pairing["pairingId"])
         record.expires_at = datetime.now(UTC) - timedelta(seconds=1)
 
         response = self.client.get(f"/pair/{pairing['phoneVerifier']}")

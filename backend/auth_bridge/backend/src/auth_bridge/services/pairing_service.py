@@ -6,8 +6,10 @@ import string
 from random import SystemRandom
 from threading import RLock
 from typing import Callable, cast
+from urllib.parse import urlsplit
 
 from auth_bridge.config import Settings
+from auth_bridge.logging_utils import mask_token
 from auth_bridge.schemas.pairing import PairingCreateResponse, PairingStatus, PairingStatusResponse
 from auth_bridge.schemas.session_payload import SessionPayload
 from auth_bridge.services.lostfilm_login_client import LostFilmLoginClient, LostFilmLoginStep
@@ -52,7 +54,11 @@ class PairingService:
                 phone_verifier=token_hex(16),
                 user_code=user_code,
             )
-            logger.info("Pairing created: id=%s user_code=%s", record.pairing_id, record.user_code)
+            logger.info(
+                "Pairing created: pairing_id=%s user_code=%s",
+                mask_token(record.pairing_id),
+                mask_token(record.user_code, keep_start=2, keep_end=1),
+            )
             return self._build_create_response(record)
 
     def get_status(self, pairing_id: str, pairing_secret: str) -> PairingStatusResponse:
@@ -75,6 +81,16 @@ class PairingService:
                 raise PairingNotFoundError
             return record
 
+    def get_pairing(self, pairing_id: str) -> PairingRecord:
+        with self._lock:
+            return self._require_record(pairing_id)
+
+    def healthcheck(self) -> None:
+        with self._lock:
+            if not self._wildcard_base_domain():
+                raise RuntimeError("wildcard base domain is not configured")
+            self._store.healthcheck()
+
     def open_phone_flow(self, phone_verifier: str) -> PairingRecord:
         with self._lock:
             record = self.get_pairing_by_phone_verifier(phone_verifier)
@@ -87,11 +103,17 @@ class PairingService:
     def open_phone_flow_for_host(self, host: str) -> PairingRecord:
         return self.open_phone_flow(self.resolve_phone_verifier_from_host(host))
 
-    def resolve_phone_verifier_from_host(self, host: str) -> str:
-        normalized_host = host.split(":", 1)[0].strip().lower()
-        expected_suffix = f".{self._settings.wildcard_base_domain}".lower()
+    def normalize_wildcard_host(self, host: str) -> str:
+        normalized_host = _normalize_host_header(host)
+        wildcard_base_domain = self._wildcard_base_domain()
+        expected_suffix = f".{wildcard_base_domain}"
         if not normalized_host.endswith(expected_suffix):
             raise PairingNotFoundError
+        return normalized_host
+
+    def resolve_phone_verifier_from_host(self, host: str) -> str:
+        normalized_host = self.normalize_wildcard_host(host)
+        expected_suffix = f".{self._wildcard_base_domain()}"
         phone_verifier = normalized_host[: -len(expected_suffix)]
         if not phone_verifier or "." in phone_verifier:
             raise PairingNotFoundError
@@ -124,7 +146,10 @@ class PairingService:
                 record.retryable = True
                 record.failure_reason = None
                 self._close_login_client(record)
-            logger.warning("Login attempt failed for phone_verifier=%s", phone_verifier)
+            logger.warning(
+                "Login attempt failed for phone_verifier=%s",
+                mask_token(phone_verifier),
+            )
             raise
 
         with self._lock:
@@ -134,7 +159,11 @@ class PairingService:
                 record.phone_flow_status = PairingStatus.IN_PROGRESS
                 record.retryable = True
                 record.failure_reason = None
-                logger.debug("Login requires further step '%s' for phone_verifier=%s", payload.step_kind, phone_verifier)
+                logger.debug(
+                    "Login requires further step '%s' for phone_verifier=%s",
+                    payload.step_kind,
+                    mask_token(phone_verifier),
+                )
                 return payload
             session_payload = SessionPayload.model_validate(cast(dict | SessionPayload, payload))
             record.session_payload = session_payload
@@ -142,7 +171,11 @@ class PairingService:
             record.retryable = None
             record.failure_reason = None
             self._close_login_client(record)
-            logger.info("Login succeeded for pairing_id=%s account_id=%s", record.pairing_id, session_payload.accountId)
+            logger.info(
+                "Login succeeded for pairing_id=%s account_id=%s",
+                mask_token(record.pairing_id),
+                mask_token(session_payload.accountId),
+            )
             return session_payload
 
     def complete_phone_challenge(
@@ -208,7 +241,7 @@ class PairingService:
             if not record.lease_active:
                 record.lease_active = True
                 record.claim_lease_expires_at = datetime.now(UTC) + timedelta(seconds=self._settings.claim_lease_ttl_seconds)
-                logger.info("Claim lease opened for pairing_id=%s", pairing_id)
+                logger.info("Claim lease opened for pairing_id=%s", mask_token(pairing_id))
             return record.session_payload
 
     def finalize_claim(self, pairing_id: str, pairing_secret: str) -> None:
@@ -223,7 +256,7 @@ class PairingService:
             record.finalized = True
             record.lease_active = False
             record.claim_lease_expires_at = None
-            logger.info("Pairing finalized: id=%s", pairing_id)
+            logger.info("Pairing finalized: pairing_id=%s", mask_token(pairing_id))
 
     def release_claim(self, pairing_id: str, pairing_secret: str) -> None:
         with self._lock:
@@ -235,7 +268,7 @@ class PairingService:
             record.phone_flow_status = PairingStatus.FAILED
             record.retryable = True
             record.failure_reason = "session_invalid"
-            logger.info("Claim released (session invalid) for pairing_id=%s", pairing_id)
+            logger.info("Claim released (session invalid) for pairing_id=%s", mask_token(pairing_id))
 
     def confirm_pairing(self, pairing_id: str, session_payload: dict | SessionPayload) -> None:
         with self._lock:
@@ -257,7 +290,11 @@ class PairingService:
             record.retryable = None
             record.failure_reason = None
             self._close_login_client(record)
-            logger.info("Pairing confirmed from proxied browser session: id=%s account_id=%s", pairing_id, session_payload.accountId)
+            logger.info(
+                "Pairing confirmed from proxied browser session: pairing_id=%s account_id=%s",
+                mask_token(pairing_id),
+                mask_token(session_payload.accountId),
+            )
             return session_payload
 
     def reset(self) -> None:
@@ -282,7 +319,7 @@ class PairingService:
             record.phone_flow_status = PairingStatus.FAILED
             record.retryable = True
             record.failure_reason = "lease_expired"
-            logger.warning("Claim lease expired for pairing_id=%s", record.pairing_id)
+            logger.warning("Claim lease expired for pairing_id=%s", mask_token(record.pairing_id))
 
     def _build_create_response(self, record: PairingRecord) -> PairingCreateResponse:
         return PairingCreateResponse(
@@ -306,6 +343,9 @@ class PairingService:
             if not self._store.has_user_code(user_code):
                 return user_code
 
+    def _wildcard_base_domain(self) -> str:
+        return self._settings.wildcard_base_domain.strip().lower().rstrip(".")
+
     def _close_login_client(self, record: PairingRecord) -> None:
         if record.login_client is not None:
             record.login_client.close()
@@ -323,3 +363,25 @@ class PairingService:
         ]
         account_cookie = next((cookie for cookie in cookie_jar.jar if cookie.name == "uid"), None)
         return SessionPayload(cookies=cookies, accountId=account_cookie.value if account_cookie is not None else None)
+
+
+def _normalize_host_header(host: str) -> str:
+    raw_host = host.strip()
+    if not raw_host:
+        raise PairingNotFoundError
+
+    try:
+        parsed = urlsplit(f"//{raw_host}", scheme="https")
+        _ = parsed.port
+    except ValueError as exc:
+        raise PairingNotFoundError from exc
+
+    if parsed.username is not None or parsed.password is not None:
+        raise PairingNotFoundError
+    if parsed.path or parsed.query or parsed.fragment:
+        raise PairingNotFoundError
+
+    normalized_host = (parsed.hostname or "").strip().lower().rstrip(".")
+    if not normalized_host or " " in normalized_host or ".." in normalized_host:
+        raise PairingNotFoundError
+    return normalized_host
