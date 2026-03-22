@@ -34,7 +34,6 @@ fun DetailsRoute(
     preferredPlaybackQuality: PlaybackQualityPreference = PlaybackQualityPreference.Q1080,
     actionHandler: TorrServeActionHandler,
     linkBuilder: TorrServeLinkBuilder,
-    onBack: () -> Unit,
     onMarkedWatched: (String) -> Unit = {},
     onChannelContentChanged: suspend () -> Unit = {},
     openTorrServe: suspend (Context, String) -> TorrServeOpenResult = actionHandler::open,
@@ -143,7 +142,6 @@ fun DetailsRoute(
         torrServeMessage = torrServeMessage,
         activeTorrServeRowId = activeTorrServeRowId,
         isTorrServeBusy = isTorrServeBusy,
-        onBack = onBack,
         onRetry = detailsViewModel::onRetry,
         onOpenTorrServe = handleOpenTorrServe,
     )

@@ -181,7 +181,6 @@ class DetailsScreenTest {
                             torrServeMessage = null,
                             activeTorrServeRowId = null,
                             isTorrServeBusy = false,
-                            onBack = { navController.popBackStack() },
                             onRetry = {},
                             onOpenTorrServe = { _, _ -> },
                         )
@@ -231,7 +230,6 @@ private fun AndroidComposeTestRule<*, *>.setDetailsContent(
     torrServeMessage: TorrServeMessage? = null,
     activeTorrServeRowId: String? = null,
     isTorrServeBusy: Boolean = false,
-    onBack: () -> Unit = {},
     onRetry: () -> Unit = {},
     onOpenTorrServe: (String, String) -> Unit = { _, _ -> },
 ) {
@@ -245,7 +243,6 @@ private fun AndroidComposeTestRule<*, *>.setDetailsContent(
                 torrServeMessage = torrServeMessage,
                 activeTorrServeRowId = activeTorrServeRowId,
                 isTorrServeBusy = isTorrServeBusy,
-                onBack = onBack,
                 onRetry = onRetry,
                 onOpenTorrServe = onOpenTorrServe,
             )
