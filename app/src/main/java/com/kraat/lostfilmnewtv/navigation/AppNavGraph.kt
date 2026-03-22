@@ -171,7 +171,6 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                         ?.set(HOME_WATCHED_DETAILS_URL_KEY, watchedDetailsUrl)
                 },
                 onChannelContentChanged = application.homeChannelSyncManager::syncNow,
-                onBack = { navController.popBackStack() },
             )
         }
         composable(AppDestination.Settings.route) {

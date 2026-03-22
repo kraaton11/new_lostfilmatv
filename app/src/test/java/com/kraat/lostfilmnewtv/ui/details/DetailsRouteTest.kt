@@ -73,7 +73,6 @@ class DetailsRouteTest {
                 repository = repository,
                 actionHandler = succeedingActionHandler(),
                 linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
-                onBack = {},
             )
         }
 
@@ -110,7 +109,6 @@ class DetailsRouteTest {
                 preferredPlaybackQuality = PlaybackQualityPreference.Q720,
                 actionHandler = succeedingActionHandler(),
                 linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
-                onBack = {},
             )
         }
 
@@ -145,7 +143,6 @@ class DetailsRouteTest {
                 preferredPlaybackQuality = PlaybackQualityPreference.Q1080,
                 actionHandler = succeedingActionHandler(),
                 linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
-                onBack = {},
             )
         }
 
@@ -166,7 +163,6 @@ class DetailsRouteTest {
                 repository = RouteFakeDetailsRepository.success(detailsUrl),
                 actionHandler = succeedingActionHandler(),
                 linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
-                onBack = {},
                 openTorrServe = { _, _ ->
                     launchCount.incrementAndGet()
                     activeLaunches.incrementAndGet()
@@ -214,7 +210,6 @@ class DetailsRouteTest {
                     repository = RouteFakeDetailsRepository.success(detailsUrl),
                     actionHandler = succeedingActionHandler(),
                     linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
-                    onBack = {},
                     openTorrServe = { _, _ ->
                         val next = responses.removeAt(0)
                         next.await()
@@ -260,7 +255,6 @@ class DetailsRouteTest {
                 repository = RouteFakeDetailsRepository.success(detailsUrl),
                 actionHandler = succeedingActionHandler(),
                 linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
-                onBack = {},
                 openTorrServe = { _, _ -> TorrServeOpenResult.Unavailable },
             )
         }
@@ -292,7 +286,6 @@ class DetailsRouteTest {
                 repository = repository,
                 actionHandler = succeedingActionHandler(),
                 linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
-                onBack = {},
             )
         }
 
@@ -326,7 +319,6 @@ class DetailsRouteTest {
                 repository = repository,
                 actionHandler = succeedingActionHandler(),
                 linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
-                onBack = {},
             )
         }
 
@@ -350,7 +342,6 @@ class DetailsRouteTest {
                 repository = repository,
                 actionHandler = succeedingActionHandler(),
                 linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
-                onBack = {},
                 onMarkedWatched = { watchedDetailsUrls += it },
                 onChannelContentChanged = { channelSyncCalls.incrementAndGet() },
                 openTorrServe = { _, _ -> TorrServeOpenResult.Success },

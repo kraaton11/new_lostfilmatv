@@ -31,7 +31,6 @@ class DetailsScreenStateTest {
                     torrServeMessage = null,
                     activeTorrServeRowId = null,
                     isTorrServeBusy = false,
-                    onBack = {},
                     onRetry = {},
                     onOpenTorrServe = { _, _ -> },
                 )
@@ -62,7 +61,6 @@ class DetailsScreenStateTest {
                     torrServeMessage = null,
                     activeTorrServeRowId = null,
                     isTorrServeBusy = false,
-                    onBack = {},
                     onRetry = {},
                     onOpenTorrServe = { _, _ -> },
                 )
@@ -93,7 +91,6 @@ class DetailsScreenStateTest {
                     torrServeMessage = null,
                     activeTorrServeRowId = null,
                     isTorrServeBusy = false,
-                    onBack = {},
                     onRetry = {},
                     onOpenTorrServe = { _, _ -> },
                 )

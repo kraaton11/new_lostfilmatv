@@ -64,7 +64,6 @@ import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 fun DetailsScreen(
     state: DetailsUiState,
     isAuthenticated: Boolean,
-    onBack: () -> Unit,
     onRetry: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -78,7 +77,6 @@ fun DetailsScreen(
         torrServeMessage = null,
         activeTorrServeRowId = null,
         isTorrServeBusy = false,
-        onBack = onBack,
         onRetry = onRetry,
         onOpenTorrServe = { _, url ->
             context.startActivity(
@@ -99,7 +97,6 @@ fun DetailsScreen(
     torrServeMessage: TorrServeMessage?,
     activeTorrServeRowId: String?,
     isTorrServeBusy: Boolean,
-    onBack: () -> Unit,
     onRetry: () -> Unit,
     onOpenTorrServe: (String, String) -> Unit,
 ) {
@@ -114,7 +111,6 @@ fun DetailsScreen(
             torrServeMessage = torrServeMessage,
             activeTorrServeRowId = activeTorrServeRowId,
             isTorrServeBusy = isTorrServeBusy,
-            onBack = onBack,
             onOpenTorrServe = onOpenTorrServe,
         )
     }
@@ -168,7 +164,6 @@ private fun ContentState(
     torrServeMessage: TorrServeMessage?,
     activeTorrServeRowId: String?,
     isTorrServeBusy: Boolean,
-    onBack: () -> Unit,
     onOpenTorrServe: (String, String) -> Unit,
 ) {
     val details = state.details
