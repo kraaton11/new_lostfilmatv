@@ -47,6 +47,7 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
 
     LaunchedEffect(application) {
         application.homeChannelBackgroundScheduler.syncForCurrentMode()
+        application.appUpdateBackgroundScheduler.syncForCurrentMode()
         application.homeChannelSyncManager.syncNow()
     }
 
