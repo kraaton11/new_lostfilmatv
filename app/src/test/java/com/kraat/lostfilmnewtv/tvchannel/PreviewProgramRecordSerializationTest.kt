@@ -46,7 +46,7 @@ class PreviewProgramRecordSerializationTest {
         assertEquals("Description", values.getAsString("short_description"))
         assertEquals("https://example.com/poster.jpg", values.getAsString("poster_art_uri"))
         assertEquals(launchIntent.toUri(Intent.URI_INTENT_SCHEME), values.getAsString(TvContractCompat.PreviewProgramColumns.COLUMN_INTENT_URI))
-        assertEquals(1, values.getAsInteger(TvContractCompat.PreviewProgramColumns.COLUMN_BROWSABLE)?.toInt())
+        assertEquals(false, values.containsKey(TvContractCompat.PreviewProgramColumns.COLUMN_BROWSABLE))
     }
 
     @Test

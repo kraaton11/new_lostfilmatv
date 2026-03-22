@@ -132,7 +132,6 @@ internal fun PreviewProgramRecord.toContentValues(): ContentValues {
         put(COLUMN_POSTER_ART_URI, posterUrl)
         put(TvContractCompat.PreviewProgramColumns.COLUMN_INTENT_URI, launchIntent.toUri(Intent.URI_INTENT_SCHEME))
         put(TvContractCompat.PreviewProgramColumns.COLUMN_INTERNAL_PROVIDER_ID, internalProviderId)
-        put(TvContractCompat.PreviewProgramColumns.COLUMN_BROWSABLE, 1)
     }
 }
 
