@@ -8,6 +8,7 @@ import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.navigation.AppDestination
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,6 +24,8 @@ class DetailsViewModel(
     val uiState: StateFlow<DetailsUiState> = _uiState.asStateFlow()
 
     private var started = false
+    private var loadRequestToken = 0
+    private var loadJob: Job? = null
 
     fun onStart() {
         if (started) {
@@ -39,6 +42,8 @@ class DetailsViewModel(
 
     private fun loadDetails() {
         val detailsUrl = savedStateHandle.get<String>(AppDestination.Details.detailsUrlArg).orEmpty()
+        val requestToken = ++loadRequestToken
+        loadJob?.cancel()
         _uiState.update { state ->
             state.copy(
                 isLoading = true,
@@ -46,9 +51,10 @@ class DetailsViewModel(
             )
         }
 
-        viewModelScope.launch(ioDispatcher) {
+        loadJob = viewModelScope.launch(ioDispatcher) {
             when (val result = repository.loadDetails(detailsUrl)) {
                 is DetailsResult.Success -> {
+                    if (loadRequestToken != requestToken) return@launch
                     _uiState.update {
                         DetailsUiState(
                             details = result.details,
@@ -60,6 +66,7 @@ class DetailsViewModel(
                 }
 
                 is DetailsResult.Error -> {
+                    if (loadRequestToken != requestToken) return@launch
                     _uiState.update {
                         DetailsUiState(
                             details = null,

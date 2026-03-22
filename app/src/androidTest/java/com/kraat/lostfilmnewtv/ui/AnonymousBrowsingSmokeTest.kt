@@ -1,6 +1,7 @@
 package com.kraat.lostfilmnewtv.ui
 
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -57,8 +58,11 @@ class AnonymousBrowsingSmokeTest {
 
         waitForText("Smoke Series Details")
         assertTrue(composeRule.onAllNodesWithText("Smoke Series Details").fetchSemanticsNodes().isNotEmpty())
-        assertTrue(composeRule.onAllNodesWithText("Сезон 1, серия 1").fetchSemanticsNodes().isNotEmpty())
         assertTrue(composeRule.onAllNodesWithText("Pilot").fetchSemanticsNodes().isNotEmpty())
+        assertTrue(composeRule.onAllNodesWithText("14 марта 2026").fetchSemanticsNodes().isEmpty())
+        assertTrue(composeRule.onAllNodesWithText("TorrServe").fetchSemanticsNodes().isEmpty())
+        composeRule.onNodeWithTag("details-primary-action").assertIsNotEnabled()
+        assertTrue(composeRule.onAllNodesWithText("Видео недоступно").fetchSemanticsNodes().isNotEmpty())
         assertTrue(composeRule.onAllNodesWithTag("details-back").fetchSemanticsNodes().isEmpty())
 
         composeRule.activityRule.scenario.onActivity { activity ->

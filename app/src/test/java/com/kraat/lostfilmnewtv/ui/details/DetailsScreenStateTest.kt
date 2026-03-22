@@ -1,8 +1,10 @@
 package com.kraat.lostfilmnewtv.ui.details
 
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithTag
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.TorrentLink
@@ -100,6 +102,36 @@ class DetailsScreenStateTest {
         assertEquals(1, composeRule.onAllNodesWithTag("details-stale-banner").fetchSemanticsNodes().size)
         assertEquals(1, composeRule.onAllNodesWithText("Показаны сохранённые данные").fetchSemanticsNodes().size)
         assertEquals(1, composeRule.onAllNodesWithText("9-1-1").fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun detailsScreen_focusesPrimaryAction_whenPlaybackIsAvailable() {
+        composeRule.setContent {
+            LostFilmTheme {
+                DetailsScreen(
+                    state = DetailsUiState(
+                        details = seriesDetails(),
+                    ),
+                    isAuthenticated = true,
+                    availableTorrentRowsCount = 1,
+                    playbackRow = DetailsTorrentRowUiModel(
+                        rowId = "row-0",
+                        label = "1080p",
+                        url = "https://example.com/1080",
+                        isTorrServeSupported = true,
+                    ),
+                    torrServeMessage = null,
+                    activeTorrServeRowId = null,
+                    isTorrServeBusy = false,
+                    onRetry = {},
+                    onOpenTorrServe = { _, _ -> },
+                )
+            }
+        }
+
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("torrent-torrserve-row-0").assertIsFocused()
     }
 }
 
