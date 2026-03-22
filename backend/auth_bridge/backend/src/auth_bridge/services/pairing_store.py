@@ -4,7 +4,6 @@ from typing import Callable
 
 from auth_bridge.schemas.pairing import PairingStatus
 from auth_bridge.schemas.session_payload import SessionPayload
-from auth_bridge.services.lostfilm_login_client import LostFilmLoginClient, LostFilmLoginStep
 
 
 @dataclass
@@ -22,8 +21,6 @@ class PairingRecord:
     failure_reason: str | None = None
     claim_lease_expires_at: datetime | None = None
     session_payload: SessionPayload | None = None
-    challenge_step: LostFilmLoginStep | None = None
-    login_client: LostFilmLoginClient | None = None
 
     @property
     def status(self) -> PairingStatus:
@@ -147,7 +144,6 @@ class InMemoryPairingStore:
         ]
         for pairing_id in expired_pairing_ids:
             record = self._records_by_id.pop(pairing_id)
-            self._close_login_client(record)
             self._run_cleanup_callbacks(record)
             if self._pairing_id_by_code.get(record.user_code) == pairing_id:
                 self._pairing_id_by_code.pop(record.user_code, None)
@@ -156,23 +152,15 @@ class InMemoryPairingStore:
 
     def clear(self) -> None:
         for record in self._records_by_id.values():
-            self._close_login_client(record)
             self._run_cleanup_callbacks(record)
         self._records_by_id.clear()
         self._pairing_id_by_code.clear()
         self._pairing_id_by_verifier.clear()
 
-    def _close_login_client(self, record: PairingRecord) -> None:
-        if record.login_client is not None:
-            record.login_client.close()
-            record.login_client = None
-
     def _release_expired_state(self, record: PairingRecord) -> None:
         record.session_payload = None
         record.lease_active = False
         record.claim_lease_expires_at = None
-        record.challenge_step = None
-        self._close_login_client(record)
         self._run_cleanup_callbacks(record)
 
     def _run_cleanup_callbacks(self, record: PairingRecord) -> None:

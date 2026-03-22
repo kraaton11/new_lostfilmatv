@@ -5,14 +5,12 @@ import logging
 import string
 from random import SystemRandom
 from threading import RLock
-from typing import Callable, cast
 from urllib.parse import urlsplit
 
 from auth_bridge.config import Settings
 from auth_bridge.logging_utils import mask_token
 from auth_bridge.schemas.pairing import PairingCreateResponse, PairingStatus, PairingStatusResponse
 from auth_bridge.schemas.session_payload import SessionPayload
-from auth_bridge.services.lostfilm_login_client import LostFilmLoginClient, LostFilmLoginStep
 from auth_bridge.services.pairing_store import InMemoryPairingStore, PairingRecord
 
 logger = logging.getLogger(__name__)
@@ -103,6 +101,9 @@ class PairingService:
     def open_phone_flow_for_host(self, host: str) -> PairingRecord:
         return self.open_phone_flow(self.resolve_phone_verifier_from_host(host))
 
+    def build_verification_url(self, phone_verifier: str) -> str:
+        return f"https://{phone_verifier}.{self._wildcard_base_domain()}/"
+
     def normalize_wildcard_host(self, host: str) -> str:
         normalized_host = _normalize_host_header(host)
         wildcard_base_domain = self._wildcard_base_domain()
@@ -118,112 +119,6 @@ class PairingService:
         if not phone_verifier or "." in phone_verifier:
             raise PairingNotFoundError
         return phone_verifier
-
-    def submit_phone_login(
-        self,
-        phone_verifier: str,
-        username: str,
-        password: str,
-        client_factory: Callable[[], LostFilmLoginClient],
-    ) -> SessionPayload | LostFilmLoginStep:
-        with self._lock:
-            record = self.get_pairing_by_phone_verifier(phone_verifier)
-            if record.is_expired():
-                raise PairingExpiredError
-            if record.session_payload is not None:
-                return record.session_payload
-            if record.login_client is None:
-                record.login_client = client_factory()
-            login_client = record.login_client
-
-        try:
-            login_step = login_client.fetch_login_step()
-            payload = login_client.submit_credentials(login_step, username=username, password=password)
-        except Exception:
-            with self._lock:
-                record = self.get_pairing_by_phone_verifier(phone_verifier)
-                record.phone_flow_status = PairingStatus.IN_PROGRESS
-                record.retryable = True
-                record.failure_reason = None
-                self._close_login_client(record)
-            logger.warning(
-                "Login attempt failed for phone_verifier=%s",
-                mask_token(phone_verifier),
-            )
-            raise
-
-        with self._lock:
-            record = self.get_pairing_by_phone_verifier(phone_verifier)
-            if isinstance(payload, LostFilmLoginStep):
-                record.challenge_step = payload if payload.step_kind == "challenge" else None
-                record.phone_flow_status = PairingStatus.IN_PROGRESS
-                record.retryable = True
-                record.failure_reason = None
-                logger.debug(
-                    "Login requires further step '%s' for phone_verifier=%s",
-                    payload.step_kind,
-                    mask_token(phone_verifier),
-                )
-                return payload
-            session_payload = SessionPayload.model_validate(cast(dict | SessionPayload, payload))
-            record.session_payload = session_payload
-            record.challenge_step = None
-            record.retryable = None
-            record.failure_reason = None
-            self._close_login_client(record)
-            logger.info(
-                "Login succeeded for pairing_id=%s account_id=%s",
-                mask_token(record.pairing_id),
-                mask_token(session_payload.accountId),
-            )
-            return session_payload
-
-    def complete_phone_challenge(
-        self,
-        phone_verifier: str,
-        username: str,
-        password: str,
-        captcha_code: str,
-    ) -> SessionPayload | LostFilmLoginStep:
-        with self._lock:
-            record = self.get_pairing_by_phone_verifier(phone_verifier)
-            if record.is_expired():
-                raise PairingExpiredError
-            if record.challenge_step is None or record.login_client is None:
-                raise PairingNotReadyError
-            challenge_step = record.challenge_step
-            login_client = record.login_client
-
-        try:
-            result = login_client.complete_challenge(
-                challenge_step,
-                captcha_code=captcha_code,
-                username=username,
-                password=password,
-            )
-        except Exception:
-            with self._lock:
-                record = self.get_pairing_by_phone_verifier(phone_verifier)
-                record.phone_flow_status = PairingStatus.IN_PROGRESS
-                record.retryable = True
-                record.failure_reason = None
-            raise
-
-        with self._lock:
-            record = self.get_pairing_by_phone_verifier(phone_verifier)
-            if isinstance(result, LostFilmLoginStep):
-                record.challenge_step = result if result.step_kind == "challenge" else None
-                record.phone_flow_status = PairingStatus.IN_PROGRESS
-                record.retryable = True
-                record.failure_reason = None
-                return result
-            session_payload = SessionPayload.model_validate(cast(dict | SessionPayload, result))
-            record.session_payload = session_payload
-            record.challenge_step = None
-            record.retryable = None
-            record.failure_reason = None
-            self._close_login_client(record)
-            return session_payload
 
     def claim_session(self, pairing_id: str, pairing_secret: str) -> SessionPayload:
         with self._lock:
@@ -286,10 +181,8 @@ class PairingService:
                 raise PairingExpiredError
             session_payload = self._build_session_payload_from_cookie_jar(cookie_jar)
             record.session_payload = session_payload
-            record.challenge_step = None
             record.retryable = None
             record.failure_reason = None
-            self._close_login_client(record)
             logger.info(
                 "Pairing confirmed from proxied browser session: pairing_id=%s account_id=%s",
                 mask_token(pairing_id),
@@ -327,7 +220,7 @@ class PairingService:
             pairingSecret=record.pairing_secret,
             phoneVerifier=record.phone_verifier,
             userCode=record.user_code,
-            verificationUrl=f"https://{record.phone_verifier}.{self._settings.wildcard_base_domain}/",
+            verificationUrl=self.build_verification_url(record.phone_verifier),
             expiresIn=record.expires_in(now=record.created_at),
             pollInterval=self._settings.pairing_poll_interval_seconds,
             status=record.status,
@@ -345,11 +238,6 @@ class PairingService:
 
     def _wildcard_base_domain(self) -> str:
         return self._settings.wildcard_base_domain.strip().lower().rstrip(".")
-
-    def _close_login_client(self, record: PairingRecord) -> None:
-        if record.login_client is not None:
-            record.login_client.close()
-            record.login_client = None
 
     def _build_session_payload_from_cookie_jar(self, cookie_jar: httpx.Cookies) -> SessionPayload:
         cookies = [

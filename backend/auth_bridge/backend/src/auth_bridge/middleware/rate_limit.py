@@ -2,7 +2,7 @@
 Simple in-process sliding-window rate limiter.
 
 One instance is shared per application. Thread-safe via RLock.
-Used to protect the phone-flow login/challenge endpoints from brute-force attempts.
+Used to protect pairing creation and wildcard proxy endpoints from abuse.
 """
 from collections import deque
 from datetime import UTC, datetime, timedelta
@@ -119,20 +119,6 @@ def extract_client_ip(headers: Mapping[str, str], client_host: str | None) -> st
 
     fallback = (client_host or "").strip().lower()
     return fallback or "unknown"
-
-
-def build_phone_flow_rate_limit_keys(client_ip: str, phone_verifier: str, username: str = "") -> tuple[str, ...]:
-    normalized_client_ip = (client_ip or "unknown").strip().lower() or "unknown"
-    normalized_phone_verifier = phone_verifier.strip().lower()
-    normalized_username = username.strip().lower()
-
-    keys = [
-        _build_rate_limit_key("phone-flow:ip", normalized_client_ip),
-        _build_rate_limit_key("phone-flow:ip+verifier", normalized_client_ip, normalized_phone_verifier),
-    ]
-    if normalized_username:
-        keys.append(_build_rate_limit_key("phone-flow:ip+username", normalized_client_ip, normalized_username))
-    return tuple(keys)
 
 
 def build_pairing_creation_rate_limit_keys(client_ip: str) -> tuple[str, ...]:
