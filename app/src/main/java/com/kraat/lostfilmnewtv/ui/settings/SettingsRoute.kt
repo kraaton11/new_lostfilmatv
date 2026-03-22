@@ -12,14 +12,15 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kraat.lostfilmnewtv.BuildConfig
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
-import com.kraat.lostfilmnewtv.updates.AppUpdateRepository
+import com.kraat.lostfilmnewtv.updates.AppUpdateCoordinator
 import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsRoute(
     playbackPreferencesStore: PlaybackPreferencesStore,
-    appUpdateRepository: AppUpdateRepository,
+    appUpdateCoordinator: AppUpdateCoordinator,
     onPlaybackQualityChanged: (PlaybackQualityPreference) -> Unit = {},
+    syncAppUpdateBackgroundSchedule: () -> Unit = {},
     syncAndroidTvChannelBackgroundSchedule: () -> Unit = {},
     syncAndroidTvChannel: suspend () -> Unit = {},
     installedVersion: String = BuildConfig.VERSION_NAME,
@@ -29,8 +30,9 @@ fun SettingsRoute(
         key = "settings",
         factory = settingsViewModelFactory(
             playbackPreferencesStore = playbackPreferencesStore,
-            appUpdateRepository = appUpdateRepository,
+            appUpdateCoordinator = appUpdateCoordinator,
             installedVersion = installedVersion,
+            syncAppUpdateBackgroundSchedule = syncAppUpdateBackgroundSchedule,
             syncAndroidTvChannelBackgroundSchedule = syncAndroidTvChannelBackgroundSchedule,
             syncAndroidTvChannel = syncAndroidTvChannel,
         ),
@@ -52,7 +54,7 @@ fun SettingsRoute(
         selectedUpdateMode = state.value.updateMode,
         selectedChannelMode = state.value.channelMode,
         installedVersionText = state.value.installedVersionText,
-        latestVersionText = state.value.latestVersionText,
+        latestVersionText = state.value.savedAppUpdate?.latestVersion ?: state.value.latestVersionText,
         statusText = state.value.statusText,
         isCheckingForUpdates = state.value.isCheckingForUpdates,
         installUrl = state.value.installUrl,
@@ -74,8 +76,9 @@ fun SettingsRoute(
 
 private fun settingsViewModelFactory(
     playbackPreferencesStore: PlaybackPreferencesStore,
-    appUpdateRepository: AppUpdateRepository,
+    appUpdateCoordinator: AppUpdateCoordinator,
     installedVersion: String,
+    syncAppUpdateBackgroundSchedule: () -> Unit,
     syncAndroidTvChannelBackgroundSchedule: () -> Unit,
     syncAndroidTvChannel: suspend () -> Unit,
 ): ViewModelProvider.Factory {
@@ -90,9 +93,11 @@ private fun settingsViewModelFactory(
                 persistPlaybackQuality = playbackPreferencesStore::writeDefaultQuality,
                 persistUpdateMode = playbackPreferencesStore::writeUpdateCheckMode,
                 persistChannelMode = playbackPreferencesStore::writeAndroidTvChannelMode,
+                savedUpdateState = appUpdateCoordinator.savedUpdateState,
+                refreshSavedUpdateState = appUpdateCoordinator::refreshSavedUpdateState,
+                syncAppUpdateBackgroundSchedule = syncAppUpdateBackgroundSchedule,
                 syncAndroidTvChannelBackgroundSchedule = syncAndroidTvChannelBackgroundSchedule,
                 syncAndroidTvChannel = syncAndroidTvChannel,
-                checkForUpdates = appUpdateRepository::checkForUpdate,
             ) as T
         }
     }

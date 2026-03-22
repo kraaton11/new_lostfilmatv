@@ -28,12 +28,16 @@ import com.kraat.lostfilmnewtv.tvchannel.HomeChannelBackgroundRefreshRunnerProvi
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelBackgroundScheduler
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPreferences
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelSyncManager
+import com.kraat.lostfilmnewtv.updates.AppUpdateAvailabilityStore
+import com.kraat.lostfilmnewtv.updates.AppUpdateBackgroundWorkerProvider
+import com.kraat.lostfilmnewtv.updates.AppUpdateCoordinator
 import com.kraat.lostfilmnewtv.updates.AppUpdateRepository
 import com.kraat.lostfilmnewtv.updates.GitHubReleaseClient
 import com.kraat.lostfilmnewtv.updates.ReleaseApkLauncher
+import com.kraat.lostfilmnewtv.updates.AppUpdateBackgroundScheduler as QuietAppUpdateBackgroundScheduler
 import okhttp3.OkHttpClient
 
-open class LostFilmApplication : Application(), HomeChannelBackgroundRefreshRunnerProvider {
+open class LostFilmApplication : Application(), HomeChannelBackgroundRefreshRunnerProvider, AppUpdateBackgroundWorkerProvider {
     val database: LostFilmDatabase by lazy {
         Room.databaseBuilder(
             this,
@@ -94,6 +98,18 @@ open class LostFilmApplication : Application(), HomeChannelBackgroundRefreshRunn
         PlaybackPreferencesStore(this)
     }
 
+    open val appUpdateAvailabilityStore: AppUpdateAvailabilityStore by lazy {
+        AppUpdateAvailabilityStore(this)
+    }
+
+    override open val appUpdateCoordinator: AppUpdateCoordinator by lazy {
+        AppUpdateCoordinator(
+            installedVersion = BuildConfig.VERSION_NAME,
+            store = appUpdateAvailabilityStore,
+            checkForUpdates = appUpdateRepository::checkForUpdate,
+        )
+    }
+
     open val homeChannelSyncManager: HomeChannelSyncManager by lazy {
         HomeChannelSyncManager(
             programSource = HomeChannelContentRepository(database.releaseDao()),
@@ -116,6 +132,13 @@ open class LostFilmApplication : Application(), HomeChannelBackgroundRefreshRunn
     open val homeChannelBackgroundScheduler: HomeChannelBackgroundScheduler by lazy {
         HomeChannelBackgroundScheduler(
             readMode = playbackPreferencesStore::readAndroidTvChannelMode,
+            workManager = WorkManager.getInstance(applicationContext),
+        )
+    }
+
+    open val appUpdateBackgroundScheduler: QuietAppUpdateBackgroundScheduler by lazy {
+        QuietAppUpdateBackgroundScheduler(
+            readMode = playbackPreferencesStore::readUpdateCheckMode,
             workManager = WorkManager.getInstance(applicationContext),
         )
     }
