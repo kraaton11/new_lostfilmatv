@@ -5,7 +5,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from auth_bridge.middleware.rate_limit import RateLimitExceeded, SlidingWindowRateLimiter
+from auth_bridge.middleware.rate_limit import (
+    RateLimitExceeded,
+    SlidingWindowRateLimiter,
+    build_phone_flow_rate_limit_keys,
+    extract_client_ip,
+)
 
 
 class SlidingWindowRateLimiterTest(unittest.TestCase):
@@ -56,6 +61,65 @@ class SlidingWindowRateLimiterTest(unittest.TestCase):
         limiter.check("key-a")  # Should not raise
 
 
+class PhoneFlowRateLimitKeyTest(unittest.TestCase):
+    def test_extract_client_ip_prefers_first_forwarded_for_ip(self) -> None:
+        client_ip = extract_client_ip(
+            headers={"X-Forwarded-For": "203.0.113.7, 10.0.0.5"},
+            client_host="10.0.0.1",
+        )
+
+        self.assertEqual(client_ip, "203.0.113.7")
+
+    def test_extract_client_ip_falls_back_to_connected_client(self) -> None:
+        client_ip = extract_client_ip(
+            headers={"X-Forwarded-For": "not-an-ip"},
+            client_host="198.51.100.24",
+        )
+
+        self.assertEqual(client_ip, "198.51.100.24")
+
+    def test_build_phone_flow_rate_limit_keys_include_ip_verifier_and_username_dimensions(self) -> None:
+        keys = build_phone_flow_rate_limit_keys(
+            client_ip="203.0.113.7",
+            phone_verifier="verifier-1",
+            username=" Demo@Example.COM ",
+        )
+
+        self.assertEqual(len(keys), 3)
+        self.assertEqual(
+            keys,
+            build_phone_flow_rate_limit_keys(
+                client_ip="203.0.113.7",
+                phone_verifier="verifier-1",
+                username="demo@example.com",
+            ),
+        )
+        self.assertNotEqual(
+            keys,
+            build_phone_flow_rate_limit_keys(
+                client_ip="198.51.100.24",
+                phone_verifier="verifier-1",
+                username="demo@example.com",
+            ),
+        )
+        self.assertNotEqual(
+            keys,
+            build_phone_flow_rate_limit_keys(
+                client_ip="203.0.113.7",
+                phone_verifier="verifier-2",
+                username="demo@example.com",
+            ),
+        )
+        self.assertNotEqual(
+            keys,
+            build_phone_flow_rate_limit_keys(
+                client_ip="203.0.113.7",
+                phone_verifier="verifier-1",
+                username="other@example.com",
+            ),
+        )
+
+
 class RateLimiterIntegrationTest(unittest.TestCase):
     """Verify that the phone-flow endpoints honour rate limits end-to-end."""
 
@@ -95,6 +159,47 @@ class RateLimiterIntegrationTest(unittest.TestCase):
         self.assertNotEqual(r2.status_code, 429)
         self.assertEqual(r3.status_code, 429)
         self.assertIn("Too many", r3.text)
+
+    def test_rate_limit_blocks_new_pairing_sessions_for_same_client_identity(self) -> None:
+        pairing_a = self.client.post("/api/pairings").json()
+        pairing_b = self.client.post("/api/pairings").json()
+        pairing_c = self.client.post("/api/pairings").json()
+        headers = {"X-Forwarded-For": "203.0.113.7"}
+        form_data = {"username": "demo@example.com", "password": "p"}
+
+        r1 = self.client.post(f"/pair/{pairing_a['phoneVerifier']}/login", headers=headers, data=form_data)
+        r2 = self.client.post(f"/pair/{pairing_b['phoneVerifier']}/login", headers=headers, data=form_data)
+        r3 = self.client.post(f"/pair/{pairing_c['phoneVerifier']}/login", headers=headers, data=form_data)
+
+        self.assertNotEqual(r1.status_code, 429)
+        self.assertNotEqual(r2.status_code, 429)
+        self.assertEqual(r3.status_code, 429)
+
+    def test_rate_limit_keeps_different_forwarded_clients_in_separate_buckets(self) -> None:
+        pairing_a = self.client.post("/api/pairings").json()
+        pairing_b = self.client.post("/api/pairings").json()
+        pairing_c = self.client.post("/api/pairings").json()
+        form_data = {"username": "demo@example.com", "password": "p"}
+
+        r1 = self.client.post(
+            f"/pair/{pairing_a['phoneVerifier']}/login",
+            headers={"X-Forwarded-For": "203.0.113.7"},
+            data=form_data,
+        )
+        r2 = self.client.post(
+            f"/pair/{pairing_b['phoneVerifier']}/login",
+            headers={"X-Forwarded-For": "203.0.113.7"},
+            data=form_data,
+        )
+        r3 = self.client.post(
+            f"/pair/{pairing_c['phoneVerifier']}/login",
+            headers={"X-Forwarded-For": "198.51.100.24"},
+            data=form_data,
+        )
+
+        self.assertNotEqual(r1.status_code, 429)
+        self.assertNotEqual(r2.status_code, 429)
+        self.assertNotEqual(r3.status_code, 429)
 
 
 class _AlwaysFailsClient:

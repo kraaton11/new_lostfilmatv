@@ -7,7 +7,13 @@ from fastapi.responses import HTMLResponse, Response
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from starlette.concurrency import run_in_threadpool
 
-from auth_bridge.middleware.rate_limit import RateLimitExceeded, SlidingWindowRateLimiter
+from auth_bridge.logging_utils import mask_token
+from auth_bridge.middleware.rate_limit import (
+    RateLimitExceeded,
+    SlidingWindowRateLimiter,
+    build_phone_flow_rate_limit_keys,
+    extract_client_ip,
+)
 from auth_bridge.services.lostfilm_login_client import LostFilmLoginError, LostFilmLoginStep
 from auth_bridge.services.pairing_service import PairingExpiredError, PairingNotFoundError, PairingService
 from auth_bridge.schemas.session_payload import SessionPayload
@@ -55,14 +61,13 @@ def attach_phone_flow_router(
 
     @router.post("/pair/{phone_verifier}/login", response_class=HTMLResponse)
     async def submit_login(phone_verifier: str, request: Request) -> HTMLResponse:
-        try:
-            _get_login_rate_limiter(app, login_rate_limiter).check(phone_verifier)
-        except RateLimitExceeded:
-            return _render_error_response("Too many login attempts. Please try again later.", status.HTTP_429_TOO_MANY_REQUESTS)
-
         form_fields = await _parse_form_body(request)
         username = form_fields.get("username", "")
         password = form_fields.get("password", "")
+        try:
+            _check_phone_flow_rate_limit(app, login_rate_limiter, request, phone_verifier, username)
+        except RateLimitExceeded:
+            return _render_error_response("Too many login attempts. Please try again later.", status.HTTP_429_TOO_MANY_REQUESTS)
         try:
             result = await run_in_threadpool(
                 pairing_service.submit_phone_login,
@@ -78,20 +83,23 @@ def attach_phone_flow_router(
         except PairingExpiredError:
             return HTMLResponse(_render_template("expired.html", user_code=""), status_code=410)
         except LostFilmLoginError as exc:
-            logger.warning("LostFilm login error for phone_verifier=%s: %s", phone_verifier, exc)
+            logger.warning(
+                "LostFilm login error for phone_verifier=%s: %s",
+                mask_token(phone_verifier),
+                exc,
+            )
             return _render_login_error(phone_verifier, str(exc), pairing_service)
 
     @router.post("/pair/{phone_verifier}/challenge", response_class=HTMLResponse)
     async def submit_challenge(phone_verifier: str, request: Request) -> HTMLResponse:
-        try:
-            _get_login_rate_limiter(app, login_rate_limiter).check(phone_verifier)
-        except RateLimitExceeded:
-            return _render_error_response("Too many attempts. Please try again later.", status.HTTP_429_TOO_MANY_REQUESTS)
-
         form_fields = await _parse_form_body(request)
         username = form_fields.get("username", "")
         password = form_fields.get("password", "")
         captcha_code = form_fields.get("captcha_code", "")
+        try:
+            _check_phone_flow_rate_limit(app, login_rate_limiter, request, phone_verifier, username)
+        except RateLimitExceeded:
+            return _render_error_response("Too many attempts. Please try again later.", status.HTTP_429_TOO_MANY_REQUESTS)
         try:
             result = await run_in_threadpool(
                 pairing_service.complete_phone_challenge,
@@ -107,7 +115,11 @@ def attach_phone_flow_router(
         except PairingExpiredError:
             return HTMLResponse(_render_template("expired.html", user_code=""), status_code=410)
         except LostFilmLoginError as exc:
-            logger.warning("LostFilm challenge error for phone_verifier=%s: %s", phone_verifier, exc)
+            logger.warning(
+                "LostFilm challenge error for phone_verifier=%s: %s",
+                mask_token(phone_verifier),
+                exc,
+            )
             return _render_challenge_error(phone_verifier, str(exc), pairing_service)
 
     @router.get("/pair/{phone_verifier}/captcha")
@@ -245,6 +257,26 @@ def _get_login_rate_limiter(app, default_limiter: SlidingWindowRateLimiter) -> S
     return getattr(app.state, "login_rate_limiter", default_limiter)
 
 
+def _check_phone_flow_rate_limit(
+    app,
+    default_limiter: SlidingWindowRateLimiter,
+    request: Request,
+    phone_verifier: str,
+    username: str,
+) -> None:
+    limiter = _get_login_rate_limiter(app, default_limiter)
+    client_ip = extract_client_ip(
+        headers=request.headers,
+        client_host=request.client.host if request.client is not None else None,
+    )
+    limiter.check_many(
+        build_phone_flow_rate_limit_keys(
+            client_ip=client_ip,
+            phone_verifier=phone_verifier,
+            username=username,
+        )
+    )
+
+
 def _render_error_response(message: str, status_code: int) -> HTMLResponse:
     return HTMLResponse(_render_template("error.html", message=message, retry_url=""), status_code=status_code)
-

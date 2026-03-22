@@ -6,6 +6,7 @@ from fastapi.responses import HTMLResponse, Response
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from starlette.concurrency import run_in_threadpool
 
+from auth_bridge.logging_utils import mask_token
 from auth_bridge.services.pairing_service import PairingExpiredError, PairingNotFoundError, PairingService
 
 logger = logging.getLogger(__name__)
@@ -22,14 +23,14 @@ def attach_wildcard_proxy_router(app, pairing_service: PairingService) -> None:
     @router.get("/", response_class=HTMLResponse)
     async def wildcard_entry(request: Request) -> Response:
         try:
-            pairing = pairing_service.open_phone_flow_for_host(request.headers.get("host", ""))
+            pairing, wildcard_host = _open_phone_flow_for_request(pairing_service, request)
         except PairingNotFoundError:
             return HTMLResponse("Pairing session was not found.", status_code=status.HTTP_404_NOT_FOUND)
         except PairingExpiredError:
             return HTMLResponse("Pairing expired.", status_code=status.HTTP_410_GONE)
 
         if pairing.session_payload is None and app.state.proxy_session_store.get(pairing.pairing_id) is not None:
-            return await _proxy_request(app, pairing_service, pairing, request, "/")
+            return await _proxy_request(app, pairing_service, pairing, request, "/", wildcard_host)
 
         return HTMLResponse(
             _render_template(
@@ -45,22 +46,28 @@ def attach_wildcard_proxy_router(app, pairing_service: PairingService) -> None:
             return wildcard_entry(request)
 
         try:
-            pairing = pairing_service.open_phone_flow_for_host(request.headers.get("host", ""))
+            pairing, wildcard_host = _open_phone_flow_for_request(pairing_service, request)
         except PairingNotFoundError:
             return HTMLResponse("Pairing session was not found.", status_code=status.HTTP_404_NOT_FOUND)
         except PairingExpiredError:
             return HTMLResponse("Pairing expired.", status_code=status.HTTP_410_GONE)
 
-        return await _proxy_request(app, pairing_service, pairing, request, f"/{proxy_path}")
+        return await _proxy_request(app, pairing_service, pairing, request, f"/{proxy_path}", wildcard_host)
 
     app.include_router(router)
 
 
-async def _proxy_request(app, pairing_service: PairingService, pairing, request: Request, path: str) -> Response:
+def _open_phone_flow_for_request(pairing_service: PairingService, request: Request):
+    wildcard_host = pairing_service.normalize_wildcard_host(request.headers.get("host", ""))
+    pairing = pairing_service.open_phone_flow_for_host(wildcard_host)
+    return pairing, wildcard_host
+
+
+async def _proxy_request(app, pairing_service: PairingService, pairing, request: Request, path: str, wildcard_host: str) -> Response:
     proxied_response = await run_in_threadpool(
         app.state.lostfilm_proxy_service.proxy,
         pairing.pairing_id,
-        request.headers.get("host", "").split(":", 1)[0].strip(),
+        wildcard_host,
         request.method,
         path,
         request.url.query,
@@ -79,7 +86,7 @@ async def _proxy_request(app, pairing_service: PairingService, pairing, request:
         )
         logger.debug(
             "Auth detector pairing_id=%s path=%s authenticated=%s login_succeeded=%s cookie_names=%s",
-            pairing.pairing_id,
+            mask_token(pairing.pairing_id),
             path,
             is_authenticated,
             proxy_state.login_succeeded if proxy_state is not None else False,

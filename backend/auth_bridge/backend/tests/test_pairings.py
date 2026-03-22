@@ -134,7 +134,7 @@ class PairingsApiTest(unittest.TestCase):
             f"/api/pairings/{pairing['pairingId']}/claim",
             headers={"X-Pairing-Secret": pairing["pairingSecret"]},
         )
-        record = app.state.pairing_service._store.get(pairing["pairingId"])
+        record = app.state.pairing_service.get_pairing(pairing["pairingId"])
         record.claim_lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
 
         status_response = self.client.get(
@@ -165,7 +165,7 @@ class PairingsApiTest(unittest.TestCase):
             f"/api/pairings/{pairing['pairingId']}/claim",
             headers={"X-Pairing-Secret": pairing["pairingSecret"]},
         )
-        record = app.state.pairing_service._store.get(pairing["pairingId"])
+        record = app.state.pairing_service.get_pairing(pairing["pairingId"])
         record.claim_lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
 
         expired_claim = self.client.post(
@@ -195,7 +195,7 @@ class PairingsApiTest(unittest.TestCase):
             f"/api/pairings/{pairing['pairingId']}/claim",
             headers={"X-Pairing-Secret": pairing["pairingSecret"]},
         )
-        record = app.state.pairing_service._store.get(pairing["pairingId"])
+        record = app.state.pairing_service.get_pairing(pairing["pairingId"])
         record.claim_lease_expires_at = datetime.now(UTC) - timedelta(seconds=1)
 
         expired_finalize = self.client.post(

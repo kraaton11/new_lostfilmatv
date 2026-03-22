@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 
 import httpx
 
+from auth_bridge.logging_utils import mask_token
 from auth_bridge.services.proxy_session_store import ProxySessionStore
 
 logger = logging.getLogger(__name__)
@@ -83,7 +84,7 @@ class LostFilmProxyService:
             if path in {"/", "/ajaxik.users.php", "/my"}:
                 logger.debug(
                     "Proxy result pairing_id=%s path=%s status=%s content_type=%s location=%s login_succeeded=%s upstream_cookies=%s session_cookies=%s",
-                    pairing_id,
+                    mask_token(pairing_id),
                     path,
                     upstream_response.status_code,
                     upstream_response.headers.get("content-type"),
