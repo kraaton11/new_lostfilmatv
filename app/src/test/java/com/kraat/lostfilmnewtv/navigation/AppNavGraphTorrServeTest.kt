@@ -271,14 +271,13 @@ class AppNavGraphTorrServeTest {
             }
         }
 
-        composeRule.waitForText("Новые релизы")
-        composeRule.onNodeWithText("Настройки")
-            .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.openSettingsSection(
+            sectionTag = "settings-section-quality",
+            readyText = "Качество по умолчанию",
+        )
 
-        composeRule.waitForText("Обновления")
-        composeRule.onNodeWithTag("settings-section-updates").assertIsSelected()
-        assertEquals(1, composeRule.onAllNodesWithText("Проверить обновления").fetchSemanticsNodes().size)
-        composeRule.onNodeWithTag("settings-update-mode-manual").assertIsSelected()
+        composeRule.onNodeWithTag("settings-section-quality").assertIsSelected()
+        composeRule.onNodeWithTag("settings-quality-1080").assertIsSelected()
     }
 
     @Test
@@ -413,10 +412,10 @@ class AppNavGraphTorrServeTest {
             }
         }
 
-        composeRule.waitForText("Новые релизы")
-        composeRule.onNodeWithText("Настройки")
-            .performSemanticsAction(SemanticsActions.OnClick)
-        composeRule.waitForText("Обновления")
+        composeRule.openSettingsSection(
+            sectionTag = "settings-section-updates",
+            readyText = "Проверить обновления",
+        )
         composeRule.onNodeWithText("Проверить обновления")
             .performSemanticsAction(SemanticsActions.OnClick)
 
@@ -456,10 +455,10 @@ class AppNavGraphTorrServeTest {
             }
         }
 
-        composeRule.waitForText("Новые релизы")
-        composeRule.onNodeWithText("Настройки")
-            .performSemanticsAction(SemanticsActions.OnClick)
-        composeRule.waitForText("Обновления")
+        composeRule.openSettingsSection(
+            sectionTag = "settings-section-updates",
+            readyText = "Проверить обновления",
+        )
         composeRule.onNodeWithText("Проверить обновления")
             .performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitForText("Скачать и установить")
@@ -492,10 +491,10 @@ class AppNavGraphTorrServeTest {
             }
         }
 
-        composeRule.waitForText("Новые релизы")
-        composeRule.onNodeWithText("Настройки")
-            .performSemanticsAction(SemanticsActions.OnClick)
-        composeRule.waitForText("Обновления")
+        composeRule.openSettingsSection(
+            sectionTag = "settings-section-updates",
+            readyText = "Проверить обновления",
+        )
         composeRule.onNodeWithTag("settings-update-mode-quiet")
             .performSemanticsAction(SemanticsActions.OnClick)
 
@@ -508,10 +507,10 @@ class AppNavGraphTorrServeTest {
             graphInstance += 1
         }
 
-        composeRule.waitForText("Новые релизы")
-        composeRule.onNodeWithText("Настройки")
-            .performSemanticsAction(SemanticsActions.OnClick)
-        composeRule.waitForText("Обновления")
+        composeRule.openSettingsSection(
+            sectionTag = "settings-section-updates",
+            readyText = "Проверить обновления",
+        )
         composeRule.onNodeWithTag("settings-update-mode-quiet").assertIsSelected()
         composeRule.waitForText("Последняя версия: 0.2.0")
     }
@@ -571,6 +570,18 @@ private fun ComposeContentTestRule.waitForText(text: String) {
     waitUntil(timeoutMillis = 5_000) {
         onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
     }
+}
+
+private fun ComposeContentTestRule.openSettingsSection(
+    sectionTag: String,
+    readyText: String,
+) {
+    waitForText("Новые релизы")
+    onNodeWithText("Настройки")
+        .performSemanticsAction(SemanticsActions.OnClick)
+    onNodeWithTag(sectionTag)
+        .performSemanticsAction(SemanticsActions.OnClick)
+    waitForText(readyText)
 }
 
 private fun ComposeContentTestRule.clickExistingTorrServeButton(
