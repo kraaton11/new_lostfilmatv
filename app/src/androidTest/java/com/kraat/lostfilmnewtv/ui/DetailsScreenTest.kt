@@ -152,6 +152,22 @@ class DetailsScreenTest {
     }
 
     @Test
+    fun detailsScreen_unavailableStatus_keepsBottomInsetInsideStage() {
+        composeRule.setDetailsContent(
+            state = DetailsUiState(details = seriesDetails().copy(torrentLinks = emptyList())),
+            availableTorrentRowsCount = 0,
+            playbackRow = null,
+        )
+
+        composeRule.waitForIdle()
+
+        val stageBounds = composeRule.onNodeWithTag("details-bottom-stage").fetchSemanticsNode().boundsInRoot
+        val statusBounds = composeRule.onNodeWithText("Видео недоступно").fetchSemanticsNode().boundsInRoot
+
+        assertTrue("stageBounds=$stageBounds statusBounds=$statusBounds", stageBounds.bottom - statusBounds.bottom > 18f)
+    }
+
+    @Test
     fun detailsScreen_directionalInput_keepsFocusOnPrimaryWatchAction() {
         val playbackRow = row("preferred", "1080p", "https://example.com/1080.torrent", true)
 
