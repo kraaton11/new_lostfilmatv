@@ -101,7 +101,7 @@ class DetailsScreenStateTest {
         }
 
         assertEquals(1, composeRule.onAllNodesWithTag("details-stale-banner").fetchSemanticsNodes().size)
-        assertEquals(1, composeRule.onAllNodesWithText("Показаны сохранённые данные").fetchSemanticsNodes().size)
+        assertEquals(1, composeRule.onAllNodesWithText("Данные показаны из кэша и могут быть устаревшими").fetchSemanticsNodes().size)
         assertEquals(1, composeRule.onAllNodesWithText("9-1-1").fetchSemanticsNodes().size)
     }
 
@@ -139,6 +139,62 @@ class DetailsScreenStateTest {
         }
 
         composeRule.onNodeWithTag("torrent-torrserve-row-0").assertIsFocused()
+    }
+
+    @Test
+    fun detailsScreen_rendersBottomStage_withStatusAndSupportLines() {
+        composeRule.setContent {
+            LostFilmTheme {
+                DetailsScreen(
+                    state = DetailsUiState(
+                        details = seriesDetails(),
+                    ),
+                    isAuthenticated = true,
+                    availableTorrentRowsCount = 1,
+                    playbackRow = DetailsTorrentRowUiModel(
+                        rowId = "row-0",
+                        label = "1080p",
+                        url = "https://example.com/1080",
+                        isTorrServeSupported = true,
+                    ),
+                    torrServeMessage = null,
+                    activeTorrServeRowId = null,
+                    isTorrServeBusy = false,
+                    onRetry = {},
+                    onOpenTorrServe = { _, _ -> },
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("details-bottom-stage").assertExists()
+        composeRule.onNodeWithTag("details-hero-meta").assertExists()
+        assertEquals(1, composeRule.onAllNodesWithText("14 марта 2026").fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun detailsScreen_errorState_usesRetryPanelAndHidesHeroContent() {
+        composeRule.setContent {
+            LostFilmTheme {
+                DetailsScreen(
+                    state = DetailsUiState(
+                        errorMessage = "boom",
+                    ),
+                    isAuthenticated = true,
+                    availableTorrentRowsCount = 0,
+                    playbackRow = null,
+                    torrServeMessage = null,
+                    activeTorrServeRowId = null,
+                    isTorrServeBusy = false,
+                    onRetry = {},
+                    onOpenTorrServe = { _, _ -> },
+                )
+            }
+        }
+
+        assertEquals(0, composeRule.onAllNodesWithTag("details-bottom-stage").fetchSemanticsNodes().size)
+        assertEquals(1, composeRule.onAllNodesWithText("boom").fetchSemanticsNodes().size)
+        assertEquals(1, composeRule.onAllNodesWithText("Повторить").fetchSemanticsNodes().size)
+        assertEquals(0, composeRule.onAllNodesWithText("9-1-1").fetchSemanticsNodes().size)
     }
 }
 

@@ -11,16 +11,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -37,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
@@ -54,11 +53,11 @@ import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
 import com.kraat.lostfilmnewtv.ui.theme.DetailsAccentBlue
 import com.kraat.lostfilmnewtv.ui.theme.DetailsAccentGold
 import com.kraat.lostfilmnewtv.ui.theme.DetailsAccentGoldFocus
+import com.kraat.lostfilmnewtv.ui.theme.DetailsBackgroundMid
+import com.kraat.lostfilmnewtv.ui.theme.DetailsBackgroundTop
 import com.kraat.lostfilmnewtv.ui.theme.DetailsBorderDefault
-import com.kraat.lostfilmnewtv.ui.theme.DetailsStatusError
 import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceCard
 import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceFocused
-import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceReadable
 import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceSoft
 import com.kraat.lostfilmnewtv.ui.theme.DetailsTextMuted
 import com.kraat.lostfilmnewtv.ui.theme.DetailsTextSecondary
@@ -125,13 +124,15 @@ private fun LoadingState() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(BackgroundPrimary),
+            .background(detailsBackgroundBrush()),
         contentAlignment = Alignment.Center,
     ) {
-        CircularProgressIndicator(
-            modifier = Modifier.testTag("details-loading"),
-            color = DetailsAccentGold,
-        )
+        DetailsCenteredStatePanel {
+            CircularProgressIndicator(
+                modifier = Modifier.testTag("details-loading"),
+                color = DetailsAccentGold,
+            )
+        }
     }
 }
 
@@ -140,17 +141,14 @@ private fun ErrorState(message: String, onRetry: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(BackgroundPrimary),
+            .background(detailsBackgroundBrush()),
         contentAlignment = Alignment.Center,
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(20.dp),
-        ) {
+        DetailsCenteredStatePanel {
             Text(text = message, color = DetailsTextSecondary, fontSize = 18.sp)
             StageButton(
                 label = "Повторить",
-                subtitle = "Перезагрузить details",
+                subtitle = "Повторить загрузку",
                 onClick = onRetry,
                 modifier = Modifier,
                 isPrimary = true,
@@ -180,50 +178,40 @@ private fun ContentState(
         isTorrServeBusy = isTorrServeBusy,
         torrServeMessageText = torrServeMessage?.takeIf { it.rowId == playbackRow?.rowId }?.text,
     )
-    val scrollState = rememberScrollState()
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    0f to Color(0xFF102434),
-                    0.35f to Color(0xFF08131D),
-                    1f to BackgroundPrimary,
-                ),
-            )
-            .verticalScroll(scrollState),
+            .background(detailsBackgroundBrush()),
     ) {
-        Box(
+        BackgroundPoster(details = details)
+        AmbientGlow()
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(620.dp),
+                .fillMaxSize()
+                .padding(start = 48.dp, top = 24.dp, end = 48.dp, bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            BackgroundPoster(details = details)
-            AmbientGlow()
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(start = 72.dp, top = 48.dp, end = 72.dp, bottom = 56.dp),
-                verticalArrangement = Arrangement.spacedBy(20.dp),
-            ) {
-                if (state.showStaleBanner) {
-                    InfoBanner(
-                        text = "Показаны сохранённые данные",
-                        modifier = Modifier
-                            .width(420.dp)
-                            .testTag("details-stale-banner"),
-                    )
-                }
-                HeroStage(
-                    details = details,
-                    stageUi = stageUi,
-                    onOpenTorrServe = {
-                        val row = playbackRow ?: return@HeroStage
-                        onOpenTorrServe(row.rowId, row.url)
-                    },
+            if (state.showStaleBanner) {
+                DetailsStatusPanel(
+                    text = "Данные показаны из кэша и могут быть устаревшими",
+                    modifier = Modifier.testTag("details-stale-banner"),
                 )
             }
+
+            HeroStage(
+                details = details,
+                stageUi = stageUi,
+                onOpenTorrServe = {
+                    val row = playbackRow ?: return@HeroStage
+                    onOpenTorrServe(row.rowId, row.url)
+                },
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            DetailsBottomStage(
+                statusLine = stageUi.bottomStageStatusLine,
+                supportLine = stageUi.bottomStageSupportLine,
+            )
         }
     }
 }
@@ -247,7 +235,7 @@ private fun BackgroundPoster(details: ReleaseDetails?) {
                 .background(
                     Brush.verticalGradient(
                         0f to Color.Transparent,
-                        0.36f to Color(0x8808131D),
+                        0.36f to DetailsBackgroundMid.copy(alpha = 0.7f),
                         1f to BackgroundPrimary,
                     ),
                 ),
@@ -306,7 +294,7 @@ private fun HeroStage(
         PosterCard(details = details)
         Column(
             modifier = Modifier.width(520.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             Text(
                 text = stageUi.title.ifBlank { "Details" },
@@ -324,6 +312,16 @@ private fun HeroStage(
                     lineHeight = 28.sp,
                 )
             }
+            if (stageUi.heroMetaLine.isNotBlank()) {
+                Text(
+                    text = stageUi.heroMetaLine,
+                    modifier = Modifier.testTag("details-hero-meta"),
+                    color = DetailsTextSecondary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    lineHeight = 20.sp,
+                )
+            }
             StageButton(
                 label = stageUi.primaryAction.label,
                 subtitle = stageUi.primaryAction.subtitle,
@@ -331,43 +329,16 @@ private fun HeroStage(
                 modifier = Modifier
                     .width(248.dp)
                     .focusRequester(primaryActionRequester)
+                    .focusProperties {
+                        up = primaryActionRequester
+                        left = primaryActionRequester
+                        right = primaryActionRequester
+                    }
                     .testTag(primaryActionTag(stageUi.primaryAction)),
                 isPrimary = true,
                 enabled = stageUi.primaryAction.enabled,
             )
-            BottomInfoStrip(
-                text = stageUi.bottomInfoLine,
-                modifier = Modifier
-                    .width(368.dp)
-                    .testTag("details-bottom-info"),
-            )
         }
-    }
-}
-
-@Composable
-private fun InfoBanner(
-    text: String,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(24.dp))
-            .background(DetailsSurfaceReadable)
-            .border(
-                width = 1.5.dp,
-                color = DetailsAccentBlue.copy(alpha = 0.42f),
-                shape = RoundedCornerShape(24.dp),
-            )
-            .padding(horizontal = 22.dp, vertical = 18.dp),
-    ) {
-        Text(
-            text = text,
-            color = TextPrimary,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.SemiBold,
-            lineHeight = 24.sp,
-        )
     }
 }
 
@@ -404,35 +375,6 @@ private fun PosterCard(details: ReleaseDetails?) {
                         1f to Color(0xAA040A10),
                     ),
                 ),
-        )
-    }
-}
-
-@Composable
-private fun BottomInfoStrip(
-    text: String,
-    modifier: Modifier = Modifier,
-) {
-    if (text.isBlank()) return
-
-    val isError = text.contains("Не удалось")
-    Box(
-        modifier = modifier
-            .clip(RoundedCornerShape(24.dp))
-            .background(if (isError) Color(0xCC2A0E10) else DetailsSurfaceReadable)
-            .border(
-                width = 1.5.dp,
-                color = if (isError) DetailsStatusError else DetailsAccentBlue.copy(alpha = 0.42f),
-                shape = RoundedCornerShape(24.dp),
-            )
-            .padding(horizontal = 22.dp, vertical = 18.dp),
-    ) {
-        Text(
-            text = text,
-            color = if (isError) Color(0xFFFFC1B8) else TextPrimary,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.SemiBold,
-            lineHeight = 24.sp,
         )
     }
 }
@@ -507,6 +449,14 @@ private fun StageButton(
             )
         }
     }
+}
+
+private fun detailsBackgroundBrush(): Brush {
+    return Brush.verticalGradient(
+        0f to DetailsBackgroundTop,
+        0.35f to DetailsBackgroundMid,
+        1f to BackgroundPrimary,
+    )
 }
 
 private fun primaryActionTag(action: DetailsStageActionUiModel): String {

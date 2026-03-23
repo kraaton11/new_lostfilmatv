@@ -65,11 +65,13 @@ class DetailsStageModelsTest {
         )
 
         assertEquals("The Engineer", ui.heroEpisodeTitle)
-        assertEquals("Сезон 1 • Серия 5 • 1080p", ui.bottomInfoLine)
+        assertEquals("Сезон 1 • Серия 5", ui.heroMetaLine)
+        assertEquals("1080p • TorrServe", ui.bottomStageStatusLine)
+        assertEquals("21 марта 2026", ui.bottomStageSupportLine)
     }
 
     @Test
-    fun buildStageUi_usesMovieMetaInBottomStrip_withoutReleaseDate() {
+    fun buildStageUi_usesMovieMetaInHero_andReleaseDateInBottomStageSupport() {
         val ui = buildDetailsStageUi(
             state = DetailsUiState(
                 details = movieDetails(),
@@ -87,7 +89,9 @@ class DetailsStageModelsTest {
         )
 
         assertEquals("", ui.heroEpisodeTitle)
-        assertEquals("Фильм • 1080p", ui.bottomInfoLine)
+        assertEquals("Фильм", ui.heroMetaLine)
+        assertEquals("1080p • TorrServe", ui.bottomStageStatusLine)
+        assertEquals("21 марта 2026", ui.bottomStageSupportLine)
     }
 
     @Test
@@ -110,7 +114,9 @@ class DetailsStageModelsTest {
             torrServeMessageText = "Не удалось открыть TorrServe",
         )
 
-        assertEquals("Не удалось открыть TorrServe", ui.bottomInfoLine)
+        assertEquals("Dune", ui.title)
+        assertEquals("Не удалось открыть TorrServe", ui.bottomStageStatusLine)
+        assertEquals("21 марта 2026", ui.bottomStageSupportLine)
     }
 
     @Test
@@ -125,7 +131,9 @@ class DetailsStageModelsTest {
         )
 
         assertEquals(false, ui.primaryAction.enabled)
-        assertEquals("Открывается...", ui.bottomInfoLine)
+        assertEquals("Сезон 1 • Серия 5", ui.heroMetaLine)
+        assertEquals("Открывается...", ui.bottomStageStatusLine)
+        assertEquals("21 марта 2026", ui.bottomStageSupportLine)
         assertEquals(emptyList<DetailsStageActionUiModel>(), ui.secondaryActions)
     }
 
@@ -144,7 +152,30 @@ class DetailsStageModelsTest {
         assertEquals(DetailsStageActionType.NONE, ui.primaryAction.actionType)
         assertEquals(false, ui.primaryAction.enabled)
         assertEquals("Смотреть", ui.primaryAction.label)
-        assertEquals("Видео недоступно", ui.bottomInfoLine)
+        assertEquals("Сезон 1 • Серия 5", ui.heroMetaLine)
+        assertEquals("Видео недоступно", ui.bottomStageStatusLine)
+        assertEquals("21 марта 2026", ui.bottomStageSupportLine)
+    }
+
+    @Test
+    fun buildStageUi_splits_series_meta_from_bottom_stage_status() {
+        val ui = buildDetailsStageUi(
+            state = DetailsUiState(details = seriesDetails()),
+            isAuthenticated = true,
+            availableTorrentRowsCount = 1,
+            playbackRow = DetailsTorrentRowUiModel(
+                rowId = "row-0",
+                label = "1080p",
+                url = "https://example.com/1080",
+                isTorrServeSupported = true,
+            ),
+            activeTorrServeRowId = null,
+            isTorrServeBusy = false,
+        )
+
+        assertEquals("Сезон 1 • Серия 5", ui.heroMetaLine)
+        assertEquals("1080p • TorrServe", ui.bottomStageStatusLine)
+        assertEquals("21 марта 2026", ui.bottomStageSupportLine)
     }
 }
 

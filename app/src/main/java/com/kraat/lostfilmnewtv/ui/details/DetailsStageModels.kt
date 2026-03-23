@@ -7,10 +7,15 @@ data class DetailsStageUiModel(
     val activeRowId: String?,
     val title: String,
     val heroEpisodeTitle: String,
-    val bottomInfoLine: String,
+    val heroMetaLine: String,
+    val bottomStageStatusLine: String,
+    val bottomStageSupportLine: String,
     val primaryAction: DetailsStageActionUiModel,
     val secondaryActions: List<DetailsStageActionUiModel>,
-)
+) {
+    val bottomInfoLine: String
+        get() = bottomStageStatusLine
+}
 
 data class DetailsStageActionUiModel(
     val actionId: String,
@@ -45,18 +50,22 @@ fun buildDetailsStageUi(
             actionType = DetailsStageActionType.NONE,
             enabled = false,
         )
-    val bottomInfoLine = buildBottomInfoLine(
+    val heroMetaLine = buildHeroMetaLine(details = details)
+    val bottomStageStatusLine = buildBottomStageStatusLine(
         details = details,
         playbackRow = playbackRow,
         isBusy = isBusy,
         torrServeMessageText = torrServeMessageText,
     )
+    val bottomStageSupportLine = buildBottomStageSupportLine(details = details)
 
     return DetailsStageUiModel(
         activeRowId = playbackRow?.rowId,
         title = details?.titleRu ?: "",
         heroEpisodeTitle = buildHeroEpisodeTitle(details = details),
-        bottomInfoLine = bottomInfoLine,
+        heroMetaLine = heroMetaLine,
+        bottomStageStatusLine = bottomStageStatusLine,
+        bottomStageSupportLine = bottomStageSupportLine,
         primaryAction = primaryAction,
         secondaryActions = emptyList(),
     )
@@ -67,7 +76,23 @@ private fun buildHeroEpisodeTitle(details: ReleaseDetails?): String {
     return details.episodeTitleRu?.trim().orEmpty()
 }
 
-private fun buildBottomInfoLine(
+private fun buildHeroMetaLine(details: ReleaseDetails?): String {
+    return when (details?.kind) {
+        ReleaseKind.SERIES -> {
+            val season = details.seasonNumber
+            val episode = details.episodeNumber
+            if (season != null && episode != null) {
+                "Сезон $season • Серия $episode"
+            } else {
+                "Сериал"
+            }
+        }
+        ReleaseKind.MOVIE -> "Фильм"
+        null -> ""
+    }
+}
+
+private fun buildBottomStageStatusLine(
     details: ReleaseDetails?,
     playbackRow: DetailsTorrentRowUiModel?,
     isBusy: Boolean,
@@ -77,20 +102,11 @@ private fun buildBottomInfoLine(
     if (isBusy) return "Открывается..."
     if (playbackRow == null) return "Видео недоступно"
 
-    val quality = playbackRow.label
-    return when (details?.kind) {
-        ReleaseKind.SERIES -> {
-            val season = details.seasonNumber
-            val episode = details.episodeNumber
-            if (season != null && episode != null) {
-                "Сезон $season • Серия $episode • $quality"
-            } else {
-                quality
-            }
-        }
-        ReleaseKind.MOVIE -> "Фильм • $quality"
-        null -> quality
-    }
+    return "${playbackRow.label} • TorrServe"
+}
+
+private fun buildBottomStageSupportLine(details: ReleaseDetails?): String {
+    return details?.releaseDateRu?.trim().orEmpty()
 }
 
 private fun DetailsTorrentRowUiModel.toPrimaryAction(

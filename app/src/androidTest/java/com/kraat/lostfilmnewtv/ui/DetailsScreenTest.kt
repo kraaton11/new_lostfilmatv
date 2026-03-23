@@ -17,6 +17,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performSemanticsAction
@@ -46,25 +47,26 @@ class DetailsScreenTest {
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun seriesDetails_showCompactHeroMetaLine() {
+    fun seriesDetails_showSeparatedHeroMetaAndBottomStageContext() {
         composeRule.setDetailsContent(state = DetailsUiState(details = seriesDetails()))
 
         assertTrue(composeRule.onAllNodesWithText("9-1-1").fetchSemanticsNodes().isNotEmpty())
         assertTrue(composeRule.onAllNodesWithText("Маменькин сынок").fetchSemanticsNodes().isNotEmpty())
-        assertTrue(composeRule.onAllNodesWithText("14 марта 2026").fetchSemanticsNodes().isEmpty())
-        assertTrue(composeRule.onAllNodesWithText("TorrServe").fetchSemanticsNodes().isEmpty())
-        assertTrue(composeRule.onAllNodesWithText("Сезон 9 • Серия 13 • 1080p").fetchSemanticsNodes().isNotEmpty())
+        composeRule.onNodeWithTag("details-hero-meta").assertExists()
+        assertTrue(composeRule.onAllNodesWithText("Сезон 9 • Серия 13").fetchSemanticsNodes().isNotEmpty())
+        assertTrue(composeRule.onAllNodesWithText("1080p • TorrServe").fetchSemanticsNodes().isNotEmpty())
+        assertEquals(1, composeRule.onAllNodesWithText("14 марта 2026").fetchSemanticsNodes().size)
     }
 
     @Test
-    fun movieDetails_hideSeasonEpisode() {
+    fun movieDetails_showMovieMetaAndBottomStageSupport() {
         composeRule.setDetailsContent(state = DetailsUiState(details = movieDetails()))
 
         assertTrue(composeRule.onAllNodesWithText("Необратимость").fetchSemanticsNodes().isNotEmpty())
-        assertTrue(composeRule.onAllNodesWithText("Сезон 9 • Серия 13 • 1080p").fetchSemanticsNodes().isEmpty())
         assertTrue(composeRule.onAllNodesWithText("Маменькин сынок").fetchSemanticsNodes().isEmpty())
-        assertTrue(composeRule.onAllNodesWithText("13 марта 2026").fetchSemanticsNodes().isEmpty())
-        assertTrue(composeRule.onAllNodesWithText("Фильм • 1080p").fetchSemanticsNodes().isNotEmpty())
+        assertTrue(composeRule.onAllNodesWithText("Фильм").fetchSemanticsNodes().isNotEmpty())
+        assertTrue(composeRule.onAllNodesWithText("1080p • TorrServe").fetchSemanticsNodes().isNotEmpty())
+        assertEquals(1, composeRule.onAllNodesWithText("13 марта 2026").fetchSemanticsNodes().size)
     }
 
     @Test
@@ -77,9 +79,9 @@ class DetailsScreenTest {
             playbackRow = playbackRow,
         )
 
-        composeRule.onNodeWithText("Смотреть").assertExists()
         composeRule.onNodeWithTag(torrServeTag("preferred")).assertIsDisplayed()
-        composeRule.onNodeWithText("Сезон 9 • Серия 13 • 720p").assertExists()
+        composeRule.onNodeWithText("Сезон 9 • Серия 13").assertExists()
+        composeRule.onNodeWithText("720p • TorrServe").assertExists()
     }
 
     @Test
@@ -101,7 +103,7 @@ class DetailsScreenTest {
     }
 
     @Test
-    fun detailsScreen_placesBottomStripDirectlyBelowWatchButton() {
+    fun detailsScreen_placesBottomStageBelowHero_andAboveBottomEdge() {
         val playbackRow = row("preferred", "1080p", "https://example.com/1080.torrent", true)
 
         composeRule.setDetailsContent(
@@ -112,11 +114,12 @@ class DetailsScreenTest {
 
         composeRule.waitForIdle()
 
+        val rootBounds = composeRule.onRoot().fetchSemanticsNode().boundsInRoot
         val buttonBounds = composeRule.onNodeWithTag(torrServeTag("preferred")).fetchSemanticsNode().boundsInRoot
-        val stripBounds = composeRule.onNodeWithTag("details-bottom-info").fetchSemanticsNode().boundsInRoot
+        val stageBounds = composeRule.onNodeWithTag("details-bottom-stage").fetchSemanticsNode().boundsInRoot
 
-        assertTrue(stripBounds.top > buttonBounds.bottom)
-        assertTrue(stripBounds.top - buttonBounds.bottom < 96f)
+        assertTrue(stageBounds.top > buttonBounds.bottom)
+        assertTrue(stageBounds.bottom < rootBounds.bottom - 16f)
     }
 
     @Test
@@ -146,6 +149,27 @@ class DetailsScreenTest {
 
         composeRule.onNodeWithTag("details-primary-action").assertIsNotEnabled()
         composeRule.onNodeWithText("Видео недоступно").assertExists()
+    }
+
+    @Test
+    fun detailsScreen_directionalInput_keepsFocusOnPrimaryWatchAction() {
+        val playbackRow = row("preferred", "1080p", "https://example.com/1080.torrent", true)
+
+        composeRule.setDetailsContent(
+            state = DetailsUiState(details = detailsWithRows(listOf(playbackRow))),
+            availableTorrentRowsCount = 1,
+            playbackRow = playbackRow,
+        )
+
+        composeRule.onNodeWithTag(torrServeTag("preferred")).assertIsFocused()
+        composeRule.onNodeWithTag(torrServeTag("preferred")).performKeyInput {
+            keyDown(Key.DirectionUp)
+            keyUp(Key.DirectionUp)
+            keyDown(Key.DirectionLeft)
+            keyUp(Key.DirectionLeft)
+        }
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(torrServeTag("preferred")).assertIsFocused()
     }
 
     @Test
