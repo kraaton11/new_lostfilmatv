@@ -4,15 +4,11 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.onRoot
-import androidx.compose.ui.semantics.SemanticsActions
-import androidx.compose.ui.test.performSemanticsAction
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
 import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -24,7 +20,44 @@ class HomeScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun homeScreen_rendersSeasonEpisodeOverlayOnSeriesCard_withoutDuplicatingBottomPanelText() {
+    fun homeScreen_rendersUtilityActionsInTopHeader_withoutDetachedBottomFooter() {
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(
+                    state = seededState(),
+                    isAuthenticated = false,
+                    appVersionText = "0.1.0",
+                    savedAppUpdate = SavedAppUpdate(
+                        latestVersion = "0.2.0",
+                        apkUrl = "https://example.test/app.apk",
+                    ),
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("home-action-auth").assertExists()
+        composeRule.onNodeWithTag("home-action-settings").assertExists()
+        composeRule.onNodeWithTag("home-action-update").assertExists()
+        composeRule.onNodeWithTag("home-bottom-stage").assertExists()
+        composeRule.onNodeWithText("0.1.0").assertExists()
+    }
+
+    @Test
+    fun homeScreen_bottomStage_showsSelectedReleaseContext() {
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(state = seededState())
+            }
+        }
+
+        composeRule.onNodeWithTag("home-bottom-stage").assertExists()
+        composeRule.onNodeWithText("9-1-1").assertExists()
+        composeRule.onNodeWithText("Маменькин сынок").assertExists()
+        composeRule.onNodeWithText("14.03.2026").assertExists()
+    }
+
+    @Test
+    fun homeScreen_rendersSeasonEpisodeOverlayOnSeriesCard_withoutDuplicatingBottomStageText() {
         composeRule.setContent {
             LostFilmTheme {
                 HomeScreen(state = seededState())
@@ -50,54 +83,37 @@ class HomeScreenTest {
     }
 
     @Test
-    fun homeScreen_showsAppVersionInBottomRightCorner() {
-        composeRule.setContent {
-            LostFilmTheme {
-                HomeScreen(appVersionText = "0.1.0")
-            }
-        }
-
-        assertEquals(1, composeRule.onAllNodesWithText("0.1.0").fetchSemanticsNodes().size)
-
-        val rootBounds = composeRule.onRoot().fetchSemanticsNode().boundsInRoot
-        val versionBounds = composeRule.onNodeWithText("0.1.0").fetchSemanticsNode().boundsInRoot
-
-        assertTrue(versionBounds.right >= rootBounds.right * 0.85f)
-        assertTrue(versionBounds.bottom > rootBounds.bottom * 0.85f)
-    }
-
-    @Test
-    fun homeScreen_showsUpdateButtonNextToAppVersion_andInvokesCallback() {
-        var installClicks = 0
-
+    fun homeScreen_withPagingError_keepsRailVisible_andShowsInlineStatusPanel() {
         composeRule.setContent {
             LostFilmTheme {
                 HomeScreen(
-                    appVersionText = "0.1.0",
-                    savedAppUpdate = SavedAppUpdate(
-                        latestVersion = "0.2.0",
-                        apkUrl = "https://example.test/app.apk",
+                    state = seededState().copy(
+                        pagingErrorMessage = "Не удалось догрузить страницу",
                     ),
-                    onInstallUpdateClick = { installClicks += 1 },
                 )
             }
         }
 
-        assertEquals(1, composeRule.onAllNodesWithText("Обновить").fetchSemanticsNodes().size)
-        assertEquals(1, composeRule.onAllNodesWithText("0.1.0").fetchSemanticsNodes().size)
+        composeRule.onNodeWithTag(posterTag(firstDetailsUrl)).assertExists()
+        composeRule.onNodeWithTag("home-paging-status").assertExists()
+        composeRule.onNodeWithText("Не удалось догрузить страницу").assertExists()
+    }
 
-        val rootBounds = composeRule.onRoot().fetchSemanticsNode().boundsInRoot
-        val buttonBounds = composeRule.onNodeWithText("Обновить").fetchSemanticsNode().boundsInRoot
-        val versionBounds = composeRule.onNodeWithText("0.1.0").fetchSemanticsNode().boundsInRoot
+    @Test
+    fun homeScreen_withStaleData_showsInlineStaleStatusPanel() {
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(
+                    state = seededState().copy(
+                        showStaleBanner = true,
+                    ),
+                )
+            }
+        }
 
-        assertTrue(buttonBounds.right <= versionBounds.left)
-        assertTrue(buttonBounds.bottom > rootBounds.bottom * 0.85f)
-        assertTrue(versionBounds.bottom > rootBounds.bottom * 0.85f)
-
-        composeRule.onNodeWithText("Обновить")
-            .performSemanticsAction(SemanticsActions.OnClick)
-
-        assertEquals(1, installClicks)
+        composeRule.onNodeWithTag("home-stale-status").assertExists()
+        composeRule.onNodeWithText("Данные показаны из кэша и могут быть устаревшими").assertExists()
+        composeRule.onNodeWithTag(posterTag(firstDetailsUrl)).assertExists()
     }
 }
 

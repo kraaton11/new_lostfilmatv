@@ -1,25 +1,34 @@
 package com.kraat.lostfilmnewtv.ui.home
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kraat.lostfilmnewtv.BuildConfig
@@ -27,6 +36,13 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
+import com.kraat.lostfilmnewtv.ui.theme.HomeAccentBlue
+import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGold
+import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
+import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurface
+import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
+import com.kraat.lostfilmnewtv.ui.theme.HomeStatusError
+import com.kraat.lostfilmnewtv.ui.theme.HomeTextSecondary
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 
 @Composable
@@ -55,68 +71,62 @@ fun HomeScreen(
         }
     }
 
+    val itemKeys = remember(state.items) { state.items.map { it.detailsUrl } }
+    val settingsRequester = remember { FocusRequester() }
+    val authRequester = remember { FocusRequester() }
+    val updateRequester = remember { FocusRequester() }
+    val cardFocusRequesters = remember(itemKeys) { itemKeys.associateWith { FocusRequester() } }
+    val firstItemKey = state.items.firstOrNull()?.detailsUrl
+    val currentCardRequester = cardFocusRequesters[focusedItemKey] ?: firstItemKey?.let(cardFocusRequesters::get)
+    val topActionRequester = if (savedAppUpdate != null) updateRequester else authRequester
     val focusedItem = state.items.find { it.detailsUrl == focusedItemKey } ?: state.selectedItem ?: state.items.firstOrNull()
+    val stageStatusText = appUpdateStatusText ?: savedAppUpdate?.let { "Доступно обновление ${it.latestVersion}" }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(BackgroundPrimary)
+            .background(
+                Brush.verticalGradient(
+                    0f to Color(0xFF14293B),
+                    0.32f to Color(0xFF0B1520),
+                    1f to BackgroundPrimary,
+                ),
+            ),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(vertical = 32.dp),
+                .padding(start = 48.dp, top = 32.dp, end = 48.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
         ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 48.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "Новые релизы",
-                    color = TextPrimary,
-                    fontSize = 30.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(onClick = onSettingsClick) {
-                        Text("Настройки")
-                    }
-                    Button(onClick = onAuthClick) {
-                        Text(if (isAuthenticated) "Выйти" else "Войти")
-                    }
-                }
-            }
+            HomeHeader(
+                isAuthenticated = isAuthenticated,
+                hasSavedUpdate = savedAppUpdate != null,
+                onSettingsClick = onSettingsClick,
+                onAuthClick = onAuthClick,
+                onInstallUpdateClick = onInstallUpdateClick,
+                settingsFocusRequester = settingsRequester,
+                authFocusRequester = authRequester,
+                updateFocusRequester = if (savedAppUpdate != null) updateRequester else null,
+                downTarget = currentCardRequester,
+            )
 
             if (state.showStaleBanner) {
-                Text(
+                HomeStatusPanel(
+                    tag = "home-stale-status",
                     text = "Данные показаны из кэша и могут быть устаревшими",
-                    color = TextPrimary.copy(alpha = 0.78f),
-                    fontSize = 16.sp,
-                    modifier = Modifier.padding(horizontal = 48.dp),
+                    isError = false,
                 )
             }
 
             if (state.fullScreenErrorMessage != null && state.items.isNotEmpty()) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 48.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = state.fullScreenErrorMessage,
-                        color = TextPrimary,
-                        fontSize = 16.sp,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Button(onClick = onRetry) {
-                        Text("Повторить")
-                    }
-                }
+                HomeStatusPanel(
+                    tag = "home-error-status",
+                    text = state.fullScreenErrorMessage,
+                    isError = true,
+                    actionLabel = "Повторить",
+                    onAction = onRetry,
+                )
             }
 
             when {
@@ -127,24 +137,33 @@ fun HomeScreen(
                             .weight(1f),
                         contentAlignment = Alignment.Center,
                     ) {
-                        CircularProgressIndicator()
+                        HomeCenteredPanel {
+                            CircularProgressIndicator(color = HomeAccentGold)
+                        }
                     }
                 }
                 state.items.isEmpty() && state.fullScreenErrorMessage != null -> {
-                    Column(
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f)
-                            .padding(horizontal = 48.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                            .padding(vertical = 8.dp),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Text(
-                            text = state.fullScreenErrorMessage,
-                            color = TextPrimary,
-                            fontSize = 18.sp,
-                        )
-                        Button(onClick = onRetry) {
-                            Text("Повторить")
+                        HomeCenteredPanel {
+                            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                Text(
+                                    text = state.fullScreenErrorMessage,
+                                    color = TextPrimary,
+                                    fontSize = 18.sp,
+                                )
+                                Button(
+                                    onClick = onRetry,
+                                    colors = ButtonDefaults.buttonColors(containerColor = HomeAccentGold),
+                                ) {
+                                    Text("Повторить", color = Color(0xFF17120D))
+                                }
+                            }
                         }
                     }
                 }
@@ -153,10 +172,13 @@ fun HomeScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
                         HomeRail(
                             items = state.items,
                             focusedItemKey = focusedItemKey,
+                            cardFocusRequesters = cardFocusRequesters,
+                            topActionRequester = topActionRequester,
                             isPaging = state.isPaging,
                             onItemFocused = { detailsUrl ->
                                 focusedItemKey = detailsUrl
@@ -166,60 +188,87 @@ fun HomeScreen(
                             onEndReached = onEndReached,
                         )
                         if (state.pagingErrorMessage != null) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 48.dp, vertical = 12.dp),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    text = state.pagingErrorMessage,
-                                    color = TextPrimary.copy(alpha = 0.78f),
-                                    fontSize = 16.sp,
-                                    modifier = Modifier.weight(1f),
-                                )
-                                Button(onClick = onPagingRetry) {
-                                    Text("Повторить")
-                                }
-                            }
+                            HomeStatusPanel(
+                                tag = "home-paging-status",
+                                text = state.pagingErrorMessage,
+                                isError = true,
+                                actionLabel = "Повторить",
+                                onAction = onPagingRetry,
+                            )
                         }
-                        BottomInfoPanel(item = focusedItem)
+                        HomeBottomStage(
+                            item = focusedItem,
+                            appVersionText = appVersionText,
+                            appUpdateStatusText = stageStatusText,
+                        )
                     }
                 }
             }
         }
+    }
+}
 
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 48.dp, bottom = 24.dp),
-            horizontalAlignment = Alignment.End,
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            appUpdateStatusText?.let { statusText ->
-                Text(
-                    text = statusText,
-                    color = TextPrimary.copy(alpha = 0.78f),
-                    fontSize = 16.sp,
-                )
-            }
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
+@Composable
+private fun HomeStatusPanel(
+    text: String,
+    isError: Boolean,
+    modifier: Modifier = Modifier,
+    tag: String? = null,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
+) {
+    val shape = RoundedCornerShape(24.dp)
+    val background = if (isError) Color(0xCC2A0E10) else HomePanelSurfaceStrong
+    val borderColor = if (isError) HomeStatusError.copy(alpha = 0.42f) else HomeAccentBlue.copy(alpha = 0.35f)
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (tag != null) Modifier.testTag(tag) else Modifier)
+            .background(background, shape)
+            .border(BorderStroke(1.5.dp, borderColor), shape)
+            .padding(horizontal = 22.dp, vertical = 18.dp),
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = text,
+            color = if (isError) TextPrimary else HomeTextSecondary,
+            fontSize = 16.sp,
+            modifier = Modifier.weight(1f),
+        )
+        if (actionLabel != null && onAction != null) {
+            Button(
+                onClick = onAction,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isError) HomeAccentGold else HomePanelSurface,
+                ),
+                border = BorderStroke(
+                    width = 1.dp,
+                    color = if (isError) HomeAccentGold else HomePanelBorder,
+                ),
             ) {
-                if (savedAppUpdate != null) {
-                    Button(onClick = onInstallUpdateClick) {
-                        Text("Обновить")
-                    }
-                }
                 Text(
-                    text = appVersionText,
-                    color = TextPrimary.copy(alpha = 0.56f),
-                    fontSize = 16.sp,
+                    text = actionLabel,
+                    color = if (isError) Color(0xFF17120D) else TextPrimary,
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun HomeCenteredPanel(content: @Composable ColumnScope.() -> Unit) {
+    val shape = RoundedCornerShape(28.dp)
+
+    Column(
+        modifier = Modifier
+            .background(HomePanelSurfaceStrong, shape)
+            .border(BorderStroke(1.dp, HomePanelBorder), shape)
+            .padding(horizontal = 28.dp, vertical = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+    ) {
+        content()
     }
 }
 
