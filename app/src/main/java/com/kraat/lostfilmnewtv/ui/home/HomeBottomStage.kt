@@ -46,7 +46,7 @@ fun HomeBottomStage(
     ) {
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
             Text(
                 text = item?.titleRu.orEmpty(),

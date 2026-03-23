@@ -180,7 +180,7 @@ class HomeScreenTest {
             action(textLayouts)
         }
 
-        assertTrue("stageBounds=$stageBounds episodeBounds=$episodeBounds", stageBounds.bottom - episodeBounds.bottom > 42f)
+        assertTrue("stageBounds=$stageBounds episodeBounds=$episodeBounds", stageBounds.bottom - episodeBounds.bottom > 56f)
         assertFalse("textLayouts=$textLayouts", textLayouts.first().toString().contains("includeFontPadding=false"))
     }
 
