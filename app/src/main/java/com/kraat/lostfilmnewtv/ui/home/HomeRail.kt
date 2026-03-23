@@ -14,6 +14,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -44,6 +45,7 @@ fun HomeRail(
         if (items.isNotEmpty()) {
             val targetKey = focusedItemKey ?: items.first().detailsUrl
             val targetRequester = cardFocusRequesters[targetKey] ?: cardFocusRequesters[items.first().detailsUrl]
+            withFrameNanos { }
             targetRequester?.requestFocus()
         }
     }
