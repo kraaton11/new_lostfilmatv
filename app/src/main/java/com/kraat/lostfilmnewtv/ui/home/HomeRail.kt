@@ -53,9 +53,9 @@ fun HomeRail(
     LazyRow(
         modifier = Modifier
             .fillMaxWidth()
-            .height(292.dp),
+            .height(308.dp),
         horizontalArrangement = Arrangement.spacedBy(20.dp),
-        contentPadding = PaddingValues(horizontal = 0.dp),
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
     ) {
         itemsIndexed(items = items, key = { _, item -> item.detailsUrl }) { index, item ->
             PosterCard(

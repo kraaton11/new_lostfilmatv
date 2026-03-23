@@ -96,8 +96,8 @@ fun HomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 48.dp, top = 32.dp, end = 48.dp, bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(18.dp),
+                .padding(start = 48.dp, top = 24.dp, end = 48.dp, bottom = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             HomeHeader(
                 isAuthenticated = isAuthenticated,
@@ -172,7 +172,7 @@ fun HomeScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
                         HomeRail(
                             items = state.items,
