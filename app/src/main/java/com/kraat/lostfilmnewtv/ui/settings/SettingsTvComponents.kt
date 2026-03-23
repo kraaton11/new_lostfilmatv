@@ -48,6 +48,7 @@ fun SettingsTvButton(
     summary: String? = null,
     tag: String? = null,
     summaryTag: String? = null,
+    onFocused: (() -> Unit)? = null,
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
@@ -97,7 +98,12 @@ fun SettingsTvButton(
                 scaleY = scale
             }
             .border(1.5.dp, borderColor, shape)
-            .onFocusChanged { isFocused = it.isFocused }
+            .onFocusChanged {
+                isFocused = it.isFocused
+                if (it.isFocused) {
+                    onFocused?.invoke()
+                }
+            }
             .semantics { selected = isSelected }
             .then(if (tag != null) Modifier.testTag(tag) else Modifier),
     ) {
