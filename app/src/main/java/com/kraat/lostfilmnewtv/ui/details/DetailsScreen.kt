@@ -346,7 +346,7 @@ private fun HeroStage(
 private fun PosterCard(details: ReleaseDetails?) {
     Box(
         modifier = Modifier
-            .size(width = 276.dp, height = 398.dp)
+            .size(width = 260.dp, height = 374.dp)
             .shadow(28.dp, RoundedCornerShape(28.dp))
             .clip(RoundedCornerShape(28.dp))
             .background(
