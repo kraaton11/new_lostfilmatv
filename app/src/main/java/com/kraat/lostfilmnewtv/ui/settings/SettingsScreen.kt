@@ -14,27 +14,23 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.Text
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundSurface
+import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurface
+import com.kraat.lostfilmnewtv.ui.theme.HomeTextMuted
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 
@@ -55,13 +51,23 @@ fun SettingsScreen(
     onCheckForUpdatesClick: () -> Unit,
     onInstallUpdateClick: () -> Unit,
 ) {
-    var selectedSectionName by rememberSaveable { mutableStateOf(SettingsSection.UPDATES.name) }
+    var selectedSectionName by rememberSaveable { mutableStateOf(SettingsSection.QUALITY.name) }
     val selectedSection = SettingsSection.valueOf(selectedSectionName)
     val contentScrollState = rememberScrollState()
 
     LaunchedEffect(selectedSection) {
         contentScrollState.scrollTo(0)
     }
+
+    val qualitySummary = selectedQuality.label()
+    val updateSummary = updateSummary(
+        selectedUpdateMode = selectedUpdateMode,
+        statusText = statusText,
+        isCheckingForUpdates = isCheckingForUpdates,
+        isDownloadingUpdate = isDownloadingUpdate,
+        installUrl = installUrl,
+    )
+    val channelSummary = selectedChannelMode.label()
 
     Column(
         modifier = Modifier
@@ -84,6 +90,9 @@ fun SettingsScreen(
         ) {
             SettingsSectionRail(
                 selectedSection = selectedSection,
+                qualitySummary = qualitySummary,
+                updateSummary = updateSummary,
+                channelSummary = channelSummary,
                 onSectionSelected = { selectedSectionName = it.name },
                 modifier = Modifier
                     .width(280.dp)
@@ -100,45 +109,61 @@ fun SettingsScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(contentScrollState),
-                    verticalArrangement = Arrangement.spacedBy(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
                 ) {
                     when (selectedSection) {
                         SettingsSection.QUALITY -> {
-                            SettingsOptionsSection(title = selectedSection.panelTitle) {
+                            SettingsOptionsSection {
+                                SettingsOverviewCard(
+                                    title = "Качество по умолчанию",
+                                    subtitle = "Выбор качества для основного сценария просмотра.",
+                                    modifier = Modifier.background(HomePanelSurface, RoundedCornerShape(22.dp)),
+                                ) {
+                                    SettingsOverviewValue(text = "Сейчас выбрано: $qualitySummary")
+                                }
                                 PlaybackQualityPreference.entries.forEach { quality ->
-                                    SettingsSelectionButton(
+                                    SettingsTvButton(
                                         text = quality.label(),
+                                        onClick = { onQualitySelected(quality) },
                                         isSelected = quality == selectedQuality,
                                         tag = "settings-quality-${quality.storageValue}",
-                                        onClick = { onQualitySelected(quality) },
                                     )
                                 }
                             }
                         }
 
                         SettingsSection.UPDATES -> {
-                            UpdatesSectionContent(
-                                selectedUpdateMode = selectedUpdateMode,
-                                installedVersionText = installedVersionText,
-                                latestVersionText = latestVersionText,
-                                statusText = statusText,
-                                isCheckingForUpdates = isCheckingForUpdates,
-                                isDownloadingUpdate = isDownloadingUpdate,
-                                installUrl = installUrl,
-                                onUpdateModeSelected = onUpdateModeSelected,
-                                onCheckForUpdatesClick = onCheckForUpdatesClick,
-                                onInstallUpdateClick = onInstallUpdateClick,
-                            )
+                            SettingsOptionsSection {
+                                UpdatesSectionContent(
+                                    selectedUpdateMode = selectedUpdateMode,
+                                    installedVersionText = installedVersionText,
+                                    latestVersionText = latestVersionText,
+                                    statusText = statusText,
+                                    isCheckingForUpdates = isCheckingForUpdates,
+                                    isDownloadingUpdate = isDownloadingUpdate,
+                                    installUrl = installUrl,
+                                    onUpdateModeSelected = onUpdateModeSelected,
+                                    onCheckForUpdatesClick = onCheckForUpdatesClick,
+                                    onInstallUpdateClick = onInstallUpdateClick,
+                                )
+                            }
                         }
 
                         SettingsSection.CHANNEL -> {
-                            SettingsOptionsSection(title = selectedSection.panelTitle) {
+                            SettingsOptionsSection {
+                                SettingsOverviewCard(
+                                    title = "Канал Android TV",
+                                    subtitle = "Что публиковать в системном канале Android TV.",
+                                    modifier = Modifier.background(HomePanelSurface, RoundedCornerShape(22.dp)),
+                                ) {
+                                    SettingsOverviewValue(text = "Сейчас выбрано: $channelSummary")
+                                }
                                 AndroidTvChannelMode.entries.forEach { mode ->
-                                    SettingsSelectionButton(
+                                    SettingsTvButton(
                                         text = mode.label(),
+                                        onClick = { onChannelModeSelected(mode) },
                                         isSelected = mode == selectedChannelMode,
                                         tag = mode.buttonTag(),
-                                        onClick = { onChannelModeSelected(mode) },
                                     )
                                 }
                             }
@@ -152,29 +177,38 @@ fun SettingsScreen(
 
 private enum class SettingsSection(
     val railTitle: String,
-    val panelTitle: String,
     val tag: String,
+    val summaryTag: String,
 ) {
-    QUALITY("Качество", "Качество по умолчанию", "settings-section-quality"),
-    UPDATES("Обновления", "Обновления", "settings-section-updates"),
-    CHANNEL("Канал Android TV", "Канал Android TV", "settings-section-channel"),
+    QUALITY("Качество", "settings-section-quality", "settings-section-quality-summary"),
+    UPDATES("Обновления", "settings-section-updates", "settings-section-updates-summary"),
+    CHANNEL("Канал Android TV", "settings-section-channel", "settings-section-channel-summary"),
 }
 
 @Composable
 private fun SettingsSectionRail(
     selectedSection: SettingsSection,
+    qualitySummary: String,
+    updateSummary: String,
+    channelSummary: String,
     onSectionSelected: (SettingsSection) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
         modifier = modifier
-            .background(BackgroundSurface, RoundedCornerShape(24.dp))
+            .background(HomePanelSurface, RoundedCornerShape(24.dp))
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         SettingsSection.entries.forEach { section ->
-            SettingsSelectionButton(
+            SettingsTvButton(
                 text = section.railTitle,
+                summary = when (section) {
+                    SettingsSection.QUALITY -> qualitySummary
+                    SettingsSection.UPDATES -> updateSummary
+                    SettingsSection.CHANNEL -> channelSummary
+                },
+                summaryTag = section.summaryTag,
                 isSelected = section == selectedSection,
                 tag = section.tag,
                 onClick = { onSectionSelected(section) },
@@ -185,26 +219,13 @@ private fun SettingsSectionRail(
 
 @Composable
 private fun SettingsOptionsSection(
-    title: String,
-    subtitle: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text(
-            text = title,
-            color = TextPrimary,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.SemiBold,
-        )
-        subtitle?.let {
-            Text(
-                text = it,
-                color = TextPrimary.copy(alpha = 0.72f),
-                fontSize = 16.sp,
-            )
-        }
-        content()
-    }
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        content = content,
+    )
 }
 
 @Composable
@@ -220,125 +241,58 @@ private fun UpdatesSectionContent(
     onCheckForUpdatesClick: () -> Unit,
     onInstallUpdateClick: () -> Unit,
 ) {
-    SettingsOptionsSection(title = "Обновления") {
-        UpdatesStatusCard(
-            installedVersionText = installedVersionText,
-            latestVersionText = latestVersionText,
-            statusText = statusText,
-            isDownloadingUpdate = isDownloadingUpdate,
-        )
-        Text(
-            text = "Режим проверки",
-            color = TextPrimary,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Medium,
-        )
-        UpdateCheckMode.entries.forEach { mode ->
-            SettingsSelectionButton(
-                text = mode.label(),
-                isSelected = mode == selectedUpdateMode,
-                tag = mode.buttonTag(),
-                onClick = { onUpdateModeSelected(mode) },
-            )
-        }
-        Button(
-            onClick = onCheckForUpdatesClick,
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !isCheckingForUpdates,
-            colors = secondaryButtonColors(),
-        ) {
-            Text(
-                text = if (isCheckingForUpdates) "Проверяем..." else "Проверить обновления",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Medium,
-            )
-        }
-        if (!installUrl.isNullOrBlank()) {
-            Button(
-                onClick = onInstallUpdateClick,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .testTag("settings-install-update"),
-                enabled = !isDownloadingUpdate,
-                colors = secondaryButtonColors(),
-            ) {
-                Text(
-                    text = if (isDownloadingUpdate) "Скачивание…" else "Скачать и установить",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Medium,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun UpdatesStatusCard(
-    installedVersionText: String,
-    latestVersionText: String?,
-    statusText: String?,
-    isDownloadingUpdate: Boolean,
-) {
-    val statusLine = when {
+    val updateStatus = when {
         isDownloadingUpdate -> "Скачивание обновления…"
-        else -> statusText
+        else -> statusText ?: selectedUpdateMode.summaryLabel()
     }
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0xFF16293C), RoundedCornerShape(20.dp))
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+    SettingsOverviewCard(
+        title = "Обновления",
+        subtitle = "Проверка и установка обновлений приложения.",
+        modifier = Modifier.background(HomePanelSurface, RoundedCornerShape(22.dp)),
     ) {
-        SettingsValueRow(text = "Установлена версия: $installedVersionText")
-        SettingsValueRow(text = "Последняя версия: ${latestVersionText ?: "-"}")
-        statusLine?.let { SettingsValueRow(text = it) }
+        SettingsOverviewValue(text = "Установлена версия: $installedVersionText")
+        SettingsOverviewValue(text = "Последняя версия: ${latestVersionText ?: "-"}")
+        SettingsOverviewValue(text = updateStatus)
     }
-}
-
-@Composable
-private fun SettingsSelectionButton(
-    text: String,
-    isSelected: Boolean,
-    tag: String,
-    onClick: () -> Unit,
-) {
-    Button(
-        onClick = onClick,
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag(tag)
-            .semantics { selected = isSelected },
-        colors = selectionButtonColors(isSelected),
-    ) {
-        Text(
-            text = text,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Medium,
+    UpdateCheckMode.entries.forEach { mode ->
+        SettingsTvButton(
+            text = mode.label(),
+            onClick = { onUpdateModeSelected(mode) },
+            isSelected = mode == selectedUpdateMode,
+            tag = mode.buttonTag(),
+        )
+    }
+    SettingsTvButton(
+        text = if (isCheckingForUpdates) "Проверяем..." else "Проверить обновления",
+        onClick = onCheckForUpdatesClick,
+        enabled = !isCheckingForUpdates,
+        tag = "settings-action-check-updates",
+    )
+    if (!installUrl.isNullOrBlank()) {
+        SettingsTvButton(
+            text = if (isDownloadingUpdate) "Скачивание…" else "Скачать и установить",
+            onClick = onInstallUpdateClick,
+            enabled = !isDownloadingUpdate,
+            tag = "settings-install-update",
         )
     }
 }
 
-@Composable
-private fun SettingsValueRow(text: String) {
-    Text(
-        text = text,
-        color = TextPrimary,
-        fontSize = 18.sp,
-    )
+private fun updateSummary(
+    selectedUpdateMode: UpdateCheckMode,
+    statusText: String?,
+    isCheckingForUpdates: Boolean,
+    isDownloadingUpdate: Boolean,
+    installUrl: String?,
+): String {
+    return when {
+        isDownloadingUpdate -> "Скачивание"
+        isCheckingForUpdates -> "Проверяем..."
+        !statusText.isNullOrBlank() -> statusText
+        !installUrl.isNullOrBlank() -> "Доступно обновление"
+        else -> selectedUpdateMode.shortSummary()
+    }
 }
-
-@Composable
-private fun selectionButtonColors(isSelected: Boolean) = ButtonDefaults.buttonColors(
-    containerColor = if (isSelected) Color(0xFFF2C46E) else Color(0xFF16293C),
-    contentColor = if (isSelected) Color(0xFF17120D) else TextPrimary,
-)
-
-@Composable
-private fun secondaryButtonColors() = ButtonDefaults.buttonColors(
-    containerColor = Color(0xFF16293C),
-    contentColor = TextPrimary,
-)
 
 private fun PlaybackQualityPreference.label(): String {
     return when (this) {
@@ -352,6 +306,20 @@ private fun UpdateCheckMode.label(): String {
     return when (this) {
         UpdateCheckMode.MANUAL -> "Проверять вручную"
         UpdateCheckMode.QUIET_CHECK -> "Проверять тихо"
+    }
+}
+
+private fun UpdateCheckMode.summaryLabel(): String {
+    return when (this) {
+        UpdateCheckMode.MANUAL -> "Ручная проверка"
+        UpdateCheckMode.QUIET_CHECK -> "Тихая проверка"
+    }
+}
+
+private fun UpdateCheckMode.shortSummary(): String {
+    return when (this) {
+        UpdateCheckMode.MANUAL -> "Вручную"
+        UpdateCheckMode.QUIET_CHECK -> "Тихо"
     }
 }
 
