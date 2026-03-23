@@ -7,12 +7,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
@@ -37,7 +41,7 @@ fun HomeBottomStage(
             .testTag("home-bottom-stage")
             .background(HomePanelSurfaceStrong, shape)
             .border(1.dp, HomePanelBorder, shape)
-            .padding(horizontal = 28.dp, vertical = 24.dp),
+            .padding(horizontal = 24.dp, vertical = 18.dp),
         horizontalArrangement = Arrangement.spacedBy(28.dp),
     ) {
         Column(
@@ -47,9 +51,11 @@ fun HomeBottomStage(
             Text(
                 text = item?.titleRu.orEmpty(),
                 color = TextPrimary,
-                fontSize = 32.sp,
+                fontSize = 30.sp,
                 fontWeight = FontWeight.SemiBold,
-                lineHeight = 36.sp,
+                lineHeight = 34.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
 
             item?.episodeTitleRu
@@ -57,39 +63,39 @@ fun HomeBottomStage(
                 ?.let { episodeTitle ->
                     Text(
                         text = episodeTitle,
-                        color = HomeTextSecondary,
-                        fontSize = 19.sp,
-                        fontWeight = FontWeight.Medium,
-                    )
-                }
-
-            item?.releaseDateRu
-                ?.takeIf { it.isNotBlank() }
-                ?.let { releaseDate ->
-                    Text(
-                        text = releaseDate,
-                        color = HomeTextMuted,
-                        fontSize = 16.sp,
+                        modifier = Modifier.fillMaxWidth(),
+                        style = TextStyle(
+                            platformStyle = PlatformTextStyle(includeFontPadding = true),
+                        ),
+                        color = TextPrimary.copy(alpha = 0.92f),
+                        fontSize = 15.sp,
+                        lineHeight = 19.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
         }
 
         if (appVersionText.isNotBlank() || !appUpdateStatusText.isNullOrBlank()) {
             Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.widthIn(max = 220.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 Text(
                     text = "Сервис",
                     color = HomeTextMuted,
-                    fontSize = 13.sp,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
                 if (appVersionText.isNotBlank()) {
                     Text(
                         text = appVersionText,
                         color = TextPrimary,
-                        fontSize = 16.sp,
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
                 appUpdateStatusText
@@ -98,7 +104,9 @@ fun HomeBottomStage(
                         Text(
                             text = status,
                             color = HomeTextSecondary,
-                            fontSize = 14.sp,
+                            fontSize = 13.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
             }

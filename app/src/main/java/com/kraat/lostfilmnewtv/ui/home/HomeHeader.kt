@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -27,6 +28,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kraat.lostfilmnewtv.ui.theme.HomeAccentBlue
@@ -53,25 +55,31 @@ fun HomeHeader(
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
             Text(
                 text = "Новые релизы",
                 color = TextPrimary,
                 fontSize = 30.sp,
                 fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = "Быстрый доступ к новым сериям и служебным действиям",
                 color = HomeTextMuted,
                 fontSize = 14.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
 
         Row(
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             HomeHeaderActionButton(
@@ -143,6 +151,7 @@ private fun HomeHeaderActionButton(
         shape = shape,
         colors = ButtonDefaults.buttonColors(containerColor = backgroundColor),
         modifier = modifier
+            .widthIn(min = 156.dp)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -159,6 +168,8 @@ private fun HomeHeaderActionButton(
                 color = textColor,
                 fontSize = 16.sp,
                 fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
             Text(
                 text = subtitle,
@@ -166,6 +177,8 @@ private fun HomeHeaderActionButton(
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Medium,
                 letterSpacing = 0.5.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
