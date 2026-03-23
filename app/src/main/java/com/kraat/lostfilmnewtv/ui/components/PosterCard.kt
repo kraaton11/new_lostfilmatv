@@ -1,6 +1,7 @@
 package com.kraat.lostfilmnewtv.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -16,14 +17,22 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
+import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGold
+import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGoldGlow
+import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
+import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurface
+import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 
 @Composable
 fun PosterCard(
@@ -31,11 +40,15 @@ fun PosterCard(
     isFocused: Boolean,
     modifier: Modifier = Modifier,
 ) {
+    val shape = RoundedCornerShape(22.dp)
     val scale by animateFloatAsState(
         targetValue = if (isFocused) 1.08f else 1f,
+        animationSpec = tween(durationMillis = 120),
         label = "posterScale",
     )
-    val borderColor = if (isFocused) Color(0xFFE7F0FF) else Color(0x33E7F0FF)
+    val borderColor = if (isFocused) HomeAccentGoldGlow else HomePanelBorder
+    val overlayColor = if (isFocused) HomePanelSurfaceStrong else HomePanelSurface
+    val watchedBadgeColor = if (isFocused) HomeAccentGoldGlow else HomeAccentGold
 
     Box(
         modifier = modifier
@@ -44,14 +57,31 @@ fun PosterCard(
                 scaleX = scale
                 scaleY = scale
             }
-            .clip(RoundedCornerShape(20.dp))
-            .background(Color(0xFF162130))
-            .border(width = 2.dp, color = borderColor, shape = RoundedCornerShape(20.dp)),
+            .shadow(
+                elevation = if (isFocused) 22.dp else 10.dp,
+                shape = shape,
+            )
+            .clip(shape)
+            .background(HomePanelSurfaceStrong)
+            .border(width = 2.dp, color = borderColor, shape = shape),
     ) {
         AsyncImage(
             model = item.posterUrl,
             contentDescription = item.titleRu,
+            contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),
+        )
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        0f to Color.Transparent,
+                        0.52f to Color.Transparent,
+                        1f to overlayColor,
+                    ),
+                ),
         )
 
         seasonEpisodeLabel(item)?.let { label ->
@@ -59,7 +89,7 @@ fun PosterCard(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .fillMaxWidth()
-                    .background(Color(0xB3000000))
+                    .background(overlayColor)
                     .testTag("poster-meta:${item.detailsUrl}")
                     .padding(horizontal = 12.dp, vertical = 10.dp),
             ) {
@@ -77,11 +107,11 @@ fun PosterCard(
                     .align(Alignment.TopEnd)
                     .padding(10.dp),
                 shape = RoundedCornerShape(10.dp),
-                color = Color(0xCC1B7F45),
+                color = watchedBadgeColor,
             ) {
                 Text(
                     text = "Просмотрено",
-                    color = Color.White,
+                    color = Color(0xFF1B1408),
                     fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                 )

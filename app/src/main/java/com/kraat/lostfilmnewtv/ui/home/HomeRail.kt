@@ -14,33 +14,36 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.ui.components.PosterCard
+import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
+import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
+import com.kraat.lostfilmnewtv.ui.theme.HomeTextSecondary
 
 @Composable
 fun HomeRail(
     items: List<ReleaseSummary>,
     focusedItemKey: String?,
+    cardFocusRequesters: Map<String, FocusRequester>,
+    topActionRequester: FocusRequester?,
     isPaging: Boolean,
     onItemFocused: (String) -> Unit,
     onOpenDetails: (String) -> Unit,
     onEndReached: () -> Unit,
 ) {
-    val itemKeys = remember(items) { items.map { it.detailsUrl } }
-    val focusRequesters = remember(itemKeys) { itemKeys.associateWith { FocusRequester() } }
-
     LaunchedEffect(items, focusedItemKey) {
         if (items.isNotEmpty()) {
             val targetKey = focusedItemKey ?: items.first().detailsUrl
-            val targetRequester = focusRequesters[targetKey] ?: focusRequesters[items.first().detailsUrl]
+            val targetRequester = cardFocusRequesters[targetKey] ?: cardFocusRequesters[items.first().detailsUrl]
             targetRequester?.requestFocus()
         }
     }
@@ -50,14 +53,19 @@ fun HomeRail(
             .fillMaxWidth()
             .height(292.dp),
         horizontalArrangement = Arrangement.spacedBy(20.dp),
-        contentPadding = PaddingValues(horizontal = 48.dp),
+        contentPadding = PaddingValues(horizontal = 0.dp),
     ) {
         itemsIndexed(items = items, key = { _, item -> item.detailsUrl }) { index, item ->
             PosterCard(
                 item = item,
                 isFocused = item.detailsUrl == focusedItemKey,
                 modifier = Modifier
-                    .focusRequester(focusRequesters.getValue(item.detailsUrl))
+                    .focusRequester(cardFocusRequesters.getValue(item.detailsUrl))
+                    .focusProperties {
+                        if (topActionRequester != null) {
+                            up = topActionRequester
+                        }
+                    }
                     .testTag(posterTag(item.detailsUrl))
                     .onFocusChanged { focusState ->
                         if (focusState.isFocused) {
@@ -76,13 +84,17 @@ fun HomeRail(
                 Surface(
                     modifier = Modifier
                         .size(width = 176.dp, height = 264.dp)
-                        .focusable(false),
+                        .focusable(false)
+                        .testTag("home-paging-indicator"),
                     shape = RoundedCornerShape(20.dp),
-                    tonalElevation = 4.dp,
+                    color = HomePanelSurfaceStrong,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, HomePanelBorder),
                 ) {
                     Text(
                         text = "Загрузка...",
+                        color = HomeTextSecondary,
                         textAlign = TextAlign.Center,
+                        fontWeight = FontWeight.SemiBold,
                     )
                 }
             }

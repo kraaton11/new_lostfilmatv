@@ -10,17 +10,17 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performSemanticsAction
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
+import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
 import com.kraat.lostfilmnewtv.ui.home.posterTag
 import com.kraat.lostfilmnewtv.ui.home.HomeScreen
 import com.kraat.lostfilmnewtv.ui.home.HomeUiState
 import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 
@@ -30,20 +30,67 @@ class HomeScreenTest {
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun homeScreen_showsTitle() {
+    fun homeScreen_initialFocus_landsOnFirstRailCard() {
         composeRule.setContent {
             LostFilmTheme {
                 HomeScreen(state = seededState())
             }
         }
 
-        val titleNodes = composeRule.onAllNodesWithText("Новые релизы").fetchSemanticsNodes()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                composeRule.onNodeWithTag(posterTag(firstDetailsUrl)).assertIsFocused()
+                true
+            }.getOrDefault(false)
+        }
 
-        assertTrue(titleNodes.isNotEmpty())
+        composeRule.onNodeWithTag(posterTag(firstDetailsUrl)).assertIsFocused()
     }
 
     @Test
-    fun movingFocus_updatesBottomInfoPanel() {
+    fun railFocus_movesUpToUtilityRow_andDownBackToSelectedCard() {
+        composeRule.setContent {
+            LostFilmTheme {
+                var state by remember { mutableStateOf(seededState()) }
+                HomeScreen(
+                    state = state,
+                    savedAppUpdate = SavedAppUpdate(
+                        latestVersion = "0.2.0",
+                        apkUrl = "https://example.test/app.apk",
+                    ),
+                    onItemFocused = { focusedKey ->
+                        state = state.copy(
+                            selectedItemKey = focusedKey,
+                            selectedItem = state.items.find { it.detailsUrl == focusedKey },
+                        )
+                    },
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag(posterTag(firstDetailsUrl)).performSemanticsAction(SemanticsActions.RequestFocus)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag(posterTag(firstDetailsUrl)).assertIsFocused()
+
+        composeRule.onNodeWithTag(posterTag(firstDetailsUrl)).performKeyInput {
+            keyDown(Key.DirectionUp)
+            keyUp(Key.DirectionUp)
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("home-action-update").assertIsFocused()
+
+        composeRule.onNodeWithTag("home-action-update").performKeyInput {
+            keyDown(Key.DirectionDown)
+            keyUp(Key.DirectionDown)
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(posterTag(firstDetailsUrl)).assertIsFocused()
+    }
+
+    @Test
+    fun movingFocus_updatesBottomStage() {
         composeRule.setContent {
             LostFilmTheme {
                 var state by remember { mutableStateOf(seededState()) }
@@ -59,8 +106,8 @@ class HomeScreenTest {
             }
         }
 
-        val initialTitleNodes = composeRule.onAllNodesWithText("9-1-1").fetchSemanticsNodes()
-        assertTrue(initialTitleNodes.isNotEmpty())
+        composeRule.onNodeWithTag("home-bottom-stage").assertExists()
+        composeRule.onNodeWithText("9-1-1").assertExists()
 
         composeRule.onNodeWithTag(posterTag(firstDetailsUrl)).performSemanticsAction(SemanticsActions.RequestFocus)
         composeRule.waitForIdle()
@@ -73,9 +120,8 @@ class HomeScreenTest {
         composeRule.waitForIdle()
 
         composeRule.onNodeWithTag(posterTag(secondDetailsUrl)).assertIsFocused()
-
-        val updatedTitleNodes = composeRule.onAllNodesWithText("Необратимость").fetchSemanticsNodes()
-        assertTrue(updatedTitleNodes.isNotEmpty())
+        composeRule.onNodeWithTag("home-bottom-stage").assertExists()
+        composeRule.onNodeWithText("Необратимость").assertExists()
     }
 }
 
