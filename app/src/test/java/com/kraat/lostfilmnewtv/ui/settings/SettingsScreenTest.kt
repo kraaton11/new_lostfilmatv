@@ -48,9 +48,9 @@ class SettingsScreenTest {
         }
 
         composeRule.onNodeWithTag("settings-section-quality").assertIsSelected()
-        composeRule.onNodeWithTag("settings-section-quality-summary").assertTextEquals("720p")
-        composeRule.onNodeWithTag("settings-section-updates-summary").assertTextEquals("Доступно обновление")
-        composeRule.onNodeWithTag("settings-section-channel-summary").assertTextEquals("Только непросмотренные")
+        composeRule.onNodeWithTag("settings-section-quality-summary", useUnmergedTree = true).assertTextEquals("720p")
+        composeRule.onNodeWithTag("settings-section-updates-summary", useUnmergedTree = true).assertTextEquals("Доступно обновление")
+        composeRule.onNodeWithTag("settings-section-channel-summary", useUnmergedTree = true).assertTextEquals("Только непросмотренные")
         composeRule.onNodeWithTag("settings-overview-card").assertExists()
         composeRule.onNodeWithText("Качество по умолчанию").assertExists()
         composeRule.onNodeWithTag("settings-quality-720").assertExists()
@@ -116,7 +116,10 @@ class SettingsScreenTest {
         composeRule.onNodeWithTag("settings-overview-card").assertExists()
         composeRule.onNodeWithText("Установлена версия: 0.1.0").assertExists()
         composeRule.onNodeWithText("Последняя версия: 0.2.0").assertExists()
-        composeRule.onNodeWithText("Доступно обновление").assertExists()
+        assertEquals(
+            2,
+            composeRule.onAllNodesWithText("Доступно обновление").fetchSemanticsNodes().size,
+        )
         composeRule.onNodeWithTag("settings-action-check-updates")
             .performSemanticsAction(SemanticsActions.OnClick)
         composeRule.onNodeWithText("Скачать и установить")
