@@ -3,6 +3,7 @@ package com.kraat.lostfilmnewtv.ui.settings
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
@@ -25,14 +26,14 @@ class SettingsScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun settingsScreen_defaultsToUpdatesSection_andSwitchesVisiblePanel() {
+    fun settingsScreen_defaultsToQualitySection_showsRailSummaries_andSwitchesVisiblePanel() {
         composeRule.setContent {
             LostFilmTheme {
                 SettingsScreen(
-                    selectedQuality = PlaybackQualityPreference.Q1080,
+                    selectedQuality = PlaybackQualityPreference.Q720,
                     onQualitySelected = {},
                     selectedUpdateMode = UpdateCheckMode.MANUAL,
-                    selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
+                    selectedChannelMode = AndroidTvChannelMode.UNWATCHED,
                     installedVersionText = "0.1.0",
                     latestVersionText = "0.2.0",
                     statusText = "Доступно обновление",
@@ -46,27 +47,35 @@ class SettingsScreenTest {
             }
         }
 
+        composeRule.onNodeWithTag("settings-section-quality").assertIsSelected()
+        composeRule.onNodeWithTag("settings-section-quality-summary").assertTextEquals("720p")
+        composeRule.onNodeWithTag("settings-section-updates-summary").assertTextEquals("Доступно обновление")
+        composeRule.onNodeWithTag("settings-section-channel-summary").assertTextEquals("Только непросмотренные")
+        composeRule.onNodeWithTag("settings-overview-card").assertExists()
+        composeRule.onNodeWithText("Качество по умолчанию").assertExists()
+        composeRule.onNodeWithTag("settings-quality-720").assertExists()
+        assertEquals(
+            0,
+            composeRule.onAllNodesWithTag("settings-update-mode-manual").fetchSemanticsNodes().size,
+        )
+
+        composeRule.onNodeWithTag("settings-section-updates")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
         composeRule.onNodeWithTag("settings-section-updates").assertIsSelected()
+        composeRule.onNodeWithTag("settings-overview-card").assertExists()
+        composeRule.onNodeWithTag("settings-update-mode-manual").assertExists()
         composeRule.onNodeWithText("Установлена версия: 0.1.0").assertExists()
         assertEquals(
             0,
-            composeRule.onAllNodesWithTag("settings-quality-1080").fetchSemanticsNodes().size,
-        )
-
-        composeRule.onNodeWithTag("settings-section-quality")
-            .performSemanticsAction(SemanticsActions.OnClick)
-
-        composeRule.onNodeWithTag("settings-section-quality").assertIsSelected()
-        composeRule.onNodeWithTag("settings-quality-1080").assertExists()
-        assertEquals(
-            0,
-            composeRule.onAllNodesWithText("Установлена версия: 0.1.0").fetchSemanticsNodes().size,
+            composeRule.onAllNodesWithTag("settings-quality-720").fetchSemanticsNodes().size,
         )
 
         composeRule.onNodeWithTag("settings-section-channel")
             .performSemanticsAction(SemanticsActions.OnClick)
 
         composeRule.onNodeWithTag("settings-section-channel").assertIsSelected()
+        composeRule.onNodeWithTag("settings-overview-card").assertExists()
         composeRule.onNodeWithTag("settings-tv-channel-all-new").assertExists()
         assertEquals(
             0,
@@ -100,11 +109,15 @@ class SettingsScreenTest {
             }
         }
 
+        composeRule.onNodeWithTag("settings-section-updates")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
         composeRule.onNodeWithTag("settings-section-updates").assertIsSelected()
+        composeRule.onNodeWithTag("settings-overview-card").assertExists()
         composeRule.onNodeWithText("Установлена версия: 0.1.0").assertExists()
         composeRule.onNodeWithText("Последняя версия: 0.2.0").assertExists()
         composeRule.onNodeWithText("Доступно обновление").assertExists()
-        composeRule.onNodeWithText("Проверить обновления")
+        composeRule.onNodeWithTag("settings-action-check-updates")
             .performSemanticsAction(SemanticsActions.OnClick)
         composeRule.onNodeWithText("Скачать и установить")
             .performSemanticsAction(SemanticsActions.OnClick)
@@ -177,13 +190,16 @@ class SettingsScreenTest {
             }
         }
 
+        composeRule.onNodeWithTag("settings-section-updates")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
         composeRule.onNodeWithTag("settings-section-updates").assertIsSelected()
-        assertEquals(1, composeRule.onAllNodesWithText("Проверить обновления").fetchSemanticsNodes().size)
+        assertEquals(1, composeRule.onAllNodesWithTag("settings-action-check-updates").fetchSemanticsNodes().size)
         assertEquals(0, composeRule.onAllNodesWithText("Скачать и установить").fetchSemanticsNodes().size)
     }
 
     @Test
-    fun settingsScreen_updatesSection_showsLoadingMessage_andDisablesCheckButton() {
+    fun settingsScreen_updatesSection_showsLoadingMessage_insideOverviewCard_andDisablesCheckButton() {
         composeRule.setContent {
             LostFilmTheme {
                 SettingsScreen(
@@ -204,8 +220,12 @@ class SettingsScreenTest {
             }
         }
 
+        composeRule.onNodeWithTag("settings-section-updates")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        composeRule.onNodeWithTag("settings-overview-card").assertExists()
         composeRule.onNodeWithText("Проверяем обновления...").assertExists()
-        composeRule.onNodeWithText("Проверяем...").assertIsNotEnabled()
+        composeRule.onNodeWithTag("settings-action-check-updates").assertIsNotEnabled()
     }
 
     @Test
@@ -231,6 +251,10 @@ class SettingsScreenTest {
             }
         }
 
+        composeRule.onNodeWithTag("settings-section-updates")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        composeRule.onNodeWithTag("settings-overview-card").assertExists()
         composeRule.onNodeWithText("Скачивание обновления…").assertExists()
         composeRule.onNodeWithTag("settings-install-update").assertIsNotEnabled()
         composeRule.onNodeWithText("Скачивание…").assertExists()
