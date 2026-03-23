@@ -55,8 +55,11 @@ jobs:
           -PreleaseVersionName=${{ steps.version.outputs.version_name }}
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.version.outputs.version_name }}
-          name: ${{ steps.version.outputs.version_name }}
-          files: app/build/outputs/apk/release/*.apk
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: >
+          gh release create "${{ steps.version.outputs.version_name }}"
+          app/build/outputs/apk/release/*.apk
+          --title "${{ steps.version.outputs.version_name }}"
+          --target "$GITHUB_SHA"
