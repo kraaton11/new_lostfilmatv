@@ -161,13 +161,14 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                             val opened = application.releaseApkLauncher.launch(
                                 context,
                                 update.apkUrl,
-                            ) { downloading ->
-                                homeAppUpdateStatusText = if (downloading) {
-                                    HOME_DOWNLOADING_UPDATE_MESSAGE
-                                } else {
-                                    null
-                                }
-                            }
+                                onDownloadingChange = { downloading ->
+                                    homeAppUpdateStatusText = if (downloading) {
+                                        HOME_DOWNLOADING_UPDATE_MESSAGE
+                                    } else {
+                                        null
+                                    }
+                                },
+                            )
                             if (!opened) {
                                 homeAppUpdateStatusText = HOME_INSTALL_UPDATE_FAILED_MESSAGE
                             }

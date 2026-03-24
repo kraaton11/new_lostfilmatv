@@ -890,9 +890,11 @@ private class RecordingReleaseApkLauncher(
         context: Context,
         apkUrl: String,
         onDownloadingChange: (Boolean) -> Unit,
+        onDownloadProgress: (Int) -> Unit,
     ): Boolean {
         launchedUrls += apkUrl
         onDownloadingChange(true)
+        onDownloadProgress(100)
         onDownloadingChange(false)
         return launchResult
     }

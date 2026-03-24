@@ -33,6 +33,7 @@ open class ReleaseApkLauncher(
         context: Context,
         apkUrl: String,
         onDownloadingChange: (Boolean) -> Unit = {},
+        onDownloadProgress: (Int) -> Unit = {},
     ): Boolean {
         val parsed = apkUrl.toHttpUrlOrNull() ?: return false
         if (!isAllowedDirectDownloadUrl(parsed)) {
@@ -48,7 +49,7 @@ open class ReleaseApkLauncher(
                 onDownloadingChange(true)
             }
             val apkFile = withContext(ioDispatcher) {
-                downloadApkToCache(context, apkUrl)
+                downloadApkToCache(context, apkUrl, onDownloadProgress)
             }
             withContext(mainDispatcher) {
                 onDownloadingChange(false)
@@ -72,7 +73,11 @@ open class ReleaseApkLauncher(
         }
     }
 
-    private fun downloadApkToCache(context: Context, apkUrl: String): File {
+    private fun downloadApkToCache(
+        context: Context,
+        apkUrl: String,
+        onProgress: (Int) -> Unit,
+    ): File {
         val dir = File(context.cacheDir, CACHE_SUBDIR).apply { mkdirs() }
         val target = File(dir, APK_FILE_NAME)
         val request = Request.Builder()
@@ -85,9 +90,21 @@ open class ReleaseApkLauncher(
                 throw IOException("HTTP ${response.code}")
             }
             val body = response.body ?: throw IOException("Empty body")
+            val contentLength = body.contentLength()
             body.byteStream().use { input ->
                 target.outputStream().use { output ->
-                    input.copyTo(output)
+                    val buffer = ByteArray(8192)
+                    var bytesRead: Int
+                    var totalBytesRead = 0L
+                    while (input.read(buffer).also { bytesRead = it } != -1) {
+                        output.write(buffer, 0, bytesRead)
+                        totalBytesRead += bytesRead
+                        if (contentLength > 0) {
+                            val progress = ((totalBytesRead * 100) / contentLength).toInt()
+                            onProgress(progress)
+                        }
+                    }
+                    onProgress(100)
                 }
             }
         }
