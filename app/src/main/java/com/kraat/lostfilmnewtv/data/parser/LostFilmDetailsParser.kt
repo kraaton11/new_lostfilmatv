@@ -1,5 +1,7 @@
 package com.kraat.lostfilmnewtv.data.parser
 
+import com.kraat.lostfilmnewtv.data.model.FavoriteMetadata
+import com.kraat.lostfilmnewtv.data.model.FavoriteTargetKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.TorrentLink
@@ -9,6 +11,7 @@ import org.jsoup.nodes.Document
 private val detailsSeasonEpisodeRegex = Regex(""".*/season_(\d+)/episode_(\d+)/?""")
 private val playEpisodeRegex = Regex("""PlayEpisode\('?(\d+)'?\)""")
 private val torrentRedirectRegex = Regex("""/V/\?[^"'\s<]+""")
+private val followSerialRegex = Regex("""FollowSerial\((\d+),\s*(true|false)\)""", RegexOption.IGNORE_CASE)
 private val userDataBlockRegex = Regex("""UserData\s*=\s*\{.*?\}""", setOf(RegexOption.DOT_MATCHES_ALL))
 private val userDataSessionRegex = Regex("""["']session["']\s*:\s*["']([^"']+)["']""")
 private val userDataSessionAssignmentRegex = Regex("""UserData\.session\s*=\s*["']([^"']+)["']""")
@@ -20,6 +23,7 @@ class LostFilmDetailsParser {
         fetchedAt: Long = 0L,
     ): ReleaseDetails {
         val document = Jsoup.parse(html, BASE_URL)
+        val favoriteMetadata = parseFavoriteMetadata(html)
         val absoluteDetailsUrl = resolveUrl(detailsUrl)
         val match = checkNotNull(detailsSeasonEpisodeRegex.matchEntire(absoluteDetailsUrl)) {
             "Cannot parse season/episode from '$detailsUrl'"
@@ -35,6 +39,9 @@ class LostFilmDetailsParser {
             posterUrl = document.posterUrl(),
             fetchedAt = fetchedAt,
             playEpisodeId = document.playEpisodeId(),
+            favoriteTargetId = favoriteMetadata?.targetId,
+            favoriteTargetKind = favoriteMetadata?.targetKind,
+            isFavorite = favoriteMetadata?.isFavorite,
         )
     }
 
@@ -44,6 +51,7 @@ class LostFilmDetailsParser {
         fetchedAt: Long = 0L,
     ): ReleaseDetails {
         val document = Jsoup.parse(html, BASE_URL)
+        val favoriteMetadata = parseFavoriteMetadata(html)
 
         return ReleaseDetails(
             detailsUrl = resolveUrl(detailsUrl),
@@ -55,6 +63,9 @@ class LostFilmDetailsParser {
             posterUrl = document.posterUrl(),
             fetchedAt = fetchedAt,
             playEpisodeId = document.playEpisodeId(),
+            favoriteTargetId = favoriteMetadata?.targetId,
+            favoriteTargetKind = favoriteMetadata?.targetKind,
+            isFavorite = favoriteMetadata?.isFavorite,
         )
     }
 
@@ -139,6 +150,47 @@ class LostFilmDetailsParser {
             normalizedText.contains("watched") -> true
             else -> null
         }
+    }
+
+    fun parseFavoriteMetadata(html: String): FavoriteMetadata? {
+        val document = Jsoup.parse(html, BASE_URL)
+        val favoriteElement = document.selectFirst("[onClick*=FollowSerial]")
+            ?: return null
+        val onClick = favoriteElement.attr("onClick")
+        val match = followSerialRegex.find(onClick) ?: return null
+        val targetId = match.groupValues[1].toIntOrNull() ?: return null
+        val isMovie = match.groupValues[2].equals("true", ignoreCase = true)
+        val normalizedCueText = buildString {
+            append(favoriteElement.attr("title"))
+            append(' ')
+            append(favoriteElement.text())
+        }.lowercase()
+        val cues = linkedSetOf<Boolean>()
+
+        if (favoriteElement.classNames().contains("active")) {
+            cues += true
+        }
+        if (
+            normalizedCueText.contains("в избранном") ||
+            normalizedCueText.contains("убрать из избранного") ||
+            normalizedCueText.contains("remove from favorites")
+        ) {
+            cues += true
+        }
+        if (
+            normalizedCueText.contains("добавить") ||
+            normalizedCueText.contains("add to favorites")
+        ) {
+            cues += false
+        }
+
+        val isFavorite = if (cues.size == 1) cues.single() else null
+
+        return FavoriteMetadata(
+            targetId = targetId,
+            targetKind = if (isMovie) FavoriteTargetKind.MOVIE else FavoriteTargetKind.SERIES,
+            isFavorite = isFavorite,
+        )
     }
 }
 

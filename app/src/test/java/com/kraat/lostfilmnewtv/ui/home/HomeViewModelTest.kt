@@ -1,6 +1,8 @@
 package com.kraat.lostfilmnewtv.ui.home
 
 import androidx.lifecycle.SavedStateHandle
+import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
+import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
@@ -238,6 +240,14 @@ private class FakeLostFilmRepository(
     }
 
     override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean = false
+
+    override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult {
+        return FavoriteMutationResult.RequiresLogin()
+    }
+
+    override suspend fun loadFavoriteReleases(): FavoriteReleasesResult {
+        return FavoriteReleasesResult.Unavailable()
+    }
 }
 
 private fun summary(

@@ -1,5 +1,7 @@
 package com.kraat.lostfilmnewtv.data.repository
 
+import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
+import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 
@@ -21,4 +23,8 @@ interface LostFilmRepository {
     suspend fun loadDetails(detailsUrl: String): DetailsResult
 
     suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean
+
+    suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult
+
+    suspend fun loadFavoriteReleases(): FavoriteReleasesResult
 }

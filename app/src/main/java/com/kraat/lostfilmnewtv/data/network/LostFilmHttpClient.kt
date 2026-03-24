@@ -3,6 +3,7 @@ package com.kraat.lostfilmnewtv.data.network
 import com.kraat.lostfilmnewtv.data.parser.BASE_URL
 import com.kraat.lostfilmnewtv.data.parser.resolveUrl
 import com.kraat.lostfilmnewtv.data.auth.SessionStore
+import com.kraat.lostfilmnewtv.data.model.FavoriteToggleNetworkResult
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
@@ -16,11 +17,19 @@ interface LostFilmHttpClient {
 
     suspend fun fetchDetails(detailsUrl: String): String
 
+    suspend fun fetchAccountPage(path: String): String
+
     suspend fun fetchTorrentRedirect(playEpisodeId: String): String
 
     suspend fun fetchTorrentPage(url: String): String
 
     suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String, ajaxSessionToken: String): Boolean
+
+    suspend fun toggleFavorite(
+        refererUrl: String,
+        favoriteTargetId: Int,
+        ajaxSessionToken: String,
+    ): FavoriteToggleNetworkResult
 }
 
 class OkHttpLostFilmHttpClient(
@@ -43,6 +52,10 @@ class OkHttpLostFilmHttpClient(
         execute(resolveUrl(detailsUrl))
     }
 
+    override suspend fun fetchAccountPage(path: String): String = withContext(Dispatchers.IO) {
+        execute(resolveUrl(path))
+    }
+
     override suspend fun fetchTorrentRedirect(playEpisodeId: String): String = withContext(Dispatchers.IO) {
         execute("$BASE_URL/v_search.php?a=$playEpisodeId")
     }
@@ -60,6 +73,20 @@ class OkHttpLostFilmHttpClient(
             okHttpClient = okHttpClient,
             refererUrl = resolveUrl(detailsUrl),
             playEpisodeId = playEpisodeId,
+            ajaxSessionToken = ajaxSessionToken,
+            cookieHeader = null,
+        )
+    }
+
+    override suspend fun toggleFavorite(
+        refererUrl: String,
+        favoriteTargetId: Int,
+        ajaxSessionToken: String,
+    ): FavoriteToggleNetworkResult = withContext(Dispatchers.IO) {
+        executeToggleFavorite(
+            okHttpClient = okHttpClient,
+            refererUrl = refererUrl,
+            favoriteTargetId = favoriteTargetId,
             ajaxSessionToken = ajaxSessionToken,
             cookieHeader = null,
         )
@@ -102,6 +129,10 @@ class AuthenticatedLostFilmHttpClient(
         execute(resolveUrl(detailsUrl))
     }
 
+    override suspend fun fetchAccountPage(path: String): String = withContext(Dispatchers.IO) {
+        execute(resolveUrl(path))
+    }
+
     override suspend fun fetchTorrentRedirect(playEpisodeId: String): String = withContext(Dispatchers.IO) {
         execute("$BASE_URL/v_search.php?a=$playEpisodeId")
     }
@@ -119,6 +150,20 @@ class AuthenticatedLostFilmHttpClient(
             okHttpClient = okHttpClient,
             refererUrl = resolveUrl(detailsUrl),
             playEpisodeId = playEpisodeId,
+            ajaxSessionToken = ajaxSessionToken,
+            cookieHeader = sessionStore.read()?.toCookieString(),
+        )
+    }
+
+    override suspend fun toggleFavorite(
+        refererUrl: String,
+        favoriteTargetId: Int,
+        ajaxSessionToken: String,
+    ): FavoriteToggleNetworkResult = withContext(Dispatchers.IO) {
+        executeToggleFavorite(
+            okHttpClient = okHttpClient,
+            refererUrl = refererUrl,
+            favoriteTargetId = favoriteTargetId,
             ajaxSessionToken = ajaxSessionToken,
             cookieHeader = sessionStore.read()?.toCookieString(),
         )
@@ -149,6 +194,7 @@ class AuthenticatedLostFilmHttpClient(
 }
 
 private val markEpisodeSuccessRegex = Regex(""""result"\s*:\s*"on"""")
+private val favoriteToggleResultRegex = Regex(""""result"\s*:\s*"(on|off)"""")
 
 private fun executeMarkEpisodeWatched(
     okHttpClient: OkHttpClient,
@@ -186,5 +232,46 @@ private fun executeMarkEpisodeWatched(
         val body = response.body?.string()
             ?: throw IOException("Empty response body for $BASE_URL/ajaxik.php")
         return markEpisodeSuccessRegex.containsMatchIn(body)
+    }
+}
+
+private fun executeToggleFavorite(
+    okHttpClient: OkHttpClient,
+    refererUrl: String,
+    favoriteTargetId: Int,
+    ajaxSessionToken: String,
+    cookieHeader: String?,
+): FavoriteToggleNetworkResult {
+    val requestBuilder = Request.Builder()
+        .url("$BASE_URL/ajaxik.php")
+        .header("User-Agent", "Mozilla/5.0 (Android TV; LostFilmNewTV) AppleWebKit/537.36 Chrome/132.0.0.0 Safari/537.36")
+        .header("Accept", "application/json, text/javascript, */*; q=0.01")
+        .header("Origin", BASE_URL)
+        .header("Referer", refererUrl)
+        .header("X-Requested-With", "XMLHttpRequest")
+        .post(
+            FormBody.Builder()
+                .add("act", "serial")
+                .add("type", "follow")
+                .add("id", favoriteTargetId.toString())
+                .add("session", ajaxSessionToken)
+                .build(),
+        )
+
+    cookieHeader?.takeIf { it.isNotBlank() }?.let { requestBuilder.header("Cookie", it) }
+
+    okHttpClient.newCall(requestBuilder.build()).execute().use { response ->
+        if (!response.isSuccessful) {
+            val errorBody = response.body?.string().orEmpty()
+            throw IOException("HTTP ${response.code} for $BASE_URL/ajaxik.php body=$errorBody")
+        }
+
+        val body = response.body?.string()
+            ?: throw IOException("Empty response body for $BASE_URL/ajaxik.php")
+        return when (favoriteToggleResultRegex.find(body)?.groupValues?.getOrNull(1)) {
+            "on" -> FavoriteToggleNetworkResult.ToggledOn
+            "off" -> FavoriteToggleNetworkResult.ToggledOff
+            else -> FavoriteToggleNetworkResult.Unknown
+        }
     }
 }
