@@ -42,4 +42,31 @@ class LostFilmFavoriteReleasesParserTest {
 
         assertTrue(items.isEmpty())
     }
+
+    @Test
+    fun parse_ignoresCommentedRedirectSnippet_whenFavoriteCardsExist() {
+        val items = LostFilmFavoriteReleasesParser().parse(
+            html = """
+                <html>
+                    <head>
+                        <script type="text/javascript">
+                            if (true) {
+                                // top.location.replace("/");
+                            }
+                        </script>
+                    </head>
+                    <body>
+                        <a href="/series/example_show/season_4/episode_7/" title="Пример шоу">
+                            <img src="https://static.lostfilm.top/poster.jpg" />
+                            <span class="date">15.03.2026</span>
+                        </a>
+                    </body>
+                </html>
+            """.trimIndent(),
+            fetchedAt = 1_773_576_000_000L,
+        )
+
+        assertEquals(1, items.size)
+        assertEquals("https://www.lostfilm.today/series/example_show/season_4/episode_7/", items.single().detailsUrl)
+    }
 }
