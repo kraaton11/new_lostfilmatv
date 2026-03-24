@@ -5,6 +5,8 @@ import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
 import org.junit.Test
 
 class GitHubReleaseClientTest {
@@ -52,6 +54,66 @@ class GitHubReleaseClientTest {
 
             assertEquals("v1.2.3", release.version)
             assertEquals("https://example.test/lostfilm-tv-1.2.3.apk", release.apkUrl)
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun fetchLatestRelease_throwsRateLimitException_when429Response() = runTest {
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setResponseCode(429))
+        server.start()
+        try {
+            val client = GitHubReleaseClient(
+                httpClient = OkHttpClient(),
+                baseUrl = server.url("/").toString().removeSuffix("/"),
+            )
+            client.fetchLatestRelease()
+            fail("Expected RateLimitException")
+        } catch (e: RateLimitException) {
+            assertEquals(429, e.statusCode)
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun fetchLatestRelease_throwsRateLimitException_when403Response() = runTest {
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setResponseCode(403))
+        server.start()
+        try {
+            val client = GitHubReleaseClient(
+                httpClient = OkHttpClient(),
+                baseUrl = server.url("/").toString().removeSuffix("/"),
+            )
+            client.fetchLatestRelease()
+            fail("Expected RateLimitException")
+        } catch (e: RateLimitException) {
+            assertEquals(403, e.statusCode)
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun fetchLatestRelease_includesUserAgentHeader() = runTest {
+        val server = MockWebServer()
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"tag_name":"v1.0.0","name":"Release","assets":[]}"""),
+        )
+        server.start()
+        try {
+            val client = GitHubReleaseClient(
+                httpClient = OkHttpClient(),
+                baseUrl = server.url("/").toString().removeSuffix("/"),
+            )
+            client.fetchLatestRelease()
+            val request = server.takeRequest()
+            assertTrue(request.getHeader("User-Agent")?.contains("LostFilmNewTV") == true)
         } finally {
             server.shutdown()
         }
