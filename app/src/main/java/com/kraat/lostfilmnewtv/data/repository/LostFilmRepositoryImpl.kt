@@ -12,27 +12,33 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.parser.BASE_URL
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
-import com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteReleasesParser
+import com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteSeriesParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmListParser
+import com.kraat.lostfilmnewtv.data.parser.LostFilmSeasonEpisodesParser
 import com.kraat.lostfilmnewtv.data.parser.resolveUrl
 import com.kraat.lostfilmnewtv.data.parser.toEntity
 import com.kraat.lostfilmnewtv.data.parser.toSummaryEntities
 import com.kraat.lostfilmnewtv.data.parser.toSummaryModels
 import java.io.IOException
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
 import org.jsoup.Jsoup
 
 private const val FRESH_WINDOW_MS = 6 * 60 * 60 * 1000L
 private const val RETENTION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000L
 private val paginatorRegex = Regex("""/new/page_(\d+)""")
-private val favoriteRouteCandidates = listOf("/my/", "/my/type_0", "/my/type_1", "/my/serials")
+private const val favoriteSeriesRoute = "/my/type_1"
 private val seriesFavoritePageRegex = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)/season_\d+/episode_\d+/?""")
+private val favoriteReleaseDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy")
 
 class LostFilmRepositoryImpl(
     private val httpClient: LostFilmHttpClient,
     private val releaseDao: ReleaseDao,
     private val listParser: LostFilmListParser,
     private val detailsParser: LostFilmDetailsParser,
-    private val favoriteReleasesParser: LostFilmFavoriteReleasesParser,
+    private val favoriteSeriesParser: LostFilmFavoriteSeriesParser = LostFilmFavoriteSeriesParser(),
+    private val seasonEpisodesParser: LostFilmSeasonEpisodesParser = LostFilmSeasonEpisodesParser(),
     private val hasAuthenticatedSession: suspend () -> Boolean,
     private val clock: () -> Long = { System.currentTimeMillis() },
 ) : LostFilmRepository {
@@ -221,22 +227,41 @@ class LostFilmRepositoryImpl(
         }
 
         return try {
-            for (path in favoriteRouteCandidates) {
-                val html = try {
-                    httpClient.fetchAccountPage(path)
-                } catch (_: IOException) {
-                    continue
-                }
-                val items = favoriteReleasesParser.parse(
-                    html = html,
-                    fetchedAt = clock(),
-                )
-                if (items.isNotEmpty()) {
-                    return FavoriteReleasesResult.Success(items)
-                }
+            val favoritesHtml = httpClient.fetchAccountPage(favoriteSeriesRoute)
+            val favoriteSeries = favoriteSeriesParser.parse(favoritesHtml)
+            if (favoriteSeries.isEmpty()) {
+                return FavoriteReleasesResult.Success(emptyList())
             }
 
-            FavoriteReleasesResult.Unavailable()
+            val fetchedAt = clock()
+            var loadedAnySeasonPage = false
+            val items = buildList {
+                favoriteSeries.forEach { series ->
+                    val seasonsUrl = "${series.seriesUrl.trimEnd('/')}/seasons"
+                    val seasonsHtml = try {
+                        httpClient.fetchDetails(seasonsUrl)
+                    } catch (_: IOException) {
+                        return@forEach
+                    }
+                    loadedAnySeasonPage = true
+                    addAll(
+                        seasonEpisodesParser.parse(
+                            html = seasonsHtml,
+                            series = series,
+                            fetchedAt = fetchedAt,
+                        ),
+                    )
+                }
+            }
+                .distinctBy { it.detailsUrl }
+                .sortedByDescending { parseFavoriteReleaseDate(it.releaseDateRu) ?: LocalDate.MIN }
+                .mapIndexed { index, item -> item.copy(positionInPage = index) }
+
+            if (items.isEmpty() && !loadedAnySeasonPage) {
+                FavoriteReleasesResult.Unavailable()
+            } else {
+                FavoriteReleasesResult.Success(items)
+            }
         } catch (_: IOException) {
             FavoriteReleasesResult.Unavailable()
         }
@@ -464,5 +489,13 @@ class LostFilmRepositoryImpl(
             favoriteTargetKind = favoriteMetadata.targetKind,
             isFavorite = favoriteMetadata.isFavorite,
         )
+    }
+
+    private fun parseFavoriteReleaseDate(value: String): LocalDate? {
+        return try {
+            LocalDate.parse(value, favoriteReleaseDateFormatter)
+        } catch (_: DateTimeParseException) {
+            null
+        }
     }
 }

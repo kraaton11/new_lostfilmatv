@@ -12,8 +12,9 @@ import com.kraat.lostfilmnewtv.data.network.AuthenticatedLostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.network.OkHttpLostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
-import com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteReleasesParser
+import com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteSeriesParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmListParser
+import com.kraat.lostfilmnewtv.data.parser.LostFilmSeasonEpisodesParser
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepositoryImpl
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
@@ -88,7 +89,8 @@ open class LostFilmApplication : Application(), HomeChannelBackgroundRefreshRunn
             releaseDao = database.releaseDao(),
             listParser = LostFilmListParser(),
             detailsParser = LostFilmDetailsParser(),
-            favoriteReleasesParser = LostFilmFavoriteReleasesParser(),
+            favoriteSeriesParser = LostFilmFavoriteSeriesParser(),
+            seasonEpisodesParser = LostFilmSeasonEpisodesParser(),
             hasAuthenticatedSession = {
                 val session = sessionStore.read()
                 session != null && !session.isExpired()
