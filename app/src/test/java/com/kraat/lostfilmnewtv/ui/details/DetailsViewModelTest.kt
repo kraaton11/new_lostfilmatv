@@ -159,10 +159,127 @@ class DetailsViewModelTest {
         assertEquals("Recovered", viewModel.uiState.value.details?.titleRu)
         assertNull(viewModel.uiState.value.errorMessage)
     }
+
+    @Test
+    fun onFavoriteClick_setsBusyState_thenMarksFavoriteUpdated() = runTest(dispatcher) {
+        val favoriteResult = CompletableDeferred<FavoriteMutationResult>()
+        val repository = FakeDetailsRepository(
+            detailsResult = DetailsResult.Success(
+                details = details(
+                    kind = ReleaseKind.SERIES,
+                    titleRu = "9-1-1",
+                    seasonNumber = 9,
+                    episodeNumber = 13,
+                    releaseDateRu = "14 марта 2026",
+                ).copy(
+                    favoriteTargetId = 915,
+                    isFavorite = false,
+                ),
+                isStale = false,
+            ),
+            favoriteResult = favoriteResult,
+        )
+        val viewModel = DetailsViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(AppDestination.Details.detailsUrlArg to "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"),
+            ),
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+        viewModel.onFavoriteClick()
+        runCurrent()
+
+        assertEquals(true, viewModel.uiState.value.isFavoriteMutationInFlight)
+        assertEquals("Сохраняем...", viewModel.uiState.value.favoriteActionLabel)
+        assertEquals(false, viewModel.uiState.value.isFavoriteActionEnabled)
+
+        favoriteResult.complete(FavoriteMutationResult.Updated)
+        advanceUntilIdle()
+
+        assertEquals(true, viewModel.uiState.value.details?.isFavorite)
+        assertEquals("Убрать из избранного", viewModel.uiState.value.favoriteActionLabel)
+        assertEquals(false, viewModel.uiState.value.isFavoriteMutationInFlight)
+    }
+
+    @Test
+    fun onFavoriteClick_failure_restoresPreviousStableStateAndMessage() = runTest(dispatcher) {
+        val repository = FakeDetailsRepository(
+            detailsResult = DetailsResult.Success(
+                details = details(
+                    kind = ReleaseKind.SERIES,
+                    titleRu = "9-1-1",
+                    seasonNumber = 9,
+                    episodeNumber = 13,
+                    releaseDateRu = "14 марта 2026",
+                ).copy(
+                    favoriteTargetId = 915,
+                    isFavorite = true,
+                ),
+                isStale = false,
+            ),
+            favoriteResult = CompletableDeferred(FavoriteMutationResult.Error("boom")),
+        )
+        val viewModel = DetailsViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(AppDestination.Details.detailsUrlArg to "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"),
+            ),
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+        viewModel.onFavoriteClick()
+        advanceUntilIdle()
+
+        assertEquals(true, viewModel.uiState.value.details?.isFavorite)
+        assertEquals("Убрать из избранного", viewModel.uiState.value.favoriteActionLabel)
+        assertEquals("Не удалось обновить избранное", viewModel.uiState.value.favoriteStatusMessage)
+    }
+
+    @Test
+    fun onFavoriteClick_requiresLogin_disablesActionWithLoginMessage() = runTest(dispatcher) {
+        val repository = FakeDetailsRepository(
+            detailsResult = DetailsResult.Success(
+                details = details(
+                    kind = ReleaseKind.SERIES,
+                    titleRu = "9-1-1",
+                    seasonNumber = 9,
+                    episodeNumber = 13,
+                    releaseDateRu = "14 марта 2026",
+                ).copy(
+                    favoriteTargetId = 915,
+                    isFavorite = false,
+                ),
+                isStale = false,
+            ),
+            favoriteResult = CompletableDeferred(FavoriteMutationResult.RequiresLogin()),
+        )
+        val viewModel = DetailsViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(AppDestination.Details.detailsUrlArg to "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"),
+            ),
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+        viewModel.onFavoriteClick()
+        advanceUntilIdle()
+
+        assertEquals("Войдите в LostFilm", viewModel.uiState.value.favoriteActionLabel)
+        assertEquals(false, viewModel.uiState.value.isFavoriteActionEnabled)
+        assertEquals(false, viewModel.uiState.value.isFavoriteMutationInFlight)
+    }
 }
 
 private class FakeDetailsRepository(
     private val detailsResult: DetailsResult,
+    private val favoriteResult: CompletableDeferred<FavoriteMutationResult> = CompletableDeferred(FavoriteMutationResult.RequiresLogin()),
 ) : LostFilmRepository {
     override suspend fun loadPage(pageNumber: Int): PageState {
         error("Page loading is not used in details tests")
@@ -172,9 +289,7 @@ private class FakeDetailsRepository(
 
     override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean = false
 
-    override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult {
-        return FavoriteMutationResult.RequiresLogin()
-    }
+    override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult = favoriteResult.await()
 
     override suspend fun loadFavoriteReleases(): FavoriteReleasesResult {
         return FavoriteReleasesResult.Unavailable()

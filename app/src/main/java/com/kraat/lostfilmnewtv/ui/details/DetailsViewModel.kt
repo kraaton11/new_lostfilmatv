@@ -3,6 +3,7 @@ package com.kraat.lostfilmnewtv.ui.details
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.navigation.AppDestination
@@ -18,6 +19,7 @@ import kotlinx.coroutines.launch
 class DetailsViewModel(
     private val repository: LostFilmRepository,
     private val savedStateHandle: SavedStateHandle = SavedStateHandle(),
+    private val isAuthenticated: Boolean = true,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(DetailsUiState())
@@ -26,6 +28,7 @@ class DetailsViewModel(
     private var started = false
     private var loadRequestToken = 0
     private var loadJob: Job? = null
+    private var hasValidSession = isAuthenticated
 
     fun onStart() {
         if (started) {
@@ -38,6 +41,70 @@ class DetailsViewModel(
 
     fun onRetry() {
         loadDetails()
+    }
+
+    fun onFavoriteClick() {
+        val currentState = _uiState.value
+        val currentDetails = currentState.details ?: return
+        val currentFavorite = currentDetails.isFavorite ?: return
+        if (currentState.isFavoriteMutationInFlight || currentDetails.favoriteTargetId == null) {
+            return
+        }
+
+        _uiState.update { state ->
+            state.copy(
+                isFavoriteMutationInFlight = true,
+                favoriteStatusMessage = null,
+            ).withFavoritePresentation()
+        }
+
+        viewModelScope.launch(ioDispatcher) {
+            val targetFavorite = !currentFavorite
+            when (val result = repository.setFavorite(currentDetails.detailsUrl, targetFavorite)) {
+                FavoriteMutationResult.Updated -> {
+                    _uiState.update { state ->
+                        state.copy(
+                            details = state.details?.copy(isFavorite = targetFavorite),
+                            isFavoriteMutationInFlight = false,
+                            favoriteStatusMessage = if (targetFavorite) {
+                                "Добавлено в избранное"
+                            } else {
+                                "Удалено из избранного"
+                            },
+                            favoriteContentVersion = state.favoriteContentVersion + 1,
+                        ).withFavoritePresentation()
+                    }
+                }
+
+                FavoriteMutationResult.NoOp -> {
+                    _uiState.update { state ->
+                        state.copy(
+                            isFavoriteMutationInFlight = false,
+                            favoriteStatusMessage = null,
+                        ).withFavoritePresentation()
+                    }
+                }
+
+                is FavoriteMutationResult.RequiresLogin -> {
+                    hasValidSession = false
+                    _uiState.update { state ->
+                        state.copy(
+                            isFavoriteMutationInFlight = false,
+                            favoriteStatusMessage = result.message,
+                        ).withFavoritePresentation()
+                    }
+                }
+
+                is FavoriteMutationResult.Error -> {
+                    _uiState.update { state ->
+                        state.copy(
+                            isFavoriteMutationInFlight = false,
+                            favoriteStatusMessage = "Не удалось обновить избранное",
+                        ).withFavoritePresentation()
+                    }
+                }
+            }
+        }
     }
 
     private fun loadDetails() {
@@ -61,7 +128,7 @@ class DetailsViewModel(
                             isLoading = false,
                             showStaleBanner = result.isStale,
                             errorMessage = null,
-                        )
+                        ).withFavoritePresentation()
                     }
                 }
 
@@ -73,10 +140,46 @@ class DetailsViewModel(
                             isLoading = false,
                             showStaleBanner = false,
                             errorMessage = result.message,
-                        )
+                        ).withFavoritePresentation()
                     }
                 }
             }
+        }
+    }
+
+    private fun DetailsUiState.withFavoritePresentation(): DetailsUiState {
+        val currentDetails = details
+        if (currentDetails?.favoriteTargetId == null) {
+            return copy(
+                favoriteActionLabel = "",
+                isFavoriteActionEnabled = false,
+            )
+        }
+        if (isFavoriteMutationInFlight) {
+            return copy(
+                favoriteActionLabel = "Сохраняем...",
+                isFavoriteActionEnabled = false,
+            )
+        }
+        if (!hasValidSession) {
+            return copy(
+                favoriteActionLabel = "Войдите в LostFilm",
+                isFavoriteActionEnabled = false,
+            )
+        }
+        return when (currentDetails.isFavorite) {
+            true -> copy(
+                favoriteActionLabel = "Убрать из избранного",
+                isFavoriteActionEnabled = true,
+            )
+            false -> copy(
+                favoriteActionLabel = "Добавить в избранное",
+                isFavoriteActionEnabled = true,
+            )
+            null -> copy(
+                favoriteActionLabel = "Избранное недоступно",
+                isFavoriteActionEnabled = false,
+            )
         }
     }
 }

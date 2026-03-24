@@ -27,8 +27,6 @@ data class DetailsStageActionUiModel(
     val enabled: Boolean = true,
 )
 
-enum class DetailsStageActionType { OPEN_TORRSERVE, NONE }
-
 fun buildDetailsStageUi(
     state: DetailsUiState,
     isAuthenticated: Boolean,
@@ -55,9 +53,28 @@ fun buildDetailsStageUi(
         details = details,
         playbackRow = playbackRow,
         isBusy = isBusy,
+        favoriteStatusMessageText = state.favoriteStatusMessage,
         torrServeMessageText = torrServeMessageText,
     )
     val bottomStageSupportLine = buildBottomStageSupportLine(details = details)
+    val favoriteAction = details?.favoriteTargetId?.let {
+        DetailsStageActionUiModel(
+            actionId = "favorite",
+            rowId = null,
+            label = state.favoriteActionLabel.ifBlank {
+                if (details.isFavorite == true) "Убрать из избранного" else "Добавить в избранное"
+            },
+            subtitle = when {
+                !isAuthenticated -> "Требуется авторизация"
+                state.isFavoriteMutationInFlight -> "Синхронизация с LostFilm"
+                details.isFavorite == null -> "Состояние недоступно"
+                else -> "Синхронизация с LostFilm"
+            },
+            qualityLabel = null,
+            actionType = DetailsStageActionType.TOGGLE_FAVORITE,
+            enabled = state.isFavoriteActionEnabled,
+        )
+    }
 
     return DetailsStageUiModel(
         activeRowId = playbackRow?.rowId,
@@ -67,7 +84,7 @@ fun buildDetailsStageUi(
         bottomStageStatusLine = bottomStageStatusLine,
         bottomStageSupportLine = bottomStageSupportLine,
         primaryAction = primaryAction,
-        secondaryActions = emptyList(),
+        secondaryActions = listOfNotNull(favoriteAction),
     )
 }
 
@@ -96,8 +113,10 @@ private fun buildBottomStageStatusLine(
     details: ReleaseDetails?,
     playbackRow: DetailsTorrentRowUiModel?,
     isBusy: Boolean,
+    favoriteStatusMessageText: String?,
     torrServeMessageText: String?,
 ): String {
+    if (!favoriteStatusMessageText.isNullOrBlank()) return favoriteStatusMessageText
     if (!torrServeMessageText.isNullOrBlank()) return torrServeMessageText
     if (isBusy) return "Открывается..."
     if (playbackRow == null) return "Видео недоступно"
@@ -121,4 +140,10 @@ private fun DetailsTorrentRowUiModel.toPrimaryAction(
         actionType = DetailsStageActionType.OPEN_TORRSERVE,
         enabled = !isBusy,
     )
+}
+
+enum class DetailsStageActionType {
+    OPEN_TORRSERVE,
+    TOGGLE_FAVORITE,
+    NONE,
 }

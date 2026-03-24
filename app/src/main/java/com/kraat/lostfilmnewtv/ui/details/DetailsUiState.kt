@@ -7,4 +7,9 @@ data class DetailsUiState(
     val isLoading: Boolean = false,
     val showStaleBanner: Boolean = false,
     val errorMessage: String? = null,
+    val isFavoriteMutationInFlight: Boolean = false,
+    val favoriteStatusMessage: String? = null,
+    val favoriteActionLabel: String = "",
+    val isFavoriteActionEnabled: Boolean = false,
+    val favoriteContentVersion: Int = 0,
 )

@@ -68,6 +68,7 @@ fun DetailsScreen(
     state: DetailsUiState,
     isAuthenticated: Boolean,
     onRetry: () -> Unit,
+    onFavoriteClick: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val torrentRows = state.details?.toTorrentRows().orEmpty()
@@ -81,6 +82,7 @@ fun DetailsScreen(
         activeTorrServeRowId = null,
         isTorrServeBusy = false,
         onRetry = onRetry,
+        onFavoriteClick = onFavoriteClick,
         onOpenTorrServe = { _, url ->
             context.startActivity(
                 Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
@@ -101,6 +103,7 @@ fun DetailsScreen(
     activeTorrServeRowId: String?,
     isTorrServeBusy: Boolean,
     onRetry: () -> Unit,
+    onFavoriteClick: () -> Unit = {},
     onOpenTorrServe: (String, String) -> Unit,
 ) {
     when {
@@ -114,6 +117,7 @@ fun DetailsScreen(
             torrServeMessage = torrServeMessage,
             activeTorrServeRowId = activeTorrServeRowId,
             isTorrServeBusy = isTorrServeBusy,
+            onFavoriteClick = onFavoriteClick,
             onOpenTorrServe = onOpenTorrServe,
         )
     }
@@ -166,6 +170,7 @@ private fun ContentState(
     torrServeMessage: TorrServeMessage?,
     activeTorrServeRowId: String?,
     isTorrServeBusy: Boolean,
+    onFavoriteClick: () -> Unit,
     onOpenTorrServe: (String, String) -> Unit,
 ) {
     val details = state.details
@@ -202,6 +207,7 @@ private fun ContentState(
             HeroStage(
                 details = details,
                 stageUi = stageUi,
+                onFavoriteClick = onFavoriteClick,
                 onOpenTorrServe = {
                     val row = playbackRow ?: return@HeroStage
                     onOpenTorrServe(row.rowId, row.url)
@@ -274,9 +280,12 @@ private fun BoxScope.AmbientGlow() {
 private fun HeroStage(
     details: ReleaseDetails?,
     stageUi: DetailsStageUiModel,
+    onFavoriteClick: () -> Unit,
     onOpenTorrServe: () -> Unit,
 ) {
     val primaryActionRequester = remember(stageUi.primaryAction.actionId) { FocusRequester() }
+    val favoriteAction = stageUi.secondaryActions.firstOrNull { it.actionType == DetailsStageActionType.TOGGLE_FAVORITE }
+    val favoriteActionRequester = remember(favoriteAction?.actionId) { FocusRequester() }
 
     LaunchedEffect(stageUi.primaryAction.actionId, stageUi.primaryAction.enabled) {
         if (stageUi.primaryAction.enabled) {
@@ -333,11 +342,30 @@ private fun HeroStage(
                         up = primaryActionRequester
                         left = primaryActionRequester
                         right = primaryActionRequester
+                        if (favoriteAction != null) {
+                            down = favoriteActionRequester
+                        }
                     }
                     .testTag(primaryActionTag(stageUi.primaryAction)),
                 isPrimary = true,
                 enabled = stageUi.primaryAction.enabled,
             )
+            favoriteAction?.let { action ->
+                StageButton(
+                    label = action.label,
+                    subtitle = action.subtitle,
+                    onClick = onFavoriteClick,
+                    modifier = Modifier
+                        .width(248.dp)
+                        .focusRequester(favoriteActionRequester)
+                        .focusProperties {
+                            up = primaryActionRequester
+                        }
+                        .testTag(secondaryActionTag(action)),
+                    enabled = action.enabled,
+                    isSecondary = true,
+                )
+            }
         }
     }
 }
@@ -463,6 +491,15 @@ private fun primaryActionTag(action: DetailsStageActionUiModel): String {
     val rowId = action.rowId ?: return "details-primary-action"
     return when (action.actionType) {
         DetailsStageActionType.OPEN_TORRSERVE -> "torrent-torrserve-$rowId"
+        DetailsStageActionType.TOGGLE_FAVORITE -> "details-primary-action"
         DetailsStageActionType.NONE -> "details-primary-action"
+    }
+}
+
+private fun secondaryActionTag(action: DetailsStageActionUiModel): String {
+    return when (action.actionType) {
+        DetailsStageActionType.TOGGLE_FAVORITE -> "details-favorite-action"
+        DetailsStageActionType.OPEN_TORRSERVE -> "details-secondary-${action.actionId}"
+        DetailsStageActionType.NONE -> "details-secondary-${action.actionId}"
     }
 }

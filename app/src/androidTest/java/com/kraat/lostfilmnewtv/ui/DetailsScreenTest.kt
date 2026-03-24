@@ -189,6 +189,27 @@ class DetailsScreenTest {
     }
 
     @Test
+    fun detailsScreen_rendersFavoriteAction_withoutStealingInitialFocus() {
+        val playbackRow = row("preferred", "1080p", "https://example.com/1080.torrent", true)
+
+        composeRule.setDetailsContent(
+            state = DetailsUiState(
+                details = detailsWithRows(listOf(playbackRow)).copy(
+                    favoriteTargetId = 915,
+                    isFavorite = false,
+                ),
+                favoriteActionLabel = "Добавить в избранное",
+                isFavoriteActionEnabled = true,
+            ),
+            availableTorrentRowsCount = 1,
+            playbackRow = playbackRow,
+        )
+
+        composeRule.onNodeWithTag("details-favorite-action").assertIsDisplayed()
+        composeRule.onNodeWithTag(torrServeTag("preferred")).assertIsFocused()
+    }
+
+    @Test
     fun backFromDetails_restoresFocusedPosterAfterSystemBack() {
         val movieRow = row("movie", "1080p", "https://example.com/movie.torrent", true)
 
