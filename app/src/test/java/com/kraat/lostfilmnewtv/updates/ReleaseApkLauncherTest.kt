@@ -79,6 +79,28 @@ class ReleaseApkLauncherTest {
         assertFalse(result)
         assertEquals(null, context.startedIntent)
     }
+
+    @Test
+    fun launch_returnsFalse_whenDiskSpaceInsufficient() = runBlocking {
+        val server = MockWebServer()
+        server.enqueue(MockResponse().setBody("fake-apk-payload"))
+        server.start()
+        val base = ApplicationProvider.getApplicationContext<Context>()
+        val context = RecordingContext(base)
+        val launcher = object : ReleaseApkLauncher(
+            httpClient = OkHttpClient(),
+            ioDispatcher = Dispatchers.Unconfined,
+            mainDispatcher = Dispatchers.Unconfined,
+        ) {
+            override fun hasEnoughDiskSpace(context: Context): Boolean = false
+        }
+
+        val result = launcher.launch(context, server.url("/app.apk").toString())
+
+        assertFalse(result)
+        assertEquals(null, context.startedIntent)
+        server.shutdown()
+    }
 }
 
 /**
@@ -87,6 +109,8 @@ class ReleaseApkLauncherTest {
 private class TestReleaseApkLauncher(
     httpClient: OkHttpClient,
 ) : ReleaseApkLauncher(httpClient, Dispatchers.Unconfined, Dispatchers.Unconfined) {
+    override fun hasEnoughDiskSpace(context: Context): Boolean = true
+
     override fun startPackageInstaller(context: Context, apkFile: File): Boolean {
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(

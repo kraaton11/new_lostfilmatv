@@ -22,6 +22,13 @@ open class ReleaseApkLauncher(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val mainDispatcher: CoroutineDispatcher = Dispatchers.Main,
 ) {
+    private val minRequiredSpaceBytes = 100L * 1024 * 1024 // 100 MB
+
+    protected open fun hasEnoughDiskSpace(context: Context): Boolean {
+        val cacheDir = File(context.cacheDir, CACHE_SUBDIR)
+        return cacheDir.freeSpace >= minRequiredSpaceBytes
+    }
+
     open suspend fun launch(
         context: Context,
         apkUrl: String,
@@ -29,6 +36,10 @@ open class ReleaseApkLauncher(
     ): Boolean {
         val parsed = apkUrl.toHttpUrlOrNull() ?: return false
         if (!isAllowedDirectDownloadUrl(parsed)) {
+            return false
+        }
+
+        if (!hasEnoughDiskSpace(context)) {
             return false
         }
 
