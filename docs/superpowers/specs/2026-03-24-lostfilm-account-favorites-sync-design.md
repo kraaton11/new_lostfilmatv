@@ -152,6 +152,7 @@ Behavior rules:
 - the preference controls only `Home` inside the app
 - it does not change Android TV channel publishing
 - enabling it while logged out is valid; the rail simply stays hidden until a valid session exists
+- the default value for both new and existing installs is hidden, so a missing stored key must be interpreted as `false`
 
 This keeps the settings change small while still making the feature user-controlled.
 
@@ -196,6 +197,8 @@ Boundary rule:
 - UI and view models call only `setFavorite(detailsUrl, targetFavorite)`
 - the repository fetches or reuses the current details HTML, parses `favoriteTargetId`, `favoriteTargetKind`, and `UserData.session`, and decides whether a network call is possible
 - the HTTP client receives only the low-level network parameters needed to perform the request and does not parse HTML itself
+- if the repository confirms that the current remote state already matches `targetFavorite`, it returns a no-op success without sending a toggle request
+- if the current favorite state is unknown or potentially stale, the repository must refresh details HTML before deciding whether a toggle request is safe
 
 ## 3. LostFilm network contract
 
@@ -265,6 +268,10 @@ The setting should be read:
 
 The setting should be written only from the settings UI, not inferred from auth state or current rail contents.
 
+Migration rule:
+- no explicit migration is needed
+- the new preference key should default to `false` when absent in existing shared preferences
+
 ## State Management
 
 ## 1. Details state
@@ -292,6 +299,14 @@ When a favorite mutation succeeds:
 The update should be targeted:
 - no full app restart
 - no unnecessary clearing of Home selection
+
+Freshness policy for account sync:
+- refresh the favorite rail on initial Home entry when the setting is enabled and auth is valid
+- refresh it again when Home becomes visible after app resume from background
+- refresh it after successful login, logout, or favorite mutation
+- refresh it after the user changes the Home favorites setting
+
+If a refresh fails, the app should keep ordinary Home content and simply hide the favorite rail until the next refresh opportunity.
 
 ## 3. Home loading rules
 
@@ -357,6 +372,7 @@ Rules:
 - failed favorite mutation should leave the previous confirmed state intact
 - failed favorite-release load should hide the rail, not replace Home content with an error
 - an expired session should surface as a user-readable favorite-specific message, not a generic crash or empty UI mystery
+- missing auth and expired auth may share the same user-facing copy such as `Войдите в LostFilm`, but the repository should still treat an expired session as a refresh-invalidating event so the stale favorite rail is removed promptly
 
 ## Testing Strategy
 
