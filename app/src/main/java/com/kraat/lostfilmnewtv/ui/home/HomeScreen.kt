@@ -78,7 +78,6 @@ fun HomeScreen(
             state.selectedItemKey ?: itemKeys.firstOrNull(),
         )
     }
-    var isModeTabFocused by rememberSaveable { mutableStateOf(false) }
     var startupContentFocusPending by rememberSaveable { mutableStateOf(true) }
 
     LaunchedEffect(state.selectedItemKey, state.selectedMode, itemKeys) {
@@ -146,7 +145,7 @@ fun HomeScreen(
                 selectedMode = state.selectedMode,
                 availableModes = state.availableModes,
                 onModeSelected = onModeSelected,
-                onModeTabFocusChanged = { isFocused -> isModeTabFocused = isFocused },
+                onHeaderInteraction = { startupContentFocusPending = false },
                 isAuthenticated = isAuthenticated,
                 hasSavedUpdate = savedAppUpdate != null,
                 onSettingsClick = onSettingsClick,
@@ -229,13 +228,12 @@ fun HomeScreen(
                                     items = activeModeState.items,
                                     focusedItemKey = focusedItemKey,
                                     cardFocusRequesters = cardFocusRequesters,
-                                    shouldRequestFocus = startupContentFocusPending || !isModeTabFocused,
+                                    shouldRequestFocus = startupContentFocusPending,
                                     upTargetRequester = activeModeRequester,
                                     downTargetRequester = null,
                                     isPaging = state.isPaging && state.selectedMode == HomeFeedMode.AllNew,
                                     onItemFocused = { detailsUrl ->
                                         startupContentFocusPending = false
-                                        isModeTabFocused = false
                                         focusedItemKey = detailsUrl
                                         onItemFocused(detailsUrl)
                                     },

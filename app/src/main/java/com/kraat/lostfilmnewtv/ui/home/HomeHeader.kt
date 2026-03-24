@@ -50,7 +50,7 @@ fun HomeHeader(
     selectedMode: HomeFeedMode,
     availableModes: List<HomeFeedMode>,
     onModeSelected: (HomeFeedMode) -> Unit,
-    onModeTabFocusChanged: (Boolean) -> Unit,
+    onHeaderInteraction: () -> Unit,
     isAuthenticated: Boolean,
     hasSavedUpdate: Boolean,
     onSettingsClick: () -> Unit,
@@ -112,8 +112,11 @@ fun HomeHeader(
                 HomeHeaderModeButton(
                     mode = mode,
                     isSelected = mode == selectedMode,
-                    onClick = { onModeSelected(mode) },
-                    onFocusChanged = onModeTabFocusChanged,
+                    onClick = {
+                        onHeaderInteraction()
+                        onModeSelected(mode)
+                    },
+                    onInteraction = onHeaderInteraction,
                     onMoveLeft = leftMode?.let { targetMode ->
                         {
                             onModeSelected(targetMode)
@@ -150,6 +153,7 @@ fun HomeHeader(
                 label = "Настройки",
                 subtitle = "Параметры приложения",
                 onClick = onSettingsClick,
+                onInteraction = onHeaderInteraction,
                 modifier = Modifier
                     .testTag("home-action-settings")
                     .focusRequester(settingsFocusRequester)
@@ -164,6 +168,7 @@ fun HomeHeader(
                 label = if (isAuthenticated) "Выйти" else "Войти",
                 subtitle = if (isAuthenticated) "Завершить сессию" else "Открыть авторизацию",
                 onClick = onAuthClick,
+                onInteraction = onHeaderInteraction,
                 modifier = Modifier
                     .testTag("home-action-auth")
                     .focusRequester(authFocusRequester)
@@ -174,6 +179,7 @@ fun HomeHeader(
                     label = "Обновить",
                     subtitle = "Установить свежую сборку",
                     onClick = onInstallUpdateClick,
+                    onInteraction = onHeaderInteraction,
                     isPrimary = true,
                     modifier = Modifier
                         .testTag("home-action-update")
@@ -190,7 +196,7 @@ private fun HomeHeaderModeButton(
     mode: HomeFeedMode,
     isSelected: Boolean,
     onClick: () -> Unit,
-    onFocusChanged: (Boolean) -> Unit,
+    onInteraction: () -> Unit,
     onMoveLeft: (() -> Unit)?,
     onMoveRight: (() -> Unit)?,
     modifier: Modifier = Modifier,
@@ -204,12 +210,13 @@ private fun HomeHeaderModeButton(
         subtitle = "Режим Home",
         onClick = onClick,
         modifier = modifier
-            .onFocusChanged { focusState ->
-                onFocusChanged(focusState.isFocused)
-            }
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) {
                     return@onPreviewKeyEvent false
+                }
+
+                if (event.key.isHeaderInteractionKey()) {
+                    onInteraction()
                 }
 
                 when (event.key) {
@@ -235,6 +242,7 @@ private fun HomeHeaderActionButton(
     label: String,
     subtitle: String,
     onClick: () -> Unit,
+    onInteraction: () -> Unit = {},
     modifier: Modifier = Modifier,
     isPrimary: Boolean = false,
 ) {
@@ -265,6 +273,12 @@ private fun HomeHeaderActionButton(
         shape = shape,
         colors = ButtonDefaults.buttonColors(containerColor = backgroundColor),
         modifier = modifier
+            .onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown && event.key.isHeaderInteractionKey()) {
+                    onInteraction()
+                }
+                false
+            }
             .widthIn(min = 156.dp)
             .graphicsLayer {
                 scaleX = scale
@@ -312,5 +326,20 @@ private fun HomeFeedMode.testTagSuffix(): String {
     return when (this) {
         HomeFeedMode.AllNew -> "all-new"
         HomeFeedMode.Favorites -> "favorites"
+    }
+}
+
+private fun Key.isHeaderInteractionKey(): Boolean {
+    return when (this) {
+        Key.DirectionUp,
+        Key.DirectionDown,
+        Key.DirectionLeft,
+        Key.DirectionRight,
+        Key.DirectionCenter,
+        Key.Enter,
+        Key.NumPadEnter,
+        -> true
+
+        else -> false
     }
 }
