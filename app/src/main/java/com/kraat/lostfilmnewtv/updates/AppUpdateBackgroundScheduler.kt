@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.updates
 
+import android.util.Log
 import androidx.work.Constraints
 import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.ExistingWorkPolicy
@@ -14,50 +15,58 @@ class AppUpdateBackgroundScheduler(
     private val workManager: WorkManager,
 ) {
     fun syncForCurrentMode() {
-        when (readMode()) {
-            UpdateCheckMode.MANUAL -> {
-                workManager.cancelUniqueWork(UNIQUE_WORK_NAME)
-                workManager.cancelUniqueWork(IMMEDIATE_WORK_NAME)
-            }
+        try {
+            when (readMode()) {
+                UpdateCheckMode.MANUAL -> {
+                    workManager.cancelUniqueWork(UNIQUE_WORK_NAME)
+                    workManager.cancelUniqueWork(IMMEDIATE_WORK_NAME)
+                }
 
-            UpdateCheckMode.QUIET_CHECK -> {
-                workManager.enqueueUniquePeriodicWork(
-                    UNIQUE_WORK_NAME,
-                    ExistingPeriodicWorkPolicy.UPDATE,
-                    PeriodicWorkRequestBuilder<AppUpdateBackgroundWorker>(
-                        REFRESH_INTERVAL_HOURS,
-                        TimeUnit.HOURS,
-                    )
-                        .setConstraints(
-                            Constraints.Builder()
-                                .setRequiredNetworkType(NetworkType.CONNECTED)
-                                .build(),
+                UpdateCheckMode.QUIET_CHECK -> {
+                    workManager.enqueueUniquePeriodicWork(
+                        UNIQUE_WORK_NAME,
+                        ExistingPeriodicWorkPolicy.UPDATE,
+                        PeriodicWorkRequestBuilder<AppUpdateBackgroundWorker>(
+                            REFRESH_INTERVAL_HOURS,
+                            TimeUnit.HOURS,
                         )
-                        .build(),
-                )
+                            .setConstraints(
+                                Constraints.Builder()
+                                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                                    .build(),
+                            )
+                            .build(),
+                    )
+                }
             }
+        } catch (error: Exception) {
+            Log.e(TAG, "Failed to sync update schedule", error)
         }
     }
 
     fun requestImmediateRefresh() {
-        when (readMode()) {
-            UpdateCheckMode.MANUAL -> {
-                workManager.cancelUniqueWork(IMMEDIATE_WORK_NAME)
-            }
+        try {
+            when (readMode()) {
+                UpdateCheckMode.MANUAL -> {
+                    workManager.cancelUniqueWork(IMMEDIATE_WORK_NAME)
+                }
 
-            UpdateCheckMode.QUIET_CHECK -> {
-                workManager.enqueueUniqueWork(
-                    IMMEDIATE_WORK_NAME,
-                    ExistingWorkPolicy.KEEP,
-                    OneTimeWorkRequestBuilder<AppUpdateBackgroundWorker>()
-                        .setConstraints(
-                            Constraints.Builder()
-                                .setRequiredNetworkType(NetworkType.CONNECTED)
-                                .build(),
-                        )
-                        .build(),
-                )
+                UpdateCheckMode.QUIET_CHECK -> {
+                    workManager.enqueueUniqueWork(
+                        IMMEDIATE_WORK_NAME,
+                        ExistingWorkPolicy.KEEP,
+                        OneTimeWorkRequestBuilder<AppUpdateBackgroundWorker>()
+                            .setConstraints(
+                                Constraints.Builder()
+                                    .setRequiredNetworkType(NetworkType.CONNECTED)
+                                    .build(),
+                            )
+                            .build(),
+                    )
+                }
             }
+        } catch (error: Exception) {
+            Log.e(TAG, "Failed to request immediate refresh", error)
         }
     }
 
@@ -65,5 +74,6 @@ class AppUpdateBackgroundScheduler(
         internal const val UNIQUE_WORK_NAME = "app-update-quiet-check"
         internal const val IMMEDIATE_WORK_NAME = "app-update-quiet-check-immediate"
         private const val REFRESH_INTERVAL_HOURS = 6L
+        private const val TAG = "AppUpdateScheduler"
     }
 }
