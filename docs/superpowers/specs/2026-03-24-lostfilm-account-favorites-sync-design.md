@@ -44,6 +44,7 @@ Confirmed:
 - LostFilm `main.min.js?ver=6` currently sends favorite updates through `POST /ajaxik.php`
 - the request payload includes `act=serial`, `type=follow`, `id=<serialId>`, and `session=<UserData.session>`
 - the current JS expects `result` values of `on` and `off`
+- the current LostFilm JS uses the same `_FollowSerial` request shape for both series and movies; `isMovie` only changes UI copy and confirmation text
 - unauthenticated probing confirmed the existence of `/my/`, `/my/type_0`, `/my/type_1`, and `/my/serials`
 - unauthenticated probing also confirmed that these `/my/*` routes currently return a lightweight redirect wrapper back to `/` instead of usable feed content
 
@@ -110,7 +111,7 @@ Behavior rules:
 - on success, `Details` updates immediately without requiring a screen reload
 - on failure, the button returns to the previous stable state and shows a short inline status message
 
-The favorite toggle should support both series and movies when LostFilm exposes the button, but the Home rail remains series-only because only favorite series generate new episodic releases.
+The favorite toggle should support both series and movies when LostFilm exposes the button. In the currently verified LostFilm JS contract, both cases use the same `type=follow` request; `isMovie` affects only UI text. The Home rail still remains series-only because only favorite series generate new episodic releases.
 
 ## 2. Home screen
 
@@ -210,6 +211,8 @@ Request shape should mirror the currently verified LostFilm site contract:
 - `id=<favoriteTargetId>`
 - `session=<UserData.session>`
 
+This same request shape applies to both series and movies in the currently verified site JS. The `favoriteTargetKind` is still useful for UI strings and parser consistency, but it does not change the network payload in this iteration.
+
 Because the current site toggles rather than submitting an explicit desired boolean, the repository should verify the resulting state and compare it against the requested target before claiming success.
 
 ## 4. Favorite-release feed loading
@@ -223,15 +226,17 @@ The repository should own route resolution with a small internal strategy such a
    - `/my/type_1`
    - `/my/serials`
 2. reject any response that matches the currently observed redirect wrapper back to `/`
-3. accept the first response that contains at least one release link matching a series episode URL pattern such as `/series/<slug>/season_<n>/episode_<n>/`
-4. parse the accepted document into favorite-release summaries
-5. fail closed if no candidate route produces a compatible document
+3. treat a route as fully compatible only if the document contains at least one series episode link matching `/series/<slug>/season_<n>/episode_<n>/` and enough surrounding data to build a Home-safe card from that same document
+4. if multiple routes are fully compatible, choose the first one in the fixed precedence order above and ignore the rest for this iteration
+5. if a route is only partially compatible, such as containing episode links but not enough card data, reject it instead of merging data across routes
+6. parse the accepted document into favorite-release summaries
+7. fail closed if no candidate route produces a fully compatible document
 
 UI code should never know which `/my/*` route won.
 
 This keeps the inevitable site-shape uncertainty localized to one layer.
 
-To keep planning deterministic, the first implementation step must commit one authenticated fixture file for the accepted route to `app/src/test/resources/fixtures/favorite-releases.html`. That fixture becomes the canonical parser contract for this iteration.
+To keep planning deterministic, the first implementation step must commit one authenticated fixture file for the accepted route to `app/src/test/resources/fixtures/favorite-releases.html`. That fixture becomes the canonical parser contract for this iteration, and the chosen route path must be recorded in the fixture-producing test or helper so later work is pinned to one concrete source.
 
 ## 5. Home rail model
 
