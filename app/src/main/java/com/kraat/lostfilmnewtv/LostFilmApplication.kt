@@ -36,6 +36,7 @@ import com.kraat.lostfilmnewtv.updates.AppUpdateCoordinator
 import com.kraat.lostfilmnewtv.updates.AppUpdateRepository
 import com.kraat.lostfilmnewtv.updates.GitHubReleaseClient
 import com.kraat.lostfilmnewtv.updates.ReleaseApkLauncher
+import com.kraat.lostfilmnewtv.updates.UpdateHttpClientFactory
 import com.kraat.lostfilmnewtv.updates.AppUpdateBackgroundScheduler as QuietAppUpdateBackgroundScheduler
 import okhttp3.OkHttpClient
 
@@ -67,7 +68,7 @@ open class LostFilmApplication : Application(), HomeChannelBackgroundRefreshRunn
     open val appUpdateRepository: AppUpdateRepository by lazy {
         AppUpdateRepository(
             installedVersion = BuildConfig.VERSION_NAME,
-            releaseClient = GitHubReleaseClient(okHttpClient),
+            releaseClient = GitHubReleaseClient(UpdateHttpClientFactory.create()),
         )
     }
 
@@ -151,7 +152,7 @@ open class LostFilmApplication : Application(), HomeChannelBackgroundRefreshRunn
     val torrServeLinkBuilder: TorrServeLinkBuilder by lazy { TorrServeLinkBuilder(torrServeConfig) }
     val torrServeAvailabilityProbe: TorrServeAvailabilityProbe by lazy { TorrServeAvailabilityProbe(applicationContext) }
     val torrServeLauncher: TorrServeLauncher by lazy { TorrServeLauncher() }
-    open val releaseApkLauncher: ReleaseApkLauncher by lazy { ReleaseApkLauncher(okHttpClient) }
+    open val releaseApkLauncher: ReleaseApkLauncher by lazy { ReleaseApkLauncher(UpdateHttpClientFactory.create()) }
     open val torrServeActionHandler: TorrServeActionHandler by lazy {
         TorrServeActionHandler(torrServeLinkBuilder, torrServeAvailabilityProbe, torrServeLauncher)
     }
