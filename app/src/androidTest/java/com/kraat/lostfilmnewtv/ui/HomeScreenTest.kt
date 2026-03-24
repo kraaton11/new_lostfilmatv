@@ -200,6 +200,78 @@ class HomeScreenTest {
         composeRule.onNodeWithTag(posterTag(HOME_RAIL_FAVORITES, favoriteDetailsUrl)).assertIsFocused()
         composeRule.onNodeWithText("Любимчики").assertExists()
     }
+
+    @Test
+    fun focusingNonSelectedModeTab_doesNotSwitchModeWithoutDirectionalInput() {
+        composeRule.setContent {
+            LostFilmTheme {
+                var selectedMode by remember { mutableStateOf(HomeFeedMode.Favorites) }
+                HomeScreen(
+                    state = seededModeState().copy(
+                        selectedMode = selectedMode,
+                        selectedItem = seededModeState().favoriteItems.first(),
+                        selectedItemKey = favoriteDetailsUrl,
+                    ),
+                    onModeSelected = { mode -> selectedMode = mode },
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("home-mode-tab-all-new")
+            .performSemanticsAction(SemanticsActions.RequestFocus)
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("home-mode-tab-all-new").assertIsFocused()
+        composeRule.onNodeWithText("Любимчики").assertExists()
+    }
+
+    @Test
+    fun favoritesContentArrival_movesFocusFromHeaderToFavoriteCardOnStartup() {
+        var state by mutableStateOf(
+            seededModeState().copy(
+                selectedMode = HomeFeedMode.Favorites,
+                favoriteItems = emptyList(),
+                favoritesModeState = HomeModeContentState.Loading,
+                selectedItem = null,
+                selectedItemKey = null,
+            ),
+        )
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(
+                    state = state,
+                    onModeSelected = { mode -> state = state.copy(selectedMode = mode) },
+                    onItemFocused = { focusedKey ->
+                        state = state.copy(
+                            selectedItemKey = focusedKey,
+                            selectedItem = state.favoriteItems.find { it.detailsUrl == focusedKey },
+                        )
+                    },
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("home-mode-tab-favorites")
+            .performSemanticsAction(SemanticsActions.RequestFocus)
+        composeRule.waitForIdle()
+
+        composeRule.runOnIdle {
+            state = seededModeState().copy(
+                selectedMode = HomeFeedMode.Favorites,
+                selectedItem = seededModeState().favoriteItems.first(),
+                selectedItemKey = favoriteDetailsUrl,
+            )
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                composeRule.onNodeWithTag(posterTag(HOME_RAIL_FAVORITES, favoriteDetailsUrl)).assertIsFocused()
+                true
+            }.getOrDefault(false)
+        }
+
+        composeRule.onNodeWithTag(posterTag(HOME_RAIL_FAVORITES, favoriteDetailsUrl)).assertIsFocused()
+    }
 }
 
 private const val firstDetailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"

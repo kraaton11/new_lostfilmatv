@@ -283,6 +283,7 @@ private fun seededState(
 
     return HomeUiState(
         items = listOf(first, second),
+        allNewModeState = HomeModeContentState.Content(listOf(first, second)),
         selectedItem = first,
         selectedItemKey = first.detailsUrl,
         hasNextPage = true,
