@@ -33,6 +33,7 @@ import com.kraat.lostfilmnewtv.ui.settings.SettingsRoute
 import kotlinx.coroutines.launch
 
 private const val HOME_WATCHED_DETAILS_URL_KEY = "home.watched_details_url"
+private const val HOME_FAVORITES_INVALIDATED_KEY = "home.favorites_invalidated"
 private const val HOME_INSTALL_UPDATE_FAILED_MESSAGE = "Не удалось открыть обновление."
 private const val HOME_DOWNLOADING_UPDATE_MESSAGE = "Скачивание обновления…"
 
@@ -169,6 +170,11 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                     navController.previousBackStackEntry
                         ?.savedStateHandle
                         ?.set(HOME_WATCHED_DETAILS_URL_KEY, watchedDetailsUrl)
+                },
+                onFavoriteContentChanged = {
+                    navController.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.set(HOME_FAVORITES_INVALIDATED_KEY, true)
                 },
                 onChannelContentChanged = application.homeChannelSyncManager::syncNow,
             )

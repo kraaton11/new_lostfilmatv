@@ -359,6 +359,39 @@ class DetailsRouteTest {
         assertEquals(listOf(detailsUrl), watchedDetailsUrls)
         assertEquals(1, channelSyncCalls.get())
     }
+
+    @Test
+    fun route_notifiesFavoriteContentChanged_afterSuccessfulFavoriteMutation() {
+        val detailsUrl = "https://www.lostfilm.today/series/favorite"
+        val repository = RouteFakeDetailsRepository.success(
+            detailsUrl = detailsUrl,
+            details = details(detailsUrl).copy(
+                favoriteTargetId = 915,
+                isFavorite = false,
+            ),
+        ).apply {
+            favoriteResults += FavoriteMutationResult.Updated
+        }
+        val invalidationCount = AtomicInteger(0)
+
+        composeRule.setContent {
+            DetailsRoute(
+                detailsUrl = detailsUrl,
+                repository = repository,
+                actionHandler = succeedingActionHandler(),
+                linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
+                onFavoriteContentChanged = { invalidationCount.incrementAndGet() },
+            )
+        }
+
+        composeRule.waitForNodeWithTag("details-favorite-action")
+        composeRule.onNodeWithTag("details-favorite-action")
+            .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitUntil(timeoutMillis = 5_000) { invalidationCount.get() == 1 }
+
+        assertEquals(1, invalidationCount.get())
+        assertEquals(listOf(detailsUrl to true), repository.favoriteRequests)
+    }
 }
 
 private fun ComposeContentTestRule.waitForNodeWithTag(tag: String) {
@@ -406,6 +439,8 @@ private class RouteFakeDetailsRepository(
     private val scriptedResults = ConcurrentHashMap(detailsResults)
     val loadedDetailsUrls = CopyOnWriteArrayList<String>()
     val markedEpisodes = CopyOnWriteArrayList<Pair<String, String>>()
+    val favoriteResults = CopyOnWriteArrayList<FavoriteMutationResult>()
+    val favoriteRequests = CopyOnWriteArrayList<Pair<String, Boolean>>()
 
     override suspend fun loadPage(pageNumber: Int): PageState {
         error("Page loading is not used in details route tests")
@@ -423,7 +458,12 @@ private class RouteFakeDetailsRepository(
     }
 
     override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult {
-        return FavoriteMutationResult.RequiresLogin()
+        favoriteRequests += detailsUrl to targetFavorite
+        return if (favoriteResults.isEmpty()) {
+            FavoriteMutationResult.RequiresLogin()
+        } else {
+            favoriteResults.removeAt(0)
+        }
     }
 
     override suspend fun loadFavoriteReleases(): FavoriteReleasesResult {
@@ -431,10 +471,13 @@ private class RouteFakeDetailsRepository(
     }
 
     companion object {
-        fun success(detailsUrl: String): RouteFakeDetailsRepository = RouteFakeDetailsRepository(
+        fun success(
+            detailsUrl: String,
+            details: ReleaseDetails = details(detailsUrl),
+        ): RouteFakeDetailsRepository = RouteFakeDetailsRepository(
             detailsResults = mapOf(
                 detailsUrl to mutableListOf(
-                    DetailsResult.Success(details(detailsUrl), false),
+                    DetailsResult.Success(details, false),
                 ),
             ),
         )

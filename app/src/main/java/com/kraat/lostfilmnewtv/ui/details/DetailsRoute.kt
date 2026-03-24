@@ -35,12 +35,13 @@ fun DetailsRoute(
     actionHandler: TorrServeActionHandler,
     linkBuilder: TorrServeLinkBuilder,
     onMarkedWatched: (String) -> Unit = {},
+    onFavoriteContentChanged: () -> Unit = {},
     onChannelContentChanged: suspend () -> Unit = {},
     openTorrServe: suspend (Context, String) -> TorrServeOpenResult = actionHandler::open,
 ) {
     val detailsViewModel: DetailsViewModel = viewModel(
         key = "details:$detailsUrl",
-        factory = detailsViewModelFactory(repository, detailsUrl),
+        factory = detailsViewModelFactory(repository, detailsUrl, isAuthenticated),
     )
     val state by detailsViewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -68,10 +69,18 @@ fun DetailsRoute(
     var activeTorrServeRowId by remember(detailsUrl) { mutableStateOf<String?>(null) }
     var isTorrServeBusy by remember(detailsUrl) { mutableStateOf(false) }
     var requestToken by remember(detailsUrl) { mutableIntStateOf(0) }
+    var handledFavoriteContentVersion by remember(detailsUrl) { mutableIntStateOf(0) }
     var inFlightJob by remember(detailsUrl) { mutableStateOf<Job?>(null) }
 
     LaunchedEffect(detailsUrl) {
         detailsViewModel.onStart()
+    }
+
+    LaunchedEffect(state.favoriteContentVersion) {
+        if (state.favoriteContentVersion > handledFavoriteContentVersion) {
+            handledFavoriteContentVersion = state.favoriteContentVersion
+            onFavoriteContentChanged()
+        }
     }
 
     DisposableEffect(detailsUrl) {
@@ -143,6 +152,7 @@ fun DetailsRoute(
         activeTorrServeRowId = activeTorrServeRowId,
         isTorrServeBusy = isTorrServeBusy,
         onRetry = detailsViewModel::onRetry,
+        onFavoriteClick = detailsViewModel::onFavoriteClick,
         onOpenTorrServe = handleOpenTorrServe,
     )
 }
@@ -150,6 +160,7 @@ fun DetailsRoute(
 private fun detailsViewModelFactory(
     repository: LostFilmRepository,
     detailsUrl: String,
+    isAuthenticated: Boolean,
 ): ViewModelProvider.Factory {
     return object : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -159,6 +170,7 @@ private fun detailsViewModelFactory(
                 savedStateHandle = SavedStateHandle(
                     mapOf(AppDestination.Details.detailsUrlArg to detailsUrl),
                 ),
+                isAuthenticated = isAuthenticated,
             ) as T
         }
     }

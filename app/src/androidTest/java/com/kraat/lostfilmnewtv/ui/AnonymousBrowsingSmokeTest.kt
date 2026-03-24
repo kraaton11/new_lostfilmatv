@@ -9,6 +9,8 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import com.kraat.lostfilmnewtv.MainActivity
 import com.kraat.lostfilmnewtv.LostFilmDebugHooks
+import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
+import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
@@ -116,6 +118,14 @@ private class FakeAnonymousBrowsingRepository : LostFilmRepository {
     }
 
     override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean = true
+
+    override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult {
+        return FavoriteMutationResult.RequiresLogin()
+    }
+
+    override suspend fun loadFavoriteReleases(): FavoriteReleasesResult {
+        return FavoriteReleasesResult.Unavailable()
+    }
 }
 
 private val SMOKE_SUMMARY = ReleaseSummary(
