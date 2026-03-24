@@ -123,4 +123,26 @@ class PlaybackPreferencesStoreTest {
         assertEquals(AndroidTvChannelMode.DISABLED, store.readAndroidTvChannelMode())
         assertNull(store.readAndroidTvChannelId())
     }
+
+    @Test
+    fun readHomeFavoritesRailEnabled_returnsFalse_whenNothingWasSaved() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsName = "playback-store-home-favorites-default"
+        context.deleteSharedPreferences(prefsName)
+        val store = PlaybackPreferencesStore(context, prefsName = prefsName)
+
+        assertEquals(false, store.readHomeFavoritesRailEnabled())
+    }
+
+    @Test
+    fun writeHomeFavoritesRailEnabled_persistsSelectedValue() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsName = "playback-store-home-favorites-write"
+        context.deleteSharedPreferences(prefsName)
+        val store = PlaybackPreferencesStore(context, prefsName = prefsName)
+
+        store.writeHomeFavoritesRailEnabled(true)
+
+        assertEquals(true, store.readHomeFavoritesRailEnabled())
+    }
 }

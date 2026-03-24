@@ -137,13 +137,14 @@ fun SettingsTvButton(
 fun SettingsOverviewCard(
     title: String,
     subtitle: String? = null,
+    tag: String = "settings-overview-card",
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit = {},
 ) {
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .testTag("settings-overview-card")
+            .testTag(tag)
             .border(1.dp, HomePanelBorder, RoundedCornerShape(22.dp))
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),

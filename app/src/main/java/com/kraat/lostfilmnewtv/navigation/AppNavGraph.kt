@@ -51,6 +51,9 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
     var selectedPlaybackQuality by remember {
         mutableStateOf(application.playbackPreferencesStore.readDefaultQuality())
     }
+    var isHomeFavoritesRailEnabled by remember {
+        mutableStateOf(application.playbackPreferencesStore.readHomeFavoritesRailEnabled())
+    }
 
     LaunchedEffect(application) {
         application.homeChannelBackgroundScheduler.syncForCurrentMode()
@@ -78,6 +81,7 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                     repository = application.repository,
                     savedStateHandle = backStackEntry.savedStateHandle,
                     onChannelContentChanged = application.homeChannelSyncManager::syncNow,
+                    initialFavoritesRailVisible = isAuthenticated && isHomeFavoritesRailEnabled,
                 ),
             )
             val state by homeViewModel.uiState.collectAsStateWithLifecycle()
@@ -85,11 +89,20 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
             val watchedDetailsUrl by backStackEntry.savedStateHandle
                 .getStateFlow<String?>(HOME_WATCHED_DETAILS_URL_KEY, null)
                 .collectAsStateWithLifecycle()
+            val favoritesInvalidated by backStackEntry.savedStateHandle
+                .getStateFlow(HOME_FAVORITES_INVALIDATED_KEY, false)
+                .collectAsStateWithLifecycle()
             val scope = rememberCoroutineScope()
             var homeAppUpdateStatusText by rememberSaveable { mutableStateOf<String?>(null) }
 
             LaunchedEffect(Unit) {
                 homeViewModel.onStart()
+            }
+
+            LaunchedEffect(isAuthenticated, isHomeFavoritesRailEnabled) {
+                homeViewModel.onFavoritesRailVisibilityChanged(
+                    isVisible = isAuthenticated && isHomeFavoritesRailEnabled,
+                )
             }
 
             LaunchedEffect(savedAppUpdate) {
@@ -102,6 +115,13 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                 watchedDetailsUrl?.let { detailsUrl ->
                     homeViewModel.onItemWatched(detailsUrl)
                     backStackEntry.savedStateHandle[HOME_WATCHED_DETAILS_URL_KEY] = null
+                }
+            }
+
+            LaunchedEffect(favoritesInvalidated) {
+                if (favoritesInvalidated) {
+                    homeViewModel.onFavoriteContentInvalidated()
+                    backStackEntry.savedStateHandle[HOME_FAVORITES_INVALIDATED_KEY] = false
                 }
             }
 
@@ -184,6 +204,7 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                 playbackPreferencesStore = application.playbackPreferencesStore,
                 appUpdateCoordinator = application.appUpdateCoordinator,
                 onPlaybackQualityChanged = { selectedPlaybackQuality = it },
+                onHomeFavoritesRailVisibilityChanged = { isHomeFavoritesRailEnabled = it },
                 syncAppUpdateBackgroundSchedule = application.appUpdateBackgroundScheduler::syncForCurrentMode,
                 syncAndroidTvChannelBackgroundSchedule = application.homeChannelBackgroundScheduler::syncForCurrentMode,
                 syncAndroidTvChannel = application.homeChannelSyncManager::syncNow,
@@ -208,6 +229,7 @@ private fun homeViewModelFactory(
     repository: LostFilmRepository,
     savedStateHandle: SavedStateHandle,
     onChannelContentChanged: suspend () -> Unit,
+    initialFavoritesRailVisible: Boolean,
 ): ViewModelProvider.Factory {
     return object : ViewModelProvider.Factory {
         override fun <VM : ViewModel> create(modelClass: Class<VM>): VM {
@@ -219,6 +241,7 @@ private fun homeViewModelFactory(
                 repository = repository,
                 savedStateHandle = savedStateHandle,
                 onChannelContentChanged = onChannelContentChanged,
+                initialFavoritesRailVisible = initialFavoritesRailVisible,
             ) as VM
         }
     }

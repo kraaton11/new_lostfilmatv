@@ -66,11 +66,22 @@ class PlaybackPreferencesStore(
             .apply()
     }
 
+    fun readHomeFavoritesRailEnabled(): Boolean {
+        return prefs.getBoolean(KEY_HOME_FAVORITES_RAIL_ENABLED, false)
+    }
+
+    fun writeHomeFavoritesRailEnabled(value: Boolean) {
+        prefs.edit()
+            .putBoolean(KEY_HOME_FAVORITES_RAIL_ENABLED, value)
+            .apply()
+    }
+
     private companion object {
         const val DEFAULT_PREFS_NAME = "lostfilm_playback_prefs"
         const val KEY_DEFAULT_QUALITY = "default_quality"
         const val KEY_UPDATE_CHECK_MODE = "update_check_mode"
         const val KEY_ANDROID_TV_CHANNEL_MODE = "android_tv_channel_mode"
         const val KEY_ANDROID_TV_CHANNEL_ID = "android_tv_channel_id"
+        const val KEY_HOME_FAVORITES_RAIL_ENABLED = "home_favorites_rail_enabled"
     }
 }

@@ -262,4 +262,42 @@ class SettingsScreenTest {
         composeRule.onNodeWithTag("settings-install-update").assertIsNotEnabled()
         composeRule.onNodeWithText("Скачивание…").assertExists()
     }
+
+    @Test
+    fun settingsScreen_channelSection_showsHomeFavoritesToggle_andInvokesCallback() {
+        val selectedValues = mutableListOf<Boolean>()
+
+        composeRule.setContent {
+            LostFilmTheme {
+                SettingsScreen(
+                    selectedQuality = PlaybackQualityPreference.Q1080,
+                    onQualitySelected = {},
+                    selectedUpdateMode = UpdateCheckMode.MANUAL,
+                    selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
+                    isHomeFavoritesRailEnabled = false,
+                    installedVersionText = "0.1.0",
+                    latestVersionText = null,
+                    statusText = null,
+                    isCheckingForUpdates = false,
+                    installUrl = null,
+                    onUpdateModeSelected = {},
+                    onChannelModeSelected = {},
+                    onHomeFavoritesRailVisibilitySelected = { selectedValues += it },
+                    onCheckForUpdatesClick = {},
+                    onInstallUpdateClick = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("settings-section-channel")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        composeRule.onNodeWithText("Главный экран").assertExists()
+        composeRule.onNodeWithText("Полка Избранное").assertExists()
+        composeRule.onNodeWithTag("settings-home-favorites-hide").assertIsSelected()
+        composeRule.onNodeWithTag("settings-home-favorites-show")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        assertEquals(listOf(true), selectedValues)
+    }
 }

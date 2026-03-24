@@ -4,6 +4,8 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 
 data class HomeUiState(
     val items: List<ReleaseSummary> = emptyList(),
+    val favoriteItems: List<ReleaseSummary> = emptyList(),
+    val rails: List<HomeContentRail> = fallbackHomeRails(items),
     val selectedItem: ReleaseSummary? = null,
     val selectedItemKey: String? = null,
     val showStaleBanner: Boolean = false,
@@ -13,4 +15,5 @@ data class HomeUiState(
     val pagingErrorMessage: String? = null,
     val nextPage: Int = 1,
     val hasNextPage: Boolean = true,
+    val isFavoritesRailVisible: Boolean = false,
 )

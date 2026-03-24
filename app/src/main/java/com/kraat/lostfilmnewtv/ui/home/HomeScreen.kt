@@ -32,8 +32,8 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kraat.lostfilmnewtv.BuildConfig
-import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
+import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
 import com.kraat.lostfilmnewtv.ui.theme.HomeAccentBlue
@@ -61,25 +61,53 @@ fun HomeScreen(
     appUpdateStatusText: String? = null,
     onInstallUpdateClick: () -> Unit = {},
 ) {
-    var focusedItemKey by rememberSaveable(state.items) {
-        mutableStateOf(state.selectedItemKey ?: state.items.firstOrNull()?.detailsUrl)
+    val visibleRails = remember(state.rails, state.items) {
+        if (state.rails.isNotEmpty()) {
+            state.rails
+        } else {
+            fallbackHomeRails(state.items)
+        }
+    }
+    val railItemKeys = remember(visibleRails) {
+        visibleRails.flatMap { rail ->
+            rail.items.map { item -> homeItemKey(rail.id, item.detailsUrl) }
+        }
+    }
+    var focusedItemKey by rememberSaveable(railItemKeys) {
+        mutableStateOf(
+            normalizeHomeItemKey(visibleRails, state.selectedItemKey)
+                ?: railItemKeys.firstOrNull(),
+        )
+    }
+    var rememberedItemKeyByRail by rememberSaveable(railItemKeys) {
+        mutableStateOf(initialRememberedItemKeys(visibleRails, state.selectedItemKey))
     }
 
-    LaunchedEffect(state.selectedItemKey) {
-        if (state.selectedItemKey != null) {
-            focusedItemKey = state.selectedItemKey
+    LaunchedEffect(state.selectedItemKey, visibleRails) {
+        val normalizedKey = normalizeHomeItemKey(visibleRails, state.selectedItemKey)
+        if (normalizedKey != null) {
+            focusedItemKey = normalizedKey
+            railIdFromItemKey(normalizedKey)?.let { railId ->
+                rememberedItemKeyByRail = rememberedItemKeyByRail + (railId to normalizedKey)
+            }
         }
     }
 
-    val itemKeys = remember(state.items) { state.items.map { it.detailsUrl } }
     val settingsRequester = remember { FocusRequester() }
     val authRequester = remember { FocusRequester() }
     val updateRequester = remember { FocusRequester() }
-    val cardFocusRequesters = remember(itemKeys) { itemKeys.associateWith { FocusRequester() } }
-    val firstItemKey = state.items.firstOrNull()?.detailsUrl
-    val currentCardRequester = cardFocusRequesters[focusedItemKey] ?: firstItemKey?.let(cardFocusRequesters::get)
+    val cardFocusRequesters = remember(railItemKeys) { railItemKeys.associateWith { FocusRequester() } }
+    val headerDownTarget = visibleRails.firstOrNull()?.let { rail ->
+        preferredRailRequester(
+            rail = rail,
+            rememberedItemKeyByRail = rememberedItemKeyByRail,
+            cardFocusRequesters = cardFocusRequesters,
+        )
+    }
     val topActionRequester = if (savedAppUpdate != null) updateRequester else authRequester
-    val focusedItem = state.items.find { it.detailsUrl == focusedItemKey } ?: state.selectedItem ?: state.items.firstOrNull()
+    val focusedItem = findHomeRailItem(visibleRails, focusedItemKey)?.item
+        ?: state.selectedItem
+        ?: visibleRails.firstOrNull()?.items?.firstOrNull()
     val stageStatusText = appUpdateStatusText ?: savedAppUpdate?.let { "Доступно обновление ${it.latestVersion}" }
 
     Box(
@@ -108,7 +136,7 @@ fun HomeScreen(
                 settingsFocusRequester = settingsRequester,
                 authFocusRequester = authRequester,
                 updateFocusRequester = if (savedAppUpdate != null) updateRequester else null,
-                downTarget = currentCardRequester,
+                downTarget = headerDownTarget,
             )
 
             if (state.showStaleBanner) {
@@ -174,19 +202,61 @@ fun HomeScreen(
                             .weight(1f),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        HomeRail(
-                            items = state.items,
-                            focusedItemKey = focusedItemKey,
-                            cardFocusRequesters = cardFocusRequesters,
-                            topActionRequester = topActionRequester,
-                            isPaging = state.isPaging,
-                            onItemFocused = { detailsUrl ->
-                                focusedItemKey = detailsUrl
-                                onItemFocused(detailsUrl)
-                            },
-                            onOpenDetails = onOpenDetails,
-                            onEndReached = onEndReached,
-                        )
+                        visibleRails.forEachIndexed { index, rail ->
+                            val upTarget = if (index == 0) {
+                                topActionRequester
+                            } else {
+                                preferredRailRequester(
+                                    rail = visibleRails[index - 1],
+                                    rememberedItemKeyByRail = rememberedItemKeyByRail,
+                                    cardFocusRequesters = cardFocusRequesters,
+                                )
+                            }
+                            val downTarget = visibleRails.getOrNull(index + 1)?.let { nextRail ->
+                                preferredRailRequester(
+                                    rail = nextRail,
+                                    rememberedItemKeyByRail = rememberedItemKeyByRail,
+                                    cardFocusRequesters = cardFocusRequesters,
+                                )
+                            }
+
+                            Column(
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                if (index > 0) {
+                                    Text(
+                                        text = rail.title,
+                                        color = TextPrimary,
+                                        fontSize = 20.sp,
+                                        modifier = Modifier.testTag("home-rail-title-${rail.id}"),
+                                    )
+                                }
+                                HomeRail(
+                                    railId = rail.id,
+                                    items = rail.items,
+                                    focusedItemKey = focusedItemKey,
+                                    cardFocusRequesters = cardFocusRequesters,
+                                    shouldRequestFocus = when {
+                                        focusedItemKey == null -> index == 0
+                                        else -> rail.items.any {
+                                            homeItemKey(rail.id, it.detailsUrl) == focusedItemKey
+                                        }
+                                    },
+                                    upTargetRequester = upTarget,
+                                    downTargetRequester = downTarget,
+                                    isPaging = state.isPaging && rail.id == HOME_RAIL_ALL_NEW,
+                                    onItemFocused = { itemKey ->
+                                        focusedItemKey = itemKey
+                                        rememberedItemKeyByRail = railIdFromItemKey(itemKey)?.let { railId ->
+                                            rememberedItemKeyByRail + (railId to itemKey)
+                                        } ?: rememberedItemKeyByRail
+                                        onItemFocused(itemKey)
+                                    },
+                                    onOpenDetails = onOpenDetails,
+                                    onEndReached = if (rail.id == HOME_RAIL_ALL_NEW) onEndReached else ({}),
+                                )
+                            }
+                        }
                         if (state.pagingErrorMessage != null) {
                             HomeStatusPanel(
                                 tag = "home-paging-status",
@@ -294,4 +364,29 @@ private fun demoHomeUiState(): HomeUiState {
         selectedItemKey = demoItem.detailsUrl,
         hasNextPage = true,
     )
+}
+
+private fun preferredRailRequester(
+    rail: HomeContentRail,
+    rememberedItemKeyByRail: Map<String, String>,
+    cardFocusRequesters: Map<String, FocusRequester>,
+): FocusRequester? {
+    val rememberedKey = rememberedItemKeyByRail[rail.id]
+    val preferredKey = if (rememberedKey != null && rail.items.any { homeItemKey(rail.id, it.detailsUrl) == rememberedKey }) {
+        rememberedKey
+    } else {
+        rail.items.firstOrNull()?.let { item -> homeItemKey(rail.id, item.detailsUrl) }
+    }
+    return preferredKey?.let(cardFocusRequesters::get)
+}
+
+private fun initialRememberedItemKeys(
+    rails: List<HomeContentRail>,
+    selectedItemKey: String?,
+): Map<String, String> {
+    return rails.associate { rail ->
+        val rememberedKey = normalizeHomeItemKey(listOf(rail), selectedItemKey)
+            ?: rail.items.firstOrNull()?.let { item -> homeItemKey(rail.id, item.detailsUrl) }
+        rail.id to checkNotNull(rememberedKey)
+    }
 }

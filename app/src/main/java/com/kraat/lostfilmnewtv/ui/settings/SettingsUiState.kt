@@ -9,6 +9,7 @@ data class SettingsUiState(
     val playbackQuality: PlaybackQualityPreference,
     val updateMode: UpdateCheckMode,
     val channelMode: AndroidTvChannelMode,
+    val isHomeFavoritesRailEnabled: Boolean,
     val installedVersionText: String,
     val savedAppUpdate: SavedAppUpdate? = null,
     val latestVersionText: String? = null,

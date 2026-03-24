@@ -45,6 +45,7 @@ fun SettingsScreen(
     onQualitySelected: (PlaybackQualityPreference) -> Unit,
     selectedUpdateMode: UpdateCheckMode,
     selectedChannelMode: AndroidTvChannelMode,
+    isHomeFavoritesRailEnabled: Boolean = false,
     installedVersionText: String,
     latestVersionText: String?,
     statusText: String?,
@@ -53,6 +54,7 @@ fun SettingsScreen(
     installUrl: String?,
     onUpdateModeSelected: (UpdateCheckMode) -> Unit,
     onChannelModeSelected: (AndroidTvChannelMode) -> Unit,
+    onHomeFavoritesRailVisibilitySelected: (Boolean) -> Unit = {},
     onCheckForUpdatesClick: () -> Unit,
     onInstallUpdateClick: () -> Unit,
 ) {
@@ -74,6 +76,8 @@ fun SettingsScreen(
             AndroidTvChannelMode.ALL_NEW.buttonTag() to FocusRequester(),
             AndroidTvChannelMode.UNWATCHED.buttonTag() to FocusRequester(),
             AndroidTvChannelMode.DISABLED.buttonTag() to FocusRequester(),
+            HOME_FAVORITES_SHOW_TAG to FocusRequester(),
+            HOME_FAVORITES_HIDE_TAG to FocusRequester(),
         )
     }
     var rememberedActionBySection by rememberSaveable {
@@ -240,6 +244,53 @@ fun SettingsScreen(
                                             },
                                     )
                                 }
+                                SettingsOverviewCard(
+                                    title = "Главный экран",
+                                    subtitle = "Дополнительные полки внутри главного экрана приложения.",
+                                    tag = "settings-home-overview-card",
+                                    modifier = Modifier.background(HomePanelSurface, RoundedCornerShape(22.dp)),
+                                ) {
+                                    SettingsOverviewValue(text = "Полка Избранное")
+                                    SettingsOverviewValue(
+                                        text = if (isHomeFavoritesRailEnabled) {
+                                            "Сейчас: показывать"
+                                        } else {
+                                            "Сейчас: скрывать"
+                                        },
+                                    )
+                                }
+                                SettingsTvButton(
+                                    text = "Показывать",
+                                    onClick = { onHomeFavoritesRailVisibilitySelected(true) },
+                                    isSelected = isHomeFavoritesRailEnabled,
+                                    tag = HOME_FAVORITES_SHOW_TAG,
+                                    onFocused = {
+                                        rememberedActionBySection = rememberedActionBySection + (
+                                            SettingsSection.CHANNEL.name to HOME_FAVORITES_SHOW_TAG
+                                        )
+                                    },
+                                    modifier = Modifier
+                                        .focusRequester(contentRequesters.getValue(HOME_FAVORITES_SHOW_TAG))
+                                        .focusProperties {
+                                            left = railRequesters.getValue(SettingsSection.CHANNEL)
+                                        },
+                                )
+                                SettingsTvButton(
+                                    text = "Скрывать",
+                                    onClick = { onHomeFavoritesRailVisibilitySelected(false) },
+                                    isSelected = !isHomeFavoritesRailEnabled,
+                                    tag = HOME_FAVORITES_HIDE_TAG,
+                                    onFocused = {
+                                        rememberedActionBySection = rememberedActionBySection + (
+                                            SettingsSection.CHANNEL.name to HOME_FAVORITES_HIDE_TAG
+                                        )
+                                    },
+                                    modifier = Modifier
+                                        .focusRequester(contentRequesters.getValue(HOME_FAVORITES_HIDE_TAG))
+                                        .focusProperties {
+                                            left = railRequesters.getValue(SettingsSection.CHANNEL)
+                                        },
+                                )
                             }
                         }
                     }
@@ -481,3 +532,5 @@ private fun AndroidTvChannelMode.buttonTag(): String {
 
 private const val CHECK_UPDATES_TAG = "settings-action-check-updates"
 private const val INSTALL_UPDATE_TAG = "settings-install-update"
+private const val HOME_FAVORITES_SHOW_TAG = "settings-home-favorites-show"
+private const val HOME_FAVORITES_HIDE_TAG = "settings-home-favorites-hide"

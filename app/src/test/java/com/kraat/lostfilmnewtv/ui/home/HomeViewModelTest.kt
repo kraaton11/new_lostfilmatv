@@ -209,12 +209,174 @@ class HomeViewModelTest {
         assertTrue(viewModel.uiState.value.items.single().isWatched)
         assertTrue(viewModel.uiState.value.selectedItem?.isWatched == true)
     }
+
+    @Test
+    fun onStart_whenFavoritesRailVisible_loadsFavoritesRailAfterMainRail() = runTest(dispatcher) {
+        val allNewItem = summary(detailsUrl = "https://www.lostfilm.today/series/main/season_1/episode_1/")
+        val favoriteItem = summary(
+            detailsUrl = "https://www.lostfilm.today/series/favorite/season_4/episode_7/",
+            titleRu = "Любимый сериал",
+        )
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(
+                    pageNumber = 1,
+                    items = listOf(allNewItem),
+                    hasNextPage = false,
+                    isStale = false,
+                ),
+            ),
+            favoriteReleaseResults = mutableListOf(
+                FavoriteReleasesResult.Success(listOf(favoriteItem)),
+            ),
+        )
+        val viewModel = HomeViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            initialFavoritesRailVisible = true,
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+
+        assertEquals(1, repository.favoriteReleaseCalls)
+        assertEquals(
+            listOf(HOME_RAIL_ALL_NEW, HOME_RAIL_FAVORITES),
+            viewModel.uiState.value.rails.map { it.id },
+        )
+        assertEquals(
+            listOf(favoriteItem),
+            viewModel.uiState.value.rails.last().items,
+        )
+    }
+
+    @Test
+    fun onStart_keepsFavoritesRailHidden_whenFeedIsUnavailableOrEmpty() = runTest(dispatcher) {
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(
+                    pageNumber = 1,
+                    items = listOf(summary(detailsUrl = "https://www.lostfilm.today/series/main/season_1/episode_1/")),
+                    hasNextPage = false,
+                    isStale = false,
+                ),
+            ),
+            favoriteReleaseResults = mutableListOf(
+                FavoriteReleasesResult.Success(emptyList()),
+            ),
+        )
+        val viewModel = HomeViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            initialFavoritesRailVisible = true,
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+
+        assertEquals(1, repository.favoriteReleaseCalls)
+        assertEquals(listOf(HOME_RAIL_ALL_NEW), viewModel.uiState.value.rails.map { it.id })
+    }
+
+    @Test
+    fun onFavoritesRailVisibilityChanged_afterStart_loadsFeed_andCanHideRailAgain() = runTest(dispatcher) {
+        val favoriteItem = summary(
+            detailsUrl = "https://www.lostfilm.today/series/favorite/season_4/episode_7/",
+            titleRu = "Любимый сериал",
+        )
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(
+                    pageNumber = 1,
+                    items = listOf(summary(detailsUrl = "https://www.lostfilm.today/series/main/season_1/episode_1/")),
+                    hasNextPage = false,
+                    isStale = false,
+                ),
+            ),
+            favoriteReleaseResults = mutableListOf(
+                FavoriteReleasesResult.Success(listOf(favoriteItem)),
+            ),
+        )
+        val viewModel = HomeViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            initialFavoritesRailVisible = false,
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+        viewModel.onFavoritesRailVisibilityChanged(true)
+        advanceUntilIdle()
+
+        assertEquals(1, repository.favoriteReleaseCalls)
+        assertEquals(listOf(HOME_RAIL_ALL_NEW, HOME_RAIL_FAVORITES), viewModel.uiState.value.rails.map { it.id })
+
+        viewModel.onFavoritesRailVisibilityChanged(false)
+
+        assertEquals(listOf(HOME_RAIL_ALL_NEW), viewModel.uiState.value.rails.map { it.id })
+    }
+
+    @Test
+    fun onFavoriteContentInvalidated_reloadsVisibleFavoritesRail() = runTest(dispatcher) {
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(
+                    pageNumber = 1,
+                    items = listOf(summary(detailsUrl = "https://www.lostfilm.today/series/main/season_1/episode_1/")),
+                    hasNextPage = false,
+                    isStale = false,
+                ),
+            ),
+            favoriteReleaseResults = mutableListOf(
+                FavoriteReleasesResult.Success(
+                    listOf(
+                        summary(
+                            detailsUrl = "https://www.lostfilm.today/series/favorite/season_4/episode_7/",
+                            titleRu = "До обновления",
+                        ),
+                    ),
+                ),
+                FavoriteReleasesResult.Success(
+                    listOf(
+                        summary(
+                            detailsUrl = "https://www.lostfilm.today/series/favorite/season_4/episode_8/",
+                            titleRu = "После обновления",
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val viewModel = HomeViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            initialFavoritesRailVisible = true,
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+        viewModel.onFavoriteContentInvalidated()
+        advanceUntilIdle()
+
+        assertEquals(2, repository.favoriteReleaseCalls)
+        assertEquals(
+            "После обновления",
+            viewModel.uiState.value.rails.last().items.single().titleRu,
+        )
+    }
 }
 
 private class FakeLostFilmRepository(
     private val pageResults: Map<Int, PageState>,
+    private val favoriteReleaseResults: MutableList<FavoriteReleasesResult> = mutableListOf(
+        FavoriteReleasesResult.Unavailable(),
+    ),
 ) : LostFilmRepository {
     val pageRequests = mutableListOf<Int>()
+    var favoriteReleaseCalls = 0
 
     override suspend fun loadPage(pageNumber: Int): PageState {
         pageRequests += pageNumber
@@ -246,7 +408,8 @@ private class FakeLostFilmRepository(
     }
 
     override suspend fun loadFavoriteReleases(): FavoriteReleasesResult {
-        return FavoriteReleasesResult.Unavailable()
+        favoriteReleaseCalls += 1
+        return favoriteReleaseResults.removeFirstOrNull() ?: FavoriteReleasesResult.Unavailable()
     }
 }
 
