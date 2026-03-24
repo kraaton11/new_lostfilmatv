@@ -73,13 +73,23 @@ open class ReleaseApkLauncher(
         }
     }
 
+    private fun getApkFileName(apkUrl: String): String {
+        val uri = apkUrl.toHttpUrlOrNull() ?: return APK_FILE_NAME
+        val lastSegment = uri.pathSegments.lastOrNull() ?: return APK_FILE_NAME
+        return if (lastSegment.endsWith(".apk", ignoreCase = true)) {
+            lastSegment
+        } else {
+            APK_FILE_NAME
+        }
+    }
+
     private fun downloadApkToCache(
         context: Context,
         apkUrl: String,
         onProgress: (Int) -> Unit,
     ): File {
         val dir = File(context.cacheDir, CACHE_SUBDIR).apply { mkdirs() }
-        val target = File(dir, APK_FILE_NAME)
+        val target = File(dir, getApkFileName(apkUrl))
         val request = Request.Builder()
             .url(apkUrl)
             .header("User-Agent", USER_AGENT)
