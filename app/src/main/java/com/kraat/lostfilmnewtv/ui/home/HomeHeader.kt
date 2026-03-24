@@ -26,6 +26,11 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -99,6 +104,8 @@ fun HomeHeader(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             availableModes.forEachIndexed { index, mode ->
+                val leftMode = availableModes.getOrNull(index - 1)
+                val rightMode = availableModes.getOrNull(index + 1)
                 val leftRequester = availableModes.getOrNull(index - 1)?.let(modeFocusRequesters::get)
                 val rightRequester = availableModes.getOrNull(index + 1)?.let(modeFocusRequesters::get)
                     ?: settingsFocusRequester
@@ -107,6 +114,18 @@ fun HomeHeader(
                     isSelected = mode == selectedMode,
                     onClick = { onModeSelected(mode) },
                     onFocusChanged = onModeTabFocusChanged,
+                    onMoveLeft = leftMode?.let { targetMode ->
+                        {
+                            onModeSelected(targetMode)
+                            modeFocusRequesters.getValue(targetMode).requestFocus()
+                        }
+                    },
+                    onMoveRight = rightMode?.let { targetMode ->
+                        {
+                            onModeSelected(targetMode)
+                            modeFocusRequesters.getValue(targetMode).requestFocus()
+                        }
+                    },
                     modifier = Modifier
                         .testTag("home-mode-tab-${mode.testTagSuffix()}")
                         .focusRequester(modeFocusRequesters.getValue(mode))
@@ -172,6 +191,8 @@ private fun HomeHeaderModeButton(
     isSelected: Boolean,
     onClick: () -> Unit,
     onFocusChanged: (Boolean) -> Unit,
+    onMoveLeft: (() -> Unit)?,
+    onMoveRight: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
     val label = when (mode) {
@@ -182,12 +203,29 @@ private fun HomeHeaderModeButton(
         label = label,
         subtitle = "Режим Home",
         onClick = onClick,
-        modifier = modifier.onFocusChanged { focusState ->
-            onFocusChanged(focusState.isFocused)
-            if (focusState.isFocused && !isSelected) {
-                onClick()
+        modifier = modifier
+            .onFocusChanged { focusState ->
+                onFocusChanged(focusState.isFocused)
             }
-        },
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) {
+                    return@onPreviewKeyEvent false
+                }
+
+                when (event.key) {
+                    Key.DirectionLeft -> {
+                        onMoveLeft?.invoke()
+                        onMoveLeft != null
+                    }
+
+                    Key.DirectionRight -> {
+                        onMoveRight?.invoke()
+                        onMoveRight != null
+                    }
+
+                    else -> false
+                }
+            },
         isPrimary = isSelected,
     )
 }

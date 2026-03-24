@@ -1,5 +1,4 @@
 package com.kraat.lostfilmnewtv.ui.home
-
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -23,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Modifier
@@ -79,6 +79,7 @@ fun HomeScreen(
         )
     }
     var isModeTabFocused by rememberSaveable { mutableStateOf(false) }
+    var startupContentFocusPending by rememberSaveable { mutableStateOf(true) }
 
     LaunchedEffect(state.selectedItemKey, state.selectedMode, itemKeys) {
         val preferredKey = state.selectedItemKey ?: itemKeys.firstOrNull()
@@ -111,6 +112,18 @@ fun HomeScreen(
         ?: state.selectedItem
         ?: activeItems.firstOrNull()
     val stageStatusText = appUpdateStatusText ?: savedAppUpdate?.let { "Доступно обновление ${it.latestVersion}" }
+
+    LaunchedEffect(startupContentFocusPending, activeModeState, headerDownTarget) {
+        if (!startupContentFocusPending || headerDownTarget == null) {
+            return@LaunchedEffect
+        }
+        if (activeModeState == HomeModeContentState.Loading) {
+            return@LaunchedEffect
+        }
+
+        withFrameNanos { }
+        headerDownTarget.requestFocus()
+    }
 
     Box(
         modifier = Modifier
@@ -216,11 +229,12 @@ fun HomeScreen(
                                     items = activeModeState.items,
                                     focusedItemKey = focusedItemKey,
                                     cardFocusRequesters = cardFocusRequesters,
-                                    shouldRequestFocus = !isModeTabFocused,
+                                    shouldRequestFocus = startupContentFocusPending || !isModeTabFocused,
                                     upTargetRequester = activeModeRequester,
                                     downTargetRequester = null,
                                     isPaging = state.isPaging && state.selectedMode == HomeFeedMode.AllNew,
                                     onItemFocused = { detailsUrl ->
+                                        startupContentFocusPending = false
                                         isModeTabFocused = false
                                         focusedItemKey = detailsUrl
                                         onItemFocused(detailsUrl)
