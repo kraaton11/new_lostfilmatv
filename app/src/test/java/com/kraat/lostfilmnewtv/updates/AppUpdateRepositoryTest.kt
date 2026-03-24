@@ -6,7 +6,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35])
 class AppUpdateRepositoryTest {
 
     @Test
@@ -95,7 +100,7 @@ class AppUpdateRepositoryTest {
             installedVersion = "1.0.0",
             releaseClient = object : GitHubReleaseClient(httpClient = okhttp3.OkHttpClient()) {
                 override suspend fun fetchLatestRelease(): GitHubRelease {
-                    throw IllegalStateException("HTTP 500 from releases API")
+                    throw java.io.IOException("HTTP 500 from releases API")
                 }
             },
         )
