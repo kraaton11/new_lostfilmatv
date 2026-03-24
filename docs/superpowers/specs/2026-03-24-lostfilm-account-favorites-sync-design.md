@@ -296,6 +296,9 @@ When a favorite mutation succeeds:
 - `Home` refreshes the favorite rail on return
 - the all-new rail remains intact
 
+Recommended contract name:
+- `onFavoriteContentChanged`
+
 The update should be targeted:
 - no full app restart
 - no unnecessary clearing of Home selection
@@ -348,11 +351,23 @@ The parser should prefer extracting:
 - season and episode when applicable
 - release date
 
-If the authenticated favorite feed shape cannot provide every field that the all-new feed provides, the parser may map a minimal but still Home-safe `ReleaseSummary` as long as the card and bottom stage remain readable.
+The minimum accepted field set for one favorite-rail item is:
+- a non-blank series episode `detailsUrl`
+- a non-blank `titleRu`
+- a non-blank `posterUrl`
+
+`seasonNumber`, `episodeNumber`, `episodeTitleRu`, and `releaseDateRu` are preferred but not required for item acceptance in this iteration.
+
+If the authenticated favorite feed shape cannot provide every field that the all-new feed provides, the parser may still emit a `ReleaseSummary` when the minimum field set above is present and the card remains readable on `Home`.
 
 The parser should not attempt to infer watched state for the favorite rail unless the feed provides it clearly.
 
 The canonical accepted fixture for this iteration is the committed authenticated document at `app/src/test/resources/fixtures/favorite-releases.html`. A feed document is considered parser-compatible only if it is not the redirect wrapper and contains real series episode links.
+
+Malformed entry rule:
+- malformed favorite-feed entries should be dropped individually
+- one bad card must not invalidate the whole feed
+- the feed is accepted only if at least one valid item remains after filtering
 
 ## Error Handling
 
