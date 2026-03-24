@@ -9,6 +9,7 @@ import com.kraat.lostfilmnewtv.data.db.ReleaseSummaryEntity
 import com.kraat.lostfilmnewtv.data.db.ReleaseDetailsEntity
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
+import com.kraat.lostfilmnewtv.data.model.FavoriteTargetKind
 import com.kraat.lostfilmnewtv.data.model.FavoriteToggleNetworkResult
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
@@ -186,14 +187,18 @@ class LostFilmRepositoryTest {
     @Test
     fun loadDetails_refreshesFreshCachedDetailsWithTorrentLinkAfterLogin() = runTest {
         val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        val favoritePageUrl = "https://www.lostfilm.today/series/9-1-1"
         seedDetails(detailsUrl = detailsUrl, fetchedAt = NOW - 1_000L)
-        var detailsRequests = 0
+        val detailsRequests = mutableListOf<String>()
         var torrentRequests = 0
         val repository = createRepository(
             pageHandler = { fixture("new-page-1.html") },
-            detailsHandler = {
-                detailsRequests += 1
-                error("Fresh cached details should not refetch HTML")
+            detailsHandler = { requestedUrl ->
+                detailsRequests += requestedUrl
+                when (requestedUrl) {
+                    favoritePageUrl -> seriesFavoritePageHtml(isFavorite = false, includeSessionToken = false)
+                    else -> error("Fresh cached details should not refetch episode HTML: $requestedUrl")
+                }
             },
             torrentHandler = { episodeId ->
                 torrentRequests += 1
@@ -206,10 +211,100 @@ class LostFilmRepositoryTest {
 
         val result = repository.loadDetails(detailsUrl) as DetailsResult.Success
 
-        assertEquals(0, detailsRequests)
+        assertEquals(listOf(favoritePageUrl), detailsRequests)
         assertEquals(1, torrentRequests)
         assertEquals(listOf("SD", "1080p", "720p"), result.details.torrentLinks.map { it.label })
         assertEquals(listOf("SD", "1080p", "720p"), releaseDao.getReleaseDetails(detailsUrl)?.toModel()?.torrentLinks?.map { it.label })
+    }
+
+    @Test
+    fun loadDetails_refreshesFreshCachedDetailsWithFavoriteMetadataAfterLogin() = runTest {
+        val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        val favoritePageUrl = "https://www.lostfilm.today/series/9-1-1"
+        seedDetails(detailsUrl = detailsUrl, fetchedAt = NOW - 1_000L)
+        val detailsRequests = mutableListOf<String>()
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            detailsHandler = { requestedUrl ->
+                detailsRequests += requestedUrl
+                when (requestedUrl) {
+                    favoritePageUrl -> seriesFavoritePageHtml(isFavorite = false, includeSessionToken = false)
+                    else -> error("Fresh cached details should not refetch episode HTML: $requestedUrl")
+                }
+            },
+            torrentHandler = { fixture("torrent-redirect.html") },
+            torrentPageHandler = { fixture("torrent-options-page.html") },
+            isAuthenticated = true,
+        )
+
+        val result = repository.loadDetails(detailsUrl) as DetailsResult.Success
+
+        assertEquals(listOf(favoritePageUrl), detailsRequests)
+        assertEquals(915, result.details.favoriteTargetId)
+        assertEquals(true, releaseDao.getReleaseDetails(detailsUrl)?.toModel()?.favoriteTargetId == 915)
+        assertEquals(false, result.details.isFavorite)
+    }
+
+    @Test
+    fun loadDetails_refreshesFreshCachedDetailsWhenFavoriteStateIsUnknown() = runTest {
+        val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        val favoritePageUrl = "https://www.lostfilm.today/series/9-1-1"
+        seedDetails(detailsUrl = detailsUrl, fetchedAt = NOW - 1_000L)
+        val cachedDetails = checkNotNull(releaseDao.getReleaseDetails(detailsUrl))
+        releaseDao.upsertDetails(
+            cachedDetails.copy(
+                favoriteTargetId = 915,
+                favoriteTargetKind = FavoriteTargetKind.SERIES.name,
+                isFavorite = null,
+            ),
+        )
+        val detailsRequests = mutableListOf<String>()
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            detailsHandler = { requestedUrl ->
+                detailsRequests += requestedUrl
+                when (requestedUrl) {
+                    favoritePageUrl -> seriesFavoritePageHtml(isFavorite = false, includeSessionToken = false)
+                    else -> error("Fresh cached details should not refetch episode HTML: $requestedUrl")
+                }
+            },
+            torrentHandler = { fixture("torrent-redirect.html") },
+            torrentPageHandler = { fixture("torrent-options-page.html") },
+            isAuthenticated = true,
+        )
+
+        val result = repository.loadDetails(detailsUrl) as DetailsResult.Success
+
+        assertEquals(listOf(favoritePageUrl), detailsRequests)
+        assertEquals(915, result.details.favoriteTargetId)
+        assertEquals(false, result.details.isFavorite)
+    }
+
+    @Test
+    fun loadDetails_forSeriesWithoutEpisodeFavoriteMetadata_enrichesFromSeriesRootPage() = runTest {
+        val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        val favoritePageUrl = "https://www.lostfilm.today/series/9-1-1"
+        val detailsRequests = mutableListOf<String>()
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            detailsHandler = { requestedUrl ->
+                detailsRequests += requestedUrl
+                when (requestedUrl) {
+                    detailsUrl -> fixture("series-details.html")
+                    favoritePageUrl -> seriesFavoritePageHtml(isFavorite = false, includeSessionToken = false)
+                    else -> error("Unexpected details request: $requestedUrl")
+                }
+            },
+            torrentHandler = { fixture("torrent-redirect.html") },
+            torrentPageHandler = { fixture("torrent-options-page.html") },
+            isAuthenticated = true,
+        )
+
+        val result = repository.loadDetails(detailsUrl) as DetailsResult.Success
+
+        assertEquals(listOf(detailsUrl, favoritePageUrl), detailsRequests)
+        assertEquals(915, result.details.favoriteTargetId)
+        assertEquals(false, result.details.isFavorite)
     }
 
     @Test
@@ -344,19 +439,22 @@ class LostFilmRepositoryTest {
     @Test
     fun setFavorite_updatesCachedDetailsWhenRemoteToggleSucceeds() = runTest {
         val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        val favoritePageUrl = "https://www.lostfilm.today/series/9-1-1"
+        seedDetails(detailsUrl = detailsUrl, fetchedAt = NOW - 1_000L)
         var detailsRequestCount = 0
         val repository = createRepository(
             pageHandler = { fixture("new-page-1.html") },
-            detailsHandler = {
+            detailsHandler = { requestedUrl ->
+                assertEquals(favoritePageUrl, requestedUrl)
                 detailsRequestCount += 1
                 when (detailsRequestCount) {
-                    1 -> seriesDetailsWithFavoriteState(isFavorite = false, includeSessionToken = true)
-                    2 -> seriesDetailsWithFavoriteState(isFavorite = true, includeSessionToken = true)
+                    1 -> seriesFavoritePageHtml(isFavorite = false, includeSessionToken = true)
+                    2 -> seriesFavoritePageHtml(isFavorite = true, includeSessionToken = true)
                     else -> error("Unexpected details request #$detailsRequestCount")
                 }
             },
             favoriteToggleHandler = { refererUrl, favoriteTargetId, ajaxSessionToken ->
-                assertEquals(detailsUrl, refererUrl)
+                assertEquals(favoritePageUrl, refererUrl)
                 assertEquals(915, favoriteTargetId)
                 assertEquals("ajax-session-token", ajaxSessionToken)
                 FavoriteToggleNetworkResult.ToggledOn
@@ -368,6 +466,42 @@ class LostFilmRepositoryTest {
 
         assertEquals(FavoriteMutationResult.Updated, result)
         assertTrue(releaseDao.getReleaseDetails(detailsUrl)?.toModel()?.isFavorite == true)
+    }
+
+    @Test
+    fun setFavorite_forSeries_readsAndTogglesAgainstSeriesRootPage() = runTest {
+        val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        val favoritePageUrl = "https://www.lostfilm.today/series/9-1-1"
+        seedDetails(detailsUrl = detailsUrl, fetchedAt = NOW - 1_000L)
+        var detailsRequestCount = 0
+        val detailsRequests = mutableListOf<String>()
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            detailsHandler = { requestedUrl ->
+                detailsRequests += requestedUrl
+                assertEquals(favoritePageUrl, requestedUrl)
+                detailsRequestCount += 1
+                when (detailsRequestCount) {
+                    1 -> seriesFavoritePageHtml(isFavorite = false, includeSessionToken = true)
+                    2 -> seriesFavoritePageHtml(isFavorite = true, includeSessionToken = true)
+                    else -> error("Unexpected details request #$detailsRequestCount")
+                }
+            },
+            favoriteToggleHandler = { refererUrl, favoriteTargetId, ajaxSessionToken ->
+                assertEquals(favoritePageUrl, refererUrl)
+                assertEquals(915, favoriteTargetId)
+                assertEquals("ajax-session-token", ajaxSessionToken)
+                FavoriteToggleNetworkResult.ToggledOn
+            },
+            isAuthenticated = true,
+        )
+
+        val result = repository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
+
+        assertEquals(FavoriteMutationResult.Updated, result)
+        assertEquals(listOf(favoritePageUrl, favoritePageUrl), detailsRequests)
+        assertTrue(releaseDao.getReleaseDetails(detailsUrl)?.toModel()?.isFavorite == true)
+        assertTrue(releaseDao.getReleaseDetails(detailsUrl)?.toModel()?.favoriteTargetId == 915)
     }
 
     @Test
@@ -528,7 +662,7 @@ private fun seriesDetailsWithFavoriteState(
 ): String {
     val favoriteBlock = if (isFavorite) {
         """
-        <div class="favorites-btn2 active" title="Сериал в избранном" onClick="FollowSerial(915, false)">
+        <div class="favorites-btn" title="Сериал в избранном" onClick="FollowSerial(915, false)">
             <div class="icon"></div>убрать из избранного
         </div>
         """.trimIndent()
@@ -556,6 +690,46 @@ private fun seriesDetailsWithFavoriteState(
             UserData.session = 'ajax-session-token';
         """.trimIndent(),
     )
+}
+
+private fun seriesFavoritePageHtml(
+    isFavorite: Boolean,
+    includeSessionToken: Boolean,
+): String {
+    val favoriteBlock = if (isFavorite) {
+        """
+        <div class="favorites-btn" title="Сериал в избранном" onClick="FollowSerial(915, false)">
+            <div class="icon"></div>убрать из избранного
+        </div>
+        """.trimIndent()
+    } else {
+        """
+        <div class="favorites-btn2" title="Добавить сериал в избранное" onClick="FollowSerial(915, false)">
+            <div class="icon"></div>добавить в избранное
+        </div>
+        """.trimIndent()
+    }
+
+    val userData = if (includeSessionToken) {
+        """
+        <script>
+            let UserData = {};
+            UserData.id = 42;
+            UserData.session = 'ajax-session-token';
+        </script>
+        """.trimIndent()
+    } else {
+        "<script>let UserData = {};</script>"
+    }
+
+    return """
+        <html>
+            <body>
+                $favoriteBlock
+                $userData
+            </body>
+        </html>
+    """.trimIndent()
 }
 
 private fun redirectWrapperHtml(): String = """

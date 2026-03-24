@@ -57,7 +57,9 @@ fun buildDetailsStageUi(
         torrServeMessageText = torrServeMessageText,
     )
     val bottomStageSupportLine = buildBottomStageSupportLine(details = details)
-    val favoriteAction = details?.favoriteTargetId?.let {
+    val favoriteAction = details
+        ?.takeIf { it.favoriteTargetId != null || state.favoriteActionLabel.isNotBlank() }
+        ?.let {
         DetailsStageActionUiModel(
             actionId = "favorite",
             rowId = null,
@@ -67,7 +69,7 @@ fun buildDetailsStageUi(
             subtitle = when {
                 !isAuthenticated -> "Требуется авторизация"
                 state.isFavoriteMutationInFlight -> "Синхронизация с LostFilm"
-                details.isFavorite == null -> "Состояние недоступно"
+                details.favoriteTargetId == null || details.isFavorite == null -> "Состояние недоступно"
                 else -> "Синхронизация с LostFilm"
             },
             qualityLabel = null,

@@ -2,6 +2,7 @@ package com.kraat.lostfilmnewtv.data.repository
 
 import com.kraat.lostfilmnewtv.data.db.PageCacheMetadataEntity
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
+import com.kraat.lostfilmnewtv.data.model.FavoriteMetadata
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteToggleNetworkResult
@@ -9,6 +10,7 @@ import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
+import com.kraat.lostfilmnewtv.data.parser.BASE_URL
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteReleasesParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmListParser
@@ -23,6 +25,7 @@ private const val FRESH_WINDOW_MS = 6 * 60 * 60 * 1000L
 private const val RETENTION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000L
 private val paginatorRegex = Regex("""/new/page_(\d+)""")
 private val favoriteRouteCandidates = listOf("/my/", "/my/type_0", "/my/type_1", "/my/serials")
+private val seriesFavoritePageRegex = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)/season_\d+/episode_\d+/?""")
 
 class LostFilmRepositoryImpl(
     private val httpClient: LostFilmHttpClient,
@@ -87,7 +90,9 @@ class LostFilmRepositoryImpl(
 
         if (cachedDetails != null && now - cachedDetails.fetchedAt <= FRESH_WINDOW_MS) {
             val cachedModel = enrichWithSummaryEpisodeTitle(
-                refreshCachedTorrentLinksIfNeeded(cachedDetails.toModel()),
+                refreshFavoriteMetadataIfNeeded(
+                    refreshCachedTorrentLinksIfNeeded(cachedDetails.toModel()),
+                ),
             )
             return DetailsResult.Success(
                 details = cachedModel,
@@ -98,7 +103,9 @@ class LostFilmRepositoryImpl(
         return try {
             val html = httpClient.fetchDetails(normalizedDetailsUrl)
             val parsed = enrichWithSummaryEpisodeTitle(
-                enrichWithTorrentLinks(parseDetails(html, normalizedDetailsUrl, now)),
+                refreshFavoriteMetadataIfNeeded(
+                    enrichWithTorrentLinks(parseDetails(html, normalizedDetailsUrl, now)),
+                ),
             )
             releaseDao.upsertDetails(parsed.toEntity())
 
@@ -169,26 +176,28 @@ class LostFilmRepositoryImpl(
         }
 
         val normalizedDetailsUrl = resolveUrl(detailsUrl)
+        val favoritePageUrl = favoriteMetadataPageUrl(normalizedDetailsUrl)
         return try {
-            val detailsHtml = httpClient.fetchDetails(normalizedDetailsUrl)
-            val favoriteMetadata = detailsParser.parseFavoriteMetadata(detailsHtml)
+            val favoritePageHtml = httpClient.fetchDetails(favoritePageUrl)
+            val favoriteMetadata = detailsParser.parseFavoriteMetadata(favoritePageHtml)
                 ?: return FavoriteMutationResult.Error("Не удалось обновить избранное")
-            persistParsedDetails(normalizedDetailsUrl, detailsHtml)
+            persistFavoriteMetadata(normalizedDetailsUrl, favoriteMetadata)
 
             if (favoriteMetadata.isFavorite == targetFavorite) {
                 return FavoriteMutationResult.NoOp
             }
 
-            val ajaxSessionToken = detailsParser.parseAjaxSessionToken(detailsHtml)
+            val ajaxSessionToken = detailsParser.parseAjaxSessionToken(favoritePageHtml)
                 ?: return FavoriteMutationResult.Error("Войдите в LostFilm")
             val toggleResult = httpClient.toggleFavorite(
-                refererUrl = normalizedDetailsUrl,
+                refererUrl = favoritePageUrl,
                 favoriteTargetId = favoriteMetadata.targetId,
                 ajaxSessionToken = ajaxSessionToken,
             )
-            val refreshedHtml = httpClient.fetchDetails(normalizedDetailsUrl)
-            val refreshedFavoriteState = detailsParser.parseFavoriteMetadata(refreshedHtml)?.isFavorite
-            persistParsedDetails(normalizedDetailsUrl, refreshedHtml)
+            val refreshedHtml = httpClient.fetchDetails(favoritePageUrl)
+            val refreshedFavoriteMetadata = detailsParser.parseFavoriteMetadata(refreshedHtml)
+            val refreshedFavoriteState = refreshedFavoriteMetadata?.isFavorite
+            persistFavoriteMetadata(normalizedDetailsUrl, refreshedFavoriteMetadata ?: favoriteMetadata)
 
             val effectiveFavoriteState = when (toggleResult) {
                 FavoriteToggleNetworkResult.ToggledOn -> refreshedFavoriteState ?: true
@@ -372,6 +381,26 @@ class LostFilmRepositoryImpl(
         return details.copy(episodeTitleRu = episodeTitleRu)
     }
 
+    private suspend fun refreshFavoriteMetadataIfNeeded(details: ReleaseDetails): ReleaseDetails {
+        if (!hasAuthenticatedSession()) {
+            return details
+        }
+        if (details.favoriteTargetId != null && details.isFavorite != null) {
+            return details
+        }
+
+        return try {
+            val favoritePageHtml = httpClient.fetchDetails(favoriteMetadataPageUrl(details.detailsUrl))
+            val favoriteMetadata = detailsParser.parseFavoriteMetadata(favoritePageHtml)
+                ?: return details
+            val enriched = details.withFavoriteMetadata(favoriteMetadata)
+            releaseDao.upsertDetails(enriched.toEntity())
+            enriched
+        } catch (_: IOException) {
+            details
+        }
+    }
+
     private fun hasNextPage(
         html: String,
         pageNumber: Int,
@@ -407,15 +436,33 @@ class LostFilmRepositoryImpl(
         }
     }
 
-    private suspend fun persistParsedDetails(
+    private suspend fun persistFavoriteMetadata(
         detailsUrl: String,
-        html: String,
+        favoriteMetadata: FavoriteMetadata,
     ) {
-        val parsed = parseDetails(
-            html = html,
-            detailsUrl = detailsUrl,
-            fetchedAt = clock(),
+        val cachedDetails = releaseDao.getReleaseDetails(detailsUrl)?.toModel() ?: return
+        releaseDao.upsertDetails(
+            cachedDetails.withFavoriteMetadata(favoriteMetadata).toEntity(),
         )
-        releaseDao.upsertDetails(parsed.toEntity())
+    }
+
+    private fun favoriteMetadataPageUrl(detailsUrl: String): String {
+        val normalizedDetailsUrl = resolveUrl(detailsUrl)
+        val seriesMatch = seriesFavoritePageRegex.matchEntire(normalizedDetailsUrl)
+        return if (seriesMatch != null) {
+            "$BASE_URL/series/${seriesMatch.groupValues[1]}"
+        } else {
+            normalizedDetailsUrl
+        }
+    }
+
+    private fun ReleaseDetails.withFavoriteMetadata(
+        favoriteMetadata: FavoriteMetadata,
+    ): ReleaseDetails {
+        return copy(
+            favoriteTargetId = favoriteMetadata.targetId,
+            favoriteTargetKind = favoriteMetadata.targetKind,
+            isFavorite = favoriteMetadata.isFavorite,
+        )
     }
 }
