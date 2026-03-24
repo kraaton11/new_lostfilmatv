@@ -23,6 +23,7 @@ import androidx.navigation.navArgument
 import com.kraat.lostfilmnewtv.LostFilmApplication
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
+import com.kraat.lostfilmnewtv.ui.home.HomeFeedMode
 import com.kraat.lostfilmnewtv.ui.auth.AuthScreen
 import com.kraat.lostfilmnewtv.ui.auth.AuthUiState
 import com.kraat.lostfilmnewtv.ui.auth.AuthViewModel
@@ -81,7 +82,9 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                     repository = application.repository,
                     savedStateHandle = backStackEntry.savedStateHandle,
                     onChannelContentChanged = application.homeChannelSyncManager::syncNow,
-                    initialFavoritesRailVisible = isAuthenticated && isHomeFavoritesRailEnabled,
+                    initialSelectedMode = application.playbackPreferencesStore.readHomeSelectedFeedMode(),
+                    initialFavoritesRailVisible = isHomeFavoritesRailEnabled,
+                    persistSelectedMode = application.playbackPreferencesStore::writeHomeSelectedFeedMode,
                 ),
             )
             val state by homeViewModel.uiState.collectAsStateWithLifecycle()
@@ -99,10 +102,14 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                 homeViewModel.onStart()
             }
 
-            LaunchedEffect(isAuthenticated, isHomeFavoritesRailEnabled) {
+            LaunchedEffect(isHomeFavoritesRailEnabled) {
                 homeViewModel.onFavoritesRailVisibilityChanged(
-                    isVisible = isAuthenticated && isHomeFavoritesRailEnabled,
+                    isVisible = isHomeFavoritesRailEnabled,
                 )
+            }
+
+            LaunchedEffect(isAuthenticated) {
+                homeViewModel.onFavoriteContentInvalidated()
             }
 
             LaunchedEffect(savedAppUpdate) {
@@ -128,6 +135,7 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
             HomeScreen(
                 state = state,
                 onItemFocused = homeViewModel::onItemFocused,
+                onModeSelected = homeViewModel::onModeSelected,
                 onOpenDetails = { detailsUrl ->
                     navController.navigate(AppDestination.Details.createRoute(detailsUrl))
                 },
@@ -229,7 +237,9 @@ private fun homeViewModelFactory(
     repository: LostFilmRepository,
     savedStateHandle: SavedStateHandle,
     onChannelContentChanged: suspend () -> Unit,
+    initialSelectedMode: HomeFeedMode,
     initialFavoritesRailVisible: Boolean,
+    persistSelectedMode: (HomeFeedMode) -> Unit,
 ): ViewModelProvider.Factory {
     return object : ViewModelProvider.Factory {
         override fun <VM : ViewModel> create(modelClass: Class<VM>): VM {
@@ -241,7 +251,9 @@ private fun homeViewModelFactory(
                 repository = repository,
                 savedStateHandle = savedStateHandle,
                 onChannelContentChanged = onChannelContentChanged,
+                initialSelectedMode = initialSelectedMode,
                 initialFavoritesRailVisible = initialFavoritesRailVisible,
+                persistSelectedMode = persistSelectedMode,
             ) as VM
         }
     }

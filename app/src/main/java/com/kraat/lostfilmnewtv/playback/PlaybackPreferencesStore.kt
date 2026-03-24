@@ -2,6 +2,7 @@ package com.kraat.lostfilmnewtv.playback
 
 import android.content.Context
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
+import com.kraat.lostfilmnewtv.ui.home.HomeFeedMode
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 
 class PlaybackPreferencesStore(
@@ -76,6 +77,18 @@ class PlaybackPreferencesStore(
             .apply()
     }
 
+    fun readHomeSelectedFeedMode(): HomeFeedMode {
+        return HomeFeedMode.fromStorageValue(
+            prefs.getString(KEY_HOME_SELECTED_FEED_MODE, null),
+        )
+    }
+
+    fun writeHomeSelectedFeedMode(value: HomeFeedMode) {
+        prefs.edit()
+            .putString(KEY_HOME_SELECTED_FEED_MODE, value.storageValue)
+            .apply()
+    }
+
     private companion object {
         const val DEFAULT_PREFS_NAME = "lostfilm_playback_prefs"
         const val KEY_DEFAULT_QUALITY = "default_quality"
@@ -83,5 +96,6 @@ class PlaybackPreferencesStore(
         const val KEY_ANDROID_TV_CHANNEL_MODE = "android_tv_channel_mode"
         const val KEY_ANDROID_TV_CHANNEL_ID = "android_tv_channel_id"
         const val KEY_HOME_FAVORITES_RAIL_ENABLED = "home_favorites_rail_enabled"
+        const val KEY_HOME_SELECTED_FEED_MODE = "home_selected_feed_mode"
     }
 }

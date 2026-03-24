@@ -42,27 +42,43 @@ import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 
 @Composable
 fun HomeHeader(
+    selectedMode: HomeFeedMode,
+    availableModes: List<HomeFeedMode>,
+    onModeSelected: (HomeFeedMode) -> Unit,
+    onModeTabFocusChanged: (Boolean) -> Unit,
     isAuthenticated: Boolean,
     hasSavedUpdate: Boolean,
     onSettingsClick: () -> Unit,
     onAuthClick: () -> Unit,
     onInstallUpdateClick: () -> Unit,
+    modeFocusRequesters: Map<HomeFeedMode, FocusRequester>,
     settingsFocusRequester: FocusRequester,
     authFocusRequester: FocusRequester,
     updateFocusRequester: FocusRequester?,
     downTarget: FocusRequester?,
     modifier: Modifier = Modifier,
 ) {
+    val title = when (selectedMode) {
+        HomeFeedMode.AllNew -> "Новые релизы"
+        HomeFeedMode.Favorites -> "Избранное"
+    }
+    val subtitle = when (selectedMode) {
+        HomeFeedMode.AllNew -> "Быстрый доступ к новым сериям и служебным действиям"
+        HomeFeedMode.Favorites -> "Новые релизы по сериалам из избранного LostFilm"
+    }
+    val lastModeRequester = availableModes.lastOrNull()?.let(modeFocusRequesters::get)
+
     Row(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Text(
-                text = "Новые релизы",
+                text = title,
                 color = TextPrimary,
                 fontSize = 30.sp,
                 fontWeight = FontWeight.SemiBold,
@@ -70,12 +86,41 @@ fun HomeHeader(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = "Быстрый доступ к новым сериям и служебным действиям",
+                text = subtitle,
                 color = HomeTextMuted,
                 fontSize = 14.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+        }
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            availableModes.forEachIndexed { index, mode ->
+                val leftRequester = availableModes.getOrNull(index - 1)?.let(modeFocusRequesters::get)
+                val rightRequester = availableModes.getOrNull(index + 1)?.let(modeFocusRequesters::get)
+                    ?: settingsFocusRequester
+                HomeHeaderModeButton(
+                    mode = mode,
+                    isSelected = mode == selectedMode,
+                    onClick = { onModeSelected(mode) },
+                    onFocusChanged = onModeTabFocusChanged,
+                    modifier = Modifier
+                        .testTag("home-mode-tab-${mode.testTagSuffix()}")
+                        .focusRequester(modeFocusRequesters.getValue(mode))
+                        .focusProperties {
+                            if (leftRequester != null) {
+                                left = leftRequester
+                            }
+                            right = rightRequester
+                            if (downTarget != null) {
+                                down = downTarget
+                            }
+                        },
+                )
+            }
         }
 
         Row(
@@ -89,6 +134,11 @@ fun HomeHeader(
                 modifier = Modifier
                     .testTag("home-action-settings")
                     .focusRequester(settingsFocusRequester)
+                    .focusProperties {
+                        if (lastModeRequester != null) {
+                            left = lastModeRequester
+                        }
+                    }
                     .applyDownFocus(downTarget),
             )
             HomeHeaderActionButton(
@@ -114,6 +164,32 @@ fun HomeHeader(
             }
         }
     }
+}
+
+@Composable
+private fun HomeHeaderModeButton(
+    mode: HomeFeedMode,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    onFocusChanged: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val label = when (mode) {
+        HomeFeedMode.AllNew -> "Новые релизы"
+        HomeFeedMode.Favorites -> "Избранное"
+    }
+    HomeHeaderActionButton(
+        label = label,
+        subtitle = "Режим Home",
+        onClick = onClick,
+        modifier = modifier.onFocusChanged { focusState ->
+            onFocusChanged(focusState.isFocused)
+            if (focusState.isFocused && !isSelected) {
+                onClick()
+            }
+        },
+        isPrimary = isSelected,
+    )
 }
 
 @Composable
@@ -191,5 +267,12 @@ private fun Modifier.applyDownFocus(downTarget: FocusRequester?): Modifier {
         this.focusProperties {
             down = downTarget
         }
+    }
+}
+
+private fun HomeFeedMode.testTagSuffix(): String {
+    return when (this) {
+        HomeFeedMode.AllNew -> "all-new"
+        HomeFeedMode.Favorites -> "favorites"
     }
 }

@@ -16,6 +16,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -366,6 +367,161 @@ class HomeViewModelTest {
             "После обновления",
             viewModel.uiState.value.rails.last().items.single().titleRu,
         )
+    }
+
+    @Test
+    fun onStart_withPersistedFavoritesMode_keepsFavoritesSelected_andLoadsFavoritesEagerly() = runTest(dispatcher) {
+        val favoriteItem = summary(
+            detailsUrl = "https://www.lostfilm.today/series/favorite/season_4/episode_7/",
+            titleRu = "Любимый сериал",
+        )
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(
+                    pageNumber = 1,
+                    items = listOf(summary(detailsUrl = "https://www.lostfilm.today/series/main/season_1/episode_1/")),
+                    hasNextPage = false,
+                    isStale = false,
+                ),
+            ),
+            favoriteReleaseResults = mutableListOf(
+                FavoriteReleasesResult.Success(listOf(favoriteItem)),
+            ),
+        )
+        val viewModel = HomeViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            initialSelectedMode = HomeFeedMode.Favorites,
+            initialFavoritesRailVisible = true,
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+
+        assertEquals(1, repository.favoriteReleaseCalls)
+        assertEquals(HomeFeedMode.Favorites, viewModel.uiState.value.selectedMode)
+        assertTrue(viewModel.uiState.value.favoritesModeState is HomeModeContentState.Content)
+    }
+
+    @Test
+    fun onStart_withPersistedFavoritesMode_andMissingSession_keepsFavoritesSelectedInLoginRequiredState() = runTest(dispatcher) {
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(
+                    pageNumber = 1,
+                    items = listOf(summary(detailsUrl = "https://www.lostfilm.today/series/main/season_1/episode_1/")),
+                    hasNextPage = false,
+                    isStale = false,
+                ),
+            ),
+            favoriteReleaseResults = mutableListOf(
+                FavoriteReleasesResult.Unavailable("Войдите в LostFilm"),
+            ),
+        )
+        val viewModel = HomeViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            initialSelectedMode = HomeFeedMode.Favorites,
+            initialFavoritesRailVisible = true,
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+
+        assertEquals(HomeFeedMode.Favorites, viewModel.uiState.value.selectedMode)
+        assertEquals(
+            HomeModeContentState.LoginRequired("Войдите в LostFilm"),
+            viewModel.uiState.value.favoritesModeState,
+        )
+    }
+
+    @Test
+    fun onModeSelected_restoresRememberedCardPerMode() = runTest(dispatcher) {
+        val allNewFirst = summary(detailsUrl = "https://www.lostfilm.today/series/main/season_1/episode_1/")
+        val allNewSecond = summary(
+            detailsUrl = "https://www.lostfilm.today/series/main/season_1/episode_2/",
+            titleRu = "Второй релиз",
+        )
+        val favoriteFirst = summary(
+            detailsUrl = "https://www.lostfilm.today/series/favorite/season_4/episode_7/",
+            titleRu = "Любимый сериал",
+        )
+        val favoriteSecond = summary(
+            detailsUrl = "https://www.lostfilm.today/series/favorite/season_4/episode_8/",
+            titleRu = "Любимый сериал 2",
+        )
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(
+                    pageNumber = 1,
+                    items = listOf(allNewFirst, allNewSecond),
+                    hasNextPage = false,
+                    isStale = false,
+                ),
+            ),
+            favoriteReleaseResults = mutableListOf(
+                FavoriteReleasesResult.Success(listOf(favoriteFirst, favoriteSecond)),
+            ),
+        )
+        val viewModel = HomeViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            initialSelectedMode = HomeFeedMode.AllNew,
+            initialFavoritesRailVisible = true,
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+        viewModel.onItemFocused(allNewSecond.detailsUrl)
+        viewModel.onModeSelected(HomeFeedMode.Favorites)
+        viewModel.onItemFocused(favoriteSecond.detailsUrl)
+        viewModel.onModeSelected(HomeFeedMode.AllNew)
+
+        assertEquals(HomeFeedMode.AllNew, viewModel.uiState.value.selectedMode)
+        assertEquals(allNewSecond.detailsUrl, viewModel.uiState.value.selectedItemKey)
+    }
+
+    @Test
+    fun onFavoritesModeAvailabilityChanged_whenFavoritesSelected_fallsBackToAllNew_andPersistsFallback() = runTest(dispatcher) {
+        val persistedModes = mutableListOf<HomeFeedMode>()
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(
+                    pageNumber = 1,
+                    items = listOf(summary(detailsUrl = "https://www.lostfilm.today/series/main/season_1/episode_1/")),
+                    hasNextPage = false,
+                    isStale = false,
+                ),
+            ),
+            favoriteReleaseResults = mutableListOf(
+                FavoriteReleasesResult.Success(
+                    listOf(
+                        summary(
+                            detailsUrl = "https://www.lostfilm.today/series/favorite/season_4/episode_7/",
+                            titleRu = "Любимый сериал",
+                        ),
+                    ),
+                ),
+            ),
+        )
+        val viewModel = HomeViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            initialSelectedMode = HomeFeedMode.Favorites,
+            initialFavoritesRailVisible = true,
+            persistSelectedMode = { persistedModes += it },
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+        viewModel.onFavoritesRailVisibilityChanged(false)
+
+        assertEquals(HomeFeedMode.AllNew, viewModel.uiState.value.selectedMode)
+        assertEquals(listOf(HomeFeedMode.AllNew), persistedModes)
     }
 }
 

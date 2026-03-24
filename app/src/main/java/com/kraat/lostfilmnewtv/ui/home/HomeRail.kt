@@ -47,13 +47,15 @@ fun HomeRail(
     LaunchedEffect(items, focusedItemKey, shouldRequestFocus) {
         if (!shouldRequestFocus || items.isEmpty()) return@LaunchedEffect
 
-        val itemKeys = items.map { homeItemKey(railId, it.detailsUrl) }
+        val itemKeys = items.map { it.detailsUrl }
         val targetKey = if (focusedItemKey in itemKeys) {
             focusedItemKey
         } else {
             itemKeys.firstOrNull()
         }
-        val targetRequester = targetKey?.let(cardFocusRequesters::get)
+        val targetRequester = targetKey?.let { detailsUrl ->
+            cardFocusRequesters[homeItemKey(railId, detailsUrl)]
+        }
         withFrameNanos { }
         targetRequester?.requestFocus()
     }
@@ -69,7 +71,7 @@ fun HomeRail(
             val itemKey = homeItemKey(railId, item.detailsUrl)
             PosterCard(
                 item = item,
-                isFocused = itemKey == focusedItemKey,
+                isFocused = item.detailsUrl == focusedItemKey,
                 modifier = Modifier
                     .focusRequester(cardFocusRequesters.getValue(itemKey))
                     .focusProperties {
@@ -83,7 +85,7 @@ fun HomeRail(
                     .testTag(posterTag(railId, item.detailsUrl))
                     .onFocusChanged { focusState ->
                         if (focusState.isFocused) {
-                            onItemFocused(itemKey)
+                            onItemFocused(item.detailsUrl)
                             if (index == items.lastIndex) {
                                 onEndReached()
                             }
