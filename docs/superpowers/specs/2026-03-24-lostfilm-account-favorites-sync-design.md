@@ -45,6 +45,7 @@ Confirmed:
 - the request payload includes `act=serial`, `type=follow`, `id=<serialId>`, and `session=<UserData.session>`
 - the current JS expects `result` values of `on` and `off`
 - unauthenticated probing confirmed the existence of `/my/`, `/my/type_0`, `/my/type_1`, and `/my/serials`
+- unauthenticated probing also confirmed that these `/my/*` routes currently return a lightweight redirect wrapper back to `/` instead of usable feed content
 
 Not fully confirmed without a live authenticated session:
 - which exact `/my/*` route is the best source for the favorite-release feed
@@ -136,6 +137,13 @@ The feature requires a user-controlled visibility preference for the Home rail.
 
 To avoid adding a new high-level settings section in this iteration, the preference should live in the existing content-surfacing area represented by the current Android TV channel section.
 
+Concrete placement:
+- keep the left rail unchanged, including the existing `Канал Android TV` section entry
+- extend the `CHANNEL` right-panel content in `SettingsScreen`
+- keep the existing Android TV channel overview card and its three mode buttons at the top of that panel
+- append a second subsection below those buttons with a small overview card titled `Главный экран`
+- render the Home favorites preference there as the same TV-button family already used elsewhere, with two explicit states such as `Показывать` and `Скрывать`
+
 The new control should read like:
 - `Показывать полку Избранное на главном экране`
 
@@ -181,13 +189,19 @@ The repository remains the only layer that knows:
 - how to resolve the correct LostFilm request
 - which HTML source to parse for favorite releases
 - how to merge refreshed favorite state back into cached details and Home state
+- how to turn `detailsUrl` into a concrete favorite target id and ajax session token
+
+Boundary rule:
+- UI and view models call only `setFavorite(detailsUrl, targetFavorite)`
+- the repository fetches or reuses the current details HTML, parses `favoriteTargetId`, `favoriteTargetKind`, and `UserData.session`, and decides whether a network call is possible
+- the HTTP client receives only the low-level network parameters needed to perform the request and does not parse HTML itself
 
 ## 3. LostFilm network contract
 
 The app should add a dedicated network method for favorite mutation instead of overloading watched-state code.
 
 Recommended client contract:
-- `setFavorite(detailsUrl, favoriteTargetId, ajaxSessionToken): Boolean` or a more descriptive result type
+- `toggleFavorite(favoriteTargetId: Int, ajaxSessionToken: String): FavoriteToggleNetworkResult`
 
 Request shape should mirror the currently verified LostFilm site contract:
 - `POST /ajaxik.php`
@@ -203,14 +217,21 @@ Because the current site toggles rather than submitting an explicit desired bool
 The Home favorites rail should come from a dedicated account feed rather than from the general `/new/` pagination path.
 
 The repository should own route resolution with a small internal strategy such as:
-1. request the preferred authenticated `my` route
-2. parse it for a recognized favorite-release structure
-3. if the structure does not match, try the next known candidate route
-4. return the first successful parsed result
+1. try these exact candidate routes in order:
+   - `/my/`
+   - `/my/type_0`
+   - `/my/type_1`
+   - `/my/serials`
+2. reject any response that matches the currently observed redirect wrapper back to `/`
+3. accept the first response that contains at least one release link matching a series episode URL pattern such as `/series/<slug>/season_<n>/episode_<n>/`
+4. parse the accepted document into favorite-release summaries
+5. fail closed if no candidate route produces a compatible document
 
 UI code should never know which `/my/*` route won.
 
 This keeps the inevitable site-shape uncertainty localized to one layer.
+
+To keep planning deterministic, the first implementation step must commit one authenticated fixture file for the accepted route to `app/src/test/resources/fixtures/favorite-releases.html`. That fixture becomes the canonical parser contract for this iteration.
 
 ## 5. Home rail model
 
@@ -310,6 +331,8 @@ The parser should prefer extracting:
 If the authenticated favorite feed shape cannot provide every field that the all-new feed provides, the parser may map a minimal but still Home-safe `ReleaseSummary` as long as the card and bottom stage remain readable.
 
 The parser should not attempt to infer watched state for the favorite rail unless the feed provides it clearly.
+
+The canonical accepted fixture for this iteration is the committed authenticated document at `app/src/test/resources/fixtures/favorite-releases.html`. A feed document is considered parser-compatible only if it is not the redirect wrapper and contains real series episode links.
 
 ## Error Handling
 
