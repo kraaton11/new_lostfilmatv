@@ -61,7 +61,7 @@ class AnonymousBrowsingSmokeTest {
         waitForText("Smoke Series Details")
         assertTrue(composeRule.onAllNodesWithText("Smoke Series Details").fetchSemanticsNodes().isNotEmpty())
         assertTrue(composeRule.onAllNodesWithText("Pilot").fetchSemanticsNodes().isNotEmpty())
-        assertTrue(composeRule.onAllNodesWithText("14 марта 2026").fetchSemanticsNodes().isEmpty())
+        assertTrue(composeRule.onAllNodesWithText("14 марта 2026").fetchSemanticsNodes().isNotEmpty())
         assertTrue(composeRule.onAllNodesWithText("TorrServe").fetchSemanticsNodes().isEmpty())
         composeRule.onNodeWithTag("details-primary-action").assertIsNotEnabled()
         assertTrue(composeRule.onAllNodesWithText("Видео недоступно").fetchSemanticsNodes().isNotEmpty())
