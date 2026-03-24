@@ -246,11 +246,11 @@ fun SettingsScreen(
                                 }
                                 SettingsOverviewCard(
                                     title = "Главный экран",
-                                    subtitle = "Дополнительные полки внутри главного экрана приложения.",
+                                    subtitle = "Дополнительные вкладки внутри главного экрана приложения.",
                                     tag = "settings-home-overview-card",
                                     modifier = Modifier.background(HomePanelSurface, RoundedCornerShape(22.dp)),
                                 ) {
-                                    SettingsOverviewValue(text = "Полка Избранное")
+                                    SettingsOverviewValue(text = "Вкладка Избранное")
                                     SettingsOverviewValue(
                                         text = if (isHomeFavoritesRailEnabled) {
                                             "Сейчас: показывать"

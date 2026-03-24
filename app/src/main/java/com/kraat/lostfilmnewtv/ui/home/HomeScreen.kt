@@ -24,6 +24,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Brush
@@ -49,6 +50,7 @@ import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 fun HomeScreen(
     state: HomeUiState = demoHomeUiState(),
     onItemFocused: (String) -> Unit = {},
+    onModeSelected: (HomeFeedMode) -> Unit = {},
     onOpenDetails: (String) -> Unit = {},
     onEndReached: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
@@ -61,53 +63,53 @@ fun HomeScreen(
     appUpdateStatusText: String? = null,
     onInstallUpdateClick: () -> Unit = {},
 ) {
-    val visibleRails = remember(state.rails, state.items) {
-        if (state.rails.isNotEmpty()) {
-            state.rails
-        } else {
-            fallbackHomeRails(state.items)
-        }
+    val activeModeState = when (state.selectedMode) {
+        HomeFeedMode.AllNew -> state.allNewModeState
+        HomeFeedMode.Favorites -> state.favoritesModeState
     }
-    val railItemKeys = remember(visibleRails) {
-        visibleRails.flatMap { rail ->
-            rail.items.map { item -> homeItemKey(rail.id, item.detailsUrl) }
-        }
+    val activeItems = state.itemsForMode(state.selectedMode)
+    val activeRailId = when (state.selectedMode) {
+        HomeFeedMode.AllNew -> HOME_RAIL_ALL_NEW
+        HomeFeedMode.Favorites -> HOME_RAIL_FAVORITES
     }
-    var focusedItemKey by rememberSaveable(railItemKeys) {
+    val itemKeys = remember(activeItems) { activeItems.map { it.detailsUrl } }
+    var focusedItemKey by rememberSaveable(state.selectedMode, itemKeys) {
         mutableStateOf(
-            normalizeHomeItemKey(visibleRails, state.selectedItemKey)
-                ?: railItemKeys.firstOrNull(),
+            state.selectedItemKey ?: itemKeys.firstOrNull(),
         )
     }
-    var rememberedItemKeyByRail by rememberSaveable(railItemKeys) {
-        mutableStateOf(initialRememberedItemKeys(visibleRails, state.selectedItemKey))
-    }
+    var isModeTabFocused by rememberSaveable { mutableStateOf(false) }
 
-    LaunchedEffect(state.selectedItemKey, visibleRails) {
-        val normalizedKey = normalizeHomeItemKey(visibleRails, state.selectedItemKey)
-        if (normalizedKey != null) {
-            focusedItemKey = normalizedKey
-            railIdFromItemKey(normalizedKey)?.let { railId ->
-                rememberedItemKeyByRail = rememberedItemKeyByRail + (railId to normalizedKey)
-            }
+    LaunchedEffect(state.selectedItemKey, state.selectedMode, itemKeys) {
+        val preferredKey = state.selectedItemKey ?: itemKeys.firstOrNull()
+        if (preferredKey != null) {
+            focusedItemKey = preferredKey
         }
     }
 
+    val modeRequesters = remember { HomeFeedMode.entries.associateWith { FocusRequester() } }
     val settingsRequester = remember { FocusRequester() }
     val authRequester = remember { FocusRequester() }
     val updateRequester = remember { FocusRequester() }
-    val cardFocusRequesters = remember(railItemKeys) { railItemKeys.associateWith { FocusRequester() } }
-    val headerDownTarget = visibleRails.firstOrNull()?.let { rail ->
-        preferredRailRequester(
-            rail = rail,
-            rememberedItemKeyByRail = rememberedItemKeyByRail,
-            cardFocusRequesters = cardFocusRequesters,
-        )
+    val loginActionRequester = remember { FocusRequester() }
+    val retryActionRequester = remember { FocusRequester() }
+    val cardFocusRequesters = remember(activeRailId, itemKeys) {
+        itemKeys.associate { detailsUrl -> homeItemKey(activeRailId, detailsUrl) to FocusRequester() }
     }
-    val topActionRequester = if (savedAppUpdate != null) updateRequester else authRequester
-    val focusedItem = findHomeRailItem(visibleRails, focusedItemKey)?.item
+    val headerDownTarget = preferredActiveRequester(
+        railId = activeRailId,
+        items = activeItems,
+        focusedItemKey = focusedItemKey,
+        cardFocusRequesters = cardFocusRequesters,
+    ) ?: when (activeModeState) {
+        is HomeModeContentState.Error -> retryActionRequester
+        is HomeModeContentState.LoginRequired -> loginActionRequester
+        else -> null
+    }
+    val activeModeRequester = modeRequesters.getValue(state.selectedMode)
+    val focusedItem = activeItems.firstOrNull { it.detailsUrl == focusedItemKey }
         ?: state.selectedItem
-        ?: visibleRails.firstOrNull()?.items?.firstOrNull()
+        ?: activeItems.firstOrNull()
     val stageStatusText = appUpdateStatusText ?: savedAppUpdate?.let { "Доступно обновление ${it.latestVersion}" }
 
     Box(
@@ -128,11 +130,16 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
             HomeHeader(
+                selectedMode = state.selectedMode,
+                availableModes = state.availableModes,
+                onModeSelected = onModeSelected,
+                onModeTabFocusChanged = { isFocused -> isModeTabFocused = isFocused },
                 isAuthenticated = isAuthenticated,
                 hasSavedUpdate = savedAppUpdate != null,
                 onSettingsClick = onSettingsClick,
                 onAuthClick = onAuthClick,
                 onInstallUpdateClick = onInstallUpdateClick,
+                modeFocusRequesters = modeRequesters,
                 settingsFocusRequester = settingsRequester,
                 authFocusRequester = authRequester,
                 updateFocusRequester = if (savedAppUpdate != null) updateRequester else null,
@@ -202,59 +209,107 @@ fun HomeScreen(
                             .weight(1f),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        visibleRails.forEachIndexed { index, rail ->
-                            val upTarget = if (index == 0) {
-                                topActionRequester
-                            } else {
-                                preferredRailRequester(
-                                    rail = visibleRails[index - 1],
-                                    rememberedItemKeyByRail = rememberedItemKeyByRail,
-                                    cardFocusRequesters = cardFocusRequesters,
-                                )
-                            }
-                            val downTarget = visibleRails.getOrNull(index + 1)?.let { nextRail ->
-                                preferredRailRequester(
-                                    rail = nextRail,
-                                    rememberedItemKeyByRail = rememberedItemKeyByRail,
-                                    cardFocusRequesters = cardFocusRequesters,
-                                )
-                            }
-
-                            Column(
-                                verticalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                if (index > 0) {
-                                    Text(
-                                        text = rail.title,
-                                        color = TextPrimary,
-                                        fontSize = 20.sp,
-                                        modifier = Modifier.testTag("home-rail-title-${rail.id}"),
-                                    )
-                                }
+                        when (activeModeState) {
+                            is HomeModeContentState.Content -> {
                                 HomeRail(
-                                    railId = rail.id,
-                                    items = rail.items,
+                                    railId = activeRailId,
+                                    items = activeModeState.items,
                                     focusedItemKey = focusedItemKey,
                                     cardFocusRequesters = cardFocusRequesters,
-                                    shouldRequestFocus = when {
-                                        focusedItemKey == null -> index == 0
-                                        else -> rail.items.any {
-                                            homeItemKey(rail.id, it.detailsUrl) == focusedItemKey
-                                        }
-                                    },
-                                    upTargetRequester = upTarget,
-                                    downTargetRequester = downTarget,
-                                    isPaging = state.isPaging && rail.id == HOME_RAIL_ALL_NEW,
-                                    onItemFocused = { itemKey ->
-                                        focusedItemKey = itemKey
-                                        rememberedItemKeyByRail = railIdFromItemKey(itemKey)?.let { railId ->
-                                            rememberedItemKeyByRail + (railId to itemKey)
-                                        } ?: rememberedItemKeyByRail
-                                        onItemFocused(itemKey)
+                                    shouldRequestFocus = !isModeTabFocused,
+                                    upTargetRequester = activeModeRequester,
+                                    downTargetRequester = null,
+                                    isPaging = state.isPaging && state.selectedMode == HomeFeedMode.AllNew,
+                                    onItemFocused = { detailsUrl ->
+                                        isModeTabFocused = false
+                                        focusedItemKey = detailsUrl
+                                        onItemFocused(detailsUrl)
                                     },
                                     onOpenDetails = onOpenDetails,
-                                    onEndReached = if (rail.id == HOME_RAIL_ALL_NEW) onEndReached else ({}),
+                                    onEndReached = if (state.selectedMode == HomeFeedMode.AllNew) onEndReached else ({}),
                                 )
+                            }
+                            HomeModeContentState.Empty -> {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    HomeCenteredPanel {
+                                        Text(
+                                            text = "Пока нет новых релизов в избранном",
+                                            color = TextPrimary,
+                                            fontSize = 18.sp,
+                                        )
+                                    }
+                                }
+                            }
+                            is HomeModeContentState.Error -> {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    HomeCenteredPanel {
+                                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                            Text(
+                                                text = activeModeState.message,
+                                                color = TextPrimary,
+                                                fontSize = 18.sp,
+                                            )
+                                            Button(
+                                                onClick = onRetry,
+                                                modifier = Modifier
+                                                    .focusRequester(retryActionRequester)
+                                                    .testTag("home-mode-retry-action"),
+                                                colors = ButtonDefaults.buttonColors(containerColor = HomeAccentGold),
+                                            ) {
+                                                Text("Повторить", color = Color(0xFF17120D))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            is HomeModeContentState.LoginRequired -> {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    HomeCenteredPanel {
+                                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                                            Text(
+                                                text = activeModeState.message,
+                                                color = TextPrimary,
+                                                fontSize = 18.sp,
+                                            )
+                                            Button(
+                                                onClick = onAuthClick,
+                                                modifier = Modifier
+                                                    .focusRequester(loginActionRequester)
+                                                    .testTag("home-mode-login-action"),
+                                                colors = ButtonDefaults.buttonColors(containerColor = HomeAccentGold),
+                                            ) {
+                                                Text("Войти", color = Color(0xFF17120D))
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            HomeModeContentState.Loading -> {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    HomeCenteredPanel {
+                                        CircularProgressIndicator(color = HomeAccentGold)
+                                    }
+                                }
                             }
                         }
                         if (state.pagingErrorMessage != null) {
@@ -266,11 +321,13 @@ fun HomeScreen(
                                 onAction = onPagingRetry,
                             )
                         }
-                        HomeBottomStage(
-                            item = focusedItem,
-                            appVersionText = appVersionText,
-                            appUpdateStatusText = stageStatusText,
-                        )
+                        if (activeModeState is HomeModeContentState.Content) {
+                            HomeBottomStage(
+                                item = focusedItem,
+                                appVersionText = appVersionText,
+                                appUpdateStatusText = stageStatusText,
+                            )
+                        }
                     }
                 }
             }
@@ -360,33 +417,25 @@ private fun demoHomeUiState(): HomeUiState {
 
     return HomeUiState(
         items = listOf(demoItem),
+        allNewModeState = HomeModeContentState.Content(listOf(demoItem)),
         selectedItem = demoItem,
         selectedItemKey = demoItem.detailsUrl,
         hasNextPage = true,
     )
 }
 
-private fun preferredRailRequester(
-    rail: HomeContentRail,
-    rememberedItemKeyByRail: Map<String, String>,
+private fun preferredActiveRequester(
+    railId: String,
+    items: List<ReleaseSummary>,
+    focusedItemKey: String?,
     cardFocusRequesters: Map<String, FocusRequester>,
 ): FocusRequester? {
-    val rememberedKey = rememberedItemKeyByRail[rail.id]
-    val preferredKey = if (rememberedKey != null && rail.items.any { homeItemKey(rail.id, it.detailsUrl) == rememberedKey }) {
-        rememberedKey
+    val preferredKey = if (focusedItemKey != null && items.any { it.detailsUrl == focusedItemKey }) {
+        focusedItemKey
     } else {
-        rail.items.firstOrNull()?.let { item -> homeItemKey(rail.id, item.detailsUrl) }
+        items.firstOrNull()?.detailsUrl
     }
-    return preferredKey?.let(cardFocusRequesters::get)
-}
-
-private fun initialRememberedItemKeys(
-    rails: List<HomeContentRail>,
-    selectedItemKey: String?,
-): Map<String, String> {
-    return rails.associate { rail ->
-        val rememberedKey = normalizeHomeItemKey(listOf(rail), selectedItemKey)
-            ?: rail.items.firstOrNull()?.let { item -> homeItemKey(rail.id, item.detailsUrl) }
-        rail.id to checkNotNull(rememberedKey)
+    return preferredKey?.let { detailsUrl ->
+        cardFocusRequesters[homeItemKey(railId, detailsUrl)]
     }
 }

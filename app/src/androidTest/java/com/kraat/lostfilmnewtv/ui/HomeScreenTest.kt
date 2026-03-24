@@ -8,6 +8,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -20,11 +22,13 @@ import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
 import com.kraat.lostfilmnewtv.ui.home.HOME_RAIL_ALL_NEW
 import com.kraat.lostfilmnewtv.ui.home.HOME_RAIL_FAVORITES
 import com.kraat.lostfilmnewtv.ui.home.HomeContentRail
+import com.kraat.lostfilmnewtv.ui.home.HomeFeedMode
+import com.kraat.lostfilmnewtv.ui.home.HomeModeContentState
 import com.kraat.lostfilmnewtv.ui.home.posterTag
-import com.kraat.lostfilmnewtv.ui.home.homeItemKey
 import com.kraat.lostfilmnewtv.ui.home.HomeScreen
 import com.kraat.lostfilmnewtv.ui.home.HomeUiState
 import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 
@@ -52,7 +56,7 @@ class HomeScreenTest {
     }
 
     @Test
-    fun railFocus_movesUpToUtilityRow_andDownBackToSelectedCard() {
+    fun railFocus_movesUpToActiveModeTab_andDownBackToSelectedCard() {
         composeRule.setContent {
             LostFilmTheme {
                 var state by remember { mutableStateOf(seededState()) }
@@ -82,9 +86,9 @@ class HomeScreenTest {
         }
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithTag("home-action-update").assertIsFocused()
+        composeRule.onNodeWithTag("home-mode-tab-all-new").assertIsFocused()
 
-        composeRule.onNodeWithTag("home-action-update").performKeyInput {
+        composeRule.onNodeWithTag("home-mode-tab-all-new").performKeyInput {
             keyDown(Key.DirectionDown)
             keyUp(Key.DirectionDown)
         }
@@ -129,14 +133,33 @@ class HomeScreenTest {
     }
 
     @Test
-    fun favoritesRail_rendersBelowMainRail_andMovesFocusDownWithoutBreakingStage() {
+    fun modeTabs_switchBetweenAllNewAndFavorites_withoutRenderingSecondRail() {
         composeRule.setContent {
             LostFilmTheme {
-                var state by remember { mutableStateOf(seededMultiRailState()) }
+                var state by remember { mutableStateOf(seededModeState()) }
                 HomeScreen(
                     state = state,
                     onItemFocused = { focusedKey ->
-                        state = state.copy(selectedItemKey = focusedKey)
+                        state = state.copy(
+                            selectedItemKey = focusedKey,
+                            selectedItem = when (state.selectedMode) {
+                                HomeFeedMode.AllNew -> state.items.find { it.detailsUrl == focusedKey }
+                                HomeFeedMode.Favorites -> state.favoriteItems.find { it.detailsUrl == focusedKey }
+                            },
+                        )
+                    },
+                    onModeSelected = { mode ->
+                        state = state.copy(
+                            selectedMode = mode,
+                            selectedItemKey = when (mode) {
+                                HomeFeedMode.AllNew -> firstDetailsUrl
+                                HomeFeedMode.Favorites -> favoriteDetailsUrl
+                            },
+                            selectedItem = when (mode) {
+                                HomeFeedMode.AllNew -> state.items.first()
+                                HomeFeedMode.Favorites -> state.favoriteItems.first()
+                            },
+                        )
                     },
                 )
             }
@@ -149,8 +172,26 @@ class HomeScreenTest {
             }.getOrDefault(false)
         }
 
-        composeRule.onNodeWithText("Избранное").assertExists()
+        assertEquals(
+            0,
+            composeRule.onAllNodesWithTag("home-rail-title-favorites").fetchSemanticsNodes().size,
+        )
+
         composeRule.onNodeWithTag(posterTag(HOME_RAIL_ALL_NEW, firstDetailsUrl)).performKeyInput {
+            keyDown(Key.DirectionUp)
+            keyUp(Key.DirectionUp)
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("home-mode-tab-all-new").performKeyInput {
+            keyDown(Key.DirectionRight)
+            keyUp(Key.DirectionRight)
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("home-mode-tab-favorites").assertIsFocused()
+
+        composeRule.onNodeWithTag("home-mode-tab-favorites").performKeyInput {
             keyDown(Key.DirectionDown)
             keyUp(Key.DirectionDown)
         }
@@ -197,13 +238,14 @@ private fun seededState(): HomeUiState {
 
     return HomeUiState(
         items = listOf(first, second),
+        allNewModeState = HomeModeContentState.Content(listOf(first, second)),
         selectedItem = first,
         selectedItemKey = first.detailsUrl,
         hasNextPage = true,
     )
 }
 
-private fun seededMultiRailState(): HomeUiState {
+private fun seededModeState(): HomeUiState {
     val first = ReleaseSummary(
         id = firstDetailsUrl,
         kind = ReleaseKind.SERIES,
@@ -235,20 +277,21 @@ private fun seededMultiRailState(): HomeUiState {
 
     return HomeUiState(
         items = listOf(first),
+        favoriteItems = listOf(favorite),
         rails = listOf(
             HomeContentRail(
                 id = HOME_RAIL_ALL_NEW,
                 title = "Новые релизы",
                 items = listOf(first),
             ),
-            HomeContentRail(
-                id = HOME_RAIL_FAVORITES,
-                title = "Избранное",
-                items = listOf(favorite),
-            ),
         ),
+        selectedMode = HomeFeedMode.AllNew,
+        availableModes = listOf(HomeFeedMode.AllNew, HomeFeedMode.Favorites),
+        allNewModeState = HomeModeContentState.Content(listOf(first)),
+        favoritesModeState = HomeModeContentState.Content(listOf(favorite)),
         selectedItem = first,
-        selectedItemKey = homeItemKey(HOME_RAIL_ALL_NEW, first.detailsUrl),
+        selectedItemKey = first.detailsUrl,
         hasNextPage = false,
+        isFavoritesRailVisible = true,
     )
 }

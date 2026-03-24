@@ -3,6 +3,7 @@ package com.kraat.lostfilmnewtv.playback
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
+import com.kraat.lostfilmnewtv.ui.home.HomeFeedMode
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -144,5 +145,41 @@ class PlaybackPreferencesStoreTest {
         store.writeHomeFavoritesRailEnabled(true)
 
         assertEquals(true, store.readHomeFavoritesRailEnabled())
+    }
+
+    @Test
+    fun readHomeSelectedFeedMode_returnsAllNew_whenNothingWasSaved() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsName = "playback-store-home-feed-mode-default"
+        context.deleteSharedPreferences(prefsName)
+        val store = PlaybackPreferencesStore(context, prefsName = prefsName)
+
+        assertEquals(HomeFeedMode.AllNew, store.readHomeSelectedFeedMode())
+    }
+
+    @Test
+    fun writeHomeSelectedFeedMode_persistsFavorites() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsName = "playback-store-home-feed-mode-write"
+        context.deleteSharedPreferences(prefsName)
+        val store = PlaybackPreferencesStore(context, prefsName = prefsName)
+
+        store.writeHomeSelectedFeedMode(HomeFeedMode.Favorites)
+
+        assertEquals(HomeFeedMode.Favorites, store.readHomeSelectedFeedMode())
+    }
+
+    @Test
+    fun readHomeSelectedFeedMode_fallsBackToAllNew_whenStoredValueIsUnknown() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsName = "playback-store-home-feed-mode-unknown"
+        context.deleteSharedPreferences(prefsName)
+        context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+            .edit()
+            .putString("home_selected_feed_mode", "unexpected")
+            .apply()
+        val store = PlaybackPreferencesStore(context, prefsName = prefsName)
+
+        assertEquals(HomeFeedMode.AllNew, store.readHomeSelectedFeedMode())
     }
 }

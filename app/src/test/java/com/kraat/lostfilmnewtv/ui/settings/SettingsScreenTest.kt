@@ -293,7 +293,7 @@ class SettingsScreenTest {
             .performSemanticsAction(SemanticsActions.OnClick)
 
         composeRule.onNodeWithText("Главный экран").assertExists()
-        composeRule.onNodeWithText("Полка Избранное").assertExists()
+        composeRule.onNodeWithText("Вкладка Избранное").assertExists()
         composeRule.onNodeWithTag("settings-home-favorites-hide").assertIsSelected()
         composeRule.onNodeWithTag("settings-home-favorites-show")
             .performSemanticsAction(SemanticsActions.OnClick)
