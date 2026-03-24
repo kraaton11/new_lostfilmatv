@@ -160,6 +160,8 @@ class LostFilmDetailsParser {
         val match = followSerialRegex.find(onClick) ?: return null
         val targetId = match.groupValues[1].toIntOrNull() ?: return null
         val isMovie = match.groupValues[2].equals("true", ignoreCase = true)
+        val classNames = favoriteElement.classNames()
+        val isIdScopedFavoriteElement = favoriteElement.id().startsWith("fav_")
         val normalizedCueText = buildString {
             append(favoriteElement.attr("title"))
             append(' ')
@@ -167,8 +169,15 @@ class LostFilmDetailsParser {
         }.lowercase()
         val cues = linkedSetOf<Boolean>()
 
-        if (favoriteElement.classNames().contains("active")) {
-            cues += true
+        if (isIdScopedFavoriteElement) {
+            if (classNames.contains("active")) {
+                cues += true
+            }
+        } else {
+            when {
+                classNames.contains("favorites-btn") && !classNames.contains("favorites-btn2") -> cues += true
+                classNames.contains("favorites-btn2") -> cues += false
+            }
         }
         if (
             normalizedCueText.contains("в избранном") ||

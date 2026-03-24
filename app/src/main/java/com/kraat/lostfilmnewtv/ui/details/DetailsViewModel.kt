@@ -148,13 +148,10 @@ class DetailsViewModel(
     }
 
     private fun DetailsUiState.withFavoritePresentation(): DetailsUiState {
-        val currentDetails = details
-        if (currentDetails?.favoriteTargetId == null) {
-            return copy(
-                favoriteActionLabel = "",
-                isFavoriteActionEnabled = false,
-            )
-        }
+        val currentDetails = details ?: return copy(
+            favoriteActionLabel = "",
+            isFavoriteActionEnabled = false,
+        )
         if (isFavoriteMutationInFlight) {
             return copy(
                 favoriteActionLabel = "Сохраняем...",
@@ -164,6 +161,12 @@ class DetailsViewModel(
         if (!hasValidSession) {
             return copy(
                 favoriteActionLabel = "Войдите в LostFilm",
+                isFavoriteActionEnabled = false,
+            )
+        }
+        if (currentDetails.favoriteTargetId == null) {
+            return copy(
+                favoriteActionLabel = "Избранное недоступно",
                 isFavoriteActionEnabled = false,
             )
         }

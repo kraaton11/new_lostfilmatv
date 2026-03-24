@@ -210,6 +210,25 @@ class DetailsScreenTest {
     }
 
     @Test
+    fun detailsScreen_showsDisabledFavoriteLoginAction_whenAnonymousMetadataIsMissing() {
+        val playbackRow = row("preferred", "1080p", "https://example.com/1080.torrent", true)
+
+        composeRule.setDetailsContent(
+            state = DetailsUiState(
+                details = detailsWithRows(listOf(playbackRow)),
+                favoriteActionLabel = "Войдите в LostFilm",
+                isFavoriteActionEnabled = false,
+            ),
+            isAuthenticated = false,
+            availableTorrentRowsCount = 1,
+            playbackRow = playbackRow,
+        )
+
+        composeRule.onNodeWithTag("details-favorite-action").assertIsDisplayed()
+        composeRule.onNodeWithTag("details-favorite-action").assertIsNotEnabled()
+    }
+
+    @Test
     fun backFromDetails_restoresFocusedPosterAfterSystemBack() {
         val movieRow = row("movie", "1080p", "https://example.com/movie.torrent", true)
 

@@ -275,6 +275,36 @@ class DetailsViewModelTest {
         assertEquals(false, viewModel.uiState.value.isFavoriteActionEnabled)
         assertEquals(false, viewModel.uiState.value.isFavoriteMutationInFlight)
     }
+
+    @Test
+    fun anonymousDetails_withoutFavoriteMetadata_stillExposeLoginFavoriteAction() = runTest(dispatcher) {
+        val repository = FakeDetailsRepository(
+            detailsResult = DetailsResult.Success(
+                details = details(
+                    kind = ReleaseKind.SERIES,
+                    titleRu = "9-1-1",
+                    seasonNumber = 9,
+                    episodeNumber = 13,
+                    releaseDateRu = "14 марта 2026",
+                ),
+                isStale = false,
+            ),
+        )
+        val viewModel = DetailsViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(AppDestination.Details.detailsUrlArg to "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"),
+            ),
+            isAuthenticated = false,
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+
+        assertEquals("Войдите в LostFilm", viewModel.uiState.value.favoriteActionLabel)
+        assertEquals(false, viewModel.uiState.value.isFavoriteActionEnabled)
+    }
 }
 
 private class FakeDetailsRepository(

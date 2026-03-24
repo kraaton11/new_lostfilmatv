@@ -101,11 +101,11 @@ class LostFilmDetailsParserTest {
     }
 
     @Test
-    fun parsesMovieFavoriteMetadata_fromFollowSerialAndActiveButton() {
+    fun parsesMovieFavoriteMetadata_fromRootOnButton() {
         val html = """
             <html>
                 <body>
-                    <div class="favorites-btn2 active" title="Фильм в избранном" onClick="FollowSerial(1080, true)">
+                    <div class="favorites-btn" title="Фильм в избранном" onClick="FollowSerial(1080, true)">
                         <div class="icon"></div>убрать из избранного
                     </div>
                 </body>
@@ -120,7 +120,7 @@ class LostFilmDetailsParserTest {
     }
 
     @Test
-    fun parsesFavoriteMetadata_withConflictingCues_asUnknownState() {
+    fun parsesFavoriteMetadata_fromSeriesRootButtonType_whenButtonLooksActiveButIsOff() {
         val html = """
             <html>
                 <body>
@@ -135,7 +135,26 @@ class LostFilmDetailsParserTest {
 
         assertEquals(42, favorite?.targetId)
         assertEquals(FavoriteTargetKind.SERIES, favorite?.targetKind)
-        assertNull(favorite?.isFavorite)
+        assertEquals(false, favorite?.isFavorite)
+    }
+
+    @Test
+    fun parsesFavoriteMetadata_fromSeriesRootOnButton() {
+        val html = """
+            <html>
+                <body>
+                    <div class="favorites-btn" title="Сериал в избранном" onClick="FollowSerial(42, false)">
+                        <div class="icon"></div>убрать из избранного
+                    </div>
+                </body>
+            </html>
+        """.trimIndent()
+
+        val favorite = LostFilmDetailsParser().parseFavoriteMetadata(html)
+
+        assertEquals(42, favorite?.targetId)
+        assertEquals(FavoriteTargetKind.SERIES, favorite?.targetKind)
+        assertEquals(true, favorite?.isFavorite)
     }
 
     @Test
