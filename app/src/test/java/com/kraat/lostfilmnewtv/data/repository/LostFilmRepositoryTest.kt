@@ -14,7 +14,9 @@ import com.kraat.lostfilmnewtv.data.model.FavoriteToggleNetworkResult
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
+import com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteSeriesParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmListParser
+import com.kraat.lostfilmnewtv.data.parser.LostFilmSeasonEpisodesParser
 import com.kraat.lostfilmnewtv.data.parser.fixture
 import java.io.IOException
 import kotlinx.coroutines.test.runTest
@@ -518,17 +520,27 @@ class LostFilmRepositoryTest {
     }
 
     @Test
-    fun loadFavoriteReleases_triesCandidateRoutesUntilCompatibleFeedFound() = runTest {
+    fun loadFavoriteReleases_returnsEmptySuccess_whenFavoriteSeriesPageHasNoActiveFavorites() = runTest {
         val accountRequests = mutableListOf<String>()
         val repository = createRepository(
             pageHandler = { fixture("new-page-1.html") },
             accountPageHandler = { path ->
                 accountRequests += path
                 when (path) {
-                    "/my/" -> redirectWrapperHtml()
-                    "/my/type_0" -> partialFavoriteFeedHtml()
-                    "/my/type_1" -> fixture("favorite-releases.html")
-                    "/my/serials" -> error("Should stop after first compatible route")
+                    "/my/type_1" -> """
+                        <html>
+                            <body>
+                                <div class="serials-list-box">
+                                    <div class="serial-box">
+                                        <div class="subscribe-box" title="Добавить сериал в избранное" id="fav_1"></div>
+                                        <a class="body" href="/series/example_show">
+                                            <div class="title-ru">Пример шоу</div>
+                                        </a>
+                                    </div>
+                                </div>
+                            </body>
+                        </html>
+                    """.trimIndent()
                     else -> error("Unexpected account path $path")
                 }
             },
@@ -539,15 +551,83 @@ class LostFilmRepositoryTest {
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
-        assertEquals(2, result.items.size)
-        assertEquals(listOf("/my/", "/my/type_0", "/my/type_1"), accountRequests)
+        assertTrue(result.items.isEmpty())
+        assertEquals(listOf("/my/type_1"), accountRequests)
     }
 
     @Test
-    fun loadFavoriteReleases_returnsUnavailable_whenNoCandidateRouteIsCompatible() = runTest {
+    fun loadFavoriteReleases_buildsFeedFromFavoriteSeriesSeasons_insteadOfGenericMyNewMoviesBlock() = runTest {
+        val accountRequests = mutableListOf<String>()
+        val detailsRequests = mutableListOf<String>()
         val repository = createRepository(
             pageHandler = { fixture("new-page-1.html") },
-            accountPageHandler = { redirectWrapperHtml() },
+            accountPageHandler = { path ->
+                accountRequests += path
+                when (path) {
+                    "/my/type_1" -> favoriteSeriesAccountPageHtml()
+                    else -> error("Unexpected account path $path")
+                }
+            },
+            detailsHandler = { requestedUrl ->
+                detailsRequests += requestedUrl
+                when (requestedUrl) {
+                    "https://www.lostfilm.today/series/alpha/seasons" -> favoriteSeriesSeasonsPageHtml(
+                        seriesSlug = "alpha",
+                        episodes = listOf(
+                            SeasonEpisodeRow(
+                                seasonNumber = 1,
+                                episodeNumber = 2,
+                                episodeTitle = "Alpha Episode",
+                                releaseDateRu = "16.03.2026",
+                            ),
+                        ),
+                    )
+
+                    "https://www.lostfilm.today/series/beta/seasons" -> favoriteSeriesSeasonsPageHtml(
+                        seriesSlug = "beta",
+                        episodes = listOf(
+                            SeasonEpisodeRow(
+                                seasonNumber = 3,
+                                episodeNumber = 1,
+                                episodeTitle = "Beta Episode",
+                                releaseDateRu = "14.03.2026",
+                            ),
+                        ),
+                    )
+
+                    else -> error("Unexpected details request: $requestedUrl")
+                }
+            },
+            isAuthenticated = true,
+        )
+
+        val result = repository.loadFavoriteReleases()
+
+        assertTrue(result is FavoriteReleasesResult.Success)
+        result as FavoriteReleasesResult.Success
+        assertEquals(listOf("/my/type_1"), accountRequests)
+        assertEquals(
+            listOf(
+                "https://www.lostfilm.today/series/alpha/seasons",
+                "https://www.lostfilm.today/series/beta/seasons",
+            ),
+            detailsRequests,
+        )
+        assertEquals(
+            listOf(
+                "https://www.lostfilm.today/series/alpha/season_1/episode_2/",
+                "https://www.lostfilm.today/series/beta/season_3/episode_1/",
+            ),
+            result.items.map { it.detailsUrl },
+        )
+        assertEquals(listOf("Alpha", "Beta"), result.items.map { it.titleRu })
+    }
+
+    @Test
+    fun loadFavoriteReleases_returnsUnavailable_whenFavoriteSeriesPageFails() = runTest {
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            accountPageHandler = { throw IOException("offline") },
             isAuthenticated = true,
         )
 
@@ -611,7 +691,8 @@ class LostFilmRepositoryTest {
             releaseDao = releaseDao,
             listParser = LostFilmListParser(),
             detailsParser = LostFilmDetailsParser(),
-            favoriteReleasesParser = com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteReleasesParser(),
+            favoriteSeriesParser = LostFilmFavoriteSeriesParser(),
+            seasonEpisodesParser = LostFilmSeasonEpisodesParser(),
             hasAuthenticatedSession = { isAuthenticated },
             clock = { NOW },
         )
@@ -752,3 +833,80 @@ private fun partialFavoriteFeedHtml(): String = """
         </body>
     </html>
 """.trimIndent()
+
+private fun favoriteSeriesAccountPageHtml(): String = """
+    <html>
+        <body>
+            <div class="serials-list-box">
+                <div class="serial-box">
+                    <img src="/Static/Images/1/Posters/icon.jpg" class="avatar" />
+                    <div class="subscribe-box active" title="Сериал добавлен в избранное. Удалить из избранного?" id="fav_1"></div>
+                    <a class="body" href="/series/alpha">
+                        <div class="title-ru">Alpha</div>
+                    </a>
+                </div>
+                <div class="serial-box">
+                    <img src="/Static/Images/2/Posters/icon.jpg" class="avatar" />
+                    <div class="subscribe-box active" title="Сериал добавлен в избранное. Удалить из избранного?" id="fav_2"></div>
+                    <a class="body" href="/series/beta">
+                        <div class="title-ru">Beta</div>
+                    </a>
+                </div>
+                <div class="serial-box">
+                    <img src="/Static/Images/3/Posters/icon.jpg" class="avatar" />
+                    <div class="subscribe-box" title="Добавить сериал в избранное" id="fav_3"></div>
+                    <a class="body" href="/series/outsider">
+                        <div class="title-ru">Outsider</div>
+                    </a>
+                </div>
+            </div>
+            <div class="new_episodes">
+                <a class="new-movie" href="/series/outsider/season_9/episode_9/" title="Outsider">
+                    <div class="date">17.03.2026</div>
+                    <img src="/Static/Images/3/Posters/image_s9.jpg" />
+                </a>
+            </div>
+        </body>
+    </html>
+""".trimIndent()
+
+private fun favoriteSeriesSeasonsPageHtml(
+    seriesSlug: String,
+    episodes: List<SeasonEpisodeRow>,
+): String {
+    val rows = episodes.joinToString(separator = "\n") { episode ->
+        """
+        <tr>
+            <td class="alpha">
+                <div class="haveseen-btn" data-episode="${seriesSlug}_${episode.seasonNumber}_${episode.episodeNumber}"></div>
+            </td>
+            <td class="beta" onClick="goTo('/series/$seriesSlug/season_${episode.seasonNumber}/episode_${episode.episodeNumber}/',false)">
+                ${episode.seasonNumber} сезон ${episode.episodeNumber} серия
+            </td>
+            <td class="gamma" onClick="goTo('/series/$seriesSlug/season_${episode.seasonNumber}/episode_${episode.episodeNumber}/',false)">
+                ${episode.episodeTitle}
+            </td>
+            <td class="delta">
+                Ru: ${episode.releaseDateRu}<br />
+            </td>
+        </tr>
+        """.trimIndent()
+    }
+
+    return """
+        <html>
+            <body>
+                <table class="movie-details-block">
+                    $rows
+                </table>
+            </body>
+        </html>
+    """.trimIndent()
+}
+
+private data class SeasonEpisodeRow(
+    val seasonNumber: Int,
+    val episodeNumber: Int,
+    val episodeTitle: String,
+    val releaseDateRu: String,
+)
