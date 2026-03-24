@@ -5,6 +5,9 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import org.jsoup.Jsoup
 
 private val favoriteEpisodeRegex = Regex(""".*/series/([^/]+)/season_(\d+)/episode_(\d+)/?""")
+private val redirectWrapperRegex = Regex(
+    pattern = """(?m)^[ \t]*top\.location\.replace\((["'])/\1\);?\s*$""",
+)
 
 class LostFilmFavoriteReleasesParser {
     fun parse(
@@ -50,8 +53,6 @@ class LostFilmFavoriteReleasesParser {
     }
 
     private fun looksLikeRedirectWrapper(html: String): Boolean {
-        val normalized = html.lowercase()
-        return normalized.contains("top.location.replace(\"/\")") ||
-            normalized.contains("top.location.replace('/')")
+        return redirectWrapperRegex.containsMatchIn(html)
     }
 }
