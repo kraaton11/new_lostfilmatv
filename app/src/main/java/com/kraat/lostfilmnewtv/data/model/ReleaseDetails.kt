@@ -14,6 +14,9 @@ data class ReleaseDetails(
     val playEpisodeId: String? = null,
     val torrentLinks: List<TorrentLink> = emptyList(),
     val episodeTitleRu: String? = null,
+    val favoriteTargetId: Int? = null,
+    val favoriteTargetKind: FavoriteTargetKind? = null,
+    val isFavorite: Boolean? = null,
 )
 
 @Serializable

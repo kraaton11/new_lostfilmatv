@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.data.parser
 
+import com.kraat.lostfilmnewtv.data.model.FavoriteTargetKind
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -78,6 +79,63 @@ class LostFilmDetailsParserTest {
         val token = LostFilmDetailsParser().parseAjaxSessionToken(html)
 
         assertEquals("ajax-session-token", token)
+    }
+
+    @Test
+    fun parsesSeriesFavoriteMetadata_fromFollowSerialAndOffButton() {
+        val html = """
+            <html>
+                <body>
+                    <div class="favorites-btn2" title="Добавить сериал в избранное" onClick="FollowSerial(915, false)">
+                        <div class="icon"></div>добавить в избранное
+                    </div>
+                </body>
+            </html>
+        """.trimIndent()
+
+        val favorite = LostFilmDetailsParser().parseFavoriteMetadata(html)
+
+        assertEquals(915, favorite?.targetId)
+        assertEquals(FavoriteTargetKind.SERIES, favorite?.targetKind)
+        assertEquals(false, favorite?.isFavorite)
+    }
+
+    @Test
+    fun parsesMovieFavoriteMetadata_fromFollowSerialAndActiveButton() {
+        val html = """
+            <html>
+                <body>
+                    <div class="favorites-btn2 active" title="Фильм в избранном" onClick="FollowSerial(1080, true)">
+                        <div class="icon"></div>убрать из избранного
+                    </div>
+                </body>
+            </html>
+        """.trimIndent()
+
+        val favorite = LostFilmDetailsParser().parseFavoriteMetadata(html)
+
+        assertEquals(1080, favorite?.targetId)
+        assertEquals(FavoriteTargetKind.MOVIE, favorite?.targetKind)
+        assertEquals(true, favorite?.isFavorite)
+    }
+
+    @Test
+    fun parsesFavoriteMetadata_withConflictingCues_asUnknownState() {
+        val html = """
+            <html>
+                <body>
+                    <div class="favorites-btn2 active" title="Добавить сериал в избранное" onClick="FollowSerial(42, false)">
+                        <div class="icon"></div>добавить в избранное
+                    </div>
+                </body>
+            </html>
+        """.trimIndent()
+
+        val favorite = LostFilmDetailsParser().parseFavoriteMetadata(html)
+
+        assertEquals(42, favorite?.targetId)
+        assertEquals(FavoriteTargetKind.SERIES, favorite?.targetKind)
+        assertNull(favorite?.isFavorite)
     }
 
     @Test

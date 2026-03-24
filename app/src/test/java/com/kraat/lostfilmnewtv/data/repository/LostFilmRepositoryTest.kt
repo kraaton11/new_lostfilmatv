@@ -7,6 +7,9 @@ import com.kraat.lostfilmnewtv.data.db.PageCacheMetadataEntity
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
 import com.kraat.lostfilmnewtv.data.db.ReleaseSummaryEntity
 import com.kraat.lostfilmnewtv.data.db.ReleaseDetailsEntity
+import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
+import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
+import com.kraat.lostfilmnewtv.data.model.FavoriteToggleNetworkResult
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
@@ -318,6 +321,107 @@ class LostFilmRepositoryTest {
         assertTrue(releaseDao.getSummary(detailsUrl)?.isWatched == true)
     }
 
+    @Test
+    fun setFavorite_returnsNoOp_whenCurrentStateAlreadyMatchesTarget() = runTest {
+        val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        var toggleCalls = 0
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            detailsHandler = { seriesDetailsWithFavoriteState(isFavorite = true, includeSessionToken = true) },
+            favoriteToggleHandler = { _, _, _ ->
+                toggleCalls += 1
+                FavoriteToggleNetworkResult.ToggledOn
+            },
+            isAuthenticated = true,
+        )
+
+        val result = repository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
+
+        assertEquals(FavoriteMutationResult.NoOp, result)
+        assertEquals(0, toggleCalls)
+    }
+
+    @Test
+    fun setFavorite_updatesCachedDetailsWhenRemoteToggleSucceeds() = runTest {
+        val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        var detailsRequestCount = 0
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            detailsHandler = {
+                detailsRequestCount += 1
+                when (detailsRequestCount) {
+                    1 -> seriesDetailsWithFavoriteState(isFavorite = false, includeSessionToken = true)
+                    2 -> seriesDetailsWithFavoriteState(isFavorite = true, includeSessionToken = true)
+                    else -> error("Unexpected details request #$detailsRequestCount")
+                }
+            },
+            favoriteToggleHandler = { refererUrl, favoriteTargetId, ajaxSessionToken ->
+                assertEquals(detailsUrl, refererUrl)
+                assertEquals(915, favoriteTargetId)
+                assertEquals("ajax-session-token", ajaxSessionToken)
+                FavoriteToggleNetworkResult.ToggledOn
+            },
+            isAuthenticated = true,
+        )
+
+        val result = repository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
+
+        assertEquals(FavoriteMutationResult.Updated, result)
+        assertTrue(releaseDao.getReleaseDetails(detailsUrl)?.toModel()?.isFavorite == true)
+    }
+
+    @Test
+    fun setFavorite_returnsRequiresLogin_whenSessionMissing() = runTest {
+        val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            isAuthenticated = false,
+        )
+
+        val result = repository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
+
+        assertEquals(FavoriteMutationResult.RequiresLogin(), result)
+    }
+
+    @Test
+    fun loadFavoriteReleases_triesCandidateRoutesUntilCompatibleFeedFound() = runTest {
+        val accountRequests = mutableListOf<String>()
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            accountPageHandler = { path ->
+                accountRequests += path
+                when (path) {
+                    "/my/" -> redirectWrapperHtml()
+                    "/my/type_0" -> partialFavoriteFeedHtml()
+                    "/my/type_1" -> fixture("favorite-releases.html")
+                    "/my/serials" -> error("Should stop after first compatible route")
+                    else -> error("Unexpected account path $path")
+                }
+            },
+            isAuthenticated = true,
+        )
+
+        val result = repository.loadFavoriteReleases()
+
+        assertTrue(result is FavoriteReleasesResult.Success)
+        result as FavoriteReleasesResult.Success
+        assertEquals(2, result.items.size)
+        assertEquals(listOf("/my/", "/my/type_0", "/my/type_1"), accountRequests)
+    }
+
+    @Test
+    fun loadFavoriteReleases_returnsUnavailable_whenNoCandidateRouteIsCompatible() = runTest {
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            accountPageHandler = { redirectWrapperHtml() },
+            isAuthenticated = true,
+        )
+
+        val result = repository.loadFavoriteReleases()
+
+        assertTrue(result is FavoriteReleasesResult.Unavailable)
+    }
+
     private suspend fun seedPage(pageNumber: Int, fetchedAt: Long) {
         val parsed = LostFilmListParser().parse(
             html = fixture("new-page-1.html"),
@@ -354,6 +458,10 @@ class LostFilmRepositoryTest {
         markEpisodeHandler: suspend (String, String, String) -> Boolean = { _, _, _ ->
             error("Unexpected mark episode request")
         },
+        favoriteToggleHandler: suspend (String, Int, String) -> FavoriteToggleNetworkResult = { _, _, _ ->
+            error("Unexpected favorite toggle request")
+        },
+        accountPageHandler: suspend (String) -> String = { error("Unexpected account page request: $it") },
         isAuthenticated: Boolean = false,
     ): LostFilmRepository {
         return LostFilmRepositoryImpl(
@@ -363,10 +471,13 @@ class LostFilmRepositoryTest {
                 torrentHandler = torrentHandler,
                 torrentPageHandler = torrentPageHandler,
                 markEpisodeHandler = markEpisodeHandler,
+                favoriteToggleHandler = favoriteToggleHandler,
+                accountPageHandler = accountPageHandler,
             ),
             releaseDao = releaseDao,
             listParser = LostFilmListParser(),
             detailsParser = LostFilmDetailsParser(),
+            favoriteReleasesParser = com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteReleasesParser(),
             hasAuthenticatedSession = { isAuthenticated },
             clock = { NOW },
         )
@@ -379,6 +490,8 @@ private class FakeLostFilmHttpClient(
     private val torrentHandler: suspend (String) -> String,
     private val torrentPageHandler: suspend (String) -> String,
     private val markEpisodeHandler: suspend (String, String, String) -> Boolean,
+    private val favoriteToggleHandler: suspend (String, Int, String) -> FavoriteToggleNetworkResult,
+    private val accountPageHandler: suspend (String) -> String,
 ) : LostFilmHttpClient {
     override suspend fun fetchNewPage(pageNumber: Int): String = pageHandler(pageNumber)
 
@@ -397,4 +510,71 @@ private class FakeLostFilmHttpClient(
     ): Boolean {
         return markEpisodeHandler(detailsUrl, playEpisodeId, ajaxSessionToken)
     }
+
+    override suspend fun toggleFavorite(
+        refererUrl: String,
+        favoriteTargetId: Int,
+        ajaxSessionToken: String,
+    ): FavoriteToggleNetworkResult {
+        return favoriteToggleHandler(refererUrl, favoriteTargetId, ajaxSessionToken)
+    }
+
+    override suspend fun fetchAccountPage(path: String): String = accountPageHandler(path)
 }
+
+private fun seriesDetailsWithFavoriteState(
+    isFavorite: Boolean,
+    includeSessionToken: Boolean,
+): String {
+    val favoriteBlock = if (isFavorite) {
+        """
+        <div class="favorites-btn2 active" title="Сериал в избранном" onClick="FollowSerial(915, false)">
+            <div class="icon"></div>убрать из избранного
+        </div>
+        """.trimIndent()
+    } else {
+        """
+        <div class="favorites-btn2" title="Добавить сериал в избранное" onClick="FollowSerial(915, false)">
+            <div class="icon"></div>добавить в избранное
+        </div>
+        """.trimIndent()
+    }
+    val withFavoriteButton = fixture("series-details.html").replace(
+        oldValue = """<div class="breadcrumbs-pane">""",
+        newValue = "$favoriteBlock\n\t\t<div class=\"breadcrumbs-pane\">",
+    )
+
+    if (!includeSessionToken) {
+        return withFavoriteButton
+    }
+
+    return withFavoriteButton.replace(
+        oldValue = "let UserData = {};",
+        newValue = """
+            let UserData = {};
+            UserData.id = 42;
+            UserData.session = 'ajax-session-token';
+        """.trimIndent(),
+    )
+}
+
+private fun redirectWrapperHtml(): String = """
+    <html>
+        <head>
+            <script type="text/javascript">
+                top.location.replace("/");
+            </script>
+        </head>
+        <body></body>
+    </html>
+""".trimIndent()
+
+private fun partialFavoriteFeedHtml(): String = """
+    <html>
+        <body>
+            <a class="new-movie" href="/series/example_show/season_4/episode_7/" title="Пример шоу">
+                <div class="title">4 сезон 7 серия</div>
+            </a>
+        </body>
+    </html>
+""".trimIndent()

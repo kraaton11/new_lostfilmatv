@@ -15,6 +15,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.semantics.SemanticsActions
+import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
+import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
@@ -418,6 +420,14 @@ private class RouteFakeDetailsRepository(
     override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean {
         markedEpisodes += detailsUrl to playEpisodeId
         return true
+    }
+
+    override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult {
+        return FavoriteMutationResult.RequiresLogin()
+    }
+
+    override suspend fun loadFavoriteReleases(): FavoriteReleasesResult {
+        return FavoriteReleasesResult.Unavailable()
     }
 
     companion object {

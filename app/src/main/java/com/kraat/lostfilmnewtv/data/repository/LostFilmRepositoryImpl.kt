@@ -2,11 +2,15 @@ package com.kraat.lostfilmnewtv.data.repository
 
 import com.kraat.lostfilmnewtv.data.db.PageCacheMetadataEntity
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
+import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
+import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
+import com.kraat.lostfilmnewtv.data.model.FavoriteToggleNetworkResult
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
+import com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteReleasesParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmListParser
 import com.kraat.lostfilmnewtv.data.parser.resolveUrl
 import com.kraat.lostfilmnewtv.data.parser.toEntity
@@ -18,12 +22,14 @@ import org.jsoup.Jsoup
 private const val FRESH_WINDOW_MS = 6 * 60 * 60 * 1000L
 private const val RETENTION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000L
 private val paginatorRegex = Regex("""/new/page_(\d+)""")
+private val favoriteRouteCandidates = listOf("/my/", "/my/type_0", "/my/type_1", "/my/serials")
 
 class LostFilmRepositoryImpl(
     private val httpClient: LostFilmHttpClient,
     private val releaseDao: ReleaseDao,
     private val listParser: LostFilmListParser,
     private val detailsParser: LostFilmDetailsParser,
+    private val favoriteReleasesParser: LostFilmFavoriteReleasesParser,
     private val hasAuthenticatedSession: suspend () -> Boolean,
     private val clock: () -> Long = { System.currentTimeMillis() },
 ) : LostFilmRepository {
@@ -151,6 +157,79 @@ class LostFilmRepositoryImpl(
             effectiveMarked
         } catch (_: IOException) {
             false
+        }
+    }
+
+    override suspend fun setFavorite(
+        detailsUrl: String,
+        targetFavorite: Boolean,
+    ): FavoriteMutationResult {
+        if (!hasAuthenticatedSession()) {
+            return FavoriteMutationResult.RequiresLogin()
+        }
+
+        val normalizedDetailsUrl = resolveUrl(detailsUrl)
+        return try {
+            val detailsHtml = httpClient.fetchDetails(normalizedDetailsUrl)
+            val favoriteMetadata = detailsParser.parseFavoriteMetadata(detailsHtml)
+                ?: return FavoriteMutationResult.Error("Не удалось обновить избранное")
+            persistParsedDetails(normalizedDetailsUrl, detailsHtml)
+
+            if (favoriteMetadata.isFavorite == targetFavorite) {
+                return FavoriteMutationResult.NoOp
+            }
+
+            val ajaxSessionToken = detailsParser.parseAjaxSessionToken(detailsHtml)
+                ?: return FavoriteMutationResult.Error("Войдите в LostFilm")
+            val toggleResult = httpClient.toggleFavorite(
+                refererUrl = normalizedDetailsUrl,
+                favoriteTargetId = favoriteMetadata.targetId,
+                ajaxSessionToken = ajaxSessionToken,
+            )
+            val refreshedHtml = httpClient.fetchDetails(normalizedDetailsUrl)
+            val refreshedFavoriteState = detailsParser.parseFavoriteMetadata(refreshedHtml)?.isFavorite
+            persistParsedDetails(normalizedDetailsUrl, refreshedHtml)
+
+            val effectiveFavoriteState = when (toggleResult) {
+                FavoriteToggleNetworkResult.ToggledOn -> refreshedFavoriteState ?: true
+                FavoriteToggleNetworkResult.ToggledOff -> refreshedFavoriteState ?: false
+                FavoriteToggleNetworkResult.Unknown -> refreshedFavoriteState
+            }
+
+            if (effectiveFavoriteState == targetFavorite) {
+                FavoriteMutationResult.Updated
+            } else {
+                FavoriteMutationResult.Error("Не удалось обновить избранное")
+            }
+        } catch (_: IOException) {
+            FavoriteMutationResult.Error("Не удалось обновить избранное")
+        }
+    }
+
+    override suspend fun loadFavoriteReleases(): FavoriteReleasesResult {
+        if (!hasAuthenticatedSession()) {
+            return FavoriteReleasesResult.Unavailable("Войдите в LostFilm")
+        }
+
+        return try {
+            for (path in favoriteRouteCandidates) {
+                val html = try {
+                    httpClient.fetchAccountPage(path)
+                } catch (_: IOException) {
+                    continue
+                }
+                val items = favoriteReleasesParser.parse(
+                    html = html,
+                    fetchedAt = clock(),
+                )
+                if (items.isNotEmpty()) {
+                    return FavoriteReleasesResult.Success(items)
+                }
+            }
+
+            FavoriteReleasesResult.Unavailable()
+        } catch (_: IOException) {
+            FavoriteReleasesResult.Unavailable()
         }
     }
 
@@ -326,5 +405,17 @@ class LostFilmRepositoryImpl(
         } catch (_: IOException) {
             details
         }
+    }
+
+    private suspend fun persistParsedDetails(
+        detailsUrl: String,
+        html: String,
+    ) {
+        val parsed = parseDetails(
+            html = html,
+            detailsUrl = detailsUrl,
+            fetchedAt = clock(),
+        )
+        releaseDao.upsertDetails(parsed.toEntity())
     }
 }

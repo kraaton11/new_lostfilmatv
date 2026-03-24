@@ -3,6 +3,7 @@ package com.kraat.lostfilmnewtv.data.db
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
+import com.kraat.lostfilmnewtv.data.model.FavoriteTargetKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.TorrentLink
@@ -24,6 +25,9 @@ data class ReleaseDetailsEntity(
     val fetchedAt: Long,
     val playEpisodeId: String?,
     val torrentLinksJson: String?,
+    val favoriteTargetId: Int?,
+    val favoriteTargetKind: String?,
+    val isFavorite: Boolean?,
 ) {
     fun toModel(): ReleaseDetails = ReleaseDetails(
         detailsUrl = detailsUrl,
@@ -36,6 +40,9 @@ data class ReleaseDetailsEntity(
         fetchedAt = fetchedAt,
         playEpisodeId = playEpisodeId,
         torrentLinks = torrentLinksJson.decodeTorrentLinks(),
+        favoriteTargetId = favoriteTargetId,
+        favoriteTargetKind = favoriteTargetKind?.let(FavoriteTargetKind::valueOf),
+        isFavorite = isFavorite,
     )
 
     companion object {
@@ -50,6 +57,9 @@ data class ReleaseDetailsEntity(
             fetchedAt = model.fetchedAt,
             playEpisodeId = model.playEpisodeId,
             torrentLinksJson = model.torrentLinks.encodeTorrentLinks(),
+            favoriteTargetId = model.favoriteTargetId,
+            favoriteTargetKind = model.favoriteTargetKind?.name,
+            isFavorite = model.isFavorite,
         )
     }
 }
