@@ -273,6 +273,7 @@ class SettingsViewModelTest {
             savedUpdateState = MutableStateFlow(null),
             refreshSavedUpdateState = refresher::invoke,
             ioDispatcher = dispatcher,
+            debounceIntervalMs = 0,
         )
 
         viewModel.onCheckForUpdatesClick()

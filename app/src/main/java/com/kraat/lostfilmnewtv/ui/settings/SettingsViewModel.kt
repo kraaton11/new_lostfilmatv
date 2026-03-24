@@ -35,10 +35,12 @@ class SettingsViewModel(
     private val syncAndroidTvChannelBackgroundSchedule: () -> Unit = {},
     private val syncAndroidTvChannel: suspend () -> Unit = {},
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val debounceIntervalMs: Long = DEFAULT_DEBOUNCE_INTERVAL_MS,
 ) : ViewModel() {
     private val initialSavedUpdate = savedUpdateState.value
     private var activeRefreshJob: Job? = null
     private var refreshRequestToken: Long = 0
+    private var lastCheckTimestamp = 0L
     private val _uiState = MutableStateFlow(
         SettingsUiState(
             playbackQuality = initialPlaybackQuality,
@@ -119,6 +121,11 @@ class SettingsViewModel(
     }
 
     fun onCheckForUpdatesClick() {
+        val now = System.currentTimeMillis()
+        if (now - lastCheckTimestamp < debounceIntervalMs) {
+            return
+        }
+        lastCheckTimestamp = now
         refreshUpdateInfo()
     }
 
@@ -201,3 +208,4 @@ private fun SettingsUiState.toCheckedState(refreshResult: AppUpdateRefreshResult
 
 private const val CHECKING_UPDATES_MESSAGE = "Проверяем обновления..."
 private const val INSTALL_UPDATE_FAILED_MESSAGE = "Не удалось открыть обновление."
+private const val DEFAULT_DEBOUNCE_INTERVAL_MS = 1000L
