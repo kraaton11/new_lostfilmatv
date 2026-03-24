@@ -9,6 +9,8 @@ import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
+class RateLimitException(val statusCode: Int, message: String) : IOException(message)
+
 open class GitHubReleaseClient(
     private val httpClient: OkHttpClient,
     private val baseUrl: String = "https://api.github.com",
@@ -21,12 +23,19 @@ open class GitHubReleaseClient(
         val url = "$baseUrl/repos/kraaton11/new_lostfilmatv/releases/latest"
         val request = Request.Builder()
             .url(url)
+            .header("User-Agent", USER_AGENT)
             .get()
             .build()
 
         httpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                throw IOException("Failed to fetch latest release from $url: HTTP ${response.code}")
+            when (response.code) {
+                403, 429 -> throw RateLimitException(
+                    statusCode = response.code,
+                    message = "GitHub API rate limit exceeded. HTTP ${response.code}",
+                )
+                !in 200..299 -> throw IOException(
+                    "Failed to fetch latest release from $url: HTTP ${response.code}",
+                )
             }
 
             val body = response.body?.string() ?: throw IOException("Empty response body for $url")
@@ -60,6 +69,10 @@ open class GitHubReleaseClient(
             return normalizedName.endsWith(".apk") ||
                 "android.package-archive" in normalizedContentType
         }
+    }
+
+    private companion object {
+        const val USER_AGENT = "LostFilmNewTV-Update/1.0"
     }
 }
 
