@@ -17,7 +17,11 @@ import androidx.compose.ui.test.performSemanticsAction
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
+import com.kraat.lostfilmnewtv.ui.home.HOME_RAIL_ALL_NEW
+import com.kraat.lostfilmnewtv.ui.home.HOME_RAIL_FAVORITES
+import com.kraat.lostfilmnewtv.ui.home.HomeContentRail
 import com.kraat.lostfilmnewtv.ui.home.posterTag
+import com.kraat.lostfilmnewtv.ui.home.homeItemKey
 import com.kraat.lostfilmnewtv.ui.home.HomeScreen
 import com.kraat.lostfilmnewtv.ui.home.HomeUiState
 import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
@@ -123,10 +127,43 @@ class HomeScreenTest {
         composeRule.onNodeWithTag("home-bottom-stage").assertExists()
         composeRule.onNodeWithText("Необратимость").assertExists()
     }
+
+    @Test
+    fun favoritesRail_rendersBelowMainRail_andMovesFocusDownWithoutBreakingStage() {
+        composeRule.setContent {
+            LostFilmTheme {
+                var state by remember { mutableStateOf(seededMultiRailState()) }
+                HomeScreen(
+                    state = state,
+                    onItemFocused = { focusedKey ->
+                        state = state.copy(selectedItemKey = focusedKey)
+                    },
+                )
+            }
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            runCatching {
+                composeRule.onNodeWithTag(posterTag(HOME_RAIL_ALL_NEW, firstDetailsUrl)).assertIsFocused()
+                true
+            }.getOrDefault(false)
+        }
+
+        composeRule.onNodeWithText("Избранное").assertExists()
+        composeRule.onNodeWithTag(posterTag(HOME_RAIL_ALL_NEW, firstDetailsUrl)).performKeyInput {
+            keyDown(Key.DirectionDown)
+            keyUp(Key.DirectionDown)
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag(posterTag(HOME_RAIL_FAVORITES, favoriteDetailsUrl)).assertIsFocused()
+        composeRule.onNodeWithText("Любимчики").assertExists()
+    }
 }
 
 private const val firstDetailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
 private const val secondDetailsUrl = "https://www.lostfilm.today/movies/Irreversible"
+private const val favoriteDetailsUrl = "https://www.lostfilm.today/series/favorites/season_4/episode_7/"
 
 private fun seededState(): HomeUiState {
     val first = ReleaseSummary(
@@ -163,5 +200,55 @@ private fun seededState(): HomeUiState {
         selectedItem = first,
         selectedItemKey = first.detailsUrl,
         hasNextPage = true,
+    )
+}
+
+private fun seededMultiRailState(): HomeUiState {
+    val first = ReleaseSummary(
+        id = firstDetailsUrl,
+        kind = ReleaseKind.SERIES,
+        titleRu = "9-1-1",
+        episodeTitleRu = "Маменькин сынок",
+        seasonNumber = 9,
+        episodeNumber = 13,
+        releaseDateRu = "14.03.2026",
+        posterUrl = "https://www.lostfilm.today/Static/Images/362/Posters/image_s9.jpg",
+        detailsUrl = firstDetailsUrl,
+        pageNumber = 1,
+        positionInPage = 0,
+        fetchedAt = 0L,
+    )
+    val favorite = ReleaseSummary(
+        id = favoriteDetailsUrl,
+        kind = ReleaseKind.SERIES,
+        titleRu = "Любимчики",
+        episodeTitleRu = "Новая серия",
+        seasonNumber = 4,
+        episodeNumber = 7,
+        releaseDateRu = "14.03.2026",
+        posterUrl = "https://www.lostfilm.today/Static/Images/777/Posters/favorites.jpg",
+        detailsUrl = favoriteDetailsUrl,
+        pageNumber = 1,
+        positionInPage = 0,
+        fetchedAt = 0L,
+    )
+
+    return HomeUiState(
+        items = listOf(first),
+        rails = listOf(
+            HomeContentRail(
+                id = HOME_RAIL_ALL_NEW,
+                title = "Новые релизы",
+                items = listOf(first),
+            ),
+            HomeContentRail(
+                id = HOME_RAIL_FAVORITES,
+                title = "Избранное",
+                items = listOf(favorite),
+            ),
+        ),
+        selectedItem = first,
+        selectedItemKey = homeItemKey(HOME_RAIL_ALL_NEW, first.detailsUrl),
+        hasNextPage = false,
     )
 }

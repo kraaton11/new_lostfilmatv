@@ -23,9 +23,12 @@ class SettingsViewModel(
     initialPlaybackQuality: PlaybackQualityPreference,
     initialUpdateMode: UpdateCheckMode,
     initialChannelMode: AndroidTvChannelMode = AndroidTvChannelMode.ALL_NEW,
+    initialHomeFavoritesRailEnabled: Boolean = false,
     private val persistPlaybackQuality: (PlaybackQualityPreference) -> Unit = {},
     private val persistUpdateMode: (UpdateCheckMode) -> Unit = {},
     private val persistChannelMode: (AndroidTvChannelMode) -> Unit = {},
+    private val persistHomeFavoritesRailEnabled: (Boolean) -> Unit = {},
+    private val onHomeFavoritesRailVisibilityChanged: (Boolean) -> Unit = {},
     savedUpdateState: StateFlow<SavedAppUpdate?>,
     private val refreshSavedUpdateState: suspend () -> AppUpdateRefreshResult,
     private val syncAppUpdateBackgroundSchedule: () -> Unit = {},
@@ -41,6 +44,7 @@ class SettingsViewModel(
             playbackQuality = initialPlaybackQuality,
             updateMode = initialUpdateMode,
             channelMode = initialChannelMode,
+            isHomeFavoritesRailEnabled = initialHomeFavoritesRailEnabled,
             installedVersionText = installedVersion,
             savedAppUpdate = initialSavedUpdate,
             installUrl = initialSavedUpdate?.apkUrl,
@@ -100,6 +104,17 @@ class SettingsViewModel(
         viewModelScope.launch(ioDispatcher) {
             syncAndroidTvChannelBackgroundSchedule()
             syncAndroidTvChannel()
+        }
+    }
+
+    fun onHomeFavoritesRailVisibilitySelected(enabled: Boolean) {
+        if (enabled == _uiState.value.isHomeFavoritesRailEnabled) {
+            return
+        }
+        persistHomeFavoritesRailEnabled(enabled)
+        onHomeFavoritesRailVisibilityChanged(enabled)
+        _uiState.update { state ->
+            state.copy(isHomeFavoritesRailEnabled = enabled)
         }
     }
 

@@ -238,6 +238,30 @@ class SettingsViewModelTest {
     }
 
     @Test
+    fun onHomeFavoritesRailVisibilitySelected_persistsState_andNotifiesCaller() = runTest(dispatcher) {
+        val persistedValues = mutableListOf<Boolean>()
+        val notifiedValues = mutableListOf<Boolean>()
+        val viewModel = SettingsViewModel(
+            installedVersion = "1.0.0",
+            initialPlaybackQuality = PlaybackQualityPreference.Q1080,
+            initialUpdateMode = UpdateCheckMode.MANUAL,
+            initialHomeFavoritesRailEnabled = false,
+            persistHomeFavoritesRailEnabled = { persistedValues += it },
+            onHomeFavoritesRailVisibilityChanged = { notifiedValues += it },
+            savedUpdateState = MutableStateFlow(null),
+            refreshSavedUpdateState = FakeUpdateRefresher()::invoke,
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onHomeFavoritesRailVisibilitySelected(true)
+        advanceUntilIdle()
+
+        assertEquals(listOf(true), persistedValues)
+        assertEquals(listOf(true), notifiedValues)
+        assertEquals(true, viewModel.uiState.value.isHomeFavoritesRailEnabled)
+    }
+
+    @Test
     fun overlappingRefreshes_doNotLetOlderResultOverwriteLatestState() = runTest(dispatcher) {
         val refresher = FakeUpdateRefresher()
         val firstResult = refresher.enqueueDeferred()

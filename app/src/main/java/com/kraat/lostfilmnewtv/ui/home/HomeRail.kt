@@ -32,22 +32,30 @@ import com.kraat.lostfilmnewtv.ui.theme.HomeTextSecondary
 
 @Composable
 fun HomeRail(
+    railId: String,
     items: List<ReleaseSummary>,
     focusedItemKey: String?,
     cardFocusRequesters: Map<String, FocusRequester>,
-    topActionRequester: FocusRequester?,
+    shouldRequestFocus: Boolean,
+    upTargetRequester: FocusRequester?,
+    downTargetRequester: FocusRequester?,
     isPaging: Boolean,
     onItemFocused: (String) -> Unit,
     onOpenDetails: (String) -> Unit,
     onEndReached: () -> Unit,
 ) {
-    LaunchedEffect(items, focusedItemKey) {
-        if (items.isNotEmpty()) {
-            val targetKey = focusedItemKey ?: items.first().detailsUrl
-            val targetRequester = cardFocusRequesters[targetKey] ?: cardFocusRequesters[items.first().detailsUrl]
-            withFrameNanos { }
-            targetRequester?.requestFocus()
+    LaunchedEffect(items, focusedItemKey, shouldRequestFocus) {
+        if (!shouldRequestFocus || items.isEmpty()) return@LaunchedEffect
+
+        val itemKeys = items.map { homeItemKey(railId, it.detailsUrl) }
+        val targetKey = if (focusedItemKey in itemKeys) {
+            focusedItemKey
+        } else {
+            itemKeys.firstOrNull()
         }
+        val targetRequester = targetKey?.let(cardFocusRequesters::get)
+        withFrameNanos { }
+        targetRequester?.requestFocus()
     }
 
     LazyRow(
@@ -58,20 +66,24 @@ fun HomeRail(
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
     ) {
         itemsIndexed(items = items, key = { _, item -> item.detailsUrl }) { index, item ->
+            val itemKey = homeItemKey(railId, item.detailsUrl)
             PosterCard(
                 item = item,
-                isFocused = item.detailsUrl == focusedItemKey,
+                isFocused = itemKey == focusedItemKey,
                 modifier = Modifier
-                    .focusRequester(cardFocusRequesters.getValue(item.detailsUrl))
+                    .focusRequester(cardFocusRequesters.getValue(itemKey))
                     .focusProperties {
-                        if (topActionRequester != null) {
-                            up = topActionRequester
+                        if (upTargetRequester != null) {
+                            up = upTargetRequester
+                        }
+                        if (downTargetRequester != null) {
+                            down = downTargetRequester
                         }
                     }
-                    .testTag(posterTag(item.detailsUrl))
+                    .testTag(posterTag(railId, item.detailsUrl))
                     .onFocusChanged { focusState ->
                         if (focusState.isFocused) {
-                            onItemFocused(item.detailsUrl)
+                            onItemFocused(itemKey)
                             if (index == items.lastIndex) {
                                 onEndReached()
                             }
@@ -104,4 +116,6 @@ fun HomeRail(
     }
 }
 
-internal fun posterTag(detailsUrl: String): String = "poster:$detailsUrl"
+internal fun posterTag(detailsUrl: String): String = posterTag(HOME_RAIL_ALL_NEW, detailsUrl)
+
+internal fun posterTag(railId: String, detailsUrl: String): String = "poster:$railId:$detailsUrl"
