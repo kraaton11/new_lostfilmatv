@@ -19,6 +19,8 @@ interface LostFilmHttpClient {
 
     suspend fun fetchAccountPage(path: String): String
 
+    suspend fun fetchSeasonWatchedEpisodeMarks(refererUrl: String, serialId: String): String
+
     suspend fun fetchTorrentRedirect(playEpisodeId: String): String
 
     suspend fun fetchTorrentPage(url: String): String
@@ -54,6 +56,18 @@ class OkHttpLostFilmHttpClient(
 
     override suspend fun fetchAccountPage(path: String): String = withContext(Dispatchers.IO) {
         execute(resolveUrl(path))
+    }
+
+    override suspend fun fetchSeasonWatchedEpisodeMarks(
+        refererUrl: String,
+        serialId: String,
+    ): String = withContext(Dispatchers.IO) {
+        executeFetchSeasonWatchedEpisodeMarks(
+            okHttpClient = okHttpClient,
+            refererUrl = resolveUrl(refererUrl),
+            serialId = serialId,
+            cookieHeader = null,
+        )
     }
 
     override suspend fun fetchTorrentRedirect(playEpisodeId: String): String = withContext(Dispatchers.IO) {
@@ -133,6 +147,18 @@ class AuthenticatedLostFilmHttpClient(
         execute(resolveUrl(path))
     }
 
+    override suspend fun fetchSeasonWatchedEpisodeMarks(
+        refererUrl: String,
+        serialId: String,
+    ): String = withContext(Dispatchers.IO) {
+        executeFetchSeasonWatchedEpisodeMarks(
+            okHttpClient = okHttpClient,
+            refererUrl = resolveUrl(refererUrl),
+            serialId = serialId,
+            cookieHeader = sessionStore.read()?.toCookieString(),
+        )
+    }
+
     override suspend fun fetchTorrentRedirect(playEpisodeId: String): String = withContext(Dispatchers.IO) {
         execute("$BASE_URL/v_search.php?a=$playEpisodeId")
     }
@@ -195,6 +221,40 @@ class AuthenticatedLostFilmHttpClient(
 
 private val markEpisodeSuccessRegex = Regex(""""result"\s*:\s*"on"""")
 private val favoriteToggleResultRegex = Regex(""""result"\s*:\s*"(on|off)"""")
+
+private fun executeFetchSeasonWatchedEpisodeMarks(
+    okHttpClient: OkHttpClient,
+    refererUrl: String,
+    serialId: String,
+    cookieHeader: String?,
+): String {
+    val requestBuilder = Request.Builder()
+        .url("$BASE_URL/ajaxik.php")
+        .header("User-Agent", "Mozilla/5.0 (Android TV; LostFilmNewTV) AppleWebKit/537.36 Chrome/132.0.0.0 Safari/537.36")
+        .header("Accept", "application/json, text/javascript, */*; q=0.01")
+        .header("Origin", BASE_URL)
+        .header("Referer", refererUrl)
+        .header("X-Requested-With", "XMLHttpRequest")
+        .post(
+            FormBody.Builder()
+                .add("act", "serial")
+                .add("type", "getmarks")
+                .add("id", serialId)
+                .build(),
+        )
+
+    cookieHeader?.takeIf { it.isNotBlank() }?.let { requestBuilder.header("Cookie", it) }
+
+    okHttpClient.newCall(requestBuilder.build()).execute().use { response ->
+        if (!response.isSuccessful) {
+            val errorBody = response.body?.string().orEmpty()
+            throw IOException("HTTP ${response.code} for $BASE_URL/ajaxik.php body=$errorBody")
+        }
+
+        return response.body?.string()
+            ?: throw IOException("Empty response body for $BASE_URL/ajaxik.php")
+    }
+}
 
 private fun executeMarkEpisodeWatched(
     okHttpClient: OkHttpClient,

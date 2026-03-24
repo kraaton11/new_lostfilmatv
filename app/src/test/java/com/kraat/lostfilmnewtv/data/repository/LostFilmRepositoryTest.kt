@@ -22,6 +22,7 @@ import java.io.IOException
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -571,26 +572,34 @@ class LostFilmRepositoryTest {
             detailsHandler = { requestedUrl ->
                 detailsRequests += requestedUrl
                 when (requestedUrl) {
+                    "https://www.lostfilm.today/series/alpha" -> "<html><body></body></html>"
+
                     "https://www.lostfilm.today/series/alpha/seasons" -> favoriteSeriesSeasonsPageHtml(
                         seriesSlug = "alpha",
+                        serialId = "1001",
                         episodes = listOf(
                             SeasonEpisodeRow(
                                 seasonNumber = 1,
                                 episodeNumber = 2,
                                 episodeTitle = "Alpha Episode",
                                 releaseDateRu = "16.03.2026",
+                                episodeId = "1001001002",
                             ),
                         ),
                     )
 
+                    "https://www.lostfilm.today/series/beta" -> "<html><body></body></html>"
+
                     "https://www.lostfilm.today/series/beta/seasons" -> favoriteSeriesSeasonsPageHtml(
                         seriesSlug = "beta",
+                        serialId = "2003",
                         episodes = listOf(
                             SeasonEpisodeRow(
                                 seasonNumber = 3,
                                 episodeNumber = 1,
                                 episodeTitle = "Beta Episode",
                                 releaseDateRu = "14.03.2026",
+                                episodeId = "2003003001",
                             ),
                         ),
                     )
@@ -608,7 +617,9 @@ class LostFilmRepositoryTest {
         assertEquals(listOf("/my/type_1"), accountRequests)
         assertEquals(
             listOf(
+                "https://www.lostfilm.today/series/alpha",
                 "https://www.lostfilm.today/series/alpha/seasons",
+                "https://www.lostfilm.today/series/beta",
                 "https://www.lostfilm.today/series/beta/seasons",
             ),
             detailsRequests,
@@ -621,6 +632,175 @@ class LostFilmRepositoryTest {
             result.items.map { it.detailsUrl },
         )
         assertEquals(listOf("Alpha", "Beta"), result.items.map { it.titleRu })
+    }
+
+    @Test
+    fun loadFavoriteReleases_marksWatchedEpisodesFromSeasonMarksResponse() = runTest {
+        val watchedMarksRequests = mutableListOf<String>()
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            accountPageHandler = { path ->
+                when (path) {
+                    "/my/type_1" -> favoriteSeriesAccountPageHtml()
+                    else -> error("Unexpected account path $path")
+                }
+            },
+            detailsHandler = { requestedUrl ->
+                when (requestedUrl) {
+                    "https://www.lostfilm.today/series/alpha" -> "<html><body></body></html>"
+
+                    "https://www.lostfilm.today/series/alpha/seasons" -> favoriteSeriesSeasonsPageHtml(
+                        seriesSlug = "alpha",
+                        serialId = "1072",
+                        episodes = listOf(
+                            SeasonEpisodeRow(
+                                seasonNumber = 1,
+                                episodeNumber = 2,
+                                episodeTitle = "Alpha Episode",
+                                releaseDateRu = "16.03.2026",
+                                episodeId = "1072001002",
+                            ),
+                            SeasonEpisodeRow(
+                                seasonNumber = 1,
+                                episodeNumber = 1,
+                                episodeTitle = "Pilot",
+                                releaseDateRu = "15.03.2026",
+                                episodeId = "1072001001",
+                            ),
+                        ),
+                    )
+
+                    "https://www.lostfilm.today/series/beta" -> "<html><body></body></html>"
+
+                    "https://www.lostfilm.today/series/beta/seasons" -> favoriteSeriesSeasonsPageHtml(
+                        seriesSlug = "beta",
+                        serialId = "2088",
+                        episodes = listOf(
+                            SeasonEpisodeRow(
+                                seasonNumber = 3,
+                                episodeNumber = 1,
+                                episodeTitle = "Beta Episode",
+                                releaseDateRu = "14.03.2026",
+                                episodeId = "2088003001",
+                            ),
+                        ),
+                    )
+
+                    else -> error("Unexpected details request: $requestedUrl")
+                }
+            },
+            watchedEpisodeMarksHandler = { serialId ->
+                watchedMarksRequests += serialId
+                when (serialId) {
+                    "1072" -> """["1072001002"]"""
+                    "2088" -> "[]"
+                    else -> error("Unexpected serial id $serialId")
+                }
+            },
+            isAuthenticated = true,
+        )
+
+        val result = repository.loadFavoriteReleases()
+
+        assertTrue(result is FavoriteReleasesResult.Success)
+        result as FavoriteReleasesResult.Success
+        assertEquals(listOf("1072", "2088"), watchedMarksRequests)
+        assertTrue(result.items.first { it.detailsUrl.endsWith("/season_1/episode_2/") }.isWatched)
+        assertFalse(result.items.first { it.detailsUrl.endsWith("/season_1/episode_1/") }.isWatched)
+        assertFalse(result.items.first { it.detailsUrl.endsWith("/season_3/episode_1/") }.isWatched)
+    }
+
+    @Test
+    fun loadFavoriteReleases_marksWatchedEpisodesFromSeriesRootGuide_whenSeasonMarksAreEmpty() = runTest {
+        val detailsRequests = mutableListOf<String>()
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            accountPageHandler = { path ->
+                when (path) {
+                    "/my/type_1" -> """
+                        <html>
+                            <body>
+                                <div class="serials-list-box">
+                                    <div class="serial-box">
+                                        <img src="/Static/Images/1/Posters/icon.jpg" class="avatar" />
+                                        <div class="subscribe-box active" id="fav_1"></div>
+                                        <a class="body" href="/series/marshals">
+                                            <div class="title-ru">Маршалы</div>
+                                        </a>
+                                    </div>
+                                </div>
+                            </body>
+                        </html>
+                    """.trimIndent()
+
+                    else -> error("Unexpected account path $path")
+                }
+            },
+            detailsHandler = { requestedUrl ->
+                detailsRequests += requestedUrl
+                when (requestedUrl) {
+                    "https://www.lostfilm.today/series/marshals" -> favoriteSeriesRootPageHtml(
+                        seriesSlug = "marshals",
+                        watchedEpisodeIds = setOf("1072001003", "1072001002", "1072001001"),
+                    )
+
+                    "https://www.lostfilm.today/series/marshals/seasons" -> favoriteSeriesSeasonsPageHtml(
+                        seriesSlug = "marshals",
+                        serialId = "1072",
+                        episodes = listOf(
+                            SeasonEpisodeRow(
+                                seasonNumber = 1,
+                                episodeNumber = 4,
+                                episodeTitle = "The Gathering Storm",
+                                releaseDateRu = "24.03.2026",
+                                episodeId = "1072001004",
+                            ),
+                            SeasonEpisodeRow(
+                                seasonNumber = 1,
+                                episodeNumber = 3,
+                                episodeTitle = "Road to Nowhere",
+                                releaseDateRu = "17.03.2026",
+                                episodeId = "1072001003",
+                            ),
+                            SeasonEpisodeRow(
+                                seasonNumber = 1,
+                                episodeNumber = 2,
+                                episodeTitle = "Zone of Death",
+                                releaseDateRu = "10.03.2026",
+                                episodeId = "1072001002",
+                            ),
+                            SeasonEpisodeRow(
+                                seasonNumber = 1,
+                                episodeNumber = 1,
+                                episodeTitle = "Riya Wicioni",
+                                releaseDateRu = "04.03.2026",
+                                episodeId = "1072001001",
+                            ),
+                        ),
+                    )
+
+                    else -> error("Unexpected details request: $requestedUrl")
+                }
+            },
+            watchedEpisodeMarksHandler = { "[]" },
+            isAuthenticated = true,
+        )
+
+        val result = repository.loadFavoriteReleases()
+
+        assertTrue(result is FavoriteReleasesResult.Success)
+        result as FavoriteReleasesResult.Success
+        assertEquals(
+            listOf(
+                "https://www.lostfilm.today/series/marshals",
+                "https://www.lostfilm.today/series/marshals/seasons",
+            ),
+            detailsRequests,
+        )
+        assertTrue(result.items.first { it.detailsUrl.endsWith("/season_1/episode_3/") }.isWatched)
+        assertTrue(result.items.first { it.detailsUrl.endsWith("/season_1/episode_2/") }.isWatched)
+        assertTrue(result.items.first { it.detailsUrl.endsWith("/season_1/episode_1/") }.isWatched)
+        assertFalse(result.items.first { it.detailsUrl.endsWith("/season_1/episode_4/") }.isWatched)
     }
 
     @Test
@@ -672,6 +852,7 @@ class LostFilmRepositoryTest {
         markEpisodeHandler: suspend (String, String, String) -> Boolean = { _, _, _ ->
             error("Unexpected mark episode request")
         },
+        watchedEpisodeMarksHandler: suspend (String) -> String = { "[]" },
         favoriteToggleHandler: suspend (String, Int, String) -> FavoriteToggleNetworkResult = { _, _, _ ->
             error("Unexpected favorite toggle request")
         },
@@ -685,6 +866,7 @@ class LostFilmRepositoryTest {
                 torrentHandler = torrentHandler,
                 torrentPageHandler = torrentPageHandler,
                 markEpisodeHandler = markEpisodeHandler,
+                watchedEpisodeMarksHandler = watchedEpisodeMarksHandler,
                 favoriteToggleHandler = favoriteToggleHandler,
                 accountPageHandler = accountPageHandler,
             ),
@@ -705,6 +887,7 @@ private class FakeLostFilmHttpClient(
     private val torrentHandler: suspend (String) -> String,
     private val torrentPageHandler: suspend (String) -> String,
     private val markEpisodeHandler: suspend (String, String, String) -> Boolean,
+    private val watchedEpisodeMarksHandler: suspend (String) -> String,
     private val favoriteToggleHandler: suspend (String, Int, String) -> FavoriteToggleNetworkResult,
     private val accountPageHandler: suspend (String) -> String,
 ) : LostFilmHttpClient {
@@ -712,6 +895,10 @@ private class FakeLostFilmHttpClient(
 
     override suspend fun fetchDetails(detailsUrl: String): String {
         return detailsHandler(detailsUrl)
+    }
+
+    override suspend fun fetchSeasonWatchedEpisodeMarks(refererUrl: String, serialId: String): String {
+        return watchedEpisodeMarksHandler(serialId)
     }
 
     override suspend fun fetchTorrentRedirect(playEpisodeId: String): String = torrentHandler(playEpisodeId)
@@ -872,13 +1059,14 @@ private fun favoriteSeriesAccountPageHtml(): String = """
 
 private fun favoriteSeriesSeasonsPageHtml(
     seriesSlug: String,
+    serialId: String,
     episodes: List<SeasonEpisodeRow>,
 ): String {
     val rows = episodes.joinToString(separator = "\n") { episode ->
         """
         <tr>
             <td class="alpha">
-                <div class="haveseen-btn" data-episode="${seriesSlug}_${episode.seasonNumber}_${episode.episodeNumber}"></div>
+                <div class="haveseen-btn" data-episode="${episode.episodeId}"></div>
             </td>
             <td class="beta" onClick="goTo('/series/$seriesSlug/season_${episode.seasonNumber}/episode_${episode.episodeNumber}/',false)">
                 ${episode.seasonNumber} сезон ${episode.episodeNumber} серия
@@ -895,8 +1083,51 @@ private fun favoriteSeriesSeasonsPageHtml(
 
     return """
         <html>
+            <head>
+                <script>
+                    var serial_id = '$serialId';
+                </script>
+            </head>
             <body>
                 <table class="movie-details-block">
+                    $rows
+                </table>
+            </body>
+        </html>
+    """.trimIndent()
+}
+
+private fun favoriteSeriesRootPageHtml(
+    seriesSlug: String,
+    watchedEpisodeIds: Set<String>,
+): String {
+    val rows = listOf(
+        Triple("1072001004", "1 сезон 4 серия", false),
+        Triple("1072001003", "1 сезон 3 серия", true),
+        Triple("1072001002", "1 сезон 2 серия", true),
+        Triple("1072001001", "1 сезон 1 серия", true),
+    ).joinToString(separator = "\n") { (episodeId, label, available) ->
+        val checkedClass = if (watchedEpisodeIds.contains(episodeId)) " checked" else ""
+        val title = when {
+            !available -> "Пометить серию как просмотренную можно только после выхода серии"
+            watchedEpisodeIds.contains(episodeId) -> "Серия просмотрена"
+            else -> "Пометить серию как просмотренную"
+        }
+        val rowClass = if (available) "" else """ class="not-available""""
+        """
+        <tr$rowClass>
+            <td class="alpha">
+                <div class="haveseen-btn$checkedClass" title="$title" data-episode="$episodeId"></div>
+            </td>
+            <td class="beta" onClick="goTo('/series/$seriesSlug/season_1/episode_${episodeId.takeLast(1)}/',false)">$label</td>
+        </tr>
+        """.trimIndent()
+    }
+
+    return """
+        <html>
+            <body>
+                <table class="movie-parts-list">
                     $rows
                 </table>
             </body>
@@ -909,4 +1140,5 @@ private data class SeasonEpisodeRow(
     val episodeNumber: Int,
     val episodeTitle: String,
     val releaseDateRu: String,
+    val episodeId: String,
 )

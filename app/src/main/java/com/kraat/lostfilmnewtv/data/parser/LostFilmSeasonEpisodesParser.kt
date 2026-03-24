@@ -2,17 +2,65 @@ package com.kraat.lostfilmnewtv.data.parser
 
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.jsoup.Jsoup
 
 private val seasonEpisodeUrlRegex = Regex("""/series/([^/]+)/season_(\d+)/episode_(\d+)/?""")
 private val goToUrlRegex = Regex("""goTo\('([^']+)'""")
 private val ruReleaseDateRegex = Regex("""Ru:\s*(\d{2}\.\d{2}\.\d{4})""")
+private val seasonSerialIdRegex = Regex("""\bserial_id\s*=\s*['"](\d+)['"]""")
 
 class LostFilmSeasonEpisodesParser {
+    fun parseSerialId(html: String): String? {
+        return seasonSerialIdRegex.find(html)?.groupValues?.getOrNull(1)
+    }
+
+    fun parseWatchedEpisodeIdsFromPage(html: String): Set<String> {
+        val document = Jsoup.parse(html, BASE_URL)
+
+        return document.select(".haveseen-btn, .isawthat-btn")
+            .mapNotNull { watchedElement ->
+                val isWatched = watchedElement.hasClass("checked") ||
+                    watchedElement.attr("title").contains("серия просмотрена", ignoreCase = true) ||
+                    watchedElement.attr("title").contains("фильм просмотрен", ignoreCase = true) ||
+                    watchedElement.text().contains("серия просмотрена", ignoreCase = true) ||
+                    watchedElement.text().contains("фильм просмотрен", ignoreCase = true)
+
+                watchedElement.attr("data-episode")
+                    .trim()
+                    .takeIf { isWatched && it.isNotEmpty() }
+            }
+            .toSet()
+    }
+
+    fun parseWatchedEpisodeIds(response: String): Set<String> {
+        return runCatching {
+            val jsonElement = Json.parseToJsonElement(response)
+            val watchedIds = when (jsonElement) {
+                is JsonArray -> jsonElement
+                else -> jsonElement.jsonObject["data"]?.jsonArray
+            }
+
+            watchedIds
+                ?.mapNotNull { element ->
+                    element.jsonPrimitive.content
+                        .trim()
+                        .takeIf { it.isNotEmpty() }
+                }
+                ?.toSet()
+                .orEmpty()
+        }.getOrDefault(emptySet())
+    }
+
     fun parse(
         html: String,
         series: FavoriteSeriesRef,
         fetchedAt: Long,
+        watchedEpisodeIds: Set<String> = emptySet(),
     ): List<ReleaseSummary> {
         val document = Jsoup.parse(html, BASE_URL)
 
@@ -48,7 +96,9 @@ class LostFilmSeasonEpisodesParser {
                     .orEmpty()
                     .normalizeText()
                     .ifBlank { null }
-                val isWatched = row.selectFirst(".haveseen-btn")?.classNames()?.contains("checked") == true
+                val watchedButton = row.selectFirst(".haveseen-btn")
+                val isWatched = watchedButton?.classNames()?.contains("checked") == true ||
+                    watchedButton?.attr("data-episode").orEmpty() in watchedEpisodeIds
 
                 ReleaseSummary(
                     id = detailsUrl,

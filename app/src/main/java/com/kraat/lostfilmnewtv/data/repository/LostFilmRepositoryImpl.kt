@@ -237,6 +237,13 @@ class LostFilmRepositoryImpl(
             var loadedAnySeasonPage = false
             val items = buildList {
                 favoriteSeries.forEach { series ->
+                    val watchedEpisodeIdsFromSeriesRoot = try {
+                        seasonEpisodesParser.parseWatchedEpisodeIdsFromPage(
+                            httpClient.fetchDetails(series.seriesUrl),
+                        )
+                    } catch (_: IOException) {
+                        emptySet()
+                    }
                     val seasonsUrl = "${series.seriesUrl.trimEnd('/')}/seasons"
                     val seasonsHtml = try {
                         httpClient.fetchDetails(seasonsUrl)
@@ -244,11 +251,27 @@ class LostFilmRepositoryImpl(
                         return@forEach
                     }
                     loadedAnySeasonPage = true
+                    val watchedEpisodeIdsFromMarks = seasonEpisodesParser.parseSerialId(seasonsHtml)
+                        ?.let { serialId ->
+                            try {
+                                seasonEpisodesParser.parseWatchedEpisodeIds(
+                                    httpClient.fetchSeasonWatchedEpisodeMarks(
+                                        refererUrl = seasonsUrl,
+                                        serialId = serialId,
+                                    ),
+                                )
+                            } catch (_: IOException) {
+                                emptySet()
+                            }
+                        }
+                        .orEmpty()
+                    val watchedEpisodeIds = watchedEpisodeIdsFromSeriesRoot + watchedEpisodeIdsFromMarks
                     addAll(
                         seasonEpisodesParser.parse(
                             html = seasonsHtml,
                             series = series,
                             fetchedAt = fetchedAt,
+                            watchedEpisodeIds = watchedEpisodeIds,
                         ),
                     )
                 }
