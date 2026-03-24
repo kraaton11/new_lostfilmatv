@@ -25,7 +25,30 @@ internal fun AppUpdateRefreshResult.toWorkerResult(): ListenableWorker.Result {
         is AppUpdateRefreshResult.UpToDate,
         is AppUpdateRefreshResult.UpdateSaved,
         is AppUpdateRefreshResult.FailedKeptPrevious,
-        is AppUpdateRefreshResult.FailedEmpty,
         -> ListenableWorker.Result.success()
+
+        is AppUpdateRefreshResult.FailedEmpty -> {
+            if (isTransientError(message)) {
+                ListenableWorker.Result.retry()
+            } else {
+                ListenableWorker.Result.success()
+            }
+        }
+    }
+}
+
+private fun isTransientError(message: String): Boolean {
+    val transientKeywords = listOf(
+        "сети",
+        "подключению",
+        "таймаут",
+        "ожидания",
+        "лимит",
+        "timeout",
+        "network",
+        "connection",
+    )
+    return transientKeywords.any { keyword ->
+        message.contains(keyword, ignoreCase = true)
     }
 }
