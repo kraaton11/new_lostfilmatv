@@ -452,6 +452,10 @@ private class RouteFakeDetailsRepository(
             ?: error("No scripted details result for $detailsUrl")
     }
 
+    override suspend fun loadSeriesGuide(detailsUrl: String): com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult {
+        return com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult.Error("not needed")
+    }
+
     override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean {
         markedEpisodes += detailsUrl to playEpisodeId
         return true

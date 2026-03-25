@@ -630,6 +630,10 @@ private class FakeAppNavGraphRepository(
         }
     }
 
+    override suspend fun loadSeriesGuide(detailsUrl: String): com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult {
+        return com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult.Error("not needed")
+    }
+
     override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean = false
 
     override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult {
@@ -648,6 +652,10 @@ private class BlockingAppNavGraphRepository(
 
     override suspend fun loadDetails(detailsUrl: String): DetailsResult {
         error("Details loading is not used in blocking app nav graph test")
+    }
+
+    override suspend fun loadSeriesGuide(detailsUrl: String): com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult {
+        return com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult.Error("not needed")
     }
 
     override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean = false
