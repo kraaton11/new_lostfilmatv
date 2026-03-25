@@ -29,6 +29,7 @@ import com.kraat.lostfilmnewtv.ui.components.PosterCard
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 import com.kraat.lostfilmnewtv.ui.theme.HomeTextSecondary
+import kotlinx.coroutines.delay
 
 @Composable
 fun HomeRail(
@@ -56,8 +57,16 @@ fun HomeRail(
         val targetRequester = targetKey?.let { detailsUrl ->
             cardFocusRequesters[homeItemKey(railId, detailsUrl)]
         }
-        withFrameNanos { }
-        targetRequester?.requestFocus()
+        repeat(6) {
+            withFrameNanos { }
+            val focusMoved = runCatching {
+                targetRequester?.requestFocus() == true
+            }.getOrDefault(false)
+            if (focusMoved) {
+                return@LaunchedEffect
+            }
+            delay(50)
+        }
     }
 
     LazyRow(
