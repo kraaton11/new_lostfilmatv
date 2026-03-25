@@ -111,21 +111,23 @@ fun HomeHeader(
                     mode = mode,
                     isSelected = mode == selectedMode,
                     onClick = {
-                        onHeaderInteraction()
-                        onModeActivated(mode)
-                    },
-                    onInteraction = onHeaderInteraction,
-                    onMoveLeft = leftMode?.let { targetMode ->
-                        {
-                            onModeActivated(targetMode)
-                        }
-                    },
-                    onMoveRight = rightMode?.let { targetMode ->
-                        {
-                            onModeActivated(targetMode)
-                        }
-                    },
-                    modifier = Modifier
+                    onHeaderInteraction()
+                    onModeActivated(mode)
+                },
+                onInteraction = onHeaderInteraction,
+                onMoveLeft = leftMode?.let { targetMode ->
+                    {
+                        onModeActivated(targetMode)
+                        leftRequester?.requestFocus()
+                    }
+                },
+                onMoveRight = rightMode?.let { targetMode ->
+                    {
+                        onModeActivated(targetMode)
+                        rightRequester?.requestFocus()
+                    }
+                },
+                modifier = Modifier
                         .testTag("home-mode-tab-${mode.testTagSuffix()}")
                         .focusRequester(modeFocusRequesters.getValue(mode))
                         .focusProperties {
