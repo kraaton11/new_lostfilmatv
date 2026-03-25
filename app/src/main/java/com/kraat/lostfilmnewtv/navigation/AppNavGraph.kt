@@ -28,6 +28,7 @@ import com.kraat.lostfilmnewtv.ui.auth.AuthScreen
 import com.kraat.lostfilmnewtv.ui.auth.AuthUiState
 import com.kraat.lostfilmnewtv.ui.auth.AuthViewModel
 import com.kraat.lostfilmnewtv.ui.details.DetailsRoute
+import com.kraat.lostfilmnewtv.ui.guide.SeriesGuideRoute
 import com.kraat.lostfilmnewtv.ui.home.HomeScreen
 import com.kraat.lostfilmnewtv.ui.home.HomeViewModel
 import com.kraat.lostfilmnewtv.ui.settings.SettingsRoute
@@ -205,7 +206,29 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                         ?.savedStateHandle
                         ?.set(HOME_FAVORITES_INVALIDATED_KEY, true)
                 },
+                onOpenSeriesGuide = { detailsUrl ->
+                    navController.navigate(AppDestination.SeriesGuide.createRoute(detailsUrl))
+                },
                 onChannelContentChanged = application.homeChannelSyncManager::syncNow,
+            )
+        }
+        composable(
+            route = AppDestination.SeriesGuide.route,
+            arguments = listOf(
+                navArgument(AppDestination.SeriesGuide.detailsUrlArg) {
+                    type = NavType.StringType
+                },
+            ),
+        ) { backStackEntry ->
+            val detailsUrl = Uri.decode(
+                backStackEntry.arguments?.getString(AppDestination.SeriesGuide.detailsUrlArg).orEmpty(),
+            )
+            SeriesGuideRoute(
+                detailsUrl = detailsUrl,
+                repository = application.repository,
+                onOpenDetails = { episodeDetailsUrl ->
+                    navController.navigate(AppDestination.Details.createRoute(episodeDetailsUrl))
+                },
             )
         }
         composable(AppDestination.Settings.route) {
