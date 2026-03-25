@@ -582,7 +582,7 @@ class LostFilmRepositoryTest {
                                 seasonNumber = 1,
                                 episodeNumber = 2,
                                 episodeTitle = "Alpha Episode",
-                                releaseDateRu = "16.03.2026",
+                                releaseDateRu = "15.03.2026",
                                 episodeId = "1001001002",
                             ),
                         ),
@@ -635,6 +635,76 @@ class LostFilmRepositoryTest {
     }
 
     @Test
+    fun loadFavoriteReleases_ignoresEpisodesWithFutureReleaseDate() = runTest {
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            accountPageHandler = { path ->
+                when (path) {
+                    "/my/type_1" -> favoriteSeriesAccountPageHtml()
+                    else -> error("Unexpected account path $path")
+                }
+            },
+            detailsHandler = { requestedUrl ->
+                when (requestedUrl) {
+                    "https://www.lostfilm.today/series/alpha" -> "<html><body></body></html>"
+
+                    "https://www.lostfilm.today/series/alpha/seasons" -> favoriteSeriesSeasonsPageHtml(
+                        seriesSlug = "alpha",
+                        serialId = "1001",
+                        episodes = listOf(
+                            SeasonEpisodeRow(
+                                seasonNumber = 1,
+                                episodeNumber = 3,
+                                episodeTitle = "Future Episode",
+                                releaseDateRu = "16.03.2026",
+                                episodeId = "1001001003",
+                            ),
+                            SeasonEpisodeRow(
+                                seasonNumber = 1,
+                                episodeNumber = 2,
+                                episodeTitle = "Released Episode",
+                                releaseDateRu = "15.03.2026",
+                                episodeId = "1001001002",
+                            ),
+                        ),
+                    )
+
+                    "https://www.lostfilm.today/series/beta" -> "<html><body></body></html>"
+
+                    "https://www.lostfilm.today/series/beta/seasons" -> favoriteSeriesSeasonsPageHtml(
+                        seriesSlug = "beta",
+                        serialId = "2003",
+                        episodes = listOf(
+                            SeasonEpisodeRow(
+                                seasonNumber = 3,
+                                episodeNumber = 1,
+                                episodeTitle = "Beta Episode",
+                                releaseDateRu = "14.03.2026",
+                                episodeId = "2003003001",
+                            ),
+                        ),
+                    )
+
+                    else -> error("Unexpected details request: $requestedUrl")
+                }
+            },
+            isAuthenticated = true,
+        )
+
+        val result = repository.loadFavoriteReleases()
+
+        assertTrue(result is FavoriteReleasesResult.Success)
+        result as FavoriteReleasesResult.Success
+        assertEquals(
+            listOf(
+                "https://www.lostfilm.today/series/alpha/season_1/episode_2/",
+                "https://www.lostfilm.today/series/beta/season_3/episode_1/",
+            ),
+            result.items.map { it.detailsUrl },
+        )
+    }
+
+    @Test
     fun loadFavoriteReleases_marksWatchedEpisodesFromSeasonMarksResponse() = runTest {
         val watchedMarksRequests = mutableListOf<String>()
         val repository = createRepository(
@@ -657,14 +727,14 @@ class LostFilmRepositoryTest {
                                 seasonNumber = 1,
                                 episodeNumber = 2,
                                 episodeTitle = "Alpha Episode",
-                                releaseDateRu = "16.03.2026",
+                                releaseDateRu = "15.03.2026",
                                 episodeId = "1072001002",
                             ),
                             SeasonEpisodeRow(
                                 seasonNumber = 1,
                                 episodeNumber = 1,
                                 episodeTitle = "Pilot",
-                                releaseDateRu = "15.03.2026",
+                                releaseDateRu = "14.03.2026",
                                 episodeId = "1072001001",
                             ),
                         ),
@@ -680,7 +750,7 @@ class LostFilmRepositoryTest {
                                 seasonNumber = 3,
                                 episodeNumber = 1,
                                 episodeTitle = "Beta Episode",
-                                releaseDateRu = "14.03.2026",
+                                releaseDateRu = "13.03.2026",
                                 episodeId = "2088003001",
                             ),
                         ),
@@ -752,14 +822,14 @@ class LostFilmRepositoryTest {
                                 seasonNumber = 1,
                                 episodeNumber = 4,
                                 episodeTitle = "The Gathering Storm",
-                                releaseDateRu = "24.03.2026",
+                                releaseDateRu = "15.03.2026",
                                 episodeId = "1072001004",
                             ),
                             SeasonEpisodeRow(
                                 seasonNumber = 1,
                                 episodeNumber = 3,
                                 episodeTitle = "Road to Nowhere",
-                                releaseDateRu = "17.03.2026",
+                                releaseDateRu = "14.03.2026",
                                 episodeId = "1072001003",
                             ),
                             SeasonEpisodeRow(

@@ -20,7 +20,9 @@ import com.kraat.lostfilmnewtv.data.parser.toEntity
 import com.kraat.lostfilmnewtv.data.parser.toSummaryEntities
 import com.kraat.lostfilmnewtv.data.parser.toSummaryModels
 import java.io.IOException
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import org.jsoup.Jsoup
@@ -234,6 +236,7 @@ class LostFilmRepositoryImpl(
             }
 
             val fetchedAt = clock()
+            val today = currentFavoriteReleaseDate()
             var loadedAnySeasonPage = false
             val items = buildList {
                 favoriteSeries.forEach { series ->
@@ -277,6 +280,10 @@ class LostFilmRepositoryImpl(
                 }
             }
                 .distinctBy { it.detailsUrl }
+                .filter { item ->
+                    val releaseDate = parseFavoriteReleaseDate(item.releaseDateRu)
+                    releaseDate == null || !releaseDate.isAfter(today)
+                }
                 .sortedByDescending { parseFavoriteReleaseDate(it.releaseDateRu) ?: LocalDate.MIN }
                 .mapIndexed { index, item -> item.copy(positionInPage = index) }
 
@@ -520,5 +527,11 @@ class LostFilmRepositoryImpl(
         } catch (_: DateTimeParseException) {
             null
         }
+    }
+
+    private fun currentFavoriteReleaseDate(): LocalDate {
+        return Instant.ofEpochMilli(clock())
+            .atZone(ZoneOffset.UTC)
+            .toLocalDate()
     }
 }
