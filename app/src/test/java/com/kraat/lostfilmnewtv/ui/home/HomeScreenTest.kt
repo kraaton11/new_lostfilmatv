@@ -3,9 +3,11 @@ package com.kraat.lostfilmnewtv.ui.home
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
@@ -13,7 +15,9 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.pressKey
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
@@ -309,6 +313,80 @@ class HomeScreenTest {
 
         composeRule.onNodeWithTag("home-mode-tab-all-new")
             .performSemanticsAction(SemanticsActions.OnClick)
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag(allNewFirstTag)
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag(allNewFirstTag).assertIsFocused()
+    }
+
+    @Test
+    @OptIn(ExperimentalTestApi::class)
+    fun homeScreen_dpadLeftFromFavoritesMode_movesFocusToAllNewPoster() {
+        val allNewItems = listOf(
+            release(
+                detailsUrl = firstDetailsUrl,
+                titleRu = "9-1-1",
+                episodeTitleRu = "Маменькин сынок",
+                releaseDateRu = "14.03.2026",
+                seasonNumber = 9,
+                episodeNumber = 13,
+                kind = ReleaseKind.SERIES,
+            ),
+        )
+        val favoriteItems = listOf(
+            release(
+                detailsUrl = "https://www.lostfilm.today/series/Ted/season_2/episode_8/",
+                titleRu = "Третий лишний",
+                episodeTitleRu = "Левые новости",
+                releaseDateRu = "24.03.2026",
+                seasonNumber = 2,
+                episodeNumber = 8,
+                kind = ReleaseKind.SERIES,
+            ),
+        )
+        val allNewFirstTag = posterTag(HOME_RAIL_ALL_NEW, allNewItems.first().detailsUrl)
+        var state by mutableStateOf(
+            homeStateWithModes(
+                selectedMode = HomeFeedMode.Favorites,
+                allNewItems = allNewItems,
+                favoriteItems = favoriteItems,
+            ),
+        )
+
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(
+                    state = state,
+                    onModeSelected = { mode ->
+                        state = homeStateWithModes(
+                            selectedMode = mode,
+                            allNewItems = allNewItems,
+                            favoriteItems = favoriteItems,
+                        )
+                    },
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("home-mode-tab-favorites")
+            .performSemanticsAction(SemanticsActions.RequestFocus)
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag("home-mode-tab-favorites")
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag("home-mode-tab-favorites")
+            .performKeyInput { pressKey(Key.DirectionLeft) }
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
             val node = composeRule.onAllNodesWithTag(allNewFirstTag)

@@ -117,14 +117,12 @@ fun HomeHeader(
                     onInteraction = onHeaderInteraction,
                     onMoveLeft = leftMode?.let { targetMode ->
                         {
-                            onModeSelected(targetMode)
-                            modeFocusRequesters.getValue(targetMode).requestFocus()
+                            onModeActivated(targetMode)
                         }
                     },
                     onMoveRight = rightMode?.let { targetMode ->
                         {
-                            onModeSelected(targetMode)
-                            modeFocusRequesters.getValue(targetMode).requestFocus()
+                            onModeActivated(targetMode)
                         }
                     },
                     modifier = Modifier
