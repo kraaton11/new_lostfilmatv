@@ -30,9 +30,13 @@ import com.kraat.lostfilmnewtv.data.model.PairingSession
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
+import com.kraat.lostfilmnewtv.data.model.SeriesGuide
+import com.kraat.lostfilmnewtv.data.model.SeriesGuideEpisode
+import com.kraat.lostfilmnewtv.data.model.SeriesGuideSeason
 import com.kraat.lostfilmnewtv.data.model.TorrentLink
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
+import com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeActionHandler
@@ -158,6 +162,42 @@ class AppNavGraphTorrServeTest {
 
         composeRule.waitForText(TEST_DETAILS.titleRu)
         assertEquals(1, composeRule.onAllNodesWithText(TEST_DETAILS.titleRu).fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun detailsGuideAction_opensGuide_andGuideRowNavigatesToEpisodeDetails() {
+        val targetEpisodeUrl = "https://www.lostfilm.today/series/Ted/season_2/episode_7/"
+        val targetDetails = TEST_DETAILS.copy(
+            detailsUrl = targetEpisodeUrl,
+            titleRu = "Ted Episode 7 Details",
+            seasonNumber = 2,
+            episodeNumber = 7,
+            episodeTitleRu = "Сьюзен мотает срок",
+        )
+        TestLostFilmApplication.repositoryOverride = FakeAppNavGraphRepository().apply {
+            guideResult = SeriesGuideResult.Success(testSeriesGuide(selectedEpisodeUrl = TEST_SUMMARY.detailsUrl))
+            detailsByUrl[targetEpisodeUrl] = DetailsResult.Success(targetDetails, false)
+        }
+
+        composeRule.setContent {
+            LostFilmTheme {
+                AppNavGraph()
+            }
+        }
+
+        composeRule.waitForTag(posterTag(TEST_SUMMARY.detailsUrl))
+        composeRule.onNodeWithTag(posterTag(TEST_SUMMARY.detailsUrl))
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        composeRule.waitForTag("details-series-guide-action")
+        composeRule.onNodeWithTag("details-series-guide-action")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        composeRule.waitForText("Третий лишний")
+        composeRule.onNodeWithTag("series-guide-row-$targetEpisodeUrl")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        composeRule.waitForText(targetDetails.titleRu)
     }
 
     @Test
@@ -607,6 +647,14 @@ private fun ComposeContentTestRule.clickExistingTorrServeButton(
 private class FakeAppNavGraphRepository(
     private val details: ReleaseDetails = TEST_DETAILS,
 ) : LostFilmRepository {
+    val detailsByUrl = linkedMapOf<String, DetailsResult>(
+        TEST_SUMMARY.detailsUrl to DetailsResult.Success(
+            details = details,
+            isStale = false,
+        ),
+    )
+    var guideResult: SeriesGuideResult = SeriesGuideResult.Error("not needed")
+
     override suspend fun loadPage(pageNumber: Int): PageState {
         return PageState.Content(
             pageNumber = 1,
@@ -617,21 +665,15 @@ private class FakeAppNavGraphRepository(
     }
 
     override suspend fun loadDetails(detailsUrl: String): DetailsResult {
-        return if (detailsUrl == TEST_SUMMARY.detailsUrl) {
-            DetailsResult.Success(
-                details = details,
-                isStale = false,
-            )
-        } else {
-            DetailsResult.Error(
+        return detailsByUrl[detailsUrl]
+            ?: DetailsResult.Error(
                 detailsUrl = detailsUrl,
                 message = "Unexpected details URL: $detailsUrl",
             )
-        }
     }
 
-    override suspend fun loadSeriesGuide(detailsUrl: String): com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult {
-        return com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult.Error("not needed")
+    override suspend fun loadSeriesGuide(detailsUrl: String): SeriesGuideResult {
+        return guideResult
     }
 
     override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean = false
@@ -966,3 +1008,36 @@ private val TEST_DETAILS_WITH_MULTIPLE_QUALITIES = TEST_DETAILS.copy(
         ),
     ),
 )
+
+private fun testSeriesGuide(selectedEpisodeUrl: String): SeriesGuide {
+    return SeriesGuide(
+        seriesTitleRu = "Третий лишний",
+        posterUrl = "https://www.lostfilm.today/Static/Images/810/Posters/image.jpg",
+        selectedEpisodeDetailsUrl = selectedEpisodeUrl,
+        seasons = listOf(
+            SeriesGuideSeason(
+                seasonNumber = 2,
+                episodes = listOf(
+                    SeriesGuideEpisode(
+                        detailsUrl = TEST_SUMMARY.detailsUrl,
+                        episodeId = "810002008",
+                        seasonNumber = 2,
+                        episodeNumber = 8,
+                        episodeTitleRu = "Левые новости",
+                        releaseDateRu = "24.03.2026",
+                        isWatched = false,
+                    ),
+                    SeriesGuideEpisode(
+                        detailsUrl = "https://www.lostfilm.today/series/Ted/season_2/episode_7/",
+                        episodeId = "810002007",
+                        seasonNumber = 2,
+                        episodeNumber = 7,
+                        episodeTitleRu = "Сьюзен мотает срок",
+                        releaseDateRu = "21.03.2026",
+                        isWatched = true,
+                    ),
+                ),
+            ),
+        ),
+    )
+}
