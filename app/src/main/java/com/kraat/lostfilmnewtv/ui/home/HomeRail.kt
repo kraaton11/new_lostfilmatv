@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -58,15 +59,19 @@ fun HomeRail(
     } else {
         itemKeys.firstOrNull()
     }
+    val targetIndex = targetKey?.let(itemKeys::indexOf) ?: -1
     val targetRequester = targetKey?.let { detailsUrl ->
         cardFocusRequesters[homeItemKey(railId, detailsUrl)]
     }
+    val listState = remember(railId) { LazyListState() }
     var railHasFocus by remember(railId) { mutableStateOf(false) }
 
-    LaunchedEffect(railHasFocus, shouldRequestFocus, targetRequester) {
-        if (!railHasFocus || !shouldRequestFocus || targetRequester == null) {
+    LaunchedEffect(railHasFocus, shouldRequestFocus, targetIndex, targetRequester) {
+        if (!railHasFocus || !shouldRequestFocus || targetRequester == null || targetIndex < 0) {
             return@LaunchedEffect
         }
+
+        listState.scrollToItem(targetIndex)
 
         repeat(6) {
             withFrameNanos { }
@@ -81,6 +86,7 @@ fun HomeRail(
     }
 
     LazyRow(
+        state = listState,
         modifier = Modifier
             .fillMaxWidth()
             .focusRequester(entryFocusRequester)
@@ -94,7 +100,7 @@ fun HomeRail(
             .focusRestorer()
             .focusGroup()
             .focusable()
-            .onFocusChanged { railHasFocus = it.isFocused }
+            .onFocusChanged { railHasFocus = it.hasFocus }
             .height(308.dp),
         horizontalArrangement = Arrangement.spacedBy(20.dp),
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),

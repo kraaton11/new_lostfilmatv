@@ -487,6 +487,147 @@ class HomeScreenTest {
 
         composeRule.onNodeWithTag(allNewFirstTag).assertIsFocused()
     }
+
+    @Test
+    @OptIn(ExperimentalTestApi::class)
+    fun homeScreen_sharedReleaseAcrossModes_returnsFocusToRememberedAllNewPoster() {
+        val allNewItems = buildList {
+            add(
+                release(
+                    detailsUrl = "https://www.lostfilm.today/series/first-item/season_1/episode_1/",
+                    titleRu = "Первый релиз",
+                    episodeTitleRu = "Старт",
+                    releaseDateRu = "25.03.2026",
+                    seasonNumber = 1,
+                    episodeNumber = 1,
+                    kind = ReleaseKind.SERIES,
+                ),
+            )
+            repeat(4) { index ->
+                add(
+                    release(
+                        detailsUrl = "https://www.lostfilm.today/series/filler-${index + 1}/season_1/episode_1/",
+                        titleRu = "Заполнитель ${index + 1}",
+                        episodeTitleRu = "Эпизод ${index + 1}",
+                        releaseDateRu = "25.03.2026",
+                        seasonNumber = 1,
+                        episodeNumber = index + 1,
+                        kind = ReleaseKind.SERIES,
+                    ),
+                )
+            }
+            add(
+                release(
+                    detailsUrl = "https://www.lostfilm.today/series/shared-item/season_2/episode_8/",
+                    titleRu = "Общий релиз",
+                    episodeTitleRu = "Совпадающий эпизод",
+                    releaseDateRu = "25.03.2026",
+                    seasonNumber = 2,
+                    episodeNumber = 8,
+                    kind = ReleaseKind.SERIES,
+                ),
+            )
+            repeat(2) { index ->
+                add(
+                    release(
+                        detailsUrl = "https://www.lostfilm.today/series/tail-${index + 1}/season_1/episode_1/",
+                        titleRu = "Хвост ${index + 1}",
+                        episodeTitleRu = "Эпизод ${index + 6}",
+                        releaseDateRu = "25.03.2026",
+                        seasonNumber = 1,
+                        episodeNumber = index + 6,
+                        kind = ReleaseKind.SERIES,
+                    ),
+                )
+            }
+        }
+        val sharedFavorite = allNewItems[5]
+        val favoriteItems = listOf(sharedFavorite)
+        val allNewFirstTag = posterTag(HOME_RAIL_ALL_NEW, allNewItems.first().detailsUrl)
+        val sharedFavoriteTag = posterTag(HOME_RAIL_FAVORITES, sharedFavorite.detailsUrl)
+        var state by mutableStateOf(
+            homeStateWithModes(
+                selectedMode = HomeFeedMode.AllNew,
+                allNewItems = allNewItems,
+                favoriteItems = favoriteItems,
+            ),
+        )
+
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(
+                    state = state,
+                    onModeSelected = { mode ->
+                        state = homeStateWithModes(
+                            selectedMode = mode,
+                            allNewItems = allNewItems,
+                            favoriteItems = favoriteItems,
+                        )
+                    },
+                )
+            }
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag(allNewFirstTag)
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag(allNewFirstTag)
+            .performKeyInput { pressKey(Key.DirectionUp) }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag("home-mode-tab-all-new")
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag("home-mode-tab-all-new")
+            .performKeyInput {
+                keyDown(Key.DirectionRight)
+                keyUp(Key.DirectionRight)
+            }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag(sharedFavoriteTag)
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag(sharedFavoriteTag)
+            .performKeyInput { pressKey(Key.DirectionUp) }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag("home-mode-tab-favorites")
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag("home-mode-tab-favorites")
+            .performKeyInput {
+                keyDown(Key.DirectionLeft)
+                keyUp(Key.DirectionLeft)
+            }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag(allNewFirstTag)
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag(allNewFirstTag).assertIsFocused()
+    }
 }
 
 private const val firstDetailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
