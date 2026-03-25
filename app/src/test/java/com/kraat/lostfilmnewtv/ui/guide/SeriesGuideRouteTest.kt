@@ -1,6 +1,7 @@
 package com.kraat.lostfilmnewtv.ui.guide
 
 import androidx.compose.ui.test.assertIsSelected
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -9,6 +10,7 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.semantics.SemanticsProperties
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.model.PageState
@@ -47,6 +49,29 @@ class SeriesGuideRouteTest {
 
         composeRule.waitForText("Третий лишний")
         composeRule.onNodeWithTag("series-guide-row-$currentEpisodeUrl").assertIsSelected()
+    }
+
+    @Test
+    fun route_focusesCurrentEpisodeRow_afterFirstComposition() {
+        val currentEpisodeUrl = "https://www.lostfilm.today/series/Ted/season_2/episode_8/"
+
+        composeRule.setContent {
+            SeriesGuideRoute(
+                detailsUrl = currentEpisodeUrl,
+                repository = FakeSeriesGuideRepository.success(currentEpisodeUrl),
+                onOpenDetails = {},
+            )
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag("series-guide-row-$currentEpisodeUrl")
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag("series-guide-row-$currentEpisodeUrl").assertIsFocused()
     }
 
     @Test

@@ -13,8 +13,13 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.platform.testTag
@@ -86,6 +91,21 @@ private fun GuideContent(
     selectedEpisodeDetailsUrl: String?,
     onEpisodeClick: (String) -> Unit,
 ) {
+    val episodes = remember(seasons) {
+        seasons.flatMap { season -> season.episodes }
+    }
+    val episodeFocusRequesters = remember(episodes.map { it.detailsUrl }) {
+        episodes.associate { episode -> episode.detailsUrl to FocusRequester() }
+    }
+
+    LaunchedEffect(selectedEpisodeDetailsUrl, episodeFocusRequesters.keys) {
+        val selectedRequester = selectedEpisodeDetailsUrl
+            ?.let { episodeFocusRequesters[it] }
+            ?: return@LaunchedEffect
+        withFrameNanos { }
+        selectedRequester.requestFocus()
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         verticalArrangement = Arrangement.spacedBy(18.dp),
@@ -112,6 +132,7 @@ private fun GuideContent(
             SeasonSection(
                 season = season,
                 selectedEpisodeDetailsUrl = selectedEpisodeDetailsUrl,
+                focusRequesterForEpisode = { detailsUrl -> episodeFocusRequesters[detailsUrl] },
                 onEpisodeClick = onEpisodeClick,
             )
         }
@@ -122,6 +143,7 @@ private fun GuideContent(
 private fun SeasonSection(
     season: SeriesGuideSeason,
     selectedEpisodeDetailsUrl: String?,
+    focusRequesterForEpisode: (String) -> FocusRequester?,
     onEpisodeClick: (String) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -134,6 +156,7 @@ private fun SeasonSection(
             EpisodeRow(
                 episode = episode,
                 isSelected = episode.detailsUrl == selectedEpisodeDetailsUrl,
+                focusRequester = focusRequesterForEpisode(episode.detailsUrl),
                 onClick = { onEpisodeClick(episode.detailsUrl) },
             )
         }
@@ -144,12 +167,20 @@ private fun SeasonSection(
 private fun EpisodeRow(
     episode: SeriesGuideEpisode,
     isSelected: Boolean,
+    focusRequester: FocusRequester?,
     onClick: () -> Unit,
 ) {
     Button(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
+            .then(
+                if (focusRequester != null) {
+                    Modifier.focusRequester(focusRequester)
+                } else {
+                    Modifier
+                },
+            )
             .semantics { selected = isSelected }
             .testTag("series-guide-row-${episode.detailsUrl}"),
     ) {
