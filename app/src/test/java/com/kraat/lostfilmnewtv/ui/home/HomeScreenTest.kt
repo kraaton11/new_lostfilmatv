@@ -42,7 +42,7 @@ class HomeScreenTest {
             }
         }
 
-        composeRule.onNodeWithTag("home-action-auth").assertExists()
+        composeRule.onNodeWithTag("home-action-auth").assertDoesNotExist()
         composeRule.onNodeWithTag("home-action-settings").assertExists()
         composeRule.onNodeWithTag("home-action-update").assertExists()
         composeRule.onNodeWithTag("home-bottom-stage").assertExists()

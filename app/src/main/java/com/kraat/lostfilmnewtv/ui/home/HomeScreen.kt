@@ -89,7 +89,6 @@ fun HomeScreen(
 
     val modeRequesters = remember { HomeFeedMode.entries.associateWith { FocusRequester() } }
     val settingsRequester = remember { FocusRequester() }
-    val authRequester = remember { FocusRequester() }
     val updateRequester = remember { FocusRequester() }
     val loginActionRequester = remember { FocusRequester() }
     val retryActionRequester = remember { FocusRequester() }
@@ -146,14 +145,11 @@ fun HomeScreen(
                 availableModes = state.availableModes,
                 onModeSelected = onModeSelected,
                 onHeaderInteraction = { startupContentFocusPending = false },
-                isAuthenticated = isAuthenticated,
                 hasSavedUpdate = savedAppUpdate != null,
                 onSettingsClick = onSettingsClick,
-                onAuthClick = onAuthClick,
                 onInstallUpdateClick = onInstallUpdateClick,
                 modeFocusRequesters = modeRequesters,
                 settingsFocusRequester = settingsRequester,
-                authFocusRequester = authRequester,
                 updateFocusRequester = if (savedAppUpdate != null) updateRequester else null,
                 downTarget = headerDownTarget,
             )

@@ -46,6 +46,8 @@ fun SettingsScreen(
     selectedUpdateMode: UpdateCheckMode,
     selectedChannelMode: AndroidTvChannelMode,
     isHomeFavoritesRailEnabled: Boolean = false,
+    isAuthenticated: Boolean = false,
+    onAuthClick: () -> Unit = {},
     installedVersionText: String,
     latestVersionText: String?,
     statusText: String?,
@@ -78,6 +80,7 @@ fun SettingsScreen(
             AndroidTvChannelMode.DISABLED.buttonTag() to FocusRequester(),
             HOME_FAVORITES_SHOW_TAG to FocusRequester(),
             HOME_FAVORITES_HIDE_TAG to FocusRequester(),
+            ACCOUNT_AUTH_ACTION_TAG to FocusRequester(),
         )
     }
     var rememberedActionBySection by rememberSaveable {
@@ -86,6 +89,7 @@ fun SettingsScreen(
                 SettingsSection.QUALITY.name to selectedQuality.buttonTag(),
                 SettingsSection.UPDATES.name to selectedUpdateMode.buttonTag(),
                 SettingsSection.CHANNEL.name to selectedChannelMode.buttonTag(),
+                SettingsSection.ACCOUNT.name to ACCOUNT_AUTH_ACTION_TAG,
             ),
         )
     }
@@ -106,6 +110,7 @@ fun SettingsScreen(
         installUrl = installUrl,
     )
     val channelSummary = selectedChannelMode.label()
+    val accountSummary = if (isAuthenticated) "Выполнен вход" else "Не выполнен вход"
 
     Column(
         modifier = Modifier
@@ -131,6 +136,7 @@ fun SettingsScreen(
                 qualitySummary = qualitySummary,
                 updateSummary = updateSummary,
                 channelSummary = channelSummary,
+                accountSummary = accountSummary,
                 onSectionSelected = { selectedSectionName = it.name },
                 focusRequesterForSection = { railRequesters.getValue(it) },
                 contentRequesterForSection = { section ->
@@ -293,6 +299,39 @@ fun SettingsScreen(
                                 )
                             }
                         }
+
+                        SettingsSection.ACCOUNT -> {
+                            SettingsOptionsSection {
+                                SettingsOverviewCard(
+                                    title = "Аккаунт LostFilm",
+                                    subtitle = "Вход нужен для Избранного и действий аккаунта.",
+                                    modifier = Modifier.background(HomePanelSurface, RoundedCornerShape(22.dp)),
+                                ) {
+                                    SettingsOverviewValue(
+                                        text = if (isAuthenticated) {
+                                            "Статус: выполнен вход"
+                                        } else {
+                                            "Статус: не выполнен вход"
+                                        },
+                                    )
+                                }
+                                SettingsTvButton(
+                                    text = if (isAuthenticated) "Выйти" else "Войти",
+                                    onClick = onAuthClick,
+                                    tag = ACCOUNT_AUTH_ACTION_TAG,
+                                    onFocused = {
+                                        rememberedActionBySection = rememberedActionBySection + (
+                                            SettingsSection.ACCOUNT.name to ACCOUNT_AUTH_ACTION_TAG
+                                        )
+                                    },
+                                    modifier = Modifier
+                                        .focusRequester(contentRequesters.getValue(ACCOUNT_AUTH_ACTION_TAG))
+                                        .focusProperties {
+                                            left = railRequesters.getValue(SettingsSection.ACCOUNT)
+                                        },
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -308,6 +347,7 @@ private enum class SettingsSection(
     QUALITY("Качество", "settings-section-quality", "settings-section-quality-summary"),
     UPDATES("Обновления", "settings-section-updates", "settings-section-updates-summary"),
     CHANNEL("Канал Android TV", "settings-section-channel", "settings-section-channel-summary"),
+    ACCOUNT("Аккаунт", "settings-section-account", "settings-section-account-summary"),
 }
 
 @Composable
@@ -316,6 +356,7 @@ private fun SettingsSectionRail(
     qualitySummary: String,
     updateSummary: String,
     channelSummary: String,
+    accountSummary: String,
     onSectionSelected: (SettingsSection) -> Unit,
     focusRequesterForSection: (SettingsSection) -> FocusRequester,
     contentRequesterForSection: (SettingsSection) -> FocusRequester,
@@ -334,6 +375,7 @@ private fun SettingsSectionRail(
                     SettingsSection.QUALITY -> qualitySummary
                     SettingsSection.UPDATES -> updateSummary
                     SettingsSection.CHANNEL -> channelSummary
+                    SettingsSection.ACCOUNT -> accountSummary
                 },
                 summaryTag = section.summaryTag,
                 isSelected = section == selectedSection,
@@ -450,6 +492,7 @@ private fun targetContentTag(
         section == SettingsSection.QUALITY -> selectedQuality.buttonTag()
         section == SettingsSection.UPDATES -> selectedUpdateMode.buttonTag()
         section == SettingsSection.CHANNEL -> selectedChannelMode.buttonTag()
+        section == SettingsSection.ACCOUNT -> ACCOUNT_AUTH_ACTION_TAG
         else -> selectedQuality.buttonTag()
     }
 }
@@ -534,3 +577,4 @@ private const val CHECK_UPDATES_TAG = "settings-action-check-updates"
 private const val INSTALL_UPDATE_TAG = "settings-install-update"
 private const val HOME_FAVORITES_SHOW_TAG = "settings-home-favorites-show"
 private const val HOME_FAVORITES_HIDE_TAG = "settings-home-favorites-hide"
+private const val ACCOUNT_AUTH_ACTION_TAG = "settings-account-auth-action"
