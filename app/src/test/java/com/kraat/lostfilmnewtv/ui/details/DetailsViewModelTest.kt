@@ -317,6 +317,10 @@ private class FakeDetailsRepository(
 
     override suspend fun loadDetails(detailsUrl: String): DetailsResult = detailsResult
 
+    override suspend fun loadSeriesGuide(detailsUrl: String): com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult {
+        return com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult.Error("not needed")
+    }
+
     override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean = false
 
     override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult = favoriteResult.await()
@@ -337,6 +341,10 @@ private class SequencedDetailsRepository(
 
     override suspend fun loadDetails(detailsUrl: String): DetailsResult {
         return results[index++].await()
+    }
+
+    override suspend fun loadSeriesGuide(detailsUrl: String): com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult {
+        return com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult.Error("not needed")
     }
 
     override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean = false

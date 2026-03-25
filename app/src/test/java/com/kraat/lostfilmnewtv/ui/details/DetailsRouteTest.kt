@@ -392,6 +392,28 @@ class DetailsRouteTest {
         assertEquals(1, invalidationCount.get())
         assertEquals(listOf(detailsUrl to true), repository.favoriteRequests)
     }
+
+    @Test
+    fun route_callsOnOpenSeriesGuide_whenGuideActionIsClicked() {
+        val detailsUrl = "https://www.lostfilm.today/series/guide"
+        var openedGuideUrl: String? = null
+
+        composeRule.setContent {
+            DetailsRoute(
+                detailsUrl = detailsUrl,
+                repository = RouteFakeDetailsRepository.success(detailsUrl),
+                actionHandler = succeedingActionHandler(),
+                linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
+                onOpenSeriesGuide = { openedGuideUrl = it },
+            )
+        }
+
+        composeRule.waitForNodeWithTag("details-series-guide-action")
+        composeRule.onNodeWithTag("details-series-guide-action")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        assertEquals(detailsUrl, openedGuideUrl)
+    }
 }
 
 private fun ComposeContentTestRule.waitForNodeWithTag(tag: String) {
@@ -450,6 +472,10 @@ private class RouteFakeDetailsRepository(
         loadedDetailsUrls += detailsUrl
         return scriptedResults[detailsUrl]?.removeAt(0)
             ?: error("No scripted details result for $detailsUrl")
+    }
+
+    override suspend fun loadSeriesGuide(detailsUrl: String): com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult {
+        return com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult.Error("not needed")
     }
 
     override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean {
