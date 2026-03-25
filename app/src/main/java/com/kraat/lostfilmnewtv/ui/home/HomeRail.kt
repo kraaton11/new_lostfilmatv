@@ -14,6 +14,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -28,6 +34,7 @@ import com.kraat.lostfilmnewtv.ui.components.PosterCard
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 import com.kraat.lostfilmnewtv.ui.theme.HomeTextSecondary
+import kotlinx.coroutines.delay
 
 @Composable
 fun HomeRail(
@@ -53,6 +60,24 @@ fun HomeRail(
     val targetRequester = targetKey?.let { detailsUrl ->
         cardFocusRequesters[homeItemKey(railId, detailsUrl)]
     }
+    var railHasFocus by remember(railId) { mutableStateOf(false) }
+
+    LaunchedEffect(railHasFocus, shouldRequestFocus, targetRequester) {
+        if (!railHasFocus || !shouldRequestFocus || targetRequester == null) {
+            return@LaunchedEffect
+        }
+
+        repeat(6) {
+            withFrameNanos { }
+            val focusMoved = runCatching {
+                targetRequester.requestFocus()
+            }.getOrDefault(false)
+            if (focusMoved) {
+                return@LaunchedEffect
+            }
+            delay(50)
+        }
+    }
 
     LazyRow(
         modifier = Modifier
@@ -67,6 +92,7 @@ fun HomeRail(
             }
             .focusGroup()
             .focusable()
+            .onFocusChanged { railHasFocus = it.isFocused }
             .height(308.dp),
         horizontalArrangement = Arrangement.spacedBy(20.dp),
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
