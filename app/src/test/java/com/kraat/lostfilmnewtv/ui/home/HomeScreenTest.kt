@@ -17,7 +17,6 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performSemanticsAction
-import androidx.compose.ui.test.pressKey
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
@@ -386,7 +385,10 @@ class HomeScreenTest {
         }
 
         composeRule.onNodeWithTag("home-mode-tab-favorites")
-            .performKeyInput { pressKey(Key.DirectionLeft) }
+            .performKeyInput {
+                keyDown(Key.DirectionLeft)
+                keyUp(Key.DirectionLeft)
+            }
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
             val node = composeRule.onAllNodesWithTag(allNewFirstTag)
