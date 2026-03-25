@@ -195,6 +195,7 @@ private fun HomeHeaderModeButton(
         label = label,
         subtitle = "Режим Home",
         onClick = onClick,
+        observeKeyInteractions = false,
         modifier = modifier
             .onPreviewKeyEvent { event ->
                 if (event.type != KeyEventType.KeyDown) {
@@ -231,6 +232,7 @@ private fun HomeHeaderActionButton(
     onInteraction: () -> Unit = {},
     modifier: Modifier = Modifier,
     isPrimary: Boolean = false,
+    observeKeyInteractions: Boolean = true,
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
@@ -259,12 +261,18 @@ private fun HomeHeaderActionButton(
         shape = shape,
         colors = ButtonDefaults.buttonColors(containerColor = backgroundColor),
         modifier = modifier
-            .onPreviewKeyEvent { event ->
-                if (event.type == KeyEventType.KeyDown && event.key.isHeaderInteractionKey()) {
-                    onInteraction()
-                }
-                false
-            }
+            .then(
+                if (observeKeyInteractions) {
+                    Modifier.onPreviewKeyEvent { event ->
+                        if (event.type == KeyEventType.KeyDown && event.key.isHeaderInteractionKey()) {
+                            onInteraction()
+                        }
+                        false
+                    }
+                } else {
+                    Modifier
+                },
+            )
             .widthIn(min = 156.dp)
             .graphicsLayer {
                 scaleX = scale
