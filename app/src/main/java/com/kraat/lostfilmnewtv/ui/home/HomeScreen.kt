@@ -45,6 +45,7 @@ import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 import com.kraat.lostfilmnewtv.ui.theme.HomeStatusError
 import com.kraat.lostfilmnewtv.ui.theme.HomeTextSecondary
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
+import kotlinx.coroutines.delay
 
 @Composable
 fun HomeScreen(
@@ -119,10 +120,16 @@ fun HomeScreen(
             return@LaunchedEffect
         }
 
-        withFrameNanos { }
-        activeModeRequester.requestFocus()
-        withFrameNanos { }
-        headerDownTarget.requestFocus()
+        repeat(6) {
+            withFrameNanos { }
+            val focusMoved = runCatching {
+                headerDownTarget.requestFocus()
+            }.getOrDefault(false)
+            if (focusMoved) {
+                return@LaunchedEffect
+            }
+            delay(50)
+        }
     }
 
     Box(
