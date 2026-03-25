@@ -33,7 +33,7 @@ class DetailsStageModelsTest {
     }
 
     @Test
-    fun buildStageUi_hidesSecondaryActions_inReadableMode() {
+    fun buildStageUi_addsGuideAction_forSeriesDetails() {
         val ui = buildDetailsStageUi(
             state = DetailsUiState(details = seriesDetails()),
             isAuthenticated = true,
@@ -43,7 +43,10 @@ class DetailsStageModelsTest {
             isTorrServeBusy = false,
         )
 
-        assertEquals(emptyList<DetailsStageActionUiModel>(), ui.secondaryActions)
+        assertEquals(
+            true,
+            ui.secondaryActions.any { it.actionType == DetailsStageActionType.OPEN_SERIES_GUIDE },
+        )
     }
 
     @Test
@@ -134,7 +137,10 @@ class DetailsStageModelsTest {
         assertEquals("Сезон 1 • Серия 5", ui.heroMetaLine)
         assertEquals("Открывается...", ui.bottomStageStatusLine)
         assertEquals("21 марта 2026", ui.bottomStageSupportLine)
-        assertEquals(emptyList<DetailsStageActionUiModel>(), ui.secondaryActions)
+        assertEquals(
+            true,
+            ui.secondaryActions.any { it.actionType == DetailsStageActionType.OPEN_SERIES_GUIDE },
+        )
     }
 
     @Test
@@ -155,6 +161,10 @@ class DetailsStageModelsTest {
         assertEquals("Сезон 1 • Серия 5", ui.heroMetaLine)
         assertEquals("Видео недоступно", ui.bottomStageStatusLine)
         assertEquals("21 марта 2026", ui.bottomStageSupportLine)
+        assertEquals(
+            true,
+            ui.secondaryActions.any { it.actionType == DetailsStageActionType.OPEN_SERIES_GUIDE },
+        )
     }
 
     @Test
