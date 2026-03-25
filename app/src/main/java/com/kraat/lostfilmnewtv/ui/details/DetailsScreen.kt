@@ -69,6 +69,7 @@ fun DetailsScreen(
     isAuthenticated: Boolean,
     onRetry: () -> Unit,
     onFavoriteClick: () -> Unit = {},
+    onSeriesGuideClick: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val torrentRows = state.details?.toTorrentRows().orEmpty()
@@ -83,6 +84,7 @@ fun DetailsScreen(
         isTorrServeBusy = false,
         onRetry = onRetry,
         onFavoriteClick = onFavoriteClick,
+        onSeriesGuideClick = onSeriesGuideClick,
         onOpenTorrServe = { _, url ->
             context.startActivity(
                 Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
@@ -104,6 +106,7 @@ fun DetailsScreen(
     isTorrServeBusy: Boolean,
     onRetry: () -> Unit,
     onFavoriteClick: () -> Unit = {},
+    onSeriesGuideClick: () -> Unit = {},
     onOpenTorrServe: (String, String) -> Unit,
 ) {
     when {
@@ -118,6 +121,7 @@ fun DetailsScreen(
             activeTorrServeRowId = activeTorrServeRowId,
             isTorrServeBusy = isTorrServeBusy,
             onFavoriteClick = onFavoriteClick,
+            onSeriesGuideClick = onSeriesGuideClick,
             onOpenTorrServe = onOpenTorrServe,
         )
     }
@@ -171,6 +175,7 @@ private fun ContentState(
     activeTorrServeRowId: String?,
     isTorrServeBusy: Boolean,
     onFavoriteClick: () -> Unit,
+    onSeriesGuideClick: () -> Unit,
     onOpenTorrServe: (String, String) -> Unit,
 ) {
     val details = state.details
@@ -208,6 +213,7 @@ private fun ContentState(
                 details = details,
                 stageUi = stageUi,
                 onFavoriteClick = onFavoriteClick,
+                onSeriesGuideClick = onSeriesGuideClick,
                 onOpenTorrServe = {
                     val row = playbackRow ?: return@HeroStage
                     onOpenTorrServe(row.rowId, row.url)
@@ -281,11 +287,14 @@ private fun HeroStage(
     details: ReleaseDetails?,
     stageUi: DetailsStageUiModel,
     onFavoriteClick: () -> Unit,
+    onSeriesGuideClick: () -> Unit,
     onOpenTorrServe: () -> Unit,
 ) {
     val primaryActionRequester = remember(stageUi.primaryAction.actionId) { FocusRequester() }
-    val favoriteAction = stageUi.secondaryActions.firstOrNull { it.actionType == DetailsStageActionType.TOGGLE_FAVORITE }
-    val favoriteActionRequester = remember(favoriteAction?.actionId) { FocusRequester() }
+    val secondaryActions = stageUi.secondaryActions
+    val secondaryActionRequesters = remember(secondaryActions.map { it.actionId }) {
+        secondaryActions.associate { it.actionId to FocusRequester() }
+    }
 
     LaunchedEffect(stageUi.primaryAction.actionId, stageUi.primaryAction.enabled) {
         if (stageUi.primaryAction.enabled) {
@@ -342,24 +351,35 @@ private fun HeroStage(
                         up = primaryActionRequester
                         left = primaryActionRequester
                         right = primaryActionRequester
-                        if (favoriteAction != null) {
-                            down = favoriteActionRequester
+                        if (secondaryActions.isNotEmpty()) {
+                            down = secondaryActionRequesters.getValue(secondaryActions.first().actionId)
                         }
                     }
                     .testTag(primaryActionTag(stageUi.primaryAction)),
                 isPrimary = true,
                 enabled = stageUi.primaryAction.enabled,
             )
-            favoriteAction?.let { action ->
+            secondaryActions.forEachIndexed { index, action ->
                 StageButton(
                     label = action.label,
                     subtitle = action.subtitle,
-                    onClick = onFavoriteClick,
+                    onClick = secondaryActionClickHandler(
+                        action = action,
+                        onFavoriteClick = onFavoriteClick,
+                        onSeriesGuideClick = onSeriesGuideClick,
+                    ),
                     modifier = Modifier
                         .width(248.dp)
-                        .focusRequester(favoriteActionRequester)
+                        .focusRequester(secondaryActionRequesters.getValue(action.actionId))
                         .focusProperties {
-                            up = primaryActionRequester
+                            up = if (index == 0) {
+                                primaryActionRequester
+                            } else {
+                                secondaryActionRequesters.getValue(secondaryActions[index - 1].actionId)
+                            }
+                            if (index < secondaryActions.lastIndex) {
+                                down = secondaryActionRequesters.getValue(secondaryActions[index + 1].actionId)
+                            }
                         }
                         .testTag(secondaryActionTag(action)),
                     enabled = action.enabled,
@@ -492,6 +512,7 @@ private fun primaryActionTag(action: DetailsStageActionUiModel): String {
     return when (action.actionType) {
         DetailsStageActionType.OPEN_TORRSERVE -> "torrent-torrserve-$rowId"
         DetailsStageActionType.TOGGLE_FAVORITE -> "details-primary-action"
+        DetailsStageActionType.OPEN_SERIES_GUIDE -> "details-primary-action"
         DetailsStageActionType.NONE -> "details-primary-action"
     }
 }
@@ -499,7 +520,22 @@ private fun primaryActionTag(action: DetailsStageActionUiModel): String {
 private fun secondaryActionTag(action: DetailsStageActionUiModel): String {
     return when (action.actionType) {
         DetailsStageActionType.TOGGLE_FAVORITE -> "details-favorite-action"
+        DetailsStageActionType.OPEN_SERIES_GUIDE -> "details-series-guide-action"
         DetailsStageActionType.OPEN_TORRSERVE -> "details-secondary-${action.actionId}"
         DetailsStageActionType.NONE -> "details-secondary-${action.actionId}"
+    }
+}
+
+private fun secondaryActionClickHandler(
+    action: DetailsStageActionUiModel,
+    onFavoriteClick: () -> Unit,
+    onSeriesGuideClick: () -> Unit,
+): () -> Unit {
+    return when (action.actionType) {
+        DetailsStageActionType.TOGGLE_FAVORITE -> onFavoriteClick
+        DetailsStageActionType.OPEN_SERIES_GUIDE -> onSeriesGuideClick
+        DetailsStageActionType.OPEN_TORRSERVE,
+        DetailsStageActionType.NONE,
+        -> ({})
     }
 }

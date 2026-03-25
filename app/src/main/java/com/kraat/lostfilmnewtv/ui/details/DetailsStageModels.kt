@@ -77,6 +77,19 @@ fun buildDetailsStageUi(
             enabled = state.isFavoriteActionEnabled,
         )
     }
+    val guideAction = details
+        ?.takeIf { it.kind == ReleaseKind.SERIES }
+        ?.let {
+            DetailsStageActionUiModel(
+                actionId = "series-guide",
+                rowId = null,
+                label = "Гид по сериям",
+                subtitle = "Все сезоны и серии",
+                qualityLabel = null,
+                actionType = DetailsStageActionType.OPEN_SERIES_GUIDE,
+                enabled = true,
+            )
+        }
 
     return DetailsStageUiModel(
         activeRowId = playbackRow?.rowId,
@@ -86,7 +99,7 @@ fun buildDetailsStageUi(
         bottomStageStatusLine = bottomStageStatusLine,
         bottomStageSupportLine = bottomStageSupportLine,
         primaryAction = primaryAction,
-        secondaryActions = listOfNotNull(favoriteAction),
+        secondaryActions = listOfNotNull(favoriteAction, guideAction),
     )
 }
 
@@ -147,5 +160,6 @@ private fun DetailsTorrentRowUiModel.toPrimaryAction(
 enum class DetailsStageActionType {
     OPEN_TORRSERVE,
     TOGGLE_FAVORITE,
+    OPEN_SERIES_GUIDE,
     NONE,
 }
