@@ -198,6 +198,13 @@ private fun HomeHeaderModeButton(
         observeKeyInteractions = false,
         modifier = modifier
             .onPreviewKeyEvent { event ->
+                val handlesMoveLeft = event.key == Key.DirectionLeft && onMoveLeft != null
+                val handlesMoveRight = event.key == Key.DirectionRight && onMoveRight != null
+
+                if (event.type == KeyEventType.KeyUp && (handlesMoveLeft || handlesMoveRight)) {
+                    return@onPreviewKeyEvent true
+                }
+
                 if (event.type != KeyEventType.KeyDown) {
                     return@onPreviewKeyEvent false
                 }
@@ -209,12 +216,12 @@ private fun HomeHeaderModeButton(
                 when (event.key) {
                     Key.DirectionLeft -> {
                         onMoveLeft?.invoke()
-                        onMoveLeft != null
+                        handlesMoveLeft
                     }
 
                     Key.DirectionRight -> {
                         onMoveRight?.invoke()
-                        onMoveRight != null
+                        handlesMoveRight
                     }
 
                     else -> false
