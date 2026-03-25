@@ -300,4 +300,103 @@ class SettingsScreenTest {
 
         assertEquals(listOf(true), selectedValues)
     }
+
+    @Test
+    fun settingsScreen_railIncludesAccountSectionSummary_forAnonymousState() {
+        composeRule.setContent {
+            LostFilmTheme {
+                SettingsScreen(
+                    selectedQuality = PlaybackQualityPreference.Q1080,
+                    onQualitySelected = {},
+                    selectedUpdateMode = UpdateCheckMode.MANUAL,
+                    selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
+                    isAuthenticated = false,
+                    onAuthClick = {},
+                    installedVersionText = "0.1.0",
+                    latestVersionText = null,
+                    statusText = null,
+                    isCheckingForUpdates = false,
+                    installUrl = null,
+                    onUpdateModeSelected = {},
+                    onChannelModeSelected = {},
+                    onCheckForUpdatesClick = {},
+                    onInstallUpdateClick = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("settings-section-account").assertExists()
+        composeRule.onNodeWithTag("settings-section-account-summary", useUnmergedTree = true)
+            .assertTextEquals("Не выполнен вход")
+    }
+
+    @Test
+    fun settingsScreen_accountSection_showsLoginAction_andInvokesCallback() {
+        var authClicks = 0
+
+        composeRule.setContent {
+            LostFilmTheme {
+                SettingsScreen(
+                    selectedQuality = PlaybackQualityPreference.Q1080,
+                    onQualitySelected = {},
+                    selectedUpdateMode = UpdateCheckMode.MANUAL,
+                    selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
+                    isAuthenticated = false,
+                    onAuthClick = { authClicks += 1 },
+                    installedVersionText = "0.1.0",
+                    latestVersionText = null,
+                    statusText = null,
+                    isCheckingForUpdates = false,
+                    installUrl = null,
+                    onUpdateModeSelected = {},
+                    onChannelModeSelected = {},
+                    onCheckForUpdatesClick = {},
+                    onInstallUpdateClick = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("settings-section-account")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        composeRule.onNodeWithText("Аккаунт LostFilm").assertExists()
+        composeRule.onNodeWithText("Статус: не выполнен вход").assertExists()
+        composeRule.onNodeWithTag("settings-account-auth-action")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        assertEquals(1, authClicks)
+    }
+
+    @Test
+    fun settingsScreen_accountSection_showsLogoutAction_forAuthenticatedState() {
+        composeRule.setContent {
+            LostFilmTheme {
+                SettingsScreen(
+                    selectedQuality = PlaybackQualityPreference.Q1080,
+                    onQualitySelected = {},
+                    selectedUpdateMode = UpdateCheckMode.MANUAL,
+                    selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
+                    isAuthenticated = true,
+                    onAuthClick = {},
+                    installedVersionText = "0.1.0",
+                    latestVersionText = null,
+                    statusText = null,
+                    isCheckingForUpdates = false,
+                    installUrl = null,
+                    onUpdateModeSelected = {},
+                    onChannelModeSelected = {},
+                    onCheckForUpdatesClick = {},
+                    onInstallUpdateClick = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("settings-section-account")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        composeRule.onNodeWithTag("settings-section-account-summary", useUnmergedTree = true)
+            .assertTextEquals("Выполнен вход")
+        composeRule.onNodeWithText("Статус: выполнен вход").assertExists()
+        composeRule.onNodeWithText("Выйти").assertExists()
+    }
 }

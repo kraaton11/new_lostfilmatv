@@ -212,6 +212,14 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
             SettingsRoute(
                 playbackPreferencesStore = application.playbackPreferencesStore,
                 appUpdateCoordinator = application.appUpdateCoordinator,
+                isAuthenticated = isAuthenticated,
+                onAuthClick = {
+                    if (isAuthenticated) {
+                        authViewModel.logout()
+                    } else {
+                        navController.navigate(AppDestination.Auth.route)
+                    }
+                },
                 onPlaybackQualityChanged = { selectedPlaybackQuality = it },
                 onHomeFavoritesRailVisibilityChanged = { isHomeFavoritesRailEnabled = it },
                 syncAppUpdateBackgroundSchedule = application.appUpdateBackgroundScheduler::syncForCurrentMode,

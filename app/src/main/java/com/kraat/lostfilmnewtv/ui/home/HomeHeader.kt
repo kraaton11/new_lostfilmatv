@@ -51,14 +51,11 @@ fun HomeHeader(
     availableModes: List<HomeFeedMode>,
     onModeSelected: (HomeFeedMode) -> Unit,
     onHeaderInteraction: () -> Unit,
-    isAuthenticated: Boolean,
     hasSavedUpdate: Boolean,
     onSettingsClick: () -> Unit,
-    onAuthClick: () -> Unit,
     onInstallUpdateClick: () -> Unit,
     modeFocusRequesters: Map<HomeFeedMode, FocusRequester>,
     settingsFocusRequester: FocusRequester,
-    authFocusRequester: FocusRequester,
     updateFocusRequester: FocusRequester?,
     downTarget: FocusRequester?,
     modifier: Modifier = Modifier,
@@ -162,16 +159,6 @@ fun HomeHeader(
                             left = lastModeRequester
                         }
                     }
-                    .applyDownFocus(downTarget),
-            )
-            HomeHeaderActionButton(
-                label = if (isAuthenticated) "Выйти" else "Войти",
-                subtitle = if (isAuthenticated) "Завершить сессию" else "Открыть авторизацию",
-                onClick = onAuthClick,
-                onInteraction = onHeaderInteraction,
-                modifier = Modifier
-                    .testTag("home-action-auth")
-                    .focusRequester(authFocusRequester)
                     .applyDownFocus(downTarget),
             )
             if (hasSavedUpdate && updateFocusRequester != null) {

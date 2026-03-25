@@ -19,6 +19,8 @@ import kotlinx.coroutines.launch
 fun SettingsRoute(
     playbackPreferencesStore: PlaybackPreferencesStore,
     appUpdateCoordinator: AppUpdateCoordinator,
+    isAuthenticated: Boolean = false,
+    onAuthClick: () -> Unit = {},
     onPlaybackQualityChanged: (PlaybackQualityPreference) -> Unit = {},
     onHomeFavoritesRailVisibilityChanged: (Boolean) -> Unit = {},
     syncAppUpdateBackgroundSchedule: () -> Unit = {},
@@ -56,6 +58,8 @@ fun SettingsRoute(
         selectedUpdateMode = state.value.updateMode,
         selectedChannelMode = state.value.channelMode,
         isHomeFavoritesRailEnabled = state.value.isHomeFavoritesRailEnabled,
+        isAuthenticated = isAuthenticated,
+        onAuthClick = onAuthClick,
         installedVersionText = state.value.installedVersionText,
         latestVersionText = state.value.savedAppUpdate?.latestVersion ?: state.value.latestVersionText,
         statusText = state.value.statusText,
