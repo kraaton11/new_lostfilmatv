@@ -12,6 +12,7 @@ import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteTargetKind
 import com.kraat.lostfilmnewtv.data.model.FavoriteToggleNetworkResult
 import com.kraat.lostfilmnewtv.data.model.PageState
+import com.kraat.lostfilmnewtv.data.model.SeriesGuide
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteSeriesParser
@@ -246,6 +247,59 @@ class LostFilmRepositoryTest {
         assertEquals(915, result.details.favoriteTargetId)
         assertEquals(true, releaseDao.getReleaseDetails(detailsUrl)?.toModel()?.favoriteTargetId == 915)
         assertEquals(false, result.details.isFavorite)
+    }
+
+    @Test
+    fun loadSeriesGuide_normalizesEpisodeUrl_fetchesSeriesRootAndSeasons_andMergesWatchedIds() = runTest {
+        val detailsRequests = mutableListOf<String>()
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            detailsHandler = { requestedUrl ->
+                detailsRequests += requestedUrl
+                when (requestedUrl) {
+                    "https://www.lostfilm.today/series/Ted/" -> fixture("series-guide-ted-seasons.html")
+                    "https://www.lostfilm.today/series/Ted/seasons" -> fixture("series-guide-ted-seasons.html")
+                    else -> error("Unexpected details request: $requestedUrl")
+                }
+            },
+            watchedEpisodeMarksHandler = { serialId ->
+                assertEquals("810", serialId)
+                """["810002007"]"""
+            },
+            isAuthenticated = true,
+        )
+
+        val result = repository.loadSeriesGuide("https://www.lostfilm.today/series/Ted/season_2/episode_8/")
+
+        assertTrue(result is SeriesGuideResult.Success)
+        result as SeriesGuideResult.Success
+        assertEquals(
+            listOf(
+                "https://www.lostfilm.today/series/Ted/",
+                "https://www.lostfilm.today/series/Ted/seasons",
+            ),
+            detailsRequests,
+        )
+        assertEquals(expectedTedGuide(), result.guide)
+    }
+
+    @Test
+    fun loadSeriesGuide_returnsError_whenSeasonsPageFails() = runTest {
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            detailsHandler = { requestedUrl ->
+                when (requestedUrl) {
+                    "https://www.lostfilm.today/series/Ted/" -> fixture("series-guide-ted-seasons.html")
+                    "https://www.lostfilm.today/series/Ted/seasons" -> throw IOException("offline")
+                    else -> error("Unexpected details request: $requestedUrl")
+                }
+            },
+            isAuthenticated = true,
+        )
+
+        val result = repository.loadSeriesGuide("https://www.lostfilm.today/series/Ted/season_2/episode_8/")
+
+        assertEquals(SeriesGuideResult.Error("offline"), result)
     }
 
     @Test
@@ -1069,6 +1123,60 @@ private fun seriesFavoritePageHtml(
         </html>
     """.trimIndent()
 }
+
+private fun expectedTedGuide(): SeriesGuide = SeriesGuide(
+    seriesTitleRu = "Третий лишний",
+    posterUrl = "https://www.lostfilm.today/Static/Images/810/Posters/image.jpg",
+    selectedEpisodeDetailsUrl = "https://www.lostfilm.today/series/Ted/season_2/episode_8/",
+    seasons = listOf(
+        com.kraat.lostfilmnewtv.data.model.SeriesGuideSeason(
+            seasonNumber = 2,
+            episodes = listOf(
+                com.kraat.lostfilmnewtv.data.model.SeriesGuideEpisode(
+                    detailsUrl = "https://www.lostfilm.today/series/Ted/season_2/episode_8/",
+                    episodeId = "810002008",
+                    seasonNumber = 2,
+                    episodeNumber = 8,
+                    episodeTitleRu = "Левые новости",
+                    releaseDateRu = "24.03.2026",
+                    isWatched = false,
+                ),
+                com.kraat.lostfilmnewtv.data.model.SeriesGuideEpisode(
+                    detailsUrl = "https://www.lostfilm.today/series/Ted/season_2/episode_7/",
+                    episodeId = "810002007",
+                    seasonNumber = 2,
+                    episodeNumber = 7,
+                    episodeTitleRu = "Сьюзен мотает срок",
+                    releaseDateRu = "21.03.2026",
+                    isWatched = true,
+                ),
+            ),
+        ),
+        com.kraat.lostfilmnewtv.data.model.SeriesGuideSeason(
+            seasonNumber = 1,
+            episodes = listOf(
+                com.kraat.lostfilmnewtv.data.model.SeriesGuideEpisode(
+                    detailsUrl = "https://www.lostfilm.today/series/Ted/season_1/episode_3/",
+                    episodeId = "810001003",
+                    seasonNumber = 1,
+                    episodeNumber = 3,
+                    episodeTitleRu = "Эяктильная дисфункция",
+                    releaseDateRu = "27.01.2024",
+                    isWatched = true,
+                ),
+                com.kraat.lostfilmnewtv.data.model.SeriesGuideEpisode(
+                    detailsUrl = "https://www.lostfilm.today/series/Ted/season_1/episode_1/",
+                    episodeId = "810001001",
+                    seasonNumber = 1,
+                    episodeNumber = 1,
+                    episodeTitleRu = "Просто скажи «да»",
+                    releaseDateRu = "15.01.2024",
+                    isWatched = false,
+                ),
+            ),
+        ),
+    ),
+)
 
 private fun redirectWrapperHtml(): String = """
     <html>

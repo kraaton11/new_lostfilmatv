@@ -1,5 +1,7 @@
 package com.kraat.lostfilmnewtv.data.parser
 
+import com.kraat.lostfilmnewtv.data.model.SeriesGuideEpisode
+import com.kraat.lostfilmnewtv.data.model.SeriesGuideSeason
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import kotlinx.serialization.json.Json
@@ -8,6 +10,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.jsoup.Jsoup
+import org.jsoup.nodes.Element
 
 private val seasonEpisodeUrlRegex = Regex("""/series/([^/]+)/season_(\d+)/episode_(\d+)/?""")
 private val goToUrlRegex = Regex("""goTo\('([^']+)'""")
@@ -54,6 +57,28 @@ class LostFilmSeasonEpisodesParser {
                 ?.toSet()
                 .orEmpty()
         }.getOrDefault(emptySet())
+    }
+
+    fun parseGuide(
+        html: String,
+        watchedEpisodeIds: Set<String> = emptySet(),
+    ): List<SeriesGuideSeason> {
+        val document = Jsoup.parse(html, BASE_URL)
+
+        return document.select(".serie-block")
+            .mapNotNull { seasonBlock ->
+                val episodes = seasonBlock.select("table.movie-parts-list tr")
+                    .mapNotNull { row -> parseGuideEpisodeRow(row, watchedEpisodeIds) }
+
+                if (episodes.isEmpty()) {
+                    null
+                } else {
+                    SeriesGuideSeason(
+                        seasonNumber = episodes.first().seasonNumber,
+                        episodes = episodes,
+                    )
+                }
+            }
     }
 
     fun parse(
@@ -117,5 +142,65 @@ class LostFilmSeasonEpisodesParser {
                 )
             }
             .distinctBy { it.detailsUrl }
+    }
+
+    private fun parseGuideEpisodeRow(
+        row: Element,
+        watchedEpisodeIds: Set<String>,
+    ): SeriesGuideEpisode? {
+        val betaCell = row.selectFirst("td.beta")
+        val gammaCell = row.selectFirst("td.gamma")
+        val deltaCell = row.selectFirst("td.delta")
+
+        val detailsUrl = sequenceOf(
+            betaCell?.attr("onclick"),
+            gammaCell?.attr("onclick"),
+            row.attr("onclick"),
+        )
+            .mapNotNull { onclick -> goToUrlRegex.find(onclick.orEmpty())?.groupValues?.getOrNull(1) }
+            .map(::resolveUrl)
+            .firstOrNull()
+            ?: return null
+
+        val match = seasonEpisodeUrlRegex.find(detailsUrl) ?: return null
+        val releaseDateRu = deltaCell
+            ?.selectFirst("span[data-released]")
+            ?.attr("data-released")
+            ?.normalizeText()
+            ?.ifBlank { null }
+            ?: ruReleaseDateRegex.find(deltaCell.textOrEmpty())
+                ?.groupValues
+                ?.getOrNull(1)
+                ?.normalizeText()
+                ?: return null
+
+        val episodeTitleRu = gammaCell
+            ?.selectFirst("div")
+            ?.ownText()
+            ?.normalizeText()
+            ?.ifBlank { null }
+            ?: gammaCell
+                ?.ownText()
+                .orEmpty()
+                .normalizeText()
+                .ifBlank { null }
+
+        val watchedButton = row.selectFirst(".haveseen-btn")
+        val episodeId = watchedButton
+            ?.attr("data-episode")
+            ?.trim()
+            ?.takeIf { it.isNotEmpty() }
+        val isWatched = watchedButton?.classNames()?.contains("checked") == true ||
+            episodeId in watchedEpisodeIds
+
+        return SeriesGuideEpisode(
+            detailsUrl = detailsUrl,
+            episodeId = episodeId,
+            seasonNumber = match.groupValues[2].toIntOrNull() ?: return null,
+            episodeNumber = match.groupValues[3].toIntOrNull() ?: return null,
+            episodeTitleRu = episodeTitleRu,
+            releaseDateRu = releaseDateRu,
+            isWatched = isWatched,
+        )
     }
 }

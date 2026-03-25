@@ -9,13 +9,17 @@ import com.kraat.lostfilmnewtv.data.model.FavoriteToggleNetworkResult
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
+import com.kraat.lostfilmnewtv.data.model.SeriesGuide
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.parser.BASE_URL
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteSeriesParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmListParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSeasonEpisodesParser
+import com.kraat.lostfilmnewtv.data.parser.absoluteUrl
+import com.kraat.lostfilmnewtv.data.parser.normalizeText
 import com.kraat.lostfilmnewtv.data.parser.resolveUrl
+import com.kraat.lostfilmnewtv.data.parser.textOrEmpty
 import com.kraat.lostfilmnewtv.data.parser.toEntity
 import com.kraat.lostfilmnewtv.data.parser.toSummaryEntities
 import com.kraat.lostfilmnewtv.data.parser.toSummaryModels
@@ -32,6 +36,7 @@ private const val RETENTION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000L
 private val paginatorRegex = Regex("""/new/page_(\d+)""")
 private const val favoriteSeriesRoute = "/my/type_1"
 private val seriesFavoritePageRegex = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)/season_\d+/episode_\d+/?""")
+private val seriesRootUrlRegex = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)(?:/.*)?/?""")
 private val favoriteReleaseDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy")
 
 class LostFilmRepositoryImpl(
@@ -137,6 +142,59 @@ class LostFilmRepositoryImpl(
             } else {
                 throw exception
             }
+        }
+    }
+
+    override suspend fun loadSeriesGuide(detailsUrl: String): SeriesGuideResult {
+        val normalizedDetailsUrl = resolveUrl(detailsUrl)
+        val seriesRootUrl = seriesRootUrl(normalizedDetailsUrl)
+            ?: return SeriesGuideResult.Error("Гид по сериям недоступен")
+        val seasonsUrl = "${seriesRootUrl.trimEnd('/')}/seasons"
+
+        return try {
+            val seriesRootHtml = httpClient.fetchDetails(seriesRootUrl)
+            val seasonsHtml = httpClient.fetchDetails(seasonsUrl)
+            val watchedEpisodeIdsFromSeriesRoot = seasonEpisodesParser.parseWatchedEpisodeIdsFromPage(seriesRootHtml)
+            val watchedEpisodeIdsFromMarks = if (hasAuthenticatedSession()) {
+                seasonEpisodesParser.parseSerialId(seasonsHtml)
+                    ?.let { serialId ->
+                        try {
+                            seasonEpisodesParser.parseWatchedEpisodeIds(
+                                httpClient.fetchSeasonWatchedEpisodeMarks(
+                                    refererUrl = seasonsUrl,
+                                    serialId = serialId,
+                                ),
+                            )
+                        } catch (_: IOException) {
+                            emptySet()
+                        }
+                    }
+                    .orEmpty()
+            } else {
+                emptySet()
+            }
+            val guideDocument = Jsoup.parse(seasonsHtml, BASE_URL)
+            val seriesTitleRu = guideDocument.selectFirst(".title-block .title-ru, h1.title-ru, h1")
+                .textOrEmpty()
+                .ifBlank { fallbackSeriesTitle(seriesRootUrl) }
+            val posterUrl = guideDocument
+                .selectFirst(".main_poster img, .movie-cover-box img.cover, .movie-cover-box img")
+                .absoluteUrl("src")
+                .ifBlank { null }
+
+            SeriesGuideResult.Success(
+                guide = SeriesGuide(
+                    seriesTitleRu = seriesTitleRu,
+                    posterUrl = posterUrl,
+                    selectedEpisodeDetailsUrl = normalizedDetailsUrl,
+                    seasons = seasonEpisodesParser.parseGuide(
+                        html = seasonsHtml,
+                        watchedEpisodeIds = watchedEpisodeIdsFromSeriesRoot + watchedEpisodeIdsFromMarks,
+                    ),
+                ),
+            )
+        } catch (exception: IOException) {
+            SeriesGuideResult.Error(exception.message ?: "Не удалось загрузить гид по сериям")
         }
     }
 
@@ -519,6 +577,20 @@ class LostFilmRepositoryImpl(
             favoriteTargetKind = favoriteMetadata.targetKind,
             isFavorite = favoriteMetadata.isFavorite,
         )
+    }
+
+    private fun seriesRootUrl(detailsUrl: String): String? {
+        val normalizedDetailsUrl = resolveUrl(detailsUrl).trimEnd('/')
+        val match = seriesRootUrlRegex.matchEntire(normalizedDetailsUrl) ?: return null
+        return "$BASE_URL/series/${match.groupValues[1]}/"
+    }
+
+    private fun fallbackSeriesTitle(seriesRootUrl: String): String {
+        return seriesRootUrl
+            .removePrefix("$BASE_URL/series/")
+            .trim('/')
+            .replace('_', ' ')
+            .normalizeText()
     }
 
     private fun parseFavoriteReleaseDate(value: String): LocalDate? {

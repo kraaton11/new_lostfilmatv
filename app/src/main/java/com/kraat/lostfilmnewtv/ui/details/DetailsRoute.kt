@@ -35,6 +35,7 @@ fun DetailsRoute(
     actionHandler: TorrServeActionHandler,
     linkBuilder: TorrServeLinkBuilder,
     onMarkedWatched: (String) -> Unit = {},
+    onOpenSeriesGuide: (String) -> Unit = {},
     onFavoriteContentChanged: () -> Unit = {},
     onChannelContentChanged: suspend () -> Unit = {},
     openTorrServe: suspend (Context, String) -> TorrServeOpenResult = actionHandler::open,
@@ -153,6 +154,7 @@ fun DetailsRoute(
         isTorrServeBusy = isTorrServeBusy,
         onRetry = detailsViewModel::onRetry,
         onFavoriteClick = detailsViewModel::onFavoriteClick,
+        onSeriesGuideClick = { onOpenSeriesGuide(detailsUrl) },
         onOpenTorrServe = handleOpenTorrServe,
     )
 }
