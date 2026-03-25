@@ -1,6 +1,8 @@
 package com.kraat.lostfilmnewtv.data.parser
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LostFilmSeasonEpisodesParserTest {
@@ -58,5 +60,35 @@ class LostFilmSeasonEpisodesParserTest {
         val watchedIds = parser.parseWatchedEpisodeIdsFromPage(html)
 
         assertEquals(setOf("1072001003", "1072001002"), watchedIds)
+    }
+
+    @Test
+    fun parseGuide_groupsEpisodesBySeason_andExtractsGuideRows() {
+        val guide = parser.parseGuide(
+            html = fixture("series-guide-ted-seasons.html"),
+            watchedEpisodeIds = emptySet(),
+        )
+
+        assertEquals(listOf(2, 1), guide.map { it.seasonNumber })
+        assertEquals(listOf(8, 7), guide.first().episodes.map { it.episodeNumber })
+        assertEquals("Левые новости", guide.first().episodes.first().episodeTitleRu)
+        assertEquals(
+            "https://www.lostfilm.today/series/Ted/season_2/episode_8/",
+            guide.first().episodes.first().detailsUrl,
+        )
+        assertEquals("24.03.2026", guide.first().episodes.first().releaseDateRu)
+        assertFalse(guide.first().episodes.first().isWatched)
+    }
+
+    @Test
+    fun parseGuide_marksEpisodeWatched_whenEpisodeIdPresentInWatchedSetOrCheckedInPage() {
+        val guide = parser.parseGuide(
+            html = fixture("series-guide-ted-seasons.html"),
+            watchedEpisodeIds = setOf("810002007"),
+        )
+
+        assertTrue(guide.first().episodes.first { it.episodeNumber == 7 }.isWatched)
+        assertTrue(guide.last().episodes.first { it.episodeNumber == 3 }.isWatched)
+        assertFalse(guide.last().episodes.first { it.episodeNumber == 1 }.isWatched)
     }
 }
