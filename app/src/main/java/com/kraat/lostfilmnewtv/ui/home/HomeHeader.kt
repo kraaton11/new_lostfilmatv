@@ -50,6 +50,7 @@ fun HomeHeader(
     selectedMode: HomeFeedMode,
     availableModes: List<HomeFeedMode>,
     onModeSelected: (HomeFeedMode) -> Unit,
+    onModeActivated: (HomeFeedMode) -> Unit,
     onHeaderInteraction: () -> Unit,
     hasSavedUpdate: Boolean,
     onSettingsClick: () -> Unit,
@@ -111,7 +112,7 @@ fun HomeHeader(
                     isSelected = mode == selectedMode,
                     onClick = {
                         onHeaderInteraction()
-                        onModeSelected(mode)
+                        onModeActivated(mode)
                     },
                     onInteraction = onHeaderInteraction,
                     onMoveLeft = leftMode?.let { targetMode ->

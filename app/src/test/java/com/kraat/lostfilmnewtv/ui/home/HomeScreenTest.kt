@@ -1,9 +1,15 @@
 package com.kraat.lostfilmnewtv.ui.home
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -243,6 +249,77 @@ class HomeScreenTest {
         composeRule.onNodeWithText("Данные показаны из кэша и могут быть устаревшими").assertExists()
         composeRule.onNodeWithTag(posterTag(firstDetailsUrl)).assertExists()
     }
+
+    @Test
+    fun homeScreen_switchingFromFavoritesToAllNew_focusesFirstAllNewPoster() {
+        val allNewItems = listOf(
+            release(
+                detailsUrl = firstDetailsUrl,
+                titleRu = "9-1-1",
+                episodeTitleRu = "Маменькин сынок",
+                releaseDateRu = "14.03.2026",
+                seasonNumber = 9,
+                episodeNumber = 13,
+                kind = ReleaseKind.SERIES,
+            ),
+            release(
+                detailsUrl = secondDetailsUrl,
+                titleRu = "Необратимость",
+                episodeTitleRu = null,
+                releaseDateRu = "13.03.2026",
+                seasonNumber = null,
+                episodeNumber = null,
+                kind = ReleaseKind.MOVIE,
+            ),
+        )
+        val favoriteItems = listOf(
+            release(
+                detailsUrl = "https://www.lostfilm.today/series/Ted/season_2/episode_8/",
+                titleRu = "Третий лишний",
+                episodeTitleRu = "Левые новости",
+                releaseDateRu = "24.03.2026",
+                seasonNumber = 2,
+                episodeNumber = 8,
+                kind = ReleaseKind.SERIES,
+            ),
+        )
+        val allNewFirstTag = posterTag(HOME_RAIL_ALL_NEW, allNewItems.first().detailsUrl)
+        var state by mutableStateOf(
+            homeStateWithModes(
+                selectedMode = HomeFeedMode.Favorites,
+                allNewItems = allNewItems,
+                favoriteItems = favoriteItems,
+            ),
+        )
+
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(
+                    state = state,
+                    onModeSelected = { mode ->
+                        state = homeStateWithModes(
+                            selectedMode = mode,
+                            allNewItems = allNewItems,
+                            favoriteItems = favoriteItems,
+                        )
+                    },
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("home-mode-tab-all-new")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag(allNewFirstTag)
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag(allNewFirstTag).assertIsFocused()
+    }
 }
 
 private const val firstDetailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
@@ -252,33 +329,27 @@ private fun seededState(
     episodeTitleRu: String? = "Маменькин сынок",
     releaseDateRu: String = "14.03.2026",
 ): HomeUiState {
-    val first = ReleaseSummary(
-        id = firstDetailsUrl,
-        kind = ReleaseKind.SERIES,
+    val first = release(
+        detailsUrl = firstDetailsUrl,
         titleRu = "9-1-1",
         episodeTitleRu = episodeTitleRu,
+        releaseDateRu = releaseDateRu,
         seasonNumber = 9,
         episodeNumber = 13,
-        releaseDateRu = releaseDateRu,
-        posterUrl = "https://www.lostfilm.today/Static/Images/362/Posters/image_s9.jpg",
-        detailsUrl = firstDetailsUrl,
+        kind = ReleaseKind.SERIES,
         pageNumber = 1,
         positionInPage = 0,
-        fetchedAt = 0L,
     )
-    val second = ReleaseSummary(
-        id = secondDetailsUrl,
-        kind = ReleaseKind.MOVIE,
+    val second = release(
+        detailsUrl = secondDetailsUrl,
         titleRu = "Необратимость",
         episodeTitleRu = null,
+        releaseDateRu = "13.03.2026",
         seasonNumber = null,
         episodeNumber = null,
-        releaseDateRu = "13.03.2026",
-        posterUrl = "https://www.lostfilm.today/Static/Images/1080/Posters/image.jpg",
-        detailsUrl = secondDetailsUrl,
+        kind = ReleaseKind.MOVIE,
         pageNumber = 1,
         positionInPage = 1,
-        fetchedAt = 0L,
     )
 
     return HomeUiState(
@@ -287,5 +358,68 @@ private fun seededState(
         selectedItem = first,
         selectedItemKey = first.detailsUrl,
         hasNextPage = true,
+    )
+}
+
+private fun homeStateWithModes(
+    selectedMode: HomeFeedMode,
+    allNewItems: List<ReleaseSummary>,
+    favoriteItems: List<ReleaseSummary>,
+): HomeUiState {
+    val selectedItem = when (selectedMode) {
+        HomeFeedMode.AllNew -> allNewItems.first()
+        HomeFeedMode.Favorites -> favoriteItems.first()
+    }
+    return HomeUiState(
+        items = allNewItems,
+        favoriteItems = favoriteItems,
+        rails = buildHomeRails(
+            items = allNewItems,
+            favoriteItems = favoriteItems,
+            isFavoritesRailVisible = true,
+        ),
+        selectedMode = selectedMode,
+        availableModes = listOf(HomeFeedMode.AllNew, HomeFeedMode.Favorites),
+        allNewModeState = HomeModeContentState.Content(allNewItems),
+        favoritesModeState = HomeModeContentState.Content(favoriteItems),
+        rememberedItemKeyByMode = mapOf(
+            HomeFeedMode.AllNew to allNewItems.first().detailsUrl,
+            HomeFeedMode.Favorites to favoriteItems.first().detailsUrl,
+        ),
+        selectedItem = selectedItem,
+        selectedItemKey = selectedItem.detailsUrl,
+        hasNextPage = true,
+        isFavoritesRailVisible = true,
+    )
+}
+
+private fun release(
+    detailsUrl: String,
+    titleRu: String,
+    episodeTitleRu: String?,
+    releaseDateRu: String,
+    seasonNumber: Int?,
+    episodeNumber: Int?,
+    kind: ReleaseKind,
+    pageNumber: Int = 1,
+    positionInPage: Int = 0,
+): ReleaseSummary {
+    val posterUrl = when (kind) {
+        ReleaseKind.SERIES -> "https://www.lostfilm.today/Static/Images/362/Posters/image_s9.jpg"
+        ReleaseKind.MOVIE -> "https://www.lostfilm.today/Static/Images/1080/Posters/image.jpg"
+    }
+    return ReleaseSummary(
+        id = detailsUrl,
+        kind = kind,
+        titleRu = titleRu,
+        episodeTitleRu = episodeTitleRu,
+        seasonNumber = seasonNumber,
+        episodeNumber = episodeNumber,
+        releaseDateRu = releaseDateRu,
+        posterUrl = posterUrl,
+        detailsUrl = detailsUrl,
+        pageNumber = pageNumber,
+        positionInPage = positionInPage,
+        fetchedAt = 0L,
     )
 }

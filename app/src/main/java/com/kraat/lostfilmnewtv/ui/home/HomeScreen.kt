@@ -144,6 +144,10 @@ fun HomeScreen(
                 selectedMode = state.selectedMode,
                 availableModes = state.availableModes,
                 onModeSelected = onModeSelected,
+                onModeActivated = { mode ->
+                    startupContentFocusPending = true
+                    onModeSelected(mode)
+                },
                 onHeaderInteraction = { startupContentFocusPending = false },
                 hasSavedUpdate = savedAppUpdate != null,
                 onSettingsClick = onSettingsClick,
