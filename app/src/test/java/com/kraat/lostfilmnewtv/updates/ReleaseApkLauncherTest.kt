@@ -26,6 +26,19 @@ import org.mockito.Mockito.mock
 class ReleaseApkLauncherTest {
 
     @Test
+    fun hasEnoughDiskSpace_usesExistingCacheDirWhenUpdatesDirMissing() {
+        val base = ApplicationProvider.getApplicationContext<Context>()
+        val updatesDir = File(base.cacheDir, "updates")
+        if (updatesDir.exists()) {
+            updatesDir.deleteRecursively()
+        }
+        val launcher = DiskSpaceCheckReleaseApkLauncher()
+
+        assertTrue(base.cacheDir.freeSpace > 0)
+        assertTrue(launcher.canDownload(base))
+    }
+
+    @Test
     fun launch_downloadsApkAndStartsInstallIntent() = runBlocking {
         val server = MockWebServer()
         server.enqueue(MockResponse().setBody("fake-apk-payload"))
@@ -136,4 +149,12 @@ private class RecordingContext(base: Context) : ContextWrapper(base) {
     override fun startActivity(intent: Intent?) {
         startedIntent = intent
     }
+}
+
+private class DiskSpaceCheckReleaseApkLauncher : ReleaseApkLauncher(
+    httpClient = OkHttpClient(),
+    ioDispatcher = Dispatchers.Unconfined,
+    mainDispatcher = Dispatchers.Unconfined,
+) {
+    fun canDownload(context: Context): Boolean = hasEnoughDiskSpace(context)
 }

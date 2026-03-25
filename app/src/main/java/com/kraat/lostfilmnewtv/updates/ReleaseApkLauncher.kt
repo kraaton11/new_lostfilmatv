@@ -25,7 +25,7 @@ open class ReleaseApkLauncher(
     private val minRequiredSpaceBytes = 100L * 1024 * 1024 // 100 MB
 
     protected open fun hasEnoughDiskSpace(context: Context): Boolean {
-        val cacheDir = File(context.cacheDir, CACHE_SUBDIR)
+        val cacheDir = context.cacheDir.apply { mkdirs() }
         return cacheDir.freeSpace >= minRequiredSpaceBytes
     }
 
