@@ -45,6 +45,7 @@ import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 import com.kraat.lostfilmnewtv.ui.theme.HomeStatusError
 import com.kraat.lostfilmnewtv.ui.theme.HomeTextSecondary
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
+import kotlinx.coroutines.delay
 
 @Composable
 fun HomeScreen(
@@ -92,20 +93,16 @@ fun HomeScreen(
     val updateRequester = remember { FocusRequester() }
     val loginActionRequester = remember { FocusRequester() }
     val retryActionRequester = remember { FocusRequester() }
+    val contentEntryRequester = remember(activeRailId) { FocusRequester() }
     val cardFocusRequesters = remember(activeRailId, itemKeys) {
         itemKeys.associate { detailsUrl -> homeItemKey(activeRailId, detailsUrl) to FocusRequester() }
     }
-    val headerDownTarget = preferredActiveRequester(
-        railId = activeRailId,
-        items = activeItems,
-        focusedItemKey = focusedItemKey,
-        cardFocusRequesters = cardFocusRequesters,
-    ) ?: when (activeModeState) {
+    val headerDownTarget = when (activeModeState) {
+        is HomeModeContentState.Content -> contentEntryRequester
         is HomeModeContentState.Error -> retryActionRequester
         is HomeModeContentState.LoginRequired -> loginActionRequester
         else -> null
     }
-    val activeModeRequester = modeRequesters.getValue(state.selectedMode)
     val focusedItem = activeItems.firstOrNull { it.detailsUrl == focusedItemKey }
         ?: state.selectedItem
         ?: activeItems.firstOrNull()
@@ -118,12 +115,17 @@ fun HomeScreen(
         if (activeModeState == HomeModeContentState.Loading) {
             return@LaunchedEffect
         }
-        if (activeModeState is HomeModeContentState.Content) {
-            return@LaunchedEffect
-        }
 
-        withFrameNanos { }
-        headerDownTarget.requestFocus()
+        repeat(6) {
+            withFrameNanos { }
+            val focusMoved = runCatching {
+                headerDownTarget.requestFocus()
+            }.getOrDefault(false)
+            if (focusMoved) {
+                return@LaunchedEffect
+            }
+            delay(50)
+        }
     }
 
     Box(
@@ -230,9 +232,10 @@ fun HomeScreen(
                                     railId = activeRailId,
                                     items = activeModeState.items,
                                     focusedItemKey = focusedItemKey,
+                                    entryFocusRequester = contentEntryRequester,
                                     cardFocusRequesters = cardFocusRequesters,
                                     shouldRequestFocus = startupContentFocusPending,
-                                    upTargetRequester = activeModeRequester,
+                                    upTargetRequester = modeRequesters.getValue(state.selectedMode),
                                     downTargetRequester = null,
                                     isPaging = state.isPaging && state.selectedMode == HomeFeedMode.AllNew,
                                     onItemFocused = { detailsUrl ->

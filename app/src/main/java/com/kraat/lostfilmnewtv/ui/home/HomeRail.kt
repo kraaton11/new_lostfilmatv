@@ -1,6 +1,7 @@
 package com.kraat.lostfilmnewtv.ui.home
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -13,8 +14,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -29,13 +28,13 @@ import com.kraat.lostfilmnewtv.ui.components.PosterCard
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 import com.kraat.lostfilmnewtv.ui.theme.HomeTextSecondary
-import kotlinx.coroutines.delay
 
 @Composable
 fun HomeRail(
     railId: String,
     items: List<ReleaseSummary>,
     focusedItemKey: String?,
+    entryFocusRequester: FocusRequester,
     cardFocusRequesters: Map<String, FocusRequester>,
     shouldRequestFocus: Boolean,
     upTargetRequester: FocusRequester?,
@@ -45,33 +44,29 @@ fun HomeRail(
     onOpenDetails: (String) -> Unit,
     onEndReached: () -> Unit,
 ) {
-    LaunchedEffect(items, focusedItemKey, shouldRequestFocus) {
-        if (!shouldRequestFocus || items.isEmpty()) return@LaunchedEffect
-
-        val itemKeys = items.map { it.detailsUrl }
-        val targetKey = if (focusedItemKey in itemKeys) {
-            focusedItemKey
-        } else {
-            itemKeys.firstOrNull()
-        }
-        val targetRequester = targetKey?.let { detailsUrl ->
-            cardFocusRequesters[homeItemKey(railId, detailsUrl)]
-        }
-        repeat(6) {
-            withFrameNanos { }
-            val focusMoved = runCatching {
-                targetRequester?.requestFocus() == true
-            }.getOrDefault(false)
-            if (focusMoved) {
-                return@LaunchedEffect
-            }
-            delay(50)
-        }
+    val itemKeys = items.map { it.detailsUrl }
+    val targetKey = if (focusedItemKey in itemKeys) {
+        focusedItemKey
+    } else {
+        itemKeys.firstOrNull()
+    }
+    val targetRequester = targetKey?.let { detailsUrl ->
+        cardFocusRequesters[homeItemKey(railId, detailsUrl)]
     }
 
     LazyRow(
         modifier = Modifier
             .fillMaxWidth()
+            .focusRequester(entryFocusRequester)
+            .focusProperties {
+                onEnter = {
+                    if (shouldRequestFocus && targetRequester != null) {
+                        targetRequester.requestFocus()
+                    }
+                }
+            }
+            .focusGroup()
+            .focusable()
             .height(308.dp),
         horizontalArrangement = Arrangement.spacedBy(20.dp),
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
