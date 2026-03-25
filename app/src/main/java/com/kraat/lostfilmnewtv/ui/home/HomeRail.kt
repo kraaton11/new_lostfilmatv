@@ -24,6 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -90,6 +91,7 @@ fun HomeRail(
                     }
                 }
             }
+            .focusRestorer()
             .focusGroup()
             .focusable()
             .onFocusChanged { railHasFocus = it.isFocused }
