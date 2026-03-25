@@ -120,6 +120,8 @@ fun HomeScreen(
         }
 
         withFrameNanos { }
+        activeModeRequester.requestFocus()
+        withFrameNanos { }
         headerDownTarget.requestFocus()
     }
 
