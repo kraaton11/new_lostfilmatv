@@ -17,6 +17,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.pressKey
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
@@ -375,6 +376,92 @@ class HomeScreenTest {
 
         composeRule.onNodeWithTag("home-mode-tab-favorites")
             .performSemanticsAction(SemanticsActions.RequestFocus)
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag("home-mode-tab-favorites")
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag("home-mode-tab-favorites")
+            .performKeyInput {
+                keyDown(Key.DirectionLeft)
+                keyUp(Key.DirectionLeft)
+            }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag(allNewFirstTag)
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag(allNewFirstTag).assertIsFocused()
+    }
+
+    @Test
+    @OptIn(ExperimentalTestApi::class)
+    fun homeScreen_cardToHeaderThenLeft_movesFocusBackToAllNewPoster() {
+        val allNewItems = listOf(
+            release(
+                detailsUrl = firstDetailsUrl,
+                titleRu = "9-1-1",
+                episodeTitleRu = "Маменькин сынок",
+                releaseDateRu = "14.03.2026",
+                seasonNumber = 9,
+                episodeNumber = 13,
+                kind = ReleaseKind.SERIES,
+            ),
+        )
+        val favoriteItems = listOf(
+            release(
+                detailsUrl = "https://www.lostfilm.today/series/Ted/season_2/episode_8/",
+                titleRu = "Третий лишний",
+                episodeTitleRu = "Левые новости",
+                releaseDateRu = "24.03.2026",
+                seasonNumber = 2,
+                episodeNumber = 8,
+                kind = ReleaseKind.SERIES,
+            ),
+        )
+        val favoritePosterTag = posterTag(HOME_RAIL_FAVORITES, favoriteItems.first().detailsUrl)
+        val allNewFirstTag = posterTag(HOME_RAIL_ALL_NEW, allNewItems.first().detailsUrl)
+        var state by mutableStateOf(
+            homeStateWithModes(
+                selectedMode = HomeFeedMode.Favorites,
+                allNewItems = allNewItems,
+                favoriteItems = favoriteItems,
+            ),
+        )
+
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(
+                    state = state,
+                    onModeSelected = { mode ->
+                        state = homeStateWithModes(
+                            selectedMode = mode,
+                            allNewItems = allNewItems,
+                            favoriteItems = favoriteItems,
+                        )
+                    },
+                )
+            }
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag(favoritePosterTag)
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag(favoritePosterTag)
+            .performKeyInput { pressKey(Key.DirectionUp) }
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
             val node = composeRule.onAllNodesWithTag("home-mode-tab-favorites")
