@@ -111,6 +111,23 @@ class HomeScreenTest {
     }
 
     @Test
+    fun homeScreen_loadingIndicator_sitsDirectlyOnBackgroundWithoutCenteredPanel() {
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(
+                    state = HomeUiState(
+                        isInitialLoading = true,
+                        allNewModeState = HomeModeContentState.Loading,
+                        favoritesModeState = HomeModeContentState.Empty,
+                    ),
+                )
+            }
+        }
+
+        assertEquals(0, composeRule.onAllNodesWithTag("home-centered-panel").fetchSemanticsNodes().size)
+    }
+
+    @Test
     @Config(qualifiers = "w1366dp-h768dp-land")
     fun homeScreen_updateAction_staysHorizontalInTvViewport_andKeepsBottomStageVisible() {
         composeRule.setContent {

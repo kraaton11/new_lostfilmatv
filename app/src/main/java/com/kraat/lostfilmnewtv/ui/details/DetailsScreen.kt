@@ -135,12 +135,10 @@ private fun LoadingState() {
             .background(detailsBackgroundBrush()),
         contentAlignment = Alignment.Center,
     ) {
-        DetailsCenteredStatePanel {
-            CircularProgressIndicator(
-                modifier = Modifier.testTag("details-loading"),
-                color = DetailsAccentGold,
-            )
-        }
+        CircularProgressIndicator(
+            modifier = Modifier.testTag("details-loading"),
+            color = DetailsAccentGold,
+        )
     }
 }
 

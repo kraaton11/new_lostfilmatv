@@ -47,6 +47,7 @@ class DetailsScreenStateTest {
 
         assertEquals(1, composeRule.onAllNodesWithTag("details-loading").fetchSemanticsNodes().size)
         assertEquals(0, composeRule.onAllNodesWithText("Details").fetchSemanticsNodes().size)
+        assertEquals(0, composeRule.onAllNodesWithTag("details-centered-panel").fetchSemanticsNodes().size)
     }
 
     @Test

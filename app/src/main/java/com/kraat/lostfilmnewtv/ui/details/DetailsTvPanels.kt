@@ -80,6 +80,7 @@ internal fun DetailsCenteredStatePanel(content: @Composable ColumnScope.() -> Un
 
     Column(
         modifier = Modifier
+            .testTag("details-centered-panel")
             .background(DetailsSurfaceReadable, shape)
             .border(1.dp, DetailsBorderDefault, shape)
             .padding(horizontal = 28.dp, vertical = 24.dp),

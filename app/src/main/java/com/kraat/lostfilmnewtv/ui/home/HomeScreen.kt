@@ -189,9 +189,7 @@ fun HomeScreen(
                             .weight(1f),
                         contentAlignment = Alignment.Center,
                     ) {
-                        HomeCenteredPanel {
-                            CircularProgressIndicator(color = HomeAccentGold)
-                        }
+                        CircularProgressIndicator(color = HomeAccentGold)
                     }
                 }
                 state.items.isEmpty() && state.fullScreenErrorMessage != null -> {
@@ -324,9 +322,7 @@ fun HomeScreen(
                                         .weight(1f),
                                     contentAlignment = Alignment.Center,
                                 ) {
-                                    HomeCenteredPanel {
-                                        CircularProgressIndicator(color = HomeAccentGold)
-                                    }
+                                    CircularProgressIndicator(color = HomeAccentGold)
                                 }
                             }
                         }
@@ -408,6 +404,7 @@ private fun HomeCenteredPanel(content: @Composable ColumnScope.() -> Unit) {
 
     Column(
         modifier = Modifier
+            .testTag("home-centered-panel")
             .background(HomePanelSurfaceStrong, shape)
             .border(BorderStroke(1.dp, HomePanelBorder), shape)
             .padding(horizontal = 28.dp, vertical = 24.dp),
