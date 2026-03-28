@@ -272,7 +272,7 @@ class HomeScreenTest {
     }
 
     @Test
-    fun homeScreen_switchingFromFavoritesToAllNew_focusesFirstAllNewPoster() {
+    fun homeScreen_toggleFromFavoritesToAllNew_focusesFirstAllNewPoster() {
         val allNewItems = listOf(
             release(
                 detailsUrl = firstDetailsUrl,
@@ -328,7 +328,7 @@ class HomeScreenTest {
             }
         }
 
-        composeRule.onNodeWithTag("home-mode-tab-all-new")
+        composeRule.onNodeWithTag("home-mode-toggle")
             .performSemanticsAction(SemanticsActions.OnClick)
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
@@ -344,7 +344,7 @@ class HomeScreenTest {
 
     @Test
     @OptIn(ExperimentalTestApi::class)
-    fun homeScreen_dpadLeftFromFavoritesMode_movesFocusToAllNewPoster() {
+    fun homeScreen_toggleFromFocusedHeaderButton_movesFocusToAllNewPoster() {
         val allNewItems = listOf(
             release(
                 detailsUrl = firstDetailsUrl,
@@ -391,21 +391,20 @@ class HomeScreenTest {
             }
         }
 
-        composeRule.onNodeWithTag("home-mode-tab-favorites")
+        composeRule.onNodeWithTag("home-mode-toggle")
             .performSemanticsAction(SemanticsActions.RequestFocus)
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            val node = composeRule.onAllNodesWithTag("home-mode-tab-favorites")
+            val node = composeRule.onAllNodesWithTag("home-mode-toggle")
                 .fetchSemanticsNodes()
                 .singleOrNull()
                 ?: return@waitUntil false
             SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
         }
 
-        composeRule.onNodeWithTag("home-mode-tab-favorites")
+        composeRule.onNodeWithTag("home-mode-toggle")
             .performKeyInput {
-                keyDown(Key.DirectionLeft)
-                keyUp(Key.DirectionLeft)
+                pressKey(Key.DirectionCenter)
             }
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
@@ -421,7 +420,7 @@ class HomeScreenTest {
 
     @Test
     @OptIn(ExperimentalTestApi::class)
-    fun homeScreen_cardToHeaderThenLeft_movesFocusBackToAllNewPoster() {
+    fun homeScreen_cardToHeaderThenToggle_movesFocusBackToAllNewPoster() {
         val allNewItems = listOf(
             release(
                 detailsUrl = firstDetailsUrl,
@@ -481,17 +480,16 @@ class HomeScreenTest {
             .performKeyInput { pressKey(Key.DirectionUp) }
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            val node = composeRule.onAllNodesWithTag("home-mode-tab-favorites")
+            val node = composeRule.onAllNodesWithTag("home-mode-toggle")
                 .fetchSemanticsNodes()
                 .singleOrNull()
                 ?: return@waitUntil false
             SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
         }
 
-        composeRule.onNodeWithTag("home-mode-tab-favorites")
+        composeRule.onNodeWithTag("home-mode-toggle")
             .performKeyInput {
-                keyDown(Key.DirectionLeft)
-                keyUp(Key.DirectionLeft)
+                pressKey(Key.DirectionCenter)
             }
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
@@ -597,17 +595,16 @@ class HomeScreenTest {
             .performKeyInput { pressKey(Key.DirectionUp) }
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            val node = composeRule.onAllNodesWithTag("home-mode-tab-all-new")
+            val node = composeRule.onAllNodesWithTag("home-mode-toggle")
                 .fetchSemanticsNodes()
                 .singleOrNull()
                 ?: return@waitUntil false
             SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
         }
 
-        composeRule.onNodeWithTag("home-mode-tab-all-new")
+        composeRule.onNodeWithTag("home-mode-toggle")
             .performKeyInput {
-                keyDown(Key.DirectionRight)
-                keyUp(Key.DirectionRight)
+                pressKey(Key.DirectionCenter)
             }
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
@@ -622,17 +619,16 @@ class HomeScreenTest {
             .performKeyInput { pressKey(Key.DirectionUp) }
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            val node = composeRule.onAllNodesWithTag("home-mode-tab-favorites")
+            val node = composeRule.onAllNodesWithTag("home-mode-toggle")
                 .fetchSemanticsNodes()
                 .singleOrNull()
                 ?: return@waitUntil false
             SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
         }
 
-        composeRule.onNodeWithTag("home-mode-tab-favorites")
+        composeRule.onNodeWithTag("home-mode-toggle")
             .performKeyInput {
-                keyDown(Key.DirectionLeft)
-                keyUp(Key.DirectionLeft)
+                pressKey(Key.DirectionCenter)
             }
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
