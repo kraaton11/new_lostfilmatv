@@ -128,6 +128,32 @@ class HomeScreenTest {
     }
 
     @Test
+    fun homeScreen_errorMode_focusesRetryAction() {
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(
+                    state = HomeUiState(
+                        selectedMode = HomeFeedMode.Favorites,
+                        availableModes = listOf(HomeFeedMode.AllNew, HomeFeedMode.Favorites),
+                        allNewModeState = HomeModeContentState.Empty,
+                        favoritesModeState = HomeModeContentState.Error("Не удалось загрузить избранное"),
+                    ),
+                )
+            }
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag("home-mode-retry-action")
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag("home-mode-retry-action").assertIsFocused()
+    }
+
+    @Test
     @Config(qualifiers = "w1366dp-h768dp-land")
     fun homeScreen_updateAction_staysHorizontalInTvViewport_andKeepsBottomStageVisible() {
         composeRule.setContent {
