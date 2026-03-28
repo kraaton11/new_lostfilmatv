@@ -88,7 +88,7 @@ fun HomeScreen(
         }
     }
 
-    val modeRequesters = remember { HomeFeedMode.entries.associateWith { FocusRequester() } }
+    val modeToggleRequester = remember { FocusRequester() }
     val settingsRequester = remember { FocusRequester() }
     val updateRequester = remember { FocusRequester() }
     val loginActionRequester = remember { FocusRequester() }
@@ -145,10 +145,15 @@ fun HomeScreen(
                 .padding(start = 48.dp, top = 24.dp, end = 48.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            val headerPrimaryRequester = if (state.availableModes.size > 1) {
+                modeToggleRequester
+            } else {
+                settingsRequester
+            }
+
             HomeHeader(
                 selectedMode = state.selectedMode,
                 availableModes = state.availableModes,
-                onModeSelected = onModeSelected,
                 onModeActivated = { mode ->
                     startupContentFocusPending = true
                     onModeSelected(mode)
@@ -157,7 +162,7 @@ fun HomeScreen(
                 hasSavedUpdate = savedAppUpdate != null,
                 onSettingsClick = onSettingsClick,
                 onInstallUpdateClick = onInstallUpdateClick,
-                modeFocusRequesters = modeRequesters,
+                modeToggleFocusRequester = if (state.availableModes.size > 1) modeToggleRequester else null,
                 settingsFocusRequester = settingsRequester,
                 updateFocusRequester = if (savedAppUpdate != null) updateRequester else null,
                 downTarget = headerDownTarget,
@@ -233,7 +238,7 @@ fun HomeScreen(
                                     entryFocusRequester = contentEntryRequester,
                                     cardFocusRequesters = cardFocusRequesters,
                                     shouldRequestFocus = startupContentFocusPending,
-                                    upTargetRequester = modeRequesters.getValue(state.selectedMode),
+                                    upTargetRequester = headerPrimaryRequester,
                                     downTargetRequester = null,
                                     isPaging = state.isPaging && state.selectedMode == HomeFeedMode.AllNew,
                                     onItemFocused = { detailsUrl ->

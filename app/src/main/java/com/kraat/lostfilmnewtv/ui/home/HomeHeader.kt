@@ -49,13 +49,12 @@ import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 fun HomeHeader(
     selectedMode: HomeFeedMode,
     availableModes: List<HomeFeedMode>,
-    onModeSelected: (HomeFeedMode) -> Unit,
     onModeActivated: (HomeFeedMode) -> Unit,
     onHeaderInteraction: () -> Unit,
     hasSavedUpdate: Boolean,
     onSettingsClick: () -> Unit,
     onInstallUpdateClick: () -> Unit,
-    modeFocusRequesters: Map<HomeFeedMode, FocusRequester>,
+    modeToggleFocusRequester: FocusRequester?,
     settingsFocusRequester: FocusRequester,
     updateFocusRequester: FocusRequester?,
     downTarget: FocusRequester?,
@@ -69,7 +68,9 @@ fun HomeHeader(
         HomeFeedMode.AllNew -> "Быстрый доступ к новым сериям и служебным действиям"
         HomeFeedMode.Favorites -> "Новые релизы по сериалам из избранного LostFilm"
     }
-    val lastModeRequester = availableModes.lastOrNull()?.let(modeFocusRequesters::get)
+    val hasModeToggle = availableModes.size > 1
+    val nextMode = selectedMode.toggled(availableModes)
+    val lastModeRequester = if (hasModeToggle) modeToggleFocusRequester else null
 
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -101,40 +102,20 @@ fun HomeHeader(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            availableModes.forEachIndexed { index, mode ->
-                val leftMode = availableModes.getOrNull(index - 1)
-                val rightMode = availableModes.getOrNull(index + 1)
-                val leftRequester = availableModes.getOrNull(index - 1)?.let(modeFocusRequesters::get)
-                val rightRequester = availableModes.getOrNull(index + 1)?.let(modeFocusRequesters::get)
-                    ?: settingsFocusRequester
-                HomeHeaderModeButton(
-                    mode = mode,
-                    isSelected = mode == selectedMode,
+            if (nextMode != null && modeToggleFocusRequester != null) {
+                HomeHeaderModeToggleButton(
+                    currentMode = selectedMode,
+                    nextMode = nextMode,
                     onClick = {
-                    onHeaderInteraction()
-                    onModeActivated(mode)
-                },
-                onInteraction = onHeaderInteraction,
-                onMoveLeft = leftMode?.let { targetMode ->
-                    {
-                        onModeActivated(targetMode)
-                        leftRequester?.requestFocus()
-                    }
-                },
-                onMoveRight = rightMode?.let { targetMode ->
-                    {
-                        onModeActivated(targetMode)
-                        rightRequester?.requestFocus()
-                    }
-                },
-                modifier = Modifier
-                        .testTag("home-mode-tab-${mode.testTagSuffix()}")
-                        .focusRequester(modeFocusRequesters.getValue(mode))
+                        onHeaderInteraction()
+                        onModeActivated(nextMode)
+                    },
+                    onInteraction = onHeaderInteraction,
+                    modifier = Modifier
+                        .testTag("home-mode-toggle")
+                        .focusRequester(modeToggleFocusRequester)
                         .focusProperties {
-                            if (leftRequester != null) {
-                                left = leftRequester
-                            }
-                            right = rightRequester
+                            right = settingsFocusRequester
                             if (downTarget != null) {
                                 down = downTarget
                             }
@@ -180,56 +161,28 @@ fun HomeHeader(
 }
 
 @Composable
-private fun HomeHeaderModeButton(
-    mode: HomeFeedMode,
-    isSelected: Boolean,
+private fun HomeHeaderModeToggleButton(
+    currentMode: HomeFeedMode,
+    nextMode: HomeFeedMode,
     onClick: () -> Unit,
     onInteraction: () -> Unit,
-    onMoveLeft: (() -> Unit)?,
-    onMoveRight: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
-    val label = when (mode) {
+    val label = when (nextMode) {
         HomeFeedMode.AllNew -> "Новые релизы"
         HomeFeedMode.Favorites -> "Избранное"
     }
+    val subtitle = when (currentMode) {
+        HomeFeedMode.AllNew -> "Открыть избранное"
+        HomeFeedMode.Favorites -> "Вернуться к новым релизам"
+    }
     HomeHeaderActionButton(
         label = label,
-        subtitle = "Режим Home",
+        subtitle = subtitle,
         onClick = onClick,
-        observeKeyInteractions = false,
-        modifier = modifier
-            .onPreviewKeyEvent { event ->
-                val handlesMoveLeft = event.key == Key.DirectionLeft && onMoveLeft != null
-                val handlesMoveRight = event.key == Key.DirectionRight && onMoveRight != null
-
-                if (event.type == KeyEventType.KeyUp && (handlesMoveLeft || handlesMoveRight)) {
-                    return@onPreviewKeyEvent true
-                }
-
-                if (event.type != KeyEventType.KeyDown) {
-                    return@onPreviewKeyEvent false
-                }
-
-                if (event.key.isHeaderInteractionKey()) {
-                    onInteraction()
-                }
-
-                when (event.key) {
-                    Key.DirectionLeft -> {
-                        onMoveLeft?.invoke()
-                        handlesMoveLeft
-                    }
-
-                    Key.DirectionRight -> {
-                        onMoveRight?.invoke()
-                        handlesMoveRight
-                    }
-
-                    else -> false
-                }
-            },
-        isPrimary = isSelected,
+        onInteraction = onInteraction,
+        isPrimary = true,
+        modifier = modifier,
     )
 }
 
@@ -325,11 +278,9 @@ private fun Modifier.applyDownFocus(downTarget: FocusRequester?): Modifier {
     }
 }
 
-private fun HomeFeedMode.testTagSuffix(): String {
-    return when (this) {
-        HomeFeedMode.AllNew -> "all-new"
-        HomeFeedMode.Favorites -> "favorites"
-    }
+private fun HomeFeedMode.toggled(availableModes: List<HomeFeedMode>): HomeFeedMode? {
+    if (availableModes.size < 2) return null
+    return availableModes.firstOrNull { it != this }
 }
 
 private fun Key.isHeaderInteractionKey(): Boolean {

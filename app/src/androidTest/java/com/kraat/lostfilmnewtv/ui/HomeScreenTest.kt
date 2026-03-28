@@ -56,7 +56,7 @@ class HomeScreenTest {
     }
 
     @Test
-    fun railFocus_movesUpToActiveModeTab_andDownBackToSelectedCard() {
+    fun railFocus_movesUpToModeToggle_andDownBackToSelectedCard() {
         composeRule.setContent {
             LostFilmTheme {
                 var state by remember { mutableStateOf(seededState()) }
@@ -86,9 +86,9 @@ class HomeScreenTest {
         }
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithTag("home-mode-tab-all-new").assertIsFocused()
+        composeRule.onNodeWithTag("home-mode-toggle").assertIsFocused()
 
-        composeRule.onNodeWithTag("home-mode-tab-all-new").performKeyInput {
+        composeRule.onNodeWithTag("home-mode-toggle").performKeyInput {
             keyDown(Key.DirectionDown)
             keyUp(Key.DirectionDown)
         }
@@ -133,7 +133,7 @@ class HomeScreenTest {
     }
 
     @Test
-    fun modeTabs_switchBetweenAllNewAndFavorites_withoutRenderingSecondRail() {
+    fun modeToggle_switchesBetweenAllNewAndFavorites_withoutRenderingSecondRail() {
         composeRule.setContent {
             LostFilmTheme {
                 var state by remember { mutableStateOf(seededModeState()) }
@@ -183,15 +183,13 @@ class HomeScreenTest {
         }
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithTag("home-mode-tab-all-new").performKeyInput {
-            keyDown(Key.DirectionRight)
-            keyUp(Key.DirectionRight)
-        }
+        composeRule.onNodeWithTag("home-mode-toggle")
+            .performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithTag("home-mode-tab-favorites").assertIsFocused()
+        composeRule.onNodeWithTag("home-mode-toggle").assertIsFocused()
 
-        composeRule.onNodeWithTag("home-mode-tab-favorites").performKeyInput {
+        composeRule.onNodeWithTag("home-mode-toggle").performKeyInput {
             keyDown(Key.DirectionDown)
             keyUp(Key.DirectionDown)
         }
@@ -202,7 +200,7 @@ class HomeScreenTest {
     }
 
     @Test
-    fun focusingNonSelectedModeTab_doesNotSwitchModeWithoutDirectionalInput() {
+    fun focusingModeToggle_doesNotSwitchModeWithoutClick() {
         composeRule.setContent {
             LostFilmTheme {
                 var selectedMode by remember { mutableStateOf(HomeFeedMode.Favorites) }
@@ -217,11 +215,11 @@ class HomeScreenTest {
             }
         }
 
-        composeRule.onNodeWithTag("home-mode-tab-all-new")
+        composeRule.onNodeWithTag("home-mode-toggle")
             .performSemanticsAction(SemanticsActions.RequestFocus)
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithTag("home-mode-tab-all-new").assertIsFocused()
+        composeRule.onNodeWithTag("home-mode-toggle").assertIsFocused()
         composeRule.onNodeWithText("Любимчики").assertExists()
     }
 
@@ -251,7 +249,7 @@ class HomeScreenTest {
             }
         }
 
-        composeRule.onNodeWithTag("home-mode-tab-favorites")
+        composeRule.onNodeWithTag("home-mode-toggle")
             .performSemanticsAction(SemanticsActions.RequestFocus)
         composeRule.waitForIdle()
 
@@ -274,7 +272,7 @@ class HomeScreenTest {
     }
 
     @Test
-    fun movingRightFromFavoritesTab_focusesSettingsAction_withoutSnappingBackToCard() {
+    fun movingRightFromModeToggle_focusesSettingsAction_withoutSnappingBackToCard() {
         composeRule.setContent {
             LostFilmTheme {
                 HomeScreen(
@@ -304,9 +302,9 @@ class HomeScreenTest {
             keyUp(Key.DirectionUp)
         }
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag("home-mode-tab-favorites").assertIsFocused()
+        composeRule.onNodeWithTag("home-mode-toggle").assertIsFocused()
 
-        composeRule.onNodeWithTag("home-mode-tab-favorites").performKeyInput {
+        composeRule.onNodeWithTag("home-mode-toggle").performKeyInput {
             keyDown(Key.DirectionRight)
             keyUp(Key.DirectionRight)
         }
@@ -336,12 +334,12 @@ class HomeScreenTest {
             }
         }
 
-        composeRule.onNodeWithTag("home-mode-tab-favorites")
+        composeRule.onNodeWithTag("home-mode-toggle")
             .performSemanticsAction(SemanticsActions.RequestFocus)
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag("home-mode-tab-favorites").assertIsFocused()
+        composeRule.onNodeWithTag("home-mode-toggle").assertIsFocused()
 
-        composeRule.onNodeWithTag("home-mode-tab-favorites").performKeyInput {
+        composeRule.onNodeWithTag("home-mode-toggle").performKeyInput {
             keyDown(Key.DirectionRight)
             keyUp(Key.DirectionRight)
         }
