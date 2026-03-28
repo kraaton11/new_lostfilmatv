@@ -16,6 +16,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -29,9 +30,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.kraat.lostfilmnewtv.BuildConfig
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
@@ -64,6 +68,7 @@ fun HomeScreen(
     appUpdateStatusText: String? = null,
     onInstallUpdateClick: () -> Unit = {},
 ) {
+    val lifecycleOwner = LocalLifecycleOwner.current
     val activeModeState = when (state.selectedMode) {
         HomeFeedMode.AllNew -> state.allNewModeState
         HomeFeedMode.Favorites -> state.favoritesModeState
@@ -85,6 +90,18 @@ fun HomeScreen(
         val preferredKey = state.selectedItemKey ?: itemKeys.firstOrNull()
         if (preferredKey != null) {
             focusedItemKey = preferredKey
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                startupContentFocusPending = true
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 

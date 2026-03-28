@@ -74,6 +74,25 @@ class HomeScreenTest {
     }
 
     @Test
+    fun homeScreen_firstOpen_focusesFirstPoster() {
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(state = seededState())
+            }
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag(posterTag(firstDetailsUrl))
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag(posterTag(firstDetailsUrl)).assertIsFocused()
+    }
+
+    @Test
     fun homeScreen_initialFocusedPoster_keepsSafeInsetFromLeftEdge() {
         composeRule.setContent {
             LostFilmTheme {
@@ -151,6 +170,63 @@ class HomeScreenTest {
         }
 
         composeRule.onNodeWithTag("home-mode-retry-action").assertIsFocused()
+    }
+
+    @Test
+    fun homeScreen_returnToScreen_refocusesSelectedPoster() {
+        val state = seededState().copy(
+            selectedItem = release(
+                detailsUrl = secondDetailsUrl,
+                titleRu = "Необратимость",
+                episodeTitleRu = null,
+                releaseDateRu = "13.03.2026",
+                seasonNumber = null,
+                episodeNumber = null,
+                kind = ReleaseKind.MOVIE,
+                pageNumber = 1,
+                positionInPage = 1,
+            ),
+            selectedItemKey = secondDetailsUrl,
+        )
+        var showHome by mutableStateOf(true)
+
+        composeRule.setContent {
+            LostFilmTheme {
+                if (showHome) {
+                    HomeScreen(state = state)
+                }
+            }
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag(posterTag(secondDetailsUrl))
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.runOnIdle {
+            showHome = false
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithTag(posterTag(secondDetailsUrl)).fetchSemanticsNodes().isEmpty()
+        }
+
+        composeRule.runOnIdle {
+            showHome = true
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag(posterTag(secondDetailsUrl))
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag(posterTag(secondDetailsUrl)).assertIsFocused()
     }
 
     @Test
