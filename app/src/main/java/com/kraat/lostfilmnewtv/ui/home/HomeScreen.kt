@@ -18,8 +18,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.withFrameNanos
@@ -45,7 +45,7 @@ import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 import com.kraat.lostfilmnewtv.ui.theme.HomeStatusError
 import com.kraat.lostfilmnewtv.ui.theme.HomeTextSecondary
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeoutOrNull
 
 @Composable
 fun HomeScreen(
@@ -94,8 +94,13 @@ fun HomeScreen(
     val loginActionRequester = remember { FocusRequester() }
     val retryActionRequester = remember { FocusRequester() }
     val contentEntryRequester = remember(activeRailId) { FocusRequester() }
-    val cardFocusRequesters = remember(activeRailId, itemKeys) {
-        itemKeys.associate { detailsUrl -> homeItemKey(activeRailId, detailsUrl) to FocusRequester() }
+    val cardFocusRequesters = remember(activeRailId) {
+        linkedMapOf<String, FocusRequester>()
+    }
+    val activeItemFocusKeys = itemKeys.map { detailsUrl -> homeItemKey(activeRailId, detailsUrl) }
+    cardFocusRequesters.keys.retainAll(activeItemFocusKeys.toSet())
+    activeItemFocusKeys.forEach { itemKey ->
+        cardFocusRequesters.getOrPut(itemKey) { FocusRequester() }
     }
     val headerDownTarget = when (activeModeState) {
         is HomeModeContentState.Content -> contentEntryRequester
@@ -115,17 +120,7 @@ fun HomeScreen(
         if (activeModeState == HomeModeContentState.Loading) {
             return@LaunchedEffect
         }
-
-        repeat(6) {
-            withFrameNanos { }
-            val focusMoved = runCatching {
-                headerDownTarget.requestFocus()
-            }.getOrDefault(false)
-            if (focusMoved) {
-                return@LaunchedEffect
-            }
-            delay(50)
-        }
+        requestFocusWhenReady(headerDownTarget)
     }
 
     Box(
@@ -444,18 +439,16 @@ private fun demoHomeUiState(): HomeUiState {
     )
 }
 
-private fun preferredActiveRequester(
-    railId: String,
-    items: List<ReleaseSummary>,
-    focusedItemKey: String?,
-    cardFocusRequesters: Map<String, FocusRequester>,
-): FocusRequester? {
-    val preferredKey = if (focusedItemKey != null && items.any { it.detailsUrl == focusedItemKey }) {
-        focusedItemKey
-    } else {
-        items.firstOrNull()?.detailsUrl
+internal suspend fun requestFocusWhenReady(requester: FocusRequester): Boolean {
+    var focusMoved = false
+    withTimeoutOrNull(1_000L) {
+        while (!focusMoved) {
+            withFrameNanos { }
+            focusMoved = runCatching {
+                    requester.requestFocus()
+                    true
+                }.getOrDefault(false)
+        }
     }
-    return preferredKey?.let { detailsUrl ->
-        cardFocusRequesters[homeItemKey(railId, detailsUrl)]
-    }
+    return focusMoved
 }

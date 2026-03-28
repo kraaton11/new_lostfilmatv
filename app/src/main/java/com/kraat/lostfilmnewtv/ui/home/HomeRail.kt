@@ -20,7 +20,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -36,7 +35,6 @@ import com.kraat.lostfilmnewtv.ui.components.PosterCard
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 import com.kraat.lostfilmnewtv.ui.theme.HomeTextSecondary
-import kotlinx.coroutines.delay
 
 @Composable
 fun HomeRail(
@@ -72,17 +70,7 @@ fun HomeRail(
         }
 
         listState.scrollToItem(targetIndex)
-
-        repeat(6) {
-            withFrameNanos { }
-            val focusMoved = runCatching {
-                targetRequester.requestFocus()
-            }.getOrDefault(false)
-            if (focusMoved) {
-                return@LaunchedEffect
-            }
-            delay(50)
-        }
+        requestFocusWhenReady(targetRequester)
     }
 
     LazyRow(
@@ -109,7 +97,6 @@ fun HomeRail(
             val itemKey = homeItemKey(railId, item.detailsUrl)
             PosterCard(
                 item = item,
-                isFocused = item.detailsUrl == focusedItemKey,
                 modifier = Modifier
                     .focusRequester(cardFocusRequesters.getValue(itemKey))
                     .focusProperties {
@@ -121,15 +108,15 @@ fun HomeRail(
                         }
                     }
                     .testTag(posterTag(railId, item.detailsUrl))
-                    .onFocusChanged { focusState ->
-                        if (focusState.isFocused) {
-                            onItemFocused(item.detailsUrl)
-                            if (index == items.lastIndex) {
-                                onEndReached()
-                            }
+                    .clickable { onOpenDetails(item.detailsUrl) },
+                onFocusChanged = { isFocused ->
+                    if (isFocused) {
+                        onItemFocused(item.detailsUrl)
+                        if (index == items.lastIndex) {
+                            onEndReached()
                         }
                     }
-                    .clickable { onOpenDetails(item.detailsUrl) },
+                },
             )
         }
 
