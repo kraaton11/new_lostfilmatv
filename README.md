@@ -1,31 +1,113 @@
 # LostFilm New TV
 
-Kotlin Android TV application that parses the latest releases from `https://www.lostfilm.today/new/`, caches them locally, and shows them in a poster-first TV UI with a minimal details screen.
+Android TV приложение для просмотра новых релизов и избранных сериалов LostFilm в интерфейсе, рассчитанном на управление пультом.
 
-## Auth Flow
+## Что умеет приложение
 
-LostFilm authentication uses a single QR pairing flow:
+- Показывает новые релизы с `lostfilm.today`
+- Открывает персональное избранное после входа в аккаунт LostFilm
+- Использует QR-авторизацию без ввода логина и пароля на телевизоре
+- Показывает детали релиза, доступные раздачи и гид по сериям
+- Запускает воспроизведение через TorrServe
+- Публикует контент в Android TV Home Channel
+- Проверяет обновления приложения через GitHub Releases
+- Кеширует данные локально для более стабильной работы
 
-- the TV calls the auth bridge and gets a wildcard `verificationUrl`
-- the phone opens `https://<phone_verifier>.<auth-domain>/`
-- the backend proxies the real LostFilm browser session on that wildcard host
-- once the backend detects authenticated LostFilm state, the TV claims a `SessionPayload`
-- the Android app verifies and stores the claimed cookies locally
+## Технологии
 
-There is no manual cookie export/import in the normal flow. The legacy `/pair/{phone_verifier}` route remains only as a compatibility redirect to the wildcard host.
+- Kotlin
+- Jetpack Compose for TV
+- Navigation Compose
+- Room
+- OkHttp
+- Jsoup
+- WorkManager
+- Coil
+- kotlinx.serialization
+- Python / FastAPI для auth bridge
 
-## Local Debug Build
+## Требования
 
-Run:
+- Android TV / Google TV
+- Android 8.0+ (`minSdk = 26`)
+- JDK 17
+- Android SDK 35
+- Для воспроизведения нужен TorrServe
 
-```powershell
-.\gradlew.bat assembleDebug
+## Быстрый старт
+
+```bash
+git clone https://github.com/kraaton11/new_lostfilmatv.git
+cd new_lostfilmatv
+./gradlew assembleDebug
 ```
 
-## Project Docs
+APK после сборки:
 
-- Spec: `docs/superpowers/specs/2026-03-15-lostfilm-android-tv-design.md`
-- Plan: `docs/superpowers/plans/2026-03-15-lostfilm-android-tv.md`
-- GitHub setup: `docs/github-setup.md`
-- Auth bridge ops: `docs/auth-bridge-ops.md`
-- Auth bridge server install: `docs/auth-bridge-server-install.md`
+`app/build/outputs/apk/debug/app-debug.apk`
+
+## Сборка и проверки
+
+```bash
+./gradlew :app:testDebugUnitTest
+./gradlew :app:connectedDebugAndroidTest
+./gradlew :app:lint
+./gradlew assembleRelease
+```
+
+Для release-сборки CI использует:
+
+- `releaseVersionCode`
+- `releaseVersionName`
+- `ANDROID_KEYSTORE_PATH` или `ANDROID_KEYSTORE_BASE64`
+- `ANDROID_KEYSTORE_PASSWORD`
+- `ANDROID_KEY_ALIAS`
+- `ANDROID_KEY_PASSWORD`
+
+## Авторизация
+
+В проекте используется QR flow:
+
+1. Телевизор запрашивает pairing у auth bridge.
+2. Пользователь сканирует QR-код телефоном.
+3. На телефоне открывается проксируемая страница входа LostFilm.
+4. После успешной авторизации TV получает и сохраняет сессию локально.
+
+Обычный ручной импорт cookies в штатном сценарии не нужен.
+
+## Основные экраны
+
+- Home: новые релизы и избранное с переключением одной кнопкой
+- Details: карточка релиза, постер, описания, раздачи, действия
+- Series Guide: сезоны и эпизоды с состоянием просмотра
+- Settings: качество, канал Android TV, обновления, аккаунт
+
+## Структура репозитория
+
+```text
+app/                    Android TV клиент
+backend/auth_bridge/    FastAPI сервис для QR-авторизации
+docs/                   Дополнительная документация по проекту
+```
+
+## Документация
+
+- [README.project.md](/run/media/al/Toshiba500Gb/ai/tvbox1/new_lostfilm/docs/README.project.md)
+- [LostFilmNewTV_Documentation.docx](/run/media/al/Toshiba500Gb/ai/tvbox1/new_lostfilm/docs/LostFilmNewTV_Documentation.docx)
+- [github-setup.md](/run/media/al/Toshiba500Gb/ai/tvbox1/new_lostfilm/docs/github-setup.md)
+- [auth-bridge-ops.md](/run/media/al/Toshiba500Gb/ai/tvbox1/new_lostfilm/docs/auth-bridge-ops.md)
+- [auth-bridge-server-install.md](/run/media/al/Toshiba500Gb/ai/tvbox1/new_lostfilm/docs/auth-bridge-server-install.md)
+- [2026-03-15-lostfilm-android-tv-design.md](/run/media/al/Toshiba500Gb/ai/tvbox1/new_lostfilm/docs/superpowers/specs/2026-03-15-lostfilm-android-tv-design.md)
+- [2026-03-15-lostfilm-android-tv.md](/run/media/al/Toshiba500Gb/ai/tvbox1/new_lostfilm/docs/superpowers/plans/2026-03-15-lostfilm-android-tv.md)
+
+## Локальный запуск auth bridge
+
+```bash
+cd backend/auth_bridge
+cp .env.example .env
+docker compose up -d
+```
+
+## Статус проекта
+
+Проект приватный. Репозиторий используется как основная кодовая база Android TV клиента и backend-сервиса для авторизации.
