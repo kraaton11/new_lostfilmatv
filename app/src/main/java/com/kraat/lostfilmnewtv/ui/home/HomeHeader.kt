@@ -2,8 +2,10 @@ package com.kraat.lostfilmnewtv.ui.home
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -39,6 +41,8 @@ import androidx.compose.ui.unit.sp
 import com.kraat.lostfilmnewtv.ui.theme.HomeAccentBlue
 import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGold
 import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGoldGlow
+import com.kraat.lostfilmnewtv.ui.theme.HomeFocusOutline
+import com.kraat.lostfilmnewtv.ui.theme.HomeFocusSurface
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurface
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
@@ -51,6 +55,7 @@ fun HomeHeader(
     availableModes: List<HomeFeedMode>,
     onModeActivated: (HomeFeedMode) -> Unit,
     onHeaderInteraction: () -> Unit,
+    onHeaderControlFocused: (FocusRequester) -> Unit,
     hasSavedUpdate: Boolean,
     onSettingsClick: () -> Unit,
     onInstallUpdateClick: () -> Unit,
@@ -111,6 +116,7 @@ fun HomeHeader(
                         onModeActivated(nextMode)
                     },
                     onInteraction = onHeaderInteraction,
+                    onFocused = { onHeaderControlFocused(modeToggleFocusRequester) },
                     modifier = Modifier
                         .testTag("home-mode-toggle")
                         .focusRequester(modeToggleFocusRequester)
@@ -133,6 +139,7 @@ fun HomeHeader(
                 subtitle = "Параметры приложения",
                 onClick = onSettingsClick,
                 onInteraction = onHeaderInteraction,
+                onFocused = { onHeaderControlFocused(settingsFocusRequester) },
                 modifier = Modifier
                     .testTag("home-action-settings")
                     .focusRequester(settingsFocusRequester)
@@ -149,6 +156,7 @@ fun HomeHeader(
                     subtitle = "Установить свежую сборку",
                     onClick = onInstallUpdateClick,
                     onInteraction = onHeaderInteraction,
+                    onFocused = { onHeaderControlFocused(updateFocusRequester) },
                     isPrimary = true,
                     modifier = Modifier
                         .testTag("home-action-update")
@@ -166,6 +174,7 @@ private fun HomeHeaderModeToggleButton(
     nextMode: HomeFeedMode,
     onClick: () -> Unit,
     onInteraction: () -> Unit,
+    onFocused: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val label = when (nextMode) {
@@ -181,6 +190,7 @@ private fun HomeHeaderModeToggleButton(
         subtitle = subtitle,
         onClick = onClick,
         onInteraction = onInteraction,
+        onFocused = onFocused,
         isPrimary = true,
         modifier = modifier,
     )
@@ -192,26 +202,28 @@ private fun HomeHeaderActionButton(
     subtitle: String,
     onClick: () -> Unit,
     onInteraction: () -> Unit = {},
+    onFocused: () -> Unit = {},
     modifier: Modifier = Modifier,
     isPrimary: Boolean = false,
     observeKeyInteractions: Boolean = true,
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
-        targetValue = if (isFocused) 1.03f else 1f,
+        targetValue = if (isFocused) 1.05f else 1f,
         animationSpec = tween(durationMillis = 120),
         label = "homeActionScale",
     )
 
     val backgroundColor = when {
+        isPrimary && isFocused -> HomeFocusOutline
         isPrimary -> HomeAccentGold
-        isFocused -> HomePanelSurfaceStrong
+        isFocused -> HomeFocusSurface
         else -> HomePanelSurface
     }
     val borderColor = when {
         isPrimary && isFocused -> HomeAccentGoldGlow
         isPrimary -> HomeAccentGold
-        isFocused -> HomeAccentBlue
+        isFocused -> HomeFocusOutline
         else -> HomePanelBorder
     }
     val textColor = if (isPrimary) Color(0xFF17120D) else TextPrimary
@@ -240,13 +252,36 @@ private fun HomeHeaderActionButton(
                 scaleX = scale
                 scaleY = scale
             }
-            .border(1.5.dp, borderColor, shape)
-            .onFocusChanged { isFocused = it.isFocused },
+            .border(if (isFocused) 2.5.dp else 1.5.dp, borderColor, shape)
+            .onFocusChanged {
+                isFocused = it.isFocused
+                if (it.isFocused) {
+                    onFocused()
+                }
+            },
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 2.dp, vertical = 1.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            if (isFocused) {
+                Box(
+                    modifier = Modifier
+                        .background(
+                            if (isPrimary) Color(0xFF17120D) else HomeAccentBlue,
+                            RoundedCornerShape(999.dp),
+                        )
+                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                ) {
+                    Text(
+                        text = "Фокус",
+                        color = if (isPrimary) HomeFocusOutline else Color(0xFF06111B),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                    )
+                }
+            }
             Text(
                 text = label,
                 color = textColor,

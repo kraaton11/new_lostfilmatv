@@ -34,6 +34,9 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGold
 import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGoldGlow
+import com.kraat.lostfilmnewtv.ui.theme.HomeFocusGlow
+import com.kraat.lostfilmnewtv.ui.theme.HomeFocusOutline
+import com.kraat.lostfilmnewtv.ui.theme.HomeFocusSurface
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurface
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
@@ -47,12 +50,12 @@ fun PosterCard(
     var isFocused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(22.dp)
     val scale by animateFloatAsState(
-        targetValue = if (isFocused) 1.08f else 1f,
+        targetValue = if (isFocused) 1.1f else 1f,
         animationSpec = tween(durationMillis = 120),
         label = "posterScale",
     )
-    val borderColor = if (isFocused) HomeAccentGoldGlow else HomePanelBorder
-    val overlayColor = if (isFocused) HomePanelSurfaceStrong else HomePanelSurface
+    val borderColor = if (isFocused) HomeFocusOutline else HomePanelBorder
+    val overlayColor = if (isFocused) HomeFocusSurface else HomePanelSurface
     val watchedBadgeColor = if (isFocused) HomeAccentGoldGlow else HomeAccentGold
 
     Box(
@@ -70,12 +73,12 @@ fun PosterCard(
                 scaleY = scale
             }
             .shadow(
-                elevation = if (isFocused) 22.dp else 10.dp,
+                elevation = if (isFocused) 30.dp else 10.dp,
                 shape = shape,
             )
             .clip(shape)
-            .background(HomePanelSurfaceStrong)
-            .border(width = 2.dp, color = borderColor, shape = shape),
+            .background(if (isFocused) HomeFocusGlow.copy(alpha = 0.18f) else HomePanelSurfaceStrong)
+            .border(width = if (isFocused) 3.dp else 2.dp, color = borderColor, shape = shape),
     ) {
         AsyncImage(
             model = item.posterUrl,
@@ -95,6 +98,22 @@ fun PosterCard(
                     ),
                 ),
         )
+
+        if (isFocused) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 12.dp)
+                    .background(HomeFocusOutline, RoundedCornerShape(999.dp))
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+            ) {
+                Text(
+                    text = "Фокус",
+                    color = Color(0xFF17120D),
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+        }
 
         seasonEpisodeLabel(item)?.let { label ->
             Box(
