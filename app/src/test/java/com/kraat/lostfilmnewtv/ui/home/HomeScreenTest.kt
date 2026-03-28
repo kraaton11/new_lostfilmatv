@@ -522,6 +522,59 @@ class HomeScreenTest {
 
     @Test
     @OptIn(ExperimentalTestApi::class)
+    fun homeScreen_settingsToCardsAndBack_returnsFocusToSettings() {
+        val firstPosterTag = posterTag(firstDetailsUrl)
+
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(
+                    state = seededState(),
+                    savedAppUpdate = SavedAppUpdate(
+                        latestVersion = "0.2.0",
+                        apkUrl = "https://example.test/app.apk",
+                    ),
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("home-action-settings")
+            .performSemanticsAction(SemanticsActions.RequestFocus)
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag("home-action-settings")
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag("home-action-settings")
+            .performKeyInput { pressKey(Key.DirectionDown) }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag(firstPosterTag)
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag(firstPosterTag)
+            .performKeyInput { pressKey(Key.DirectionUp) }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag("home-action-settings")
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag("home-action-settings").assertIsFocused()
+    }
+
+    @Test
+    @OptIn(ExperimentalTestApi::class)
     fun homeScreen_cardToHeaderThenToggle_movesFocusBackToAllNewPoster() {
         val allNewItems = listOf(
             release(
