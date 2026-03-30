@@ -106,15 +106,16 @@ fun HomeRail(
                         }
                     }
                     .testTag(posterTag(railId, item.detailsUrl))
-                    .clickable { onOpenDetails(item.detailsUrl) },
-                onFocusChanged = { isFocused ->
-                    if (isFocused) {
-                        onItemFocused(item.detailsUrl)
-                        if (index == items.lastIndex) {
-                            onEndReached()
+                    .onFocusChanged { focusState ->
+                        if (focusState.isFocused) {
+                            onItemFocused(item.detailsUrl)
+                            if (index == items.lastIndex) {
+                                onEndReached()
+                            }
                         }
                     }
-                },
+                    .clickable { onOpenDetails(item.detailsUrl) },
+                onFocusChanged = { _ -> },
             )
         }
 
