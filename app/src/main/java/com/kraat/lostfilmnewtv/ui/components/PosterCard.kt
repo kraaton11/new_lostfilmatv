@@ -63,9 +63,7 @@ fun PosterCard(
             .onFocusChanged { focusState ->
                 val focused = focusState.isFocused
                 isFocused = focused
-                if (focused) {
-                    onFocusChanged(true)
-                }
+                onFocusChanged(focused)
             }
             .graphicsLayer {
                 scaleX = scale
