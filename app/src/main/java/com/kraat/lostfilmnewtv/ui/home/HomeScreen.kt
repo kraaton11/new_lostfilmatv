@@ -84,12 +84,14 @@ fun HomeScreen(
             state.selectedItemKey ?: itemKeys.firstOrNull(),
         )
     }
+    var lastSyncedKey by remember { mutableStateOf<String?>(null) }
     var startupContentFocusPending by rememberSaveable { mutableStateOf(true) }
 
     LaunchedEffect(state.selectedItemKey, state.selectedMode, itemKeys) {
         val preferredKey = state.selectedItemKey ?: itemKeys.firstOrNull()
-        if (preferredKey != null) {
+        if (preferredKey != null && preferredKey != lastSyncedKey) {
             focusedItemKey = preferredKey
+            lastSyncedKey = preferredKey
         }
     }
 
