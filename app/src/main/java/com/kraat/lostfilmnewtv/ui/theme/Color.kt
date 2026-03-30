@@ -9,6 +9,11 @@ val HomePanelSurface = Color(0xCC0B1520)
 val HomePanelSurfaceStrong = Color(0xE6142432)
 val HomePanelBorder = Color(0x26FFFFFF)
 val HomePanelBorderFocus = Color(0x66F2C46E)
+
+// Strong focus tokens — used across all focusable TV components
+val FocusBorder = Color(0xFFF2C46E)
+val FocusBackground = Color(0xFF1E3550)
+val FocusScale = 1.07f
 val HomeAccentGold = Color(0xFFF2C46E)
 val HomeAccentGoldGlow = Color(0xFFFFE0A8)
 val HomeAccentBlue = Color(0xFF86C8FF)
