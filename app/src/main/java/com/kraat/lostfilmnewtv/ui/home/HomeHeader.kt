@@ -189,7 +189,7 @@ private fun HomeHeaderModeToggleButton(
         subtitle = subtitle,
         onClick = onClick,
         onInteraction = onInteraction,
-        isPrimary = true,
+        isPrimary = false,
         modifier = modifier,
     )
 }
