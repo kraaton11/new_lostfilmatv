@@ -140,6 +140,9 @@ fun HomeHeader(
                         if (lastModeRequester != null) {
                             left = lastModeRequester
                         }
+                        if (updateFocusRequester != null) {
+                            right = updateFocusRequester
+                        }
                     }
                     .applyDownFocus(downTarget),
             )
@@ -153,6 +156,9 @@ fun HomeHeader(
                     modifier = Modifier
                         .testTag("home-action-update")
                         .focusRequester(updateFocusRequester)
+                        .focusProperties {
+                            left = settingsFocusRequester
+                        }
                         .applyDownFocus(downTarget),
                 )
             }

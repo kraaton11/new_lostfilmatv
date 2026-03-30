@@ -130,6 +130,14 @@ fun HomeScreen(
         ?: activeItems.firstOrNull()
     val stageStatusText = appUpdateStatusText ?: savedAppUpdate?.let { "Доступно обновление ${it.latestVersion}" }
 
+    LaunchedEffect(activeModeState) {
+        if (activeModeState == HomeModeContentState.Loading) {
+            requestFocusWhenReady(
+                if (state.availableModes.size > 1) modeToggleRequester else settingsRequester
+            )
+        }
+    }
+
     LaunchedEffect(startupContentFocusPending, activeModeState, headerDownTarget) {
         if (!startupContentFocusPending || headerDownTarget == null) {
             return@LaunchedEffect
@@ -170,7 +178,7 @@ fun HomeScreen(
                     startupContentFocusPending = true
                     onModeSelected(mode)
                 },
-                onHeaderInteraction = { startupContentFocusPending = false },
+                onHeaderInteraction = { /* navigation within header; rail resets this on focus */ },
                 hasSavedUpdate = savedAppUpdate != null,
                 onSettingsClick = onSettingsClick,
                 onInstallUpdateClick = onInstallUpdateClick,

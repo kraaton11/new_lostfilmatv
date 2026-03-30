@@ -106,6 +106,9 @@ fun HomeRail(
                         if (downTargetRequester != null) {
                             down = downTargetRequester
                         }
+                        if (isPaging && index == items.lastIndex) {
+                            right = FocusRequester.Cancel
+                        }
                     }
                     .testTag(posterTag(railId, item.detailsUrl))
                     .clickable { onOpenDetails(item.detailsUrl) },
