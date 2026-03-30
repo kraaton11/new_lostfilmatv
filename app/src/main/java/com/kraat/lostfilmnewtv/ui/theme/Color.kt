@@ -11,7 +11,7 @@ val HomePanelBorder = Color(0x26FFFFFF)
 val HomePanelBorderFocus = Color(0x66F2C46E)
 
 // Strong focus tokens
-val FocusBorder     = Color(0xFFF2C46E)   // solid gold, fully opaque
+val FocusBorder     = Color(0xFFFFE0A8)   // bright gold, fully opaque
 val FocusBackground = Color(0xFF1E3550)   // clearly lifted surface
 val HomeAccentGold = Color(0xFFF2C46E)
 val HomeAccentGoldGlow = Color(0xFFFFE0A8)
