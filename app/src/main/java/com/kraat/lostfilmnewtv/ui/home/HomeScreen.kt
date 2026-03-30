@@ -129,24 +129,6 @@ fun HomeScreen(
         ?: state.selectedItem
         ?: activeItems.firstOrNull()
     val stageStatusText = appUpdateStatusText ?: savedAppUpdate?.let { "Доступно обновление ${it.latestVersion}" }
-    val headerPrimaryRequester = if (state.availableModes.size > 1) {
-        modeToggleRequester
-    } else {
-        settingsRequester
-    }
-    var preferredHeaderRequester by remember { mutableStateOf<FocusRequester?>(null) }
-    val availableHeaderRequesters = buildList {
-        if (state.availableModes.size > 1) {
-            add(modeToggleRequester)
-        }
-        add(settingsRequester)
-        if (savedAppUpdate != null) {
-            add(updateRequester)
-        }
-    }
-    val railUpTargetRequester = preferredHeaderRequester
-        ?.takeIf { it in availableHeaderRequesters }
-        ?: headerPrimaryRequester
 
     LaunchedEffect(startupContentFocusPending, activeModeState, headerDownTarget) {
         if (!startupContentFocusPending || headerDownTarget == null) {
@@ -175,6 +157,12 @@ fun HomeScreen(
                 .padding(start = 48.dp, top = 24.dp, end = 48.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
+            val headerPrimaryRequester = if (state.availableModes.size > 1) {
+                modeToggleRequester
+            } else {
+                settingsRequester
+            }
+
             HomeHeader(
                 selectedMode = state.selectedMode,
                 availableModes = state.availableModes,
@@ -183,7 +171,6 @@ fun HomeScreen(
                     onModeSelected(mode)
                 },
                 onHeaderInteraction = { startupContentFocusPending = false },
-                onHeaderControlFocused = { requester -> preferredHeaderRequester = requester },
                 hasSavedUpdate = savedAppUpdate != null,
                 onSettingsClick = onSettingsClick,
                 onInstallUpdateClick = onInstallUpdateClick,
@@ -263,7 +250,7 @@ fun HomeScreen(
                                     entryFocusRequester = contentEntryRequester,
                                     cardFocusRequesters = cardFocusRequesters,
                                     shouldRequestFocus = startupContentFocusPending,
-                                    upTargetRequester = railUpTargetRequester,
+                                    upTargetRequester = headerPrimaryRequester,
                                     downTargetRequester = null,
                                     isPaging = state.isPaging && state.selectedMode == HomeFeedMode.AllNew,
                                     onItemFocused = { detailsUrl ->
