@@ -131,14 +131,6 @@ fun HomeScreen(
         ?: railItems.firstOrNull()
     val stageStatusText = appUpdateStatusText ?: savedAppUpdate?.let { "Доступно обновление ${it.latestVersion}" }
 
-    LaunchedEffect(activeModeState) {
-        if (activeModeState == HomeModeContentState.Loading) {
-            requestFocusWhenReady(
-                if (state.availableModes.size > 1) modeToggleRequester else settingsRequester
-            )
-        }
-    }
-
     LaunchedEffect(startupContentFocusPending, activeModeState, headerDownTarget) {
         if (!startupContentFocusPending || headerDownTarget == null) {
             return@LaunchedEffect

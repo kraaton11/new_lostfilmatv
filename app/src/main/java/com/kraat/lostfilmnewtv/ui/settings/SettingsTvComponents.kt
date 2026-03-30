@@ -25,8 +25,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kraat.lostfilmnewtv.ui.theme.FocusBackground
 import com.kraat.lostfilmnewtv.ui.theme.FocusBorder
+import com.kraat.lostfilmnewtv.ui.theme.FocusBackground
 import com.kraat.lostfilmnewtv.ui.theme.HomeAccentBlue
 import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGold
 import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGoldGlow
@@ -62,13 +62,13 @@ fun SettingsTvButton(
     val backgroundColor = when {
         !enabled -> HomePanelSurface.copy(alpha = 0.72f)
         isSelected -> HomeAccentGold
-        isFocused -> HomePanelSurfaceStrong
+        isFocused -> FocusBackground
         else -> HomePanelSurface
     }
     val borderColor = when {
         !enabled -> HomePanelBorder
         isSelected && isFocused -> HomeAccentGoldGlow
-        isFocused -> HomeAccentBlue
+        isFocused -> FocusBorder
         isSelected -> HomeAccentGold
         else -> HomePanelBorder
     }
