@@ -125,9 +125,10 @@ fun HomeScreen(
         is HomeModeContentState.LoginRequired -> loginActionRequester
         else -> null
     }
-    val focusedItem = activeItems.firstOrNull { it.detailsUrl == focusedItemKey }
+    val railItems = (activeModeState as? HomeModeContentState.Content)?.items ?: activeItems
+    val focusedItem = railItems.firstOrNull { it.detailsUrl == focusedItemKey }
         ?: state.selectedItem
-        ?: activeItems.firstOrNull()
+        ?: railItems.firstOrNull()
     val stageStatusText = appUpdateStatusText ?: savedAppUpdate?.let { "Доступно обновление ${it.latestVersion}" }
 
     LaunchedEffect(activeModeState) {
