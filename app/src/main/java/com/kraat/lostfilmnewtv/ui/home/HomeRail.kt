@@ -1,7 +1,6 @@
 package com.kraat.lostfilmnewtv.ui.home
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
@@ -84,8 +83,6 @@ fun HomeRail(
                     }
                 }
             }
-            .focusGroup()
-            .focusable()
             .onFocusChanged { railHasFocus = it.hasFocus }
             .height(308.dp),
         horizontalArrangement = Arrangement.spacedBy(20.dp),
