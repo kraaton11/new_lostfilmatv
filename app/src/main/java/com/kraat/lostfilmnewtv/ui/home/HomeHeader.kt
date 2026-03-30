@@ -36,6 +36,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kraat.lostfilmnewtv.ui.theme.FocusBorder
+import com.kraat.lostfilmnewtv.ui.theme.FocusBackground
 import com.kraat.lostfilmnewtv.ui.theme.HomeAccentBlue
 import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGold
 import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGoldGlow
@@ -204,20 +206,20 @@ private fun HomeHeaderActionButton(
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
-        targetValue = if (isFocused) 1.03f else 1f,
+        targetValue = if (isFocused) 1.06f else 1f,
         animationSpec = tween(durationMillis = 120),
         label = "homeActionScale",
     )
 
     val backgroundColor = when {
         isPrimary -> HomeAccentGold
-        isFocused -> HomePanelSurfaceStrong
+        isFocused -> FocusBackground
         else -> HomePanelSurface
     }
     val borderColor = when {
         isPrimary && isFocused -> HomeAccentGoldGlow
         isPrimary -> HomeAccentGold
-        isFocused -> HomeAccentBlue
+        isFocused -> FocusBorder
         else -> HomePanelBorder
     }
     val textColor = if (isPrimary) Color(0xFF17120D) else TextPrimary
@@ -246,7 +248,7 @@ private fun HomeHeaderActionButton(
                 scaleX = scale
                 scaleY = scale
             }
-            .border(1.5.dp, borderColor, shape)
+            .border(3.dp, borderColor, shape)
             .onFocusChanged { isFocused = it.isFocused },
     ) {
         Column(

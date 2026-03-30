@@ -32,6 +32,8 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
+import com.kraat.lostfilmnewtv.ui.theme.FocusBorder
+import com.kraat.lostfilmnewtv.ui.theme.FocusBackground
 import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGold
 import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGoldGlow
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
@@ -47,12 +49,12 @@ fun PosterCard(
     var isFocused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(22.dp)
     val scale by animateFloatAsState(
-        targetValue = if (isFocused) 1.08f else 1f,
+        targetValue = if (isFocused) 1.10f else 1f,
         animationSpec = tween(durationMillis = 120),
         label = "posterScale",
     )
-    val borderColor = if (isFocused) HomeAccentGoldGlow else HomePanelBorder
-    val overlayColor = if (isFocused) HomePanelSurfaceStrong else HomePanelSurface
+    val borderColor = if (isFocused) FocusBorder else HomePanelBorder
+    val overlayColor = if (isFocused) FocusBackground else HomePanelSurface
     val watchedBadgeColor = if (isFocused) HomeAccentGoldGlow else HomeAccentGold
 
     Box(
@@ -70,12 +72,12 @@ fun PosterCard(
                 scaleY = scale
             }
             .shadow(
-                elevation = if (isFocused) 22.dp else 10.dp,
+                elevation = if (isFocused) 32.dp else 8.dp,
                 shape = shape,
             )
             .clip(shape)
             .background(HomePanelSurfaceStrong)
-            .border(width = 2.dp, color = borderColor, shape = shape),
+            .border(width = 3.5.dp, color = borderColor, shape = shape),
     ) {
         AsyncImage(
             model = item.posterUrl,
