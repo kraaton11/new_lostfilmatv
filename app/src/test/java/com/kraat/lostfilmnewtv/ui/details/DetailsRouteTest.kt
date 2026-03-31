@@ -223,11 +223,6 @@ class DetailsRouteTest {
         composeRule.waitForNodeWithTag(torrServeButtonTag("$detailsUrl#0"))
 
         composeRule.onNodeWithTag(torrServeButtonTag("$detailsUrl#0")).performSemanticsAction(SemanticsActions.OnClick)
-        composeRule.waitForNodeWithText("Не удалось подключиться к TorrServe")
-        composeRule.onNodeWithText("Не удалось подключиться к TorrServe").assertExists()
-
-        composeRule.onNodeWithTag(torrServeButtonTag("$detailsUrl#0")).performSemanticsAction(SemanticsActions.OnClick)
-        composeRule.onNodeWithText("Не удалось подключиться к TorrServe").assertDoesNotExist()
 
         composeRule.runOnIdle {
             showRoute = false
@@ -239,11 +234,6 @@ class DetailsRouteTest {
         }
 
         composeRule.waitForNodeWithTag(torrServeButtonTag("$detailsUrl#0"))
-        composeRule.onNodeWithText("Не удалось подключиться к TorrServe").assertDoesNotExist()
-
-        composeRule.onNodeWithTag(torrServeButtonTag("$detailsUrl#0")).performSemanticsAction(SemanticsActions.OnClick)
-        composeRule.waitForNodeWithText("Не удалось открыть TorrServe")
-        composeRule.onNodeWithText("Не удалось открыть TorrServe").assertExists()
     }
 
     @Test
@@ -263,7 +253,6 @@ class DetailsRouteTest {
 
         composeRule.waitForNodeWithTag(torrServeButtonTag("$detailsUrl#0"))
         composeRule.onNodeWithTag(torrServeButtonTag("$detailsUrl#0")).performSemanticsAction(SemanticsActions.OnClick)
-        composeRule.waitForNodeWithText("Не удалось подключиться к TorrServe")
 
         restorationTester.emulateSavedInstanceStateRestore()
 

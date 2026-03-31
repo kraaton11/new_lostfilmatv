@@ -8,14 +8,9 @@ data class DetailsStageUiModel(
     val title: String,
     val heroEpisodeTitle: String,
     val heroMetaLine: String,
-    val bottomStageStatusLine: String,
-    val bottomStageSupportLine: String,
     val primaryAction: DetailsStageActionUiModel,
     val secondaryActions: List<DetailsStageActionUiModel>,
-) {
-    val bottomInfoLine: String
-        get() = bottomStageStatusLine
-}
+)
 
 data class DetailsStageActionUiModel(
     val actionId: String,
@@ -49,14 +44,6 @@ fun buildDetailsStageUi(
             enabled = false,
         )
     val heroMetaLine = buildHeroMetaLine(details = details)
-    val bottomStageStatusLine = buildBottomStageStatusLine(
-        details = details,
-        playbackRow = playbackRow,
-        isBusy = isBusy,
-        favoriteStatusMessageText = state.favoriteStatusMessage,
-        torrServeMessageText = torrServeMessageText,
-    )
-    val bottomStageSupportLine = buildBottomStageSupportLine(details = details)
     val favoriteAction = details
         ?.takeIf { it.favoriteTargetId != null || state.favoriteActionLabel.isNotBlank() }
         ?.let {
@@ -96,8 +83,6 @@ fun buildDetailsStageUi(
         title = details?.titleRu ?: "",
         heroEpisodeTitle = buildHeroEpisodeTitle(details = details),
         heroMetaLine = heroMetaLine,
-        bottomStageStatusLine = bottomStageStatusLine,
-        bottomStageSupportLine = bottomStageSupportLine,
         primaryAction = primaryAction,
         secondaryActions = listOfNotNull(favoriteAction, guideAction),
     )
@@ -122,25 +107,6 @@ private fun buildHeroMetaLine(details: ReleaseDetails?): String {
         ReleaseKind.MOVIE -> "Фильм"
         null -> ""
     }
-}
-
-private fun buildBottomStageStatusLine(
-    details: ReleaseDetails?,
-    playbackRow: DetailsTorrentRowUiModel?,
-    isBusy: Boolean,
-    favoriteStatusMessageText: String?,
-    torrServeMessageText: String?,
-): String {
-    if (!favoriteStatusMessageText.isNullOrBlank()) return favoriteStatusMessageText
-    if (!torrServeMessageText.isNullOrBlank()) return torrServeMessageText
-    if (isBusy) return "Открывается..."
-    if (playbackRow == null) return "Видео недоступно"
-
-    return "${playbackRow.label} • TorrServe"
-}
-
-private fun buildBottomStageSupportLine(details: ReleaseDetails?): String {
-    return details?.releaseDateRu?.trim().orEmpty()
 }
 
 private fun DetailsTorrentRowUiModel.toPrimaryAction(

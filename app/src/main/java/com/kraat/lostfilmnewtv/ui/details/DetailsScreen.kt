@@ -219,11 +219,6 @@ private fun ContentState(
                     onOpenTorrServe(row.rowId, row.url)
                 },
             )
-            Spacer(modifier = Modifier.weight(1f))
-            DetailsBottomStage(
-                statusLine = stageUi.bottomStageStatusLine,
-                supportLine = stageUi.bottomStageSupportLine,
-            )
         }
     }
 }

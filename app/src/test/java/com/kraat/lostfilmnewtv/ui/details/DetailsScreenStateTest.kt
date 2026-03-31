@@ -1,21 +1,17 @@
 package com.kraat.lostfilmnewtv.ui.details
 
-import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
-import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.semantics.SemanticsProperties
-import androidx.compose.ui.text.TextLayoutResult
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.TorrentLink
 import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -147,7 +143,7 @@ class DetailsScreenStateTest {
     }
 
     @Test
-    fun detailsScreen_rendersBottomStage_withStatusAndSupportLines() {
+    fun detailsScreen_rendersHeroMeta_withSeasonAndEpisode() {
         composeRule.setContent {
             LostFilmTheme {
                 DetailsScreen(
@@ -171,9 +167,7 @@ class DetailsScreenStateTest {
             }
         }
 
-        composeRule.onNodeWithTag("details-bottom-stage").assertExists()
         composeRule.onNodeWithTag("details-hero-meta").assertExists()
-        assertEquals(1, composeRule.onAllNodesWithText("14 марта 2026").fetchSemanticsNodes().size)
     }
 
     @Test
@@ -196,40 +190,11 @@ class DetailsScreenStateTest {
             }
         }
 
-        assertEquals(0, composeRule.onAllNodesWithTag("details-bottom-stage").fetchSemanticsNodes().size)
         assertEquals(1, composeRule.onAllNodesWithText("boom").fetchSemanticsNodes().size)
         assertEquals(1, composeRule.onAllNodesWithText("Повторить").fetchSemanticsNodes().size)
         assertEquals(0, composeRule.onAllNodesWithText("9-1-1").fetchSemanticsNodes().size)
     }
 
-    @Test
-    fun detailsScreen_unavailableBottomStageStatus_usesFontPadding() {
-        composeRule.setContent {
-            LostFilmTheme {
-                DetailsScreen(
-                    state = DetailsUiState(
-                        details = seriesDetails().copy(torrentLinks = emptyList()),
-                    ),
-                    isAuthenticated = true,
-                    availableTorrentRowsCount = 0,
-                    playbackRow = null,
-                    torrServeMessage = null,
-                    activeTorrServeRowId = null,
-                    isTorrServeBusy = false,
-                    onRetry = {},
-                    onOpenTorrServe = { _, _ -> },
-                )
-            }
-        }
-
-        val textLayouts = mutableListOf<TextLayoutResult>()
-
-        composeRule.onNodeWithText("Видео недоступно").performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action ->
-            action(textLayouts)
-        }
-
-        assertFalse("textLayouts=$textLayouts", textLayouts.first().toString().contains("includeFontPadding=false"))
-    }
 }
 
 private fun seriesDetails(): ReleaseDetails = ReleaseDetails(
