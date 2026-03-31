@@ -15,7 +15,11 @@ import com.kraat.lostfilmnewtv.MainActivity
 interface PreviewChannelHelperFacade {
     suspend fun channelExists(channelId: Long): Boolean
 
+    suspend fun findChannelIdsByInternalProviderId(internalProviderId: String): List<Long>
+
     suspend fun publishDefaultChannel(channel: PreviewChannelRecord): Long
+
+    suspend fun updateChannel(channelId: Long, channel: PreviewChannelRecord)
 
     suspend fun requestChannelBrowsable(channelId: Long)
 
@@ -56,8 +60,18 @@ class AndroidXPreviewChannelHelperFacade(
         return helper.getAllChannels().any { it.id == channelId }
     }
 
+    override suspend fun findChannelIdsByInternalProviderId(internalProviderId: String): List<Long> {
+        return helper.getAllChannels()
+            .filter { it.internalProviderId == internalProviderId }
+            .map { it.id }
+    }
+
     override suspend fun publishDefaultChannel(channel: PreviewChannelRecord): Long {
         return helper.publishDefaultChannel(channel.toPreviewChannel())
+    }
+
+    override suspend fun updateChannel(channelId: Long, channel: PreviewChannelRecord) {
+        helper.updatePreviewChannel(channelId, channel.toPreviewChannel())
     }
 
     override suspend fun requestChannelBrowsable(channelId: Long) {
