@@ -61,6 +61,7 @@ fun HomeRail(
     }
     val listState = remember(railId) { LazyListState() }
     var railHasFocus by remember(railId) { mutableStateOf(false) }
+    var focusedCardKey by remember(railId) { mutableStateOf<String?>(null) }
 
     LaunchedEffect(railHasFocus, shouldRequestFocus, targetIndex, targetRequester) {
         if (!railHasFocus || !shouldRequestFocus || targetRequester == null || targetIndex < 0) {
@@ -92,6 +93,7 @@ fun HomeRail(
             val itemKey = homeItemKey(railId, item.detailsUrl)
             PosterCard(
                 item = item,
+                isFocused = focusedCardKey == item.detailsUrl,
                 modifier = Modifier
                     .focusRequester(cardFocusRequesters.getValue(itemKey))
                     .focusProperties {
@@ -108,14 +110,16 @@ fun HomeRail(
                     .testTag(posterTag(railId, item.detailsUrl))
                     .onFocusChanged { focusState ->
                         if (focusState.isFocused) {
+                            focusedCardKey = item.detailsUrl
                             onItemFocused(item.detailsUrl)
                             if (index == items.lastIndex) {
                                 onEndReached()
                             }
+                        } else if (focusedCardKey == item.detailsUrl) {
+                            focusedCardKey = null
                         }
                     }
                     .clickable { onOpenDetails(item.detailsUrl) },
-                onFocusChanged = { _ -> },
             )
         }
 

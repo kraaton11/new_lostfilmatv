@@ -14,13 +14,9 @@ import androidx.compose.material3.Text
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -43,10 +39,9 @@ import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 @Composable
 fun PosterCard(
     item: ReleaseSummary,
+    isFocused: Boolean = false,
     modifier: Modifier = Modifier,
-    onFocusChanged: (Boolean) -> Unit = {},
 ) {
-    var isFocused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(22.dp)
     val scale by animateFloatAsState(
         targetValue = if (isFocused) 1.10f else 1f,
@@ -60,11 +55,6 @@ fun PosterCard(
     Box(
         modifier = modifier
             .size(width = 176.dp, height = 264.dp)
-            .onFocusChanged { focusState ->
-                val focused = focusState.isFocused
-                isFocused = focused
-                onFocusChanged(focused)
-            }
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
