@@ -35,6 +35,8 @@ class AndroidHomeChannelPublisherTest {
         assertEquals(1, facade.publishedChannels.size)
         assertEquals(listOf(42L), facade.requestedBrowsableChannelIds)
         assertEquals(testLogo, facade.publishedChannels.single().logoBitmap)
+        assertEquals("LostFilm: Новые релизы", facade.publishedChannels.single().displayName)
+        assertEquals("Все новые релизы LostFilm", facade.publishedChannels.single().description)
         assertEquals(listOf("https://example.com/1"), facade.upsertedPrograms.map { it.internalProviderId })
         assertEquals(
             listOf(TvContractCompat.PreviewProgramColumns.TYPE_CLIP),
@@ -86,6 +88,9 @@ class AndroidHomeChannelPublisherTest {
         )
 
         assertEquals(0, facade.publishDefaultChannelCalls)
+        assertEquals(listOf(42L), facade.updatedChannelIds)
+        assertEquals("LostFilm: Непросмотренные", facade.updatedChannels.single().displayName)
+        assertEquals("Непросмотренные релизы LostFilm", facade.updatedChannels.single().description)
         assertEquals(listOf(42L), facade.requestedBrowsableChannelIds)
         assertEquals(listOf(7L, 8L), facade.deletedProgramIds)
         assertEquals(
@@ -96,6 +101,29 @@ class AndroidHomeChannelPublisherTest {
             listOf(null, null),
             facade.upsertedPrograms.map { it.programId },
         )
+    }
+
+    @Test
+    fun reconcile_missingStoredChannelId_reusesPublishedChannelWithSameProviderId() = runTestPublisher {
+        val facade = RecordingPreviewFacade(
+            knownChannelIdsByProviderId = mapOf("lostfilm-home-channel" to listOf(42L, 99L)),
+        )
+        val publisher = AndroidHomeChannelPublisher(
+            appContext = context,
+            helperFacade = facade,
+            channelLogoProvider = { testLogo },
+        )
+
+        val result = publisher.reconcile(
+            mode = AndroidTvChannelMode.ALL_NEW,
+            existingChannelId = null,
+            programs = listOf(program("https://example.com/1")),
+        )
+
+        assertEquals(42L, result.channelId)
+        assertEquals(0, facade.publishDefaultChannelCalls)
+        assertEquals(listOf(42L), facade.updatedChannelIds)
+        assertEquals(listOf(99L), facade.deletedChannelIds)
     }
 
     @Test
@@ -132,22 +160,35 @@ private fun runTestPublisher(block: suspend () -> Unit) {
 
 private class RecordingPreviewFacade(
     existingPrograms: List<PreviewProgramRecord> = emptyList(),
+    private val knownChannelIdsByProviderId: Map<String, List<Long>> = emptyMap(),
 ) : PreviewChannelHelperFacade {
     private var storedPrograms = existingPrograms.associateBy { it.internalProviderId }.toMutableMap()
 
     var publishDefaultChannelCalls: Int = 0
         private set
     val publishedChannels = mutableListOf<PreviewChannelRecord>()
+    val updatedChannels = mutableListOf<PreviewChannelRecord>()
     val upsertedPrograms = mutableListOf<PreviewProgramRecord>()
     val deletedProgramIds = mutableListOf<Long>()
+    val deletedChannelIds = mutableListOf<Long>()
     val requestedBrowsableChannelIds = mutableListOf<Long>()
+    val updatedChannelIds = mutableListOf<Long>()
 
     override suspend fun channelExists(channelId: Long): Boolean = channelId == 42L
+
+    override suspend fun findChannelIdsByInternalProviderId(internalProviderId: String): List<Long> {
+        return knownChannelIdsByProviderId[internalProviderId].orEmpty()
+    }
 
     override suspend fun publishDefaultChannel(channel: PreviewChannelRecord): Long {
         publishDefaultChannelCalls += 1
         publishedChannels += channel
         return 42L
+    }
+
+    override suspend fun updateChannel(channelId: Long, channel: PreviewChannelRecord) {
+        updatedChannelIds += channelId
+        updatedChannels += channel
     }
 
     override suspend fun getPrograms(channelId: Long): List<PreviewProgramRecord> {
@@ -173,7 +214,9 @@ private class RecordingPreviewFacade(
         requestedBrowsableChannelIds += channelId
     }
 
-    override suspend fun deleteChannel(channelId: Long) = Unit
+    override suspend fun deleteChannel(channelId: Long) {
+        deletedChannelIds += channelId
+    }
 }
 
 private fun program(detailsUrl: String): HomeChannelProgram {

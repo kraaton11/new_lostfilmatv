@@ -21,7 +21,8 @@ class AndroidHomeChannelPublisher(
         existingChannelId: Long?,
         programs: List<HomeChannelProgram>,
     ): HomeChannelPublisherResult {
-        val channelId = resolveChannelId(existingChannelId)
+        val channel = buildChannelRecord(mode)
+        val channelId = resolveChannelId(existingChannelId, channel)
         helperFacade.requestChannelBrowsable(channelId)
         val existingProgramIds = helperFacade.getPrograms(channelId)
             .mapNotNull { it.programId }
@@ -53,20 +54,53 @@ class AndroidHomeChannelPublisher(
         helperFacade.deleteChannel(channelId)
     }
 
-    private suspend fun resolveChannelId(existingChannelId: Long?): Long {
-        if (existingChannelId != null && helperFacade.channelExists(existingChannelId)) {
-            return existingChannelId
+    private suspend fun resolveChannelId(
+        existingChannelId: Long?,
+        channel: PreviewChannelRecord,
+    ): Long {
+        val validExistingChannelId = existingChannelId
+            ?.takeIf { helperFacade.channelExists(it) }
+        val matchingChannelIds = helperFacade.findChannelIdsByInternalProviderId(channel.internalProviderId)
+        val channelIdToReuse = validExistingChannelId ?: matchingChannelIds.firstOrNull()
+
+        matchingChannelIds
+            .filterNot { it == channelIdToReuse }
+            .forEach { duplicateChannelId ->
+                helperFacade.deleteChannel(duplicateChannelId)
+            }
+
+        if (channelIdToReuse != null) {
+            helperFacade.updateChannel(channelIdToReuse, channel)
+            return channelIdToReuse
         }
 
-        return helperFacade.publishDefaultChannel(
-            PreviewChannelRecord(
-                displayName = appContext.applicationInfo.loadLabel(appContext.packageManager).toString(),
-                description = CHANNEL_DESCRIPTION,
-                appLinkIntent = Intent(appContext, MainActivity::class.java),
-                internalProviderId = CHANNEL_INTERNAL_PROVIDER_ID,
-                logoBitmap = channelLogoProvider(),
-            ),
+        return helperFacade.publishDefaultChannel(channel)
+    }
+
+    private fun buildChannelRecord(mode: AndroidTvChannelMode): PreviewChannelRecord {
+        return PreviewChannelRecord(
+            displayName = mode.channelDisplayName(),
+            description = mode.channelDescription(),
+            appLinkIntent = Intent(appContext, MainActivity::class.java),
+            internalProviderId = CHANNEL_INTERNAL_PROVIDER_ID,
+            logoBitmap = channelLogoProvider(),
         )
+    }
+
+    private fun AndroidTvChannelMode.channelDisplayName(): String {
+        return when (this) {
+            AndroidTvChannelMode.ALL_NEW -> "LostFilm: Новые релизы"
+            AndroidTvChannelMode.UNWATCHED -> "LostFilm: Непросмотренные"
+            AndroidTvChannelMode.DISABLED -> appContext.applicationInfo.loadLabel(appContext.packageManager).toString()
+        }
+    }
+
+    private fun AndroidTvChannelMode.channelDescription(): String {
+        return when (this) {
+            AndroidTvChannelMode.ALL_NEW -> "Все новые релизы LostFilm"
+            AndroidTvChannelMode.UNWATCHED -> "Непросмотренные релизы LostFilm"
+            AndroidTvChannelMode.DISABLED -> CHANNEL_DESCRIPTION
+        }
     }
 
     private companion object {
