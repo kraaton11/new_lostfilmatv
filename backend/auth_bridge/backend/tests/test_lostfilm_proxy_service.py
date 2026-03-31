@@ -62,6 +62,152 @@ class ProxySessionStoreTest(unittest.TestCase):
 
 
 class LostFilmProxyServiceTest(unittest.TestCase):
+    def test_proxy_redirects_social_auth_paths_back_to_local_login(self) -> None:
+        pairing_store = InMemoryPairingStore(ttl_seconds=600)
+        proxy_session_store = ProxySessionStore(pairing_store)
+        pairing = pairing_store.save(
+            pairing_id="pairing-1",
+            pairing_secret="secret-1",
+            phone_verifier="verifier-1",
+            user_code="ABC123",
+        )
+        upstream_called = False
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal upstream_called
+            upstream_called = True
+            return httpx.Response(200, text="should not happen")
+
+        proxy_service = LostFilmProxyService(
+            base_url="https://www.lostfilm.today",
+            proxy_session_store=proxy_session_store,
+            transport=httpx.MockTransport(handler),
+        )
+
+        response = proxy_service.proxy(
+            pairing_id=pairing.pairing_id,
+            wildcard_host="verifier-1.auth.example.test",
+            method="GET",
+            path="/auth/gp/",
+            query_string="t=1",
+            headers={"accept": "text/html"},
+            body=b"",
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(response.headers["location"], "https://verifier-1.auth.example.test/login")
+        self.assertEqual(response.content, b"")
+        self.assertFalse(upstream_called)
+
+    def test_proxy_rewrites_remaining_social_auth_references_in_html_to_login(self) -> None:
+        pairing_store = InMemoryPairingStore(ttl_seconds=600)
+        proxy_session_store = ProxySessionStore(pairing_store)
+        pairing = pairing_store.save(
+            pairing_id="pairing-1",
+            pairing_secret="secret-1",
+            phone_verifier="verifier-1",
+            user_code="ABC123",
+        )
+        upstream_html = """
+<!DOCTYPE html>
+<html>
+  <body>
+    <a href="/auth/gp/?t=1">Google</a>
+    <a href="https://www.lostfilm.today/auth/vk/?t=1">VK</a>
+    <script>
+      goTo('/auth/fb/?t=1', false, 'SOCIAL_FB');
+      location.href = '/auth/ok/';
+    </script>
+  </body>
+</html>
+""".strip()
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                headers={"content-type": "text/html; charset=utf-8"},
+                text=upstream_html,
+            )
+
+        proxy_service = LostFilmProxyService(
+            base_url="https://www.lostfilm.today",
+            proxy_session_store=proxy_session_store,
+            transport=httpx.MockTransport(handler),
+        )
+
+        response = proxy_service.proxy(
+            pairing_id=pairing.pairing_id,
+            wildcard_host="verifier-1.auth.example.test",
+            method="GET",
+            path="/my",
+            query_string="",
+            headers={"accept": "text/html"},
+            body=b"",
+        )
+        html = response.content.decode("utf-8")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('href="/login"', html)
+        self.assertNotIn("/auth/gp/", html)
+        self.assertNotIn("/auth/vk/", html)
+        self.assertNotIn("/auth/fb/", html)
+        self.assertNotIn("/auth/ok/", html)
+        self.assertNotIn("https://www.lostfilm.today/auth/", html)
+
+    def test_proxy_serves_local_login_page_without_upstream_layout(self) -> None:
+        pairing_store = InMemoryPairingStore(ttl_seconds=600)
+        proxy_session_store = ProxySessionStore(pairing_store)
+        pairing = pairing_store.save(
+            pairing_id="pairing-1",
+            pairing_secret="secret-1",
+            phone_verifier="verifier-1",
+            user_code="ABC123",
+        )
+        upstream_called = False
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal upstream_called
+            upstream_called = True
+            return httpx.Response(200, text="should not happen")
+
+        proxy_service = LostFilmProxyService(
+            base_url="https://www.lostfilm.today",
+            proxy_session_store=proxy_session_store,
+            transport=httpx.MockTransport(handler),
+        )
+
+        response = proxy_service.proxy(
+            pairing_id=pairing.pairing_id,
+            wildcard_host="verifier-1.auth.example.test",
+            method="GET",
+            path="/login",
+            query_string="return=%2Fmy%3Fcheck%3D1",
+            headers={"accept": "text/html"},
+            body=b"",
+        )
+        html = response.content.decode("utf-8")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(upstream_called)
+        self.assertIn("<body>", html)
+        self.assertIn('<form id="auth-bridge-login-form"', html)
+        self.assertIn('id="auth-bridge-login-rewrite"', html)
+        self.assertIn('name="mail"', html)
+        self.assertIn('name="pass"', html)
+        self.assertIn('name="captcha"', html)
+        self.assertIn('name="return_url" value="/my?check=1"', html)
+        self.assertIn('name="need_captcha" value=""', html)
+        self.assertIn('id="submit-button"', html)
+        self.assertIn('id="status"', html)
+        self.assertNotIn("Войдите через:", html)
+        self.assertNotIn("Введите Ваши данные:", html)
+        self.assertNotIn('name="rem"', html)
+        self.assertNotIn("/reminder", html)
+        self.assertNotIn("SOCIAL_GP", html)
+        self.assertNotIn("SOCIAL_VK", html)
+        self.assertNotIn(">или<", html)
+        self.assertNotIn("sign-in-panel", html)
+
     def test_proxy_forwards_get_and_uses_server_side_cookie_jar(self) -> None:
         pairing_store = InMemoryPairingStore(ttl_seconds=600)
         proxy_session_store = ProxySessionStore(pairing_store)
@@ -94,7 +240,7 @@ class LostFilmProxyServiceTest(unittest.TestCase):
             pairing_id=pairing.pairing_id,
             wildcard_host="verifier-1.auth.example.test",
             method="GET",
-            path="/login",
+            path="/my",
             query_string="return=1",
             headers={"accept": "text/html"},
             body=b"",
@@ -102,7 +248,7 @@ class LostFilmProxyServiceTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content, b"proxied ok")
-        self.assertEqual(seen_request["url"], "https://www.lostfilm.today/login?return=1")
+        self.assertEqual(seen_request["url"], "https://www.lostfilm.today/my?return=1")
         self.assertIn("lf_session=cookie-1", seen_request["cookie"])
 
     def test_proxy_drops_sensitive_client_request_headers(self) -> None:
@@ -213,7 +359,7 @@ class LostFilmProxyServiceTest(unittest.TestCase):
             pairing_id=pairing.pairing_id,
             wildcard_host="verifier-1.auth.example.test",
             method="GET",
-            path="/login",
+            path="/my",
             query_string="",
             headers={},
             body=b"",
@@ -352,7 +498,7 @@ class LostFilmProxyServiceTest(unittest.TestCase):
             pairing_id=pairing.pairing_id,
             wildcard_host="verifier-1.auth.example.test",
             method="GET",
-            path="/login",
+            path="/my",
             query_string="",
             headers={},
             body=b"",

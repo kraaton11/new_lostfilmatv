@@ -97,6 +97,7 @@ docs/                   Дополнительная документация п
 - [github-setup.md](/run/media/al/Toshiba500Gb/ai/tvbox1/new_lostfilm/docs/github-setup.md)
 - [auth-bridge-ops.md](/run/media/al/Toshiba500Gb/ai/tvbox1/new_lostfilm/docs/auth-bridge-ops.md)
 - [auth-bridge-server-install.md](/run/media/al/Toshiba500Gb/ai/tvbox1/new_lostfilm/docs/auth-bridge-server-install.md)
+- [google-signin-example.md](/run/media/al/Toshiba500Gb/ai/tvbox1/new_lostfilm/docs/google-signin-example.md)
 - [2026-03-15-lostfilm-android-tv-design.md](/run/media/al/Toshiba500Gb/ai/tvbox1/new_lostfilm/docs/superpowers/specs/2026-03-15-lostfilm-android-tv-design.md)
 - [2026-03-15-lostfilm-android-tv.md](/run/media/al/Toshiba500Gb/ai/tvbox1/new_lostfilm/docs/superpowers/plans/2026-03-15-lostfilm-android-tv.md)
 
