@@ -8,12 +8,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -41,8 +39,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.PlatformTextStyle
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -64,7 +60,6 @@ import com.kraat.lostfilmnewtv.ui.theme.DetailsTextMuted
 import com.kraat.lostfilmnewtv.ui.theme.DetailsTextSecondary
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurface
-import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 
 @Composable
@@ -230,9 +225,6 @@ private fun GuideContent(
                 )
             }
         }
-
-        val selectedEpisode = episodes.firstOrNull { it.detailsUrl == selectedEpisodeDetailsUrl }
-        GuideBottomStage(episode = selectedEpisode)
     }
 }
 
@@ -415,77 +407,6 @@ private fun EpisodeRow(
                 },
                 color = DetailsTextMuted,
                 fontSize = 12.sp,
-            )
-        }
-    }
-}
-
-@Composable
-private fun GuideBottomStage(
-    episode: SeriesGuideEpisode?,
-) {
-    if (episode == null) {
-        Spacer(modifier = Modifier)
-        return
-    }
-
-    val shape = RoundedCornerShape(28.dp)
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .testTag("guide-bottom-stage")
-            .background(DetailsSurfaceReadable, shape)
-            .border(1.dp, DetailsBorderDefault, shape)
-            .padding(horizontal = 24.dp, vertical = 18.dp),
-        horizontalArrangement = Arrangement.spacedBy(28.dp),
-    ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text(
-                text = "Сезон ${episode.seasonNumber} • Серия ${episode.episodeNumber}",
-                color = DetailsTextMuted,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = episode.episodeTitleRu.orEmpty(),
-                style = TextStyle(
-                    platformStyle = PlatformTextStyle(includeFontPadding = true),
-                ),
-                color = TextPrimary,
-                fontSize = 24.sp,
-                fontWeight = FontWeight.SemiBold,
-                lineHeight = 28.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-
-        Column(
-            modifier = Modifier.widthIn(max = 220.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Text(
-                text = "Релиз",
-                color = DetailsTextMuted,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                text = buildString {
-                    append(episode.releaseDateRu)
-                    if (episode.isWatched) {
-                        append(" • Просмотрено")
-                    }
-                },
-                color = DetailsTextSecondary,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
             )
         }
     }
