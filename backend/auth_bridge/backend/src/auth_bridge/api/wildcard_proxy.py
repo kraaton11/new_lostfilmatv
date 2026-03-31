@@ -2,7 +2,7 @@ from pathlib import Path
 import logging
 
 from fastapi import APIRouter, Request, status
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from starlette.concurrency import run_in_threadpool
 
@@ -36,6 +36,8 @@ def attach_wildcard_proxy_router(app, pairing_service: PairingService) -> None:
             return HTMLResponse("Pairing expired.", status_code=status.HTTP_410_GONE)
 
         proxy_state = app.state.proxy_session_store.get(pairing.pairing_id)
+        if pairing.session_payload is None and proxy_state is None and _proxy_access_allowed(pairing):
+            return RedirectResponse(url="/login", status_code=status.HTTP_307_TEMPORARY_REDIRECT)
         if pairing.session_payload is None and proxy_state is not None and _proxy_access_allowed(pairing):
             try:
                 _check_proxy_rate_limit_for_request(app, pairing_service, request)
@@ -50,10 +52,11 @@ def attach_wildcard_proxy_router(app, pairing_service: PairingService) -> None:
         if proxy_path == "":
             return wildcard_entry(request)
 
-        try:
-            _check_proxy_rate_limit_for_request(app, pairing_service, request)
-        except RateLimitExceeded:
-            return HTMLResponse("Too many requests. Please try again later.", status_code=status.HTTP_429_TOO_MANY_REQUESTS)
+        if not (request.method == "GET" and proxy_path == "login"):
+            try:
+                _check_proxy_rate_limit_for_request(app, pairing_service, request)
+            except RateLimitExceeded:
+                return HTMLResponse("Too many requests. Please try again later.", status_code=status.HTTP_429_TOO_MANY_REQUESTS)
 
         try:
             pairing, wildcard_host = _open_phone_flow_for_request(pairing_service, request)

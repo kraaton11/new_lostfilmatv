@@ -19,17 +19,19 @@ class WildcardProxyRouterTest(unittest.TestCase):
         app.state.create_pairing_rate_limiter.clear()
         app.state.proxy_rate_limiter.clear()
 
-    def test_wildcard_root_renders_phone_shell_for_active_pairing(self) -> None:
+    def test_wildcard_root_redirects_to_login_for_active_pairing(self) -> None:
         pairing = self.client.post("/api/pairings").json()
 
-        response = self.client.get("/", headers={"host": f"{pairing['phoneVerifier']}.auth.example.test"})
+        response = self.client.get(
+            "/",
+            headers={"host": f"{pairing['phoneVerifier']}.auth.example.test"},
+            follow_redirects=False,
+        )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertIn(pairing["userCode"], response.text)
-        self.assertIn("Connect your TV", response.text)
-        self.assertIn('href="/login"', response.text)
+        self.assertEqual(response.status_code, 307)
+        self.assertEqual(response.headers["location"], "/login")
 
-    def test_wildcard_root_shell_is_not_rate_limited_before_proxy_session_exists(self) -> None:
+    def test_wildcard_root_login_redirect_is_not_rate_limited_before_proxy_session_exists(self) -> None:
         pairing = self.client.post("/api/pairings").json()
         original_limiter = getattr(app.state, "proxy_rate_limiter", None)
         app.state.proxy_rate_limiter = SlidingWindowRateLimiter(max_requests=2, window_seconds=60)
@@ -50,7 +52,7 @@ class WildcardProxyRouterTest(unittest.TestCase):
         self.assertEqual(r1.status_code, 200)
         self.assertEqual(r2.status_code, 200)
         self.assertEqual(r3.status_code, 200)
-        self.assertIn("Connect your TV", r3.text)
+        self.assertIn('id="auth-bridge-login-form"', r3.text)
 
     def test_unknown_wildcard_host_returns_404(self) -> None:
         response = self.client.get("/", headers={"host": "missing.auth.example.test"})
