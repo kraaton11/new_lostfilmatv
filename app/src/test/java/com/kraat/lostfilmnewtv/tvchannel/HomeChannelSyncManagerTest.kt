@@ -16,6 +16,7 @@ class HomeChannelSyncManagerTest {
             ),
             preferences = preferences,
             publisher = publisher,
+            logger = NoOpChannelLogger(),
         )
 
         manager.syncNow()
@@ -33,6 +34,7 @@ class HomeChannelSyncManagerTest {
             programSource = FakeProgramSource(emptyList()),
             preferences = preferences,
             publisher = publisher,
+            logger = NoOpChannelLogger(),
         )
 
         manager.syncNow()
@@ -53,6 +55,7 @@ class HomeChannelSyncManagerTest {
                 createdChannelId = 7L,
                 failure = IllegalStateException("launcher unavailable"),
             ),
+            logger = NoOpChannelLogger(),
             onSyncFailure = {},
         )
 

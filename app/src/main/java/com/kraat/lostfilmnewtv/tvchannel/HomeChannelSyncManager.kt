@@ -1,36 +1,49 @@
 package com.kraat.lostfilmnewtv.tvchannel
 
-import android.util.Log
-
 class HomeChannelSyncManager(
     private val programSource: HomeChannelProgramSource,
     private val preferences: HomeChannelPreferences,
     private val publisher: HomeChannelPublisher,
     private val programLimit: Int = DEFAULT_PROGRAM_LIMIT,
-    private val onSyncFailure: (Throwable) -> Unit = { error ->
-        Log.w(TAG, "Launcher channel sync failed", error)
-    },
+    private val logger: ChannelLogger = AndroidChannelLogger(),
+    private val onSyncFailure: (Throwable) -> Unit = {},
 ) {
     suspend fun syncNow() {
+        logger.d(TAG, "syncNow() started")
         try {
             when (val mode = preferences.readMode()) {
                 AndroidTvChannelMode.DISABLED -> {
+                    logger.d(TAG, "Channel disabled, deleting channel")
                     preferences.readChannelId()?.let { publisher.deleteChannel(it) }
                     preferences.clearChannelId()
+                    logger.d(TAG, "Channel deleted successfully")
                 }
 
                 AndroidTvChannelMode.ALL_NEW,
                 AndroidTvChannelMode.UNWATCHED,
                 -> {
+                    val existingChannelId = preferences.readChannelId()
+                    logger.d(TAG, "Syncing channel in mode: $mode, existingChannelId: $existingChannelId")
+
+                    val programs = programSource.loadPrograms(mode, programLimit)
+                    logger.d(TAG, "Loaded ${programs.size} programs from database")
+
+                    if (programs.isEmpty()) {
+                        logger.w(TAG, "No programs loaded, channel will be empty!")
+                    }
+
                     val result = publisher.reconcile(
                         mode = mode,
-                        existingChannelId = preferences.readChannelId(),
-                        programs = programSource.loadPrograms(mode, programLimit),
+                        existingChannelId = existingChannelId,
+                        programs = programs,
                     )
                     preferences.writeChannelId(result.channelId)
+                    logger.d(TAG, "Channel synced successfully, channelId: ${result.channelId}")
                 }
             }
+            logger.d(TAG, "syncNow() completed successfully")
         } catch (error: Throwable) {
+            logger.e(TAG, "Channel sync failed", error)
             onSyncFailure(error)
         }
     }
