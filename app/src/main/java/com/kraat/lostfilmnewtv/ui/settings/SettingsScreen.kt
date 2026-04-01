@@ -410,7 +410,8 @@ private fun SettingsSectionRail(
     Column(
         modifier = modifier
             .background(HomePanelSurface, RoundedCornerShape(24.dp))
-            .padding(16.dp),
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         val sections = SettingsSection.entries
