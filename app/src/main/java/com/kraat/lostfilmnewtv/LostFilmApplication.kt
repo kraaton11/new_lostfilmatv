@@ -11,10 +11,12 @@ import com.kraat.lostfilmnewtv.data.network.AuthBridgeClient
 import com.kraat.lostfilmnewtv.data.network.AuthenticatedLostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.network.OkHttpLostFilmHttpClient
+import com.kraat.lostfilmnewtv.data.network.TmdbPosterClient
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteSeriesParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmListParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSeasonEpisodesParser
+import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolver
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepositoryImpl
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
@@ -84,6 +86,14 @@ open class LostFilmApplication : Application(), HomeChannelBackgroundRefreshRunn
         AuthRepository(authBridgeClient, sessionStore)
     }
 
+    open val tmdbPosterClient: TmdbPosterClient by lazy {
+        TmdbPosterClient(okHttpClient, BuildConfig.TMDB_API_KEY)
+    }
+
+    open val tmdbPosterResolver: TmdbPosterResolver by lazy {
+        TmdbPosterResolver(tmdbPosterClient, database.tmdbPosterDao())
+    }
+
     open val repository: LostFilmRepository by lazy {
         LostFilmRepositoryImpl(
             httpClient = authenticatedHttpClient,
@@ -92,6 +102,7 @@ open class LostFilmApplication : Application(), HomeChannelBackgroundRefreshRunn
             detailsParser = LostFilmDetailsParser(),
             favoriteSeriesParser = LostFilmFavoriteSeriesParser(),
             seasonEpisodesParser = LostFilmSeasonEpisodesParser(),
+            tmdbResolver = tmdbPosterResolver,
             hasAuthenticatedSession = {
                 val session = sessionStore.read()
                 session != null && !session.isExpired()

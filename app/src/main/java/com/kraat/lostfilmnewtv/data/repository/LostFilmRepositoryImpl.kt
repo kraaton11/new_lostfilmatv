@@ -23,12 +23,17 @@ import com.kraat.lostfilmnewtv.data.parser.textOrEmpty
 import com.kraat.lostfilmnewtv.data.parser.toEntity
 import com.kraat.lostfilmnewtv.data.parser.toSummaryEntities
 import com.kraat.lostfilmnewtv.data.parser.toSummaryModels
+import com.kraat.lostfilmnewtv.data.poster.TmdbPosterEnricher
+import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolver
 import java.io.IOException
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import org.jsoup.Jsoup
 
 private const val FRESH_WINDOW_MS = 6 * 60 * 60 * 1000L
@@ -46,6 +51,7 @@ class LostFilmRepositoryImpl(
     private val detailsParser: LostFilmDetailsParser,
     private val favoriteSeriesParser: LostFilmFavoriteSeriesParser = LostFilmFavoriteSeriesParser(),
     private val seasonEpisodesParser: LostFilmSeasonEpisodesParser = LostFilmSeasonEpisodesParser(),
+    private val tmdbResolver: TmdbPosterResolver,
     private val hasAuthenticatedSession: suspend () -> Boolean,
     private val clock: () -> Long = { System.currentTimeMillis() },
 ) : LostFilmRepository {
@@ -80,9 +86,24 @@ class LostFilmRepositoryImpl(
                 ),
             )
 
+            val allItems = releaseDao.getSummariesUpToPage(pageNumber).toSummaryModels()
+            val enrichedItems = coroutineScope {
+                allItems.map { item ->
+                    async {
+                        val tmdbUrls = tmdbResolver.resolve(
+                            detailsUrl = item.detailsUrl,
+                            titleRu = item.titleRu,
+                            releaseDateRu = item.releaseDateRu,
+                            kind = item.kind,
+                        )
+                        TmdbPosterEnricher.enrichSummary(item, tmdbUrls)
+                    }
+                }.awaitAll()
+            }
+
             PageState.Content(
                 pageNumber = pageNumber,
-                items = releaseDao.getSummariesUpToPage(pageNumber).toSummaryModels(),
+                items = enrichedItems,
                 hasNextPage = hasNextPage(html, pageNumber, parsedItems.isNotEmpty()),
                 isStale = false,
             )
@@ -107,8 +128,14 @@ class LostFilmRepositoryImpl(
                     refreshCachedTorrentLinksIfNeeded(cachedDetails.toModel()),
                 ),
             )
+            val tmdbUrls = tmdbResolver.resolve(
+                detailsUrl = cachedModel.detailsUrl,
+                titleRu = cachedModel.titleRu,
+                releaseDateRu = cachedModel.releaseDateRu,
+                kind = cachedModel.kind,
+            )
             return DetailsResult.Success(
-                details = cachedModel,
+                details = TmdbPosterEnricher.enrichDetails(cachedModel, tmdbUrls),
                 isStale = false,
             )
         }
@@ -120,10 +147,17 @@ class LostFilmRepositoryImpl(
                     enrichWithTorrentLinks(parseDetails(html, normalizedDetailsUrl, now)),
                 ),
             )
-            releaseDao.upsertDetails(parsed.toEntity())
+            val tmdbUrls = tmdbResolver.resolve(
+                detailsUrl = parsed.detailsUrl,
+                titleRu = parsed.titleRu,
+                releaseDateRu = parsed.releaseDateRu,
+                kind = parsed.kind,
+            )
+            val enriched = TmdbPosterEnricher.enrichDetails(parsed, tmdbUrls)
+            releaseDao.upsertDetails(enriched.toEntity())
 
             DetailsResult.Success(
-                details = parsed,
+                details = enriched,
                 isStale = false,
             )
         } catch (exception: Exception) {
@@ -177,10 +211,19 @@ class LostFilmRepositoryImpl(
             val seriesTitleRu = guideDocument.selectFirst(".title-block .title-ru, h1.title-ru, h1")
                 .textOrEmpty()
                 .ifBlank { fallbackSeriesTitle(seriesRootUrl) }
-            val posterUrl = guideDocument
+
+            val lostfilmPosterUrl = guideDocument
                 .selectFirst(".main_poster img, .movie-cover-box img.cover, .movie-cover-box img")
                 .absoluteUrl("src")
                 .ifBlank { null }
+
+            val tmdbUrls = tmdbResolver.resolve(
+                detailsUrl = normalizedDetailsUrl,
+                titleRu = seriesTitleRu,
+                releaseDateRu = "",
+                kind = ReleaseKind.SERIES,
+            )
+            val posterUrl = tmdbUrls?.posterUrl?.ifBlank { lostfilmPosterUrl } ?: lostfilmPosterUrl
 
             SeriesGuideResult.Success(
                 guide = SeriesGuide(
@@ -345,10 +388,25 @@ class LostFilmRepositoryImpl(
                 .sortedByDescending { parseFavoriteReleaseDate(it.releaseDateRu) ?: LocalDate.MIN }
                 .mapIndexed { index, item -> item.copy(positionInPage = index) }
 
-            if (items.isEmpty() && !loadedAnySeasonPage) {
+            val enrichedItems = coroutineScope {
+                items.map { item ->
+                    async {
+                        val tmdbUrls = tmdbResolver.resolve(
+                            detailsUrl = item.detailsUrl,
+                            titleRu = item.titleRu,
+                            releaseDateRu = item.releaseDateRu,
+                            kind = item.kind,
+                        )
+                        TmdbPosterEnricher.enrichSummary(item, tmdbUrls)
+                    }
+                }.awaitAll()
+            }
+                .mapIndexed { index, item -> item.copy(positionInPage = index) }
+
+            if (enrichedItems.isEmpty() && !loadedAnySeasonPage) {
                 FavoriteReleasesResult.Unavailable()
             } else {
-                FavoriteReleasesResult.Success(items)
+                FavoriteReleasesResult.Success(enrichedItems)
             }
         } catch (_: IOException) {
             FavoriteReleasesResult.Unavailable()
@@ -360,9 +418,23 @@ class LostFilmRepositoryImpl(
         val cachedMetadata = releaseDao.getPageMetadata(pageNumber)
 
         if (cachedMetadata != null && now - cachedMetadata.fetchedAt < RETENTION_WINDOW_MS) {
+            val cachedItems = releaseDao.getSummariesUpToPage(pageNumber).toSummaryModels()
+            val enrichedItems = coroutineScope {
+                cachedItems.map { item ->
+                    async {
+                        val tmdbUrls = tmdbResolver.resolve(
+                            detailsUrl = item.detailsUrl,
+                            titleRu = item.titleRu,
+                            releaseDateRu = item.releaseDateRu,
+                            kind = item.kind,
+                        )
+                        TmdbPosterEnricher.enrichSummary(item, tmdbUrls)
+                    }
+                }.awaitAll()
+            }
             return PageState.Content(
                 pageNumber = pageNumber,
-                items = releaseDao.getSummariesUpToPage(pageNumber).toSummaryModels(),
+                items = enrichedItems,
                 hasNextPage = cachedMetadata.itemCount > 0,
                 isStale = now - cachedMetadata.fetchedAt > FRESH_WINDOW_MS,
                 pagingErrorMessage = if (pageNumber > 1) {
@@ -376,9 +448,22 @@ class LostFilmRepositoryImpl(
         if (pageNumber > 1) {
             val previousItems = releaseDao.getSummariesUpToPage(pageNumber - 1).toSummaryModels()
             if (previousItems.isNotEmpty()) {
+                val enrichedItems = coroutineScope {
+                    previousItems.map { item ->
+                        async {
+                            val tmdbUrls = tmdbResolver.resolve(
+                                detailsUrl = item.detailsUrl,
+                                titleRu = item.titleRu,
+                                releaseDateRu = item.releaseDateRu,
+                                kind = item.kind,
+                            )
+                            TmdbPosterEnricher.enrichSummary(item, tmdbUrls)
+                        }
+                    }.awaitAll()
+                }
                 return PageState.Content(
                     pageNumber = pageNumber - 1,
-                    items = previousItems,
+                    items = enrichedItems,
                     hasNextPage = true,
                     isStale = false,
                     pagingErrorMessage = exception.message ?: "Unable to load page $pageNumber",

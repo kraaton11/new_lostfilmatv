@@ -7,6 +7,7 @@ import com.kraat.lostfilmnewtv.data.db.PageCacheMetadataEntity
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
 import com.kraat.lostfilmnewtv.data.db.ReleaseSummaryEntity
 import com.kraat.lostfilmnewtv.data.db.ReleaseDetailsEntity
+import com.kraat.lostfilmnewtv.data.db.TmdbPosterDao
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteTargetKind
@@ -19,6 +20,7 @@ import com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteSeriesParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmListParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSeasonEpisodesParser
 import com.kraat.lostfilmnewtv.data.parser.fixture
+import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolver
 import java.io.IOException
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -1000,6 +1002,7 @@ class LostFilmRepositoryTest {
             favoriteSeriesParser = LostFilmFavoriteSeriesParser(),
             seasonEpisodesParser = LostFilmSeasonEpisodesParser(),
             hasAuthenticatedSession = { isAuthenticated },
+            tmdbResolver = createFakeTmdbResolver(),
             clock = { NOW },
         )
     }
@@ -1320,3 +1323,24 @@ private data class SeasonEpisodeRow(
     val releaseDateRu: String,
     val episodeId: String,
 )
+
+private fun createFakeTmdbResolver(): TmdbPosterResolver {
+    val fakeDao = object : TmdbPosterDao {
+        override suspend fun getByDetailsUrl(detailsUrl: String) = null
+        override suspend fun upsert(entity: com.kraat.lostfilmnewtv.data.db.TmdbPosterMappingEntity) {}
+        override suspend fun deleteExpired(threshold: Long) {}
+    }
+    val fakeClient = FakeTmdbPosterClient()
+    return TmdbPosterResolver(fakeClient, fakeDao)
+}
+
+private class FakeTmdbPosterClient : com.kraat.lostfilmnewtv.data.network.TmdbPosterClient(
+    okHttpClient = okhttp3.OkHttpClient.Builder().build(),
+    apiKey = "fake",
+) {
+    override suspend fun searchByTitle(query: String, year: Int?, type: com.kraat.lostfilmnewtv.data.model.TmdbMediaType) =
+        emptyList<com.kraat.lostfilmnewtv.data.model.TmdbSearchResult>()
+
+    override suspend fun getPosterAndBackdrop(tmdbId: Int, type: com.kraat.lostfilmnewtv.data.model.TmdbMediaType) =
+        null
+}

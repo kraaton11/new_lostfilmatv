@@ -10,6 +10,7 @@ data class ReleaseDetails(
     val episodeNumber: Int?,
     val releaseDateRu: String,
     val posterUrl: String,
+    val backdropUrl: String? = null,
     val fetchedAt: Long,
     val playEpisodeId: String? = null,
     val torrentLinks: List<TorrentLink> = emptyList(),
