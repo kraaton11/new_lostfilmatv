@@ -1,6 +1,8 @@
 package com.kraat.lostfilmnewtv.ui.settings
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,27 +16,30 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.focusGroup
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material3.Text
+import com.kraat.lostfilmnewtv.BuildConfig
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundSurface
+import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
+import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorderFocus
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurface
+import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 import com.kraat.lostfilmnewtv.ui.theme.HomeTextMuted
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
@@ -89,6 +94,7 @@ fun SettingsScreen(
                 SettingsSection.QUALITY.name to selectedQuality.buttonTag(),
                 SettingsSection.UPDATES.name to selectedUpdateMode.buttonTag(),
                 SettingsSection.CHANNEL.name to selectedChannelMode.buttonTag(),
+                SettingsSection.HOME_SCREEN.name to if (isHomeFavoritesRailEnabled) HOME_FAVORITES_SHOW_TAG else HOME_FAVORITES_HIDE_TAG,
                 SettingsSection.ACCOUNT.name to ACCOUNT_AUTH_ACTION_TAG,
             ),
         )
@@ -110,7 +116,9 @@ fun SettingsScreen(
         installUrl = installUrl,
     )
     val channelSummary = selectedChannelMode.label()
+    val homeScreenSummary = if (isHomeFavoritesRailEnabled) "Показывать" else "Скрывать"
     val accountSummary = if (isAuthenticated) "Выполнен вход" else "Не выполнен вход"
+    val aboutSummary = BuildConfig.VERSION_NAME
 
     Column(
         modifier = Modifier
@@ -136,20 +144,25 @@ fun SettingsScreen(
                 qualitySummary = qualitySummary,
                 updateSummary = updateSummary,
                 channelSummary = channelSummary,
+                homeScreenSummary = homeScreenSummary,
                 accountSummary = accountSummary,
+                aboutSummary = aboutSummary,
                 onSectionSelected = { selectedSectionName = it.name },
                 focusRequesterForSection = { railRequesters.getValue(it) },
                 contentRequesterForSection = { section ->
-                    contentRequesters.getValue(
-                        targetContentTag(
-                            section = section,
-                            selectedQuality = selectedQuality,
-                            selectedUpdateMode = selectedUpdateMode,
-                            selectedChannelMode = selectedChannelMode,
-                            installUrl = installUrl,
-                            rememberedActionBySection = rememberedActionBySection,
-                        ),
+                    val tag = targetContentTag(
+                        section = section,
+                        selectedQuality = selectedQuality,
+                        selectedUpdateMode = selectedUpdateMode,
+                        selectedChannelMode = selectedChannelMode,
+                        installUrl = installUrl,
+                        rememberedActionBySection = rememberedActionBySection,
                     )
+                    if (tag.isBlank()) {
+                        railRequesters.getValue(section)
+                    } else {
+                        contentRequesters.getValue(tag)
+                    }
                 },
                 modifier = Modifier
                     .width(280.dp)
@@ -174,27 +187,29 @@ fun SettingsScreen(
                                 SettingsOverviewCard(
                                     title = "Качество по умолчанию",
                                     subtitle = "Выбор качества для основного сценария просмотра.",
-                                    modifier = Modifier.background(HomePanelSurface, RoundedCornerShape(22.dp)),
+                                    modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(22.dp)),
                                 ) {
                                     SettingsOverviewValue(text = "Сейчас выбрано: $qualitySummary")
                                 }
-                                PlaybackQualityPreference.entries.forEach { quality ->
-                                    SettingsTvButton(
-                                        text = quality.label(),
-                                        onClick = { onQualitySelected(quality) },
-                                        isSelected = quality == selectedQuality,
-                                        tag = quality.buttonTag(),
-                                        onFocused = {
-                                            rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.QUALITY.name to quality.buttonTag()
-                                            )
-                                        },
-                                        modifier = Modifier
-                                            .focusRequester(contentRequesters.getValue(quality.buttonTag()))
-                                            .focusProperties {
-                                                left = railRequesters.getValue(SettingsSection.QUALITY)
+                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                                    PlaybackQualityPreference.entries.forEach { quality ->
+                                        SettingsTvButton(
+                                            text = quality.label(),
+                                            onClick = { onQualitySelected(quality) },
+                                            isSelected = quality == selectedQuality,
+                                            tag = quality.buttonTag(),
+                                            onFocused = {
+                                                rememberedActionBySection = rememberedActionBySection + (
+                                                    SettingsSection.QUALITY.name to quality.buttonTag()
+                                                )
                                             },
-                                    )
+                                            modifier = Modifier
+                                                .focusRequester(contentRequesters.getValue(quality.buttonTag()))
+                                                .focusProperties {
+                                                    left = railRequesters.getValue(SettingsSection.QUALITY)
+                                                },
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -228,33 +243,39 @@ fun SettingsScreen(
                                 SettingsOverviewCard(
                                     title = "Канал Android TV",
                                     subtitle = "Что публиковать в системном канале Android TV.",
-                                    modifier = Modifier.background(HomePanelSurface, RoundedCornerShape(22.dp)),
+                                    modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(22.dp)),
                                 ) {
                                     SettingsOverviewValue(text = "Сейчас выбрано: $channelSummary")
                                 }
-                                AndroidTvChannelMode.entries.forEach { mode ->
-                                    SettingsTvButton(
-                                        text = mode.label(),
-                                        onClick = { onChannelModeSelected(mode) },
-                                        isSelected = mode == selectedChannelMode,
-                                        tag = mode.buttonTag(),
-                                        onFocused = {
-                                            rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.CHANNEL.name to mode.buttonTag()
-                                            )
-                                        },
-                                        modifier = Modifier
-                                            .focusRequester(contentRequesters.getValue(mode.buttonTag()))
-                                            .focusProperties {
-                                                left = railRequesters.getValue(SettingsSection.CHANNEL)
+                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                                    AndroidTvChannelMode.entries.forEach { mode ->
+                                        SettingsTvButton(
+                                            text = mode.label(),
+                                            onClick = { onChannelModeSelected(mode) },
+                                            isSelected = mode == selectedChannelMode,
+                                            tag = mode.buttonTag(),
+                                            onFocused = {
+                                                rememberedActionBySection = rememberedActionBySection + (
+                                                    SettingsSection.CHANNEL.name to mode.buttonTag()
+                                                )
                                             },
-                                    )
+                                            modifier = Modifier
+                                                .focusRequester(contentRequesters.getValue(mode.buttonTag()))
+                                                .focusProperties {
+                                                    left = railRequesters.getValue(SettingsSection.CHANNEL)
+                                                },
+                                        )
+                                    }
                                 }
+                            }
+                        }
+
+                        SettingsSection.HOME_SCREEN -> {
+                            SettingsOptionsSection {
                                 SettingsOverviewCard(
                                     title = "Главный экран",
                                     subtitle = "Дополнительные вкладки внутри главного экрана приложения.",
-                                    tag = "settings-home-overview-card",
-                                    modifier = Modifier.background(HomePanelSurface, RoundedCornerShape(22.dp)),
+                                    modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(22.dp)),
                                 ) {
                                     SettingsOverviewValue(text = "Вкладка Избранное")
                                     SettingsOverviewValue(
@@ -265,38 +286,40 @@ fun SettingsScreen(
                                         },
                                     )
                                 }
-                                SettingsTvButton(
-                                    text = "Показывать",
-                                    onClick = { onHomeFavoritesRailVisibilitySelected(true) },
-                                    isSelected = isHomeFavoritesRailEnabled,
-                                    tag = HOME_FAVORITES_SHOW_TAG,
-                                    onFocused = {
-                                        rememberedActionBySection = rememberedActionBySection + (
-                                            SettingsSection.CHANNEL.name to HOME_FAVORITES_SHOW_TAG
-                                        )
-                                    },
-                                    modifier = Modifier
-                                        .focusRequester(contentRequesters.getValue(HOME_FAVORITES_SHOW_TAG))
-                                        .focusProperties {
-                                            left = railRequesters.getValue(SettingsSection.CHANNEL)
+                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                                    SettingsTvButton(
+                                        text = "Показывать",
+                                        onClick = { onHomeFavoritesRailVisibilitySelected(true) },
+                                        isSelected = isHomeFavoritesRailEnabled,
+                                        tag = HOME_FAVORITES_SHOW_TAG,
+                                        onFocused = {
+                                            rememberedActionBySection = rememberedActionBySection + (
+                                                SettingsSection.HOME_SCREEN.name to HOME_FAVORITES_SHOW_TAG
+                                            )
                                         },
-                                )
-                                SettingsTvButton(
-                                    text = "Скрывать",
-                                    onClick = { onHomeFavoritesRailVisibilitySelected(false) },
-                                    isSelected = !isHomeFavoritesRailEnabled,
-                                    tag = HOME_FAVORITES_HIDE_TAG,
-                                    onFocused = {
-                                        rememberedActionBySection = rememberedActionBySection + (
-                                            SettingsSection.CHANNEL.name to HOME_FAVORITES_HIDE_TAG
-                                        )
-                                    },
-                                    modifier = Modifier
-                                        .focusRequester(contentRequesters.getValue(HOME_FAVORITES_HIDE_TAG))
-                                        .focusProperties {
-                                            left = railRequesters.getValue(SettingsSection.CHANNEL)
+                                        modifier = Modifier
+                                            .focusRequester(contentRequesters.getValue(HOME_FAVORITES_SHOW_TAG))
+                                            .focusProperties {
+                                                left = railRequesters.getValue(SettingsSection.HOME_SCREEN)
+                                            },
+                                    )
+                                    SettingsTvButton(
+                                        text = "Скрывать",
+                                        onClick = { onHomeFavoritesRailVisibilitySelected(false) },
+                                        isSelected = !isHomeFavoritesRailEnabled,
+                                        tag = HOME_FAVORITES_HIDE_TAG,
+                                        onFocused = {
+                                            rememberedActionBySection = rememberedActionBySection + (
+                                                SettingsSection.HOME_SCREEN.name to HOME_FAVORITES_HIDE_TAG
+                                            )
                                         },
-                                )
+                                        modifier = Modifier
+                                            .focusRequester(contentRequesters.getValue(HOME_FAVORITES_HIDE_TAG))
+                                            .focusProperties {
+                                                left = railRequesters.getValue(SettingsSection.HOME_SCREEN)
+                                            },
+                                    )
+                                }
                             }
                         }
 
@@ -305,7 +328,7 @@ fun SettingsScreen(
                                 SettingsOverviewCard(
                                     title = "Аккаунт LostFilm",
                                     subtitle = "Вход нужен для Избранного и действий аккаунта.",
-                                    modifier = Modifier.background(HomePanelSurface, RoundedCornerShape(22.dp)),
+                                    modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(22.dp)),
                                 ) {
                                     SettingsOverviewValue(
                                         text = if (isAuthenticated) {
@@ -315,21 +338,39 @@ fun SettingsScreen(
                                         },
                                     )
                                 }
-                                SettingsTvButton(
-                                    text = if (isAuthenticated) "Выйти" else "Войти",
-                                    onClick = onAuthClick,
-                                    tag = ACCOUNT_AUTH_ACTION_TAG,
-                                    onFocused = {
-                                        rememberedActionBySection = rememberedActionBySection + (
-                                            SettingsSection.ACCOUNT.name to ACCOUNT_AUTH_ACTION_TAG
-                                        )
-                                    },
-                                    modifier = Modifier
-                                        .focusRequester(contentRequesters.getValue(ACCOUNT_AUTH_ACTION_TAG))
-                                        .focusProperties {
-                                            left = railRequesters.getValue(SettingsSection.ACCOUNT)
+                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                                    SettingsTvButton(
+                                        text = if (isAuthenticated) "Выйти" else "Войти",
+                                        onClick = onAuthClick,
+                                        tag = ACCOUNT_AUTH_ACTION_TAG,
+                                        onFocused = {
+                                            rememberedActionBySection = rememberedActionBySection + (
+                                                SettingsSection.ACCOUNT.name to ACCOUNT_AUTH_ACTION_TAG
+                                            )
                                         },
-                                )
+                                        modifier = Modifier
+                                            .focusRequester(contentRequesters.getValue(ACCOUNT_AUTH_ACTION_TAG))
+                                            .focusProperties {
+                                                left = railRequesters.getValue(SettingsSection.ACCOUNT)
+                                            },
+                                    )
+                                }
+                            }
+                        }
+
+                        SettingsSection.ABOUT -> {
+                            SettingsOptionsSection {
+                                SettingsOverviewCard(
+                                    title = "О приложении",
+                                    subtitle = "Информация о версии и сборке.",
+                                    modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(22.dp)),
+                                ) {
+                                    SettingsOverviewValue(text = "Версия: ${BuildConfig.VERSION_NAME}")
+                                    SettingsOverviewValue(text = "Сборка: ${BuildConfig.VERSION_CODE}")
+                                    SettingsOverviewValue(text = "Package: ${BuildConfig.APPLICATION_ID}")
+                                    SettingsOverviewValue(text = "Min SDK: 26")
+                                    SettingsOverviewValue(text = "Target SDK: 35")
+                                }
                             }
                         }
                     }
@@ -347,7 +388,9 @@ private enum class SettingsSection(
     QUALITY("Качество", "settings-section-quality", "settings-section-quality-summary"),
     UPDATES("Обновления", "settings-section-updates", "settings-section-updates-summary"),
     CHANNEL("Канал Android TV", "settings-section-channel", "settings-section-channel-summary"),
+    HOME_SCREEN("Главный экран", "settings-section-home-screen", "settings-section-home-screen-summary"),
     ACCOUNT("Аккаунт", "settings-section-account", "settings-section-account-summary"),
+    ABOUT("О приложении", "settings-section-about", "settings-section-about-summary"),
 }
 
 @Composable
@@ -356,7 +399,9 @@ private fun SettingsSectionRail(
     qualitySummary: String,
     updateSummary: String,
     channelSummary: String,
+    homeScreenSummary: String,
     accountSummary: String,
+    aboutSummary: String,
     onSectionSelected: (SettingsSection) -> Unit,
     focusRequesterForSection: (SettingsSection) -> FocusRequester,
     contentRequesterForSection: (SettingsSection) -> FocusRequester,
@@ -368,14 +413,17 @@ private fun SettingsSectionRail(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        SettingsSection.entries.forEach { section ->
+        val sections = SettingsSection.entries
+        sections.forEachIndexed { index, section ->
             SettingsTvButton(
                 text = section.railTitle,
                 summary = when (section) {
                     SettingsSection.QUALITY -> qualitySummary
                     SettingsSection.UPDATES -> updateSummary
                     SettingsSection.CHANNEL -> channelSummary
+                    SettingsSection.HOME_SCREEN -> homeScreenSummary
                     SettingsSection.ACCOUNT -> accountSummary
+                    SettingsSection.ABOUT -> aboutSummary
                 },
                 summaryTag = section.summaryTag,
                 isSelected = section == selectedSection,
@@ -385,6 +433,8 @@ private fun SettingsSectionRail(
                     .focusRequester(focusRequesterForSection(section))
                     .focusProperties {
                         right = contentRequesterForSection(section)
+                        up = if (index > 0) focusRequesterForSection(sections[index - 1]) else focusRequesterForSection(sections.last())
+                        down = if (index < sections.lastIndex) focusRequesterForSection(sections[index + 1]) else focusRequesterForSection(sections.first())
                     },
             )
         }
@@ -492,7 +542,9 @@ private fun targetContentTag(
         section == SettingsSection.QUALITY -> selectedQuality.buttonTag()
         section == SettingsSection.UPDATES -> selectedUpdateMode.buttonTag()
         section == SettingsSection.CHANNEL -> selectedChannelMode.buttonTag()
+        section == SettingsSection.HOME_SCREEN -> if (rememberedActionBySection[section.name] != null) rememberedActionBySection[section.name]!! else HOME_FAVORITES_SHOW_TAG
         section == SettingsSection.ACCOUNT -> ACCOUNT_AUTH_ACTION_TAG
+        section == SettingsSection.ABOUT -> ""
         else -> selectedQuality.buttonTag()
     }
 }
