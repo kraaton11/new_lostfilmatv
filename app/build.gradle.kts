@@ -50,6 +50,7 @@ android {
         versionCode = releaseVersionCodeProvider.get().toInt()
         versionName = releaseVersionNameProvider.get()
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "TMDB_API_KEY", "\"eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI0YzFlMmNlZDkxZGQxOTAwMTg0MTZiNzQwNzgzMDgwNCIsIm5iZiI6MTcwNDEwODE4My4wODgsInN1YiI6IjY1OTJhMDk3NTcxNzZmNmJjYjdmOTk2YSIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.vsBAhcyuC-XB5b1Um8B8Ro2Fcg58QQV6YBRd4XdZyOs\"")
     }
 
     signingConfigs {

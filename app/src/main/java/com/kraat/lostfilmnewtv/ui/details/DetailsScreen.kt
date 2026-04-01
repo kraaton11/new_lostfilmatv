@@ -227,8 +227,10 @@ private fun ContentState(
 private fun BackgroundPoster(details: ReleaseDetails?) {
     Box(modifier = Modifier.fillMaxSize()) {
         if (details != null) {
+            val backgroundImage = details.backdropUrl?.takeIf { it.isNotBlank() }
+                ?: details.posterUrl
             AsyncImage(
-                model = details.posterUrl,
+                model = backgroundImage,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
