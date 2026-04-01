@@ -357,19 +357,11 @@ private fun HeroStage(
                 modifier = Modifier
                     .width(248.dp)
                     .focusRequester(primaryActionRequester)
-                    .focusProperties {
-                        up = primaryActionRequester
-                        left = primaryActionRequester
-                        right = primaryActionRequester
-                        if (secondaryActions.isNotEmpty()) {
-                            down = secondaryActionRequesters.getValue(secondaryActions.first().actionId)
-                        }
-                    }
                     .testTag(primaryActionTag(stageUi.primaryAction)),
                 isPrimary = true,
                 enabled = stageUi.primaryAction.enabled,
             )
-            secondaryActions.forEachIndexed { index, action ->
+            secondaryActions.forEach { action ->
                 StageButton(
                     label = action.label,
                     subtitle = action.subtitle,
@@ -381,16 +373,6 @@ private fun HeroStage(
                     modifier = Modifier
                         .width(248.dp)
                         .focusRequester(secondaryActionRequesters.getValue(action.actionId))
-                        .focusProperties {
-                            left = if (index == 0) {
-                                primaryActionRequester
-                            } else {
-                                secondaryActionRequesters.getValue(secondaryActions[index - 1].actionId)
-                            }
-                            if (index < secondaryActions.lastIndex) {
-                                right = secondaryActionRequesters.getValue(secondaryActions[index + 1].actionId)
-                            }
-                        }
                         .testTag(secondaryActionTag(action)),
                     enabled = action.enabled,
                     isSecondary = true,
