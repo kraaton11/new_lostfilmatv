@@ -46,6 +46,14 @@ APK после сборки:
 
 `app/build/outputs/apk/debug/app-debug.apk`
 
+## Запуск эмулятора
+
+```bash
+./scripts/run-emulator.sh
+```
+
+Скрипт запускает AVD `tv_test`, нормализует его локальный `config.ini`, поднимает `adb` и ждёт состояния `device`.
+
 ## Сборка и проверки
 
 ```bash
