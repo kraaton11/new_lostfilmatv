@@ -38,7 +38,7 @@ fun DetailsRoute(
     onOpenSeriesGuide: (String) -> Unit = {},
     onFavoriteContentChanged: () -> Unit = {},
     onChannelContentChanged: suspend () -> Unit = {},
-    openTorrServe: suspend (Context, String) -> TorrServeOpenResult = actionHandler::open,
+    openTorrServe: suspend (Context, String, String, String) -> TorrServeOpenResult = actionHandler::open,
 ) {
     val detailsViewModel: DetailsViewModel = viewModel(
         key = "details:$detailsUrl",
@@ -106,7 +106,7 @@ fun DetailsRoute(
         inFlightJob?.cancel()
         inFlightJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             try {
-                val message = when (openTorrServe(context, url)) {
+                val message = when (openTorrServe(context, url, currentDetails?.titleRu.orEmpty(), currentDetails?.posterUrl.orEmpty())) {
                     TorrServeOpenResult.Success -> {
                         val playEpisodeId = currentDetails?.playEpisodeId
                         if (playEpisodeId != null) {

@@ -42,7 +42,7 @@ class TorrServeLauncherTest {
         )
 
         val launcher = TorrServeLauncher(Dispatchers.Unconfined)
-        val result = launcher.launch(context, "http://example.com/torrent")
+        val result = launcher.launch(context, "http://example.com/torrent", "Test Title", "")
 
         assertTrue(result)
     }
@@ -52,7 +52,7 @@ class TorrServeLauncherTest {
         val context = Robolectric.buildActivity(android.app.Activity::class.java).get()
 
         val launcher = TorrServeLauncher(Dispatchers.Unconfined)
-        val result = launcher.launch(context, "http://example.com/torrent")
+        val result = launcher.launch(context, "http://example.com/torrent", "Test Title", "")
 
         assertFalse(result)
     }

@@ -928,7 +928,7 @@ private class AlwaysUnavailableChecker : TorrServeAvailabilityChecker {
 }
 
 private class NoOpLauncher : TorrServeUrlLauncher {
-    override suspend fun launch(context: android.content.Context, torrServeUrl: String): Boolean = false
+    override suspend fun launch(context: android.content.Context, torrServeUrl: String, title: String, poster: String): Boolean = false
 }
 
 private class RecordingReleaseApkLauncher(

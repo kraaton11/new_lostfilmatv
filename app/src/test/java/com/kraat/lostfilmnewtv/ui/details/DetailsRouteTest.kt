@@ -165,7 +165,7 @@ class DetailsRouteTest {
                 repository = RouteFakeDetailsRepository.success(detailsUrl),
                 actionHandler = succeedingActionHandler(),
                 linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
-                openTorrServe = { _, _ ->
+                openTorrServe = { _, _, _, _ ->
                     launchCount.incrementAndGet()
                     activeLaunches.incrementAndGet()
                     try {
@@ -212,7 +212,7 @@ class DetailsRouteTest {
                     repository = RouteFakeDetailsRepository.success(detailsUrl),
                     actionHandler = succeedingActionHandler(),
                     linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
-                    openTorrServe = { _, _ ->
+                    openTorrServe = { _, _, _, _ ->
                         val next = responses.removeAt(0)
                         next.await()
                     },
@@ -247,7 +247,7 @@ class DetailsRouteTest {
                 repository = RouteFakeDetailsRepository.success(detailsUrl),
                 actionHandler = succeedingActionHandler(),
                 linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
-                openTorrServe = { _, _ -> TorrServeOpenResult.Unavailable },
+                openTorrServe = { _, _, _, _ -> TorrServeOpenResult.Unavailable },
             )
         }
 
@@ -335,7 +335,7 @@ class DetailsRouteTest {
                 linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
                 onMarkedWatched = { watchedDetailsUrls += it },
                 onChannelContentChanged = { channelSyncCalls.incrementAndGet() },
-                openTorrServe = { _, _ -> TorrServeOpenResult.Success },
+                openTorrServe = { _, _, _, _ -> TorrServeOpenResult.Success },
             )
         }
 
@@ -439,6 +439,8 @@ private class ImmediateLauncher(
     override suspend fun launch(
         context: android.content.Context,
         torrServeUrl: String,
+        title: String,
+        poster: String,
     ): Boolean {
         return result == TorrServeOpenResult.Success
     }
