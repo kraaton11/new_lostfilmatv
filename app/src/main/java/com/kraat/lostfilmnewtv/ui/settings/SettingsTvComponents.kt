@@ -25,17 +25,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.kraat.lostfilmnewtv.ui.theme.FocusBorder
 import com.kraat.lostfilmnewtv.ui.theme.FocusBackground
-import com.kraat.lostfilmnewtv.ui.theme.HomeAccentBlue
 import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGold
 import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGoldGlow
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
+import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorderFocus
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurface
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 import com.kraat.lostfilmnewtv.ui.theme.HomeTextMuted
 import com.kraat.lostfilmnewtv.ui.theme.HomeTextSecondary
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
+import androidx.compose.foundation.focusable
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -68,7 +68,7 @@ fun SettingsTvButton(
     val borderColor = when {
         !enabled -> HomePanelBorder
         isSelected && isFocused -> HomeAccentGoldGlow
-        isFocused -> FocusBorder
+        isFocused -> HomePanelBorderFocus
         isSelected -> HomeAccentGold
         else -> HomePanelBorder
     }
@@ -147,6 +147,7 @@ fun SettingsOverviewCard(
         modifier = modifier
             .fillMaxWidth()
             .testTag(tag)
+            .focusable(false)
             .border(1.dp, HomePanelBorder, RoundedCornerShape(22.dp))
             .padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),

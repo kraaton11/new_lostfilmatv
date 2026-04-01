@@ -2,6 +2,7 @@ package com.kraat.lostfilmnewtv.ui.settings
 
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -264,7 +265,48 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun settingsScreen_channelSection_showsHomeFavoritesToggle_andInvokesCallback() {
+    fun settingsScreen_channelSection_onlyShowsChannelModes_noHomeFavorites() {
+        composeRule.setContent {
+            LostFilmTheme {
+                SettingsScreen(
+                    selectedQuality = PlaybackQualityPreference.Q1080,
+                    onQualitySelected = {},
+                    selectedUpdateMode = UpdateCheckMode.MANUAL,
+                    selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
+                    isHomeFavoritesRailEnabled = false,
+                    installedVersionText = "0.1.0",
+                    latestVersionText = null,
+                    statusText = null,
+                    isCheckingForUpdates = false,
+                    installUrl = null,
+                    onUpdateModeSelected = {},
+                    onChannelModeSelected = {},
+                    onHomeFavoritesRailVisibilitySelected = {},
+                    onCheckForUpdatesClick = {},
+                    onInstallUpdateClick = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("settings-section-channel")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        composeRule.onNodeWithTag("settings-tv-channel-all-new").assertExists()
+        composeRule.onNodeWithTag("settings-tv-channel-unwatched").assertExists()
+        composeRule.onNodeWithTag("settings-tv-channel-disabled").assertExists()
+
+        assertEquals(
+            0,
+            composeRule.onAllNodesWithTag("settings-home-favorites-show").fetchSemanticsNodes().size,
+        )
+        assertEquals(
+            0,
+            composeRule.onAllNodesWithTag("settings-home-favorites-hide").fetchSemanticsNodes().size,
+        )
+    }
+
+    @Test
+    fun settingsScreen_homeScreenSection_showsRailSummary_andToggles() {
         val selectedValues = mutableListOf<Boolean>()
 
         composeRule.setContent {
@@ -289,10 +331,13 @@ class SettingsScreenTest {
             }
         }
 
-        composeRule.onNodeWithTag("settings-section-channel")
+        composeRule.onNodeWithTag("settings-section-home-screen").assertExists()
+        composeRule.onNodeWithTag("settings-section-home-screen-summary", useUnmergedTree = true)
+            .assertTextEquals("Скрывать")
+
+        composeRule.onNodeWithTag("settings-section-home-screen")
             .performSemanticsAction(SemanticsActions.OnClick)
 
-        composeRule.onNodeWithText("Главный экран").assertExists()
         composeRule.onNodeWithText("Вкладка Избранное").assertExists()
         composeRule.onNodeWithTag("settings-home-favorites-hide").assertIsSelected()
         composeRule.onNodeWithTag("settings-home-favorites-show")
@@ -302,7 +347,7 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun settingsScreen_railIncludesAccountSectionSummary_forAnonymousState() {
+    fun settingsScreen_homeScreenSection_showsShowState_whenEnabled() {
         composeRule.setContent {
             LostFilmTheme {
                 SettingsScreen(
@@ -310,8 +355,40 @@ class SettingsScreenTest {
                     onQualitySelected = {},
                     selectedUpdateMode = UpdateCheckMode.MANUAL,
                     selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
-                    isAuthenticated = false,
-                    onAuthClick = {},
+                    isHomeFavoritesRailEnabled = true,
+                    installedVersionText = "0.1.0",
+                    latestVersionText = null,
+                    statusText = null,
+                    isCheckingForUpdates = false,
+                    installUrl = null,
+                    onUpdateModeSelected = {},
+                    onChannelModeSelected = {},
+                    onHomeFavoritesRailVisibilitySelected = {},
+                    onCheckForUpdatesClick = {},
+                    onInstallUpdateClick = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("settings-section-home-screen-summary", useUnmergedTree = true)
+            .assertTextEquals("Показывать")
+
+        composeRule.onNodeWithTag("settings-section-home-screen")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        composeRule.onNodeWithTag("settings-home-favorites-show").assertIsSelected()
+        composeRule.onNodeWithTag("settings-home-favorites-hide").assertExists()
+    }
+
+    @Test
+    fun settingsScreen_aboutSection_showsVersionAndBuildInfo() {
+        composeRule.setContent {
+            LostFilmTheme {
+                SettingsScreen(
+                    selectedQuality = PlaybackQualityPreference.Q1080,
+                    onQualitySelected = {},
+                    selectedUpdateMode = UpdateCheckMode.MANUAL,
+                    selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
                     installedVersionText = "0.1.0",
                     latestVersionText = null,
                     statusText = null,
@@ -325,15 +402,75 @@ class SettingsScreenTest {
             }
         }
 
+        composeRule.onNodeWithTag("settings-section-about").assertExists()
+
+        composeRule.onNodeWithTag("settings-section-about")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        composeRule.onNodeWithText("Информация о версии и сборке.").assertExists()
+        composeRule.onNodeWithText("Min SDK: 26").assertExists()
+    }
+
+    @Test
+    fun settingsScreen_qualitySection_hasFocusableControls_withCorrectTags() {
+        composeRule.setContent {
+            LostFilmTheme {
+                SettingsScreen(
+                    selectedQuality = PlaybackQualityPreference.Q1080,
+                    onQualitySelected = {},
+                    selectedUpdateMode = UpdateCheckMode.MANUAL,
+                    selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
+                    installedVersionText = "0.1.0",
+                    latestVersionText = null,
+                    statusText = null,
+                    isCheckingForUpdates = false,
+                    installUrl = null,
+                    onUpdateModeSelected = {},
+                    onChannelModeSelected = {},
+                    onCheckForUpdatesClick = {},
+                    onInstallUpdateClick = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("settings-section-quality").assertIsSelected()
+        composeRule.onNodeWithTag("settings-quality-1080").assertExists()
+        composeRule.onNodeWithTag("settings-quality-720").assertExists()
+        composeRule.onNodeWithTag("settings-quality-480").assertExists()
+    }
+
+    @Test
+    fun settingsScreen_railItems_haveUpDownNavigationConfigured() {
+        composeRule.setContent {
+            LostFilmTheme {
+                SettingsScreen(
+                    selectedQuality = PlaybackQualityPreference.Q1080,
+                    onQualitySelected = {},
+                    selectedUpdateMode = UpdateCheckMode.MANUAL,
+                    selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
+                    installedVersionText = "0.1.0",
+                    latestVersionText = null,
+                    statusText = null,
+                    isCheckingForUpdates = false,
+                    installUrl = null,
+                    onUpdateModeSelected = {},
+                    onChannelModeSelected = {},
+                    onCheckForUpdatesClick = {},
+                    onInstallUpdateClick = {},
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("settings-section-quality").assertExists()
+        composeRule.onNodeWithTag("settings-section-updates").assertExists()
+        composeRule.onNodeWithTag("settings-section-channel").assertExists()
+        composeRule.onNodeWithTag("settings-section-home-screen").assertExists()
         composeRule.onNodeWithTag("settings-section-account").assertExists()
-        composeRule.onNodeWithTag("settings-section-account-summary", useUnmergedTree = true)
-            .assertTextEquals("Не выполнен вход")
+        composeRule.onNodeWithTag("settings-section-about").assertExists()
     }
 
     @Test
-    fun settingsScreen_accountSection_showsLoginAction_andInvokesCallback() {
-        var authClicks = 0
-
+    fun settingsScreen_contentButtons_haveLeftFocusRoutingToRail() {
         composeRule.setContent {
             LostFilmTheme {
                 SettingsScreen(
@@ -341,8 +478,6 @@ class SettingsScreenTest {
                     onQualitySelected = {},
                     selectedUpdateMode = UpdateCheckMode.MANUAL,
                     selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
-                    isAuthenticated = false,
-                    onAuthClick = { authClicks += 1 },
                     installedVersionText = "0.1.0",
                     latestVersionText = null,
                     statusText = null,
@@ -356,47 +491,11 @@ class SettingsScreenTest {
             }
         }
 
-        composeRule.onNodeWithTag("settings-section-account")
+        composeRule.onNodeWithTag("settings-section-quality")
             .performSemanticsAction(SemanticsActions.OnClick)
 
-        composeRule.onNodeWithText("Аккаунт LostFilm").assertExists()
-        composeRule.onNodeWithText("Статус: не выполнен вход").assertExists()
-        composeRule.onNodeWithTag("settings-account-auth-action")
-            .performSemanticsAction(SemanticsActions.OnClick)
-
-        assertEquals(1, authClicks)
-    }
-
-    @Test
-    fun settingsScreen_accountSection_showsLogoutAction_forAuthenticatedState() {
-        composeRule.setContent {
-            LostFilmTheme {
-                SettingsScreen(
-                    selectedQuality = PlaybackQualityPreference.Q1080,
-                    onQualitySelected = {},
-                    selectedUpdateMode = UpdateCheckMode.MANUAL,
-                    selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
-                    isAuthenticated = true,
-                    onAuthClick = {},
-                    installedVersionText = "0.1.0",
-                    latestVersionText = null,
-                    statusText = null,
-                    isCheckingForUpdates = false,
-                    installUrl = null,
-                    onUpdateModeSelected = {},
-                    onChannelModeSelected = {},
-                    onCheckForUpdatesClick = {},
-                    onInstallUpdateClick = {},
-                )
-            }
-        }
-
-        composeRule.onNodeWithTag("settings-section-account")
-            .performSemanticsAction(SemanticsActions.OnClick)
-
-        composeRule.onNodeWithTag("settings-section-account-summary", useUnmergedTree = true)
-            .assertTextEquals("Выполнен вход")
-        composeRule.onNodeWithText("Статус: выполнен вход").assertExists()
-        composeRule.onNodeWithText("Выйти").assertExists()
+        composeRule.onNodeWithTag("settings-quality-1080").assertExists()
+        composeRule.onNodeWithTag("settings-quality-720").assertExists()
+        composeRule.onNodeWithTag("settings-quality-480").assertExists()
     }
 }
