@@ -300,43 +300,56 @@ private fun HeroStage(
         }
     }
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(28.dp),
-        verticalAlignment = Alignment.CenterVertically,
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(28.dp),
     ) {
-        PosterCard(details = details)
-        Column(
-            modifier = Modifier.width(520.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(28.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = stageUi.title.ifBlank { "Details" },
-                color = TextPrimary,
-                fontSize = 52.sp,
-                fontWeight = FontWeight.Bold,
-                lineHeight = 56.sp,
-            )
-            if (stageUi.heroEpisodeTitle.isNotBlank()) {
+            PosterCard(details = details)
+            Column(
+                modifier = Modifier.width(520.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
                 Text(
-                    text = stageUi.heroEpisodeTitle,
+                    text = stageUi.title.ifBlank { "Details" },
                     color = TextPrimary,
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Medium,
-                    lineHeight = 28.sp,
+                    fontSize = 52.sp,
+                    fontWeight = FontWeight.Bold,
+                    lineHeight = 56.sp,
                 )
+                if (stageUi.heroEpisodeTitle.isNotBlank()) {
+                    Text(
+                        text = stageUi.heroEpisodeTitle,
+                        color = TextPrimary,
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Medium,
+                        lineHeight = 28.sp,
+                    )
+                }
+                if (stageUi.heroMetaLine.isNotBlank()) {
+                    Text(
+                        text = stageUi.heroMetaLine,
+                        modifier = Modifier.testTag("details-hero-meta"),
+                        color = DetailsTextSecondary,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        lineHeight = 20.sp,
+                    )
+                }
             }
-            if (stageUi.heroMetaLine.isNotBlank()) {
-                Text(
-                    text = stageUi.heroMetaLine,
-                    modifier = Modifier.testTag("details-hero-meta"),
-                    color = DetailsTextSecondary,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Medium,
-                    lineHeight = 20.sp,
-                )
-            }
+        }
+
+        Spacer(modifier = Modifier.weight(1f))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             StageButton(
                 label = stageUi.primaryAction.label,
                 subtitle = stageUi.primaryAction.subtitle,
@@ -369,13 +382,13 @@ private fun HeroStage(
                         .width(248.dp)
                         .focusRequester(secondaryActionRequesters.getValue(action.actionId))
                         .focusProperties {
-                            up = if (index == 0) {
+                            left = if (index == 0) {
                                 primaryActionRequester
                             } else {
                                 secondaryActionRequesters.getValue(secondaryActions[index - 1].actionId)
                             }
                             if (index < secondaryActions.lastIndex) {
-                                down = secondaryActionRequesters.getValue(secondaryActions[index + 1].actionId)
+                                right = secondaryActionRequesters.getValue(secondaryActions[index + 1].actionId)
                             }
                         }
                         .testTag(secondaryActionTag(action)),
