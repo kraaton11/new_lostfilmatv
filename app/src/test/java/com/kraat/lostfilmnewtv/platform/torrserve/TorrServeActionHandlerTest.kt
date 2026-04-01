@@ -24,7 +24,7 @@ private class FakeAvailabilityChecker(private val available: Boolean) : TorrServ
 }
 
 private class FakeLauncher(private val success: Boolean) : TorrServeUrlLauncher {
-    override suspend fun launch(context: Context, torrServeUrl: String): Boolean = success
+    override suspend fun launch(context: Context, torrServeUrl: String, title: String, poster: String): Boolean = success
 }
 
 @RunWith(RobolectricTestRunner::class)
@@ -41,7 +41,7 @@ class TorrServeActionHandlerTest {
         val handler = TorrServeActionHandler(builder, probe, launcher, testDispatcher, testDispatcher)
         val context = Robolectric.buildActivity(android.app.Activity::class.java).get()
 
-        val result = handler.open(context, "http://test.com")
+        val result = handler.open(context, "http://test.com", "Test Title", "")
 
         assertEquals(TorrServeOpenResult.LaunchError, result)
     }
@@ -56,7 +56,7 @@ class TorrServeActionHandlerTest {
         val handler = TorrServeActionHandler(builder, probe, launcher, testDispatcher, testDispatcher)
         val context = Robolectric.buildActivity(android.app.Activity::class.java).get()
 
-        val result = handler.open(context, "http://test.com")
+        val result = handler.open(context, "http://test.com", "Test Title", "")
 
         assertEquals(TorrServeOpenResult.Unavailable, result)
     }
@@ -71,7 +71,7 @@ class TorrServeActionHandlerTest {
         val handler = TorrServeActionHandler(builder, probe, launcher, testDispatcher, testDispatcher)
         val context = Robolectric.buildActivity(android.app.Activity::class.java).get()
 
-        val result = handler.open(context, "http://test.com")
+        val result = handler.open(context, "http://test.com", "Test Title", "")
 
         assertEquals(TorrServeOpenResult.Success, result)
     }

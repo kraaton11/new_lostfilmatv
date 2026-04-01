@@ -17,10 +17,17 @@ class TorrServeLauncher(
         const val TORRSERVE_PLAY_ACTIVITY = "ru.yourok.torrserve.ui.activities.play.PlayActivity"
     }
 
-    override suspend fun launch(context: Context, torrServeUrl: String): Boolean = withContext(mainDispatcher) {
+    override suspend fun launch(
+        context: Context,
+        torrServeUrl: String,
+        title: String,
+        poster: String,
+    ): Boolean = withContext(mainDispatcher) {
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(torrServeUrl)).apply {
             component = ComponentName(TORRSERVE_PACKAGE, TORRSERVE_PLAY_ACTIVITY)
             `package` = TORRSERVE_PACKAGE
+            putExtra("title", title)
+            putExtra("poster", poster)
         }
         if (context !is android.app.Activity) {
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)

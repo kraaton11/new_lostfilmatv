@@ -9,5 +9,10 @@ fun interface TorrServeAvailabilityChecker {
 }
 
 fun interface TorrServeUrlLauncher {
-    suspend fun launch(context: android.content.Context, torrServeUrl: String): Boolean
+    suspend fun launch(
+        context: android.content.Context,
+        torrServeUrl: String,
+        title: String,
+        poster: String,
+    ): Boolean
 }
