@@ -14,6 +14,5 @@ class HomeChannelRefreshBootstrapReceiver : BroadcastReceiver() {
 
         val application = context.applicationContext as? LostFilmApplication ?: return
         application.homeChannelBackgroundScheduler.syncForCurrentMode()
-        application.homeChannelBackgroundScheduler.requestImmediateRefresh()
     }
 }
