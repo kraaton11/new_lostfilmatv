@@ -92,7 +92,7 @@ class MainActivityTest {
     }
 
     @Test
-    fun bootCompletedBroadcast_requestsPeriodicAndImmediateChannelRefresh() {
+    fun bootCompletedBroadcast_requestsPeriodicChannelRefresh() {
         val application = ApplicationProvider.getApplicationContext<TestLostFilmApplication>()
         val workManager = checkNotNull(TestLostFilmApplication.homeChannelWorkManager)
 
@@ -102,11 +102,11 @@ class MainActivityTest {
         )
 
         assertEquals(1, enqueueUniquePeriodicWorkCount(workManager))
-        assertEquals(1, enqueueUniqueWorkCount(workManager))
+        assertEquals(0, enqueueUniqueWorkCount(workManager))
     }
 
     @Test
-    fun packageReplacedBroadcast_requestsPeriodicAndImmediateChannelRefresh() {
+    fun packageReplacedBroadcast_requestsPeriodicChannelRefresh() {
         val application = ApplicationProvider.getApplicationContext<TestLostFilmApplication>()
         val workManager = checkNotNull(TestLostFilmApplication.homeChannelWorkManager)
 
@@ -116,7 +116,7 @@ class MainActivityTest {
         )
 
         assertEquals(1, enqueueUniquePeriodicWorkCount(workManager))
-        assertEquals(1, enqueueUniqueWorkCount(workManager))
+        assertEquals(0, enqueueUniqueWorkCount(workManager))
     }
 
     private companion object {
