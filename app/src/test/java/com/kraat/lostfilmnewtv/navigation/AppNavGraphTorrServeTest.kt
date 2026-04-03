@@ -203,9 +203,12 @@ class AppNavGraphTorrServeTest {
     @Test
     fun startup_composition_triggers_single_channel_sync_before_home_content_finishes_loading() {
         val pageResult = CompletableDeferred<PageState>()
-        val publisher = RecordingAppNavHomeChannelPublisher()
+        val workManager = mock(WorkManager::class.java)
         TestLostFilmApplication.repositoryOverride = BlockingAppNavGraphRepository(pageResult)
-        TestLostFilmApplication.homeChannelSyncManagerOverride = testHomeChannelSyncManager(publisher)
+        TestLostFilmApplication.homeChannelBackgroundSchedulerOverride = HomeChannelBackgroundScheduler(
+            readMode = { AndroidTvChannelMode.ALL_NEW },
+            workManager = workManager,
+        )
 
         composeRule.setContent {
             LostFilmTheme {
@@ -213,8 +216,11 @@ class AppNavGraphTorrServeTest {
             }
         }
 
-        composeRule.waitUntil(timeoutMillis = 5_000) { publisher.reconcileCalls.get() == 1 }
-        assertEquals(1, publisher.reconcileCalls.get())
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            mockingDetails(workManager).invocations.count {
+                it.method.name == "enqueueUniquePeriodicWork"
+            } == 1
+        }
 
         pageResult.complete(
             PageState.Content(
