@@ -16,6 +16,19 @@ interface FavoriteReleaseDao {
     )
     suspend fun getLatestFavorites(limit: Int): List<FavoriteReleaseEntity>
 
+    @Query(
+        """
+        SELECT * FROM favorite_releases f1
+        WHERE f1.fetchedAt = (
+            SELECT MAX(f2.fetchedAt) FROM favorite_releases f2
+            WHERE f2.titleRu = f1.titleRu
+        )
+        ORDER BY f1.fetchedAt DESC
+        LIMIT :limit
+        """,
+    )
+    suspend fun getLatestFavoriteEpisodes(limit: Int): List<FavoriteReleaseEntity>
+
     @Query("SELECT * FROM favorite_releases WHERE detailsUrl = :detailsUrl LIMIT 1")
     suspend fun getFavorite(detailsUrl: String): FavoriteReleaseEntity?
 

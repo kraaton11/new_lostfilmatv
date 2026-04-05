@@ -71,7 +71,7 @@ private class DaoHomeChannelSummaryReader(
     }
 
     override suspend fun latestFavorites(limit: Int): List<ChannelProgramRow> {
-        return favoriteReleaseDao.getLatestFavorites(limit)
+        return favoriteReleaseDao.getLatestFavoriteEpisodes(limit)
             .map { it.toChannelRow() }
     }
 }
