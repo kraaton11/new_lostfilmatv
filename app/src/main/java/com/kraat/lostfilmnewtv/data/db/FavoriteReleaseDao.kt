@@ -18,16 +18,20 @@ interface FavoriteReleaseDao {
 
     @Query(
         """
-        SELECT * FROM favorite_releases f1
-        WHERE f1.fetchedAt = (
-            SELECT MAX(f2.fetchedAt) FROM favorite_releases f2
-            WHERE f2.titleRu = f1.titleRu
-        )
-        ORDER BY f1.fetchedAt DESC
-        LIMIT :limit
+        SELECT DISTINCT titleRu FROM favorite_releases
         """,
     )
-    suspend fun getLatestFavoriteEpisodes(limit: Int): List<FavoriteReleaseEntity>
+    suspend fun getDistinctTitles(): List<String>
+
+    @Query(
+        """
+        SELECT * FROM favorite_releases
+        WHERE titleRu = :titleRu
+        ORDER BY seasonNumber DESC, episodeNumber DESC
+        LIMIT 1
+        """,
+    )
+    suspend fun getLatestEpisodeForSeries(titleRu: String): FavoriteReleaseEntity?
 
     @Query("SELECT * FROM favorite_releases WHERE detailsUrl = :detailsUrl LIMIT 1")
     suspend fun getFavorite(detailsUrl: String): FavoriteReleaseEntity?

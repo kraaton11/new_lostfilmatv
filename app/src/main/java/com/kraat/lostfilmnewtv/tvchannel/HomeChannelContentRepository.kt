@@ -5,12 +5,19 @@ import com.kraat.lostfilmnewtv.data.db.FavoriteReleaseEntity
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
 import com.kraat.lostfilmnewtv.data.db.ReleaseSummaryEntity
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
+import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolver
 
 class HomeChannelContentRepository(
     private val reader: HomeChannelSummaryReader,
+    private val tmdbPosterResolver: TmdbPosterResolver? = null,
 ) : HomeChannelProgramSource {
-    constructor(releaseDao: ReleaseDao, favoriteReleaseDao: FavoriteReleaseDao) : this(
-        reader = DaoHomeChannelSummaryReader(releaseDao, favoriteReleaseDao),
+    constructor(
+        releaseDao: ReleaseDao,
+        favoriteReleaseDao: FavoriteReleaseDao,
+        tmdbPosterResolver: TmdbPosterResolver? = null,
+    ) : this(
+        reader = DaoHomeChannelSummaryReader(releaseDao, favoriteReleaseDao, tmdbPosterResolver),
+        tmdbPosterResolver = tmdbPosterResolver,
     )
 
     override suspend fun loadPrograms(
@@ -59,39 +66,72 @@ interface HomeChannelSummaryReader {
 private class DaoHomeChannelSummaryReader(
     private val releaseDao: ReleaseDao,
     private val favoriteReleaseDao: FavoriteReleaseDao,
+    private val tmdbPosterResolver: TmdbPosterResolver? = null,
 ) : HomeChannelSummaryReader {
     override suspend fun latest(limit: Int): List<ChannelProgramRow> {
-        return releaseDao.getLatestSummariesForChannel(limit)
-            .map { it.toChannelRow() }
+        val summaries = releaseDao.getLatestSummariesForChannel(limit)
+        return summaries.map { entity ->
+            val posterUrl = resolveTmdbPoster(entity)
+            entity.toChannelRow(posterUrl)
+        }
     }
 
     override suspend fun latestUnwatched(limit: Int): List<ChannelProgramRow> {
-        return releaseDao.getLatestUnwatchedSummariesForChannel(limit)
-            .map { it.toChannelRow() }
+        val summaries = releaseDao.getLatestUnwatchedSummariesForChannel(limit)
+        return summaries.map { entity ->
+            val posterUrl = resolveTmdbPoster(entity)
+            entity.toChannelRow(posterUrl)
+        }
     }
 
     override suspend fun latestFavorites(limit: Int): List<ChannelProgramRow> {
         return releaseDao.getLatestSummariesForChannel(limit)
-            .map { it.toChannelRow() }
+            .map { entity ->
+                val posterUrl = resolveTmdbPoster(entity)
+                entity.toChannelRow(posterUrl)
+            }
+    }
+
+    private suspend fun resolveTmdbPoster(entity: ReleaseSummaryEntity): String {
+        if (tmdbPosterResolver == null) return entity.posterUrl
+        return try {
+            val tmdbUrls = tmdbPosterResolver.resolve(
+                detailsUrl = entity.detailsUrl,
+                titleRu = entity.titleRu,
+                releaseDateRu = entity.releaseDateRu,
+                kind = ReleaseKind.valueOf(entity.kind),
+            )
+            tmdbUrls?.posterUrl ?: entity.posterUrl
+        } catch (e: Exception) {
+            entity.posterUrl
+        }
     }
 }
 
 internal fun ReleaseSummaryEntity.toChannelRow(): ChannelProgramRow {
+    return toChannelRow(posterUrl)
+}
+
+internal fun ReleaseSummaryEntity.toChannelRow(customPosterUrl: String): ChannelProgramRow {
     val entity = this
     return object : ChannelProgramRow {
         override val detailsUrl: String get() = entity.detailsUrl
         override val titleRu: String get() = entity.titleRu
-        override val posterUrl: String get() = entity.posterUrl
+        override val posterUrl: String get() = customPosterUrl
         override fun channelDescription(): String = entity.channelDescription()
     }
 }
 
 private fun FavoriteReleaseEntity.toChannelRow(): ChannelProgramRow {
+    return toChannelRow(posterUrl)
+}
+
+private fun FavoriteReleaseEntity.toChannelRow(customPosterUrl: String): ChannelProgramRow {
     val entity = this
     return object : ChannelProgramRow {
         override val detailsUrl: String get() = entity.detailsUrl
         override val titleRu: String get() = entity.titleRu
-        override val posterUrl: String get() = entity.posterUrl
+        override val posterUrl: String get() = customPosterUrl
         override fun channelDescription(): String = entity.channelDescription()
     }
 }

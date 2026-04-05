@@ -44,6 +44,19 @@ interface ReleaseDao {
     )
     suspend fun getLatestUnwatchedSummariesForChannel(limit: Int): List<ReleaseSummaryEntity>
 
+    @Query(
+        """
+        SELECT * FROM release_summaries r1
+        WHERE r1.fetchedAt = (
+            SELECT MAX(r2.fetchedAt) FROM release_summaries r2
+            WHERE r2.titleRu = r1.titleRu
+        )
+        ORDER BY r1.fetchedAt DESC
+        LIMIT :limit
+        """,
+    )
+    suspend fun getLatestPerSeriesForChannel(limit: Int): List<ReleaseSummaryEntity>
+
     @Query("SELECT * FROM page_cache_metadata WHERE pageNumber = :pageNumber")
     suspend fun getPageMetadata(pageNumber: Int): PageCacheMetadataEntity?
 

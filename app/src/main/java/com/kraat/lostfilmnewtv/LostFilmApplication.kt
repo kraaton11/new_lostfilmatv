@@ -129,11 +129,17 @@ open class LostFilmApplication : Application(), HomeChannelBackgroundRefreshRunn
     }
 
     open val homeChannelSyncManager: HomeChannelSyncManager by lazy {
-        HomeChannelSyncManager(
-            programSource = HomeChannelContentRepository(database.releaseDao(), database.favoriteReleaseDao()),
-            preferences = PlaybackStoreHomeChannelPreferences(playbackPreferencesStore),
-            publisher = AndroidHomeChannelPublisher(applicationContext),
-        )
+        HomeChannelContentRepository(
+            releaseDao = database.releaseDao(),
+            favoriteReleaseDao = database.favoriteReleaseDao(),
+            tmdbPosterResolver = tmdbPosterResolver,
+        ).let { repo ->
+            HomeChannelSyncManager(
+                programSource = repo,
+                preferences = PlaybackStoreHomeChannelPreferences(playbackPreferencesStore),
+                publisher = AndroidHomeChannelPublisher(applicationContext),
+            )
+        }
     }
 
     override open val homeChannelBackgroundRefreshRunner: HomeChannelBackgroundRefreshRunner by lazy {
