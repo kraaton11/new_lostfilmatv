@@ -116,6 +116,7 @@ private fun settingsViewModelFactory(
                 syncAppUpdateBackgroundSchedule = syncAppUpdateBackgroundSchedule,
                 syncAndroidTvChannelBackgroundSchedule = syncAndroidTvChannelBackgroundSchedule,
                 syncAndroidTvChannel = syncAndroidTvChannel,
+                refreshFavoritesForChannel = refreshFavoritesForChannel,
             ) as T
         }
     }
