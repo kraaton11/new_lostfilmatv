@@ -27,6 +27,7 @@ class HomeChannelSyncManager(
 
                     AndroidTvChannelMode.ALL_NEW,
                     AndroidTvChannelMode.UNWATCHED,
+                    AndroidTvChannelMode.FAVORITES,
                     -> {
                         val existingChannelId = preferences.readChannelId()
                         logger.d(TAG, "Syncing channel in mode: $mode, existingChannelId: $existingChannelId")

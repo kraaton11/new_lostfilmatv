@@ -9,11 +9,13 @@ import androidx.room.RoomDatabase
         ReleaseDetailsEntity::class,
         PageCacheMetadataEntity::class,
         TmdbPosterMappingEntity::class,
+        FavoriteReleaseEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = false,
 )
 abstract class LostFilmDatabase : RoomDatabase() {
     abstract fun releaseDao(): ReleaseDao
     abstract fun tmdbPosterDao(): TmdbPosterDao
+    abstract fun favoriteReleaseDao(): FavoriteReleaseDao
 }

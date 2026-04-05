@@ -21,6 +21,7 @@ class HomeChannelBackgroundScheduler(
 
             AndroidTvChannelMode.ALL_NEW,
             AndroidTvChannelMode.UNWATCHED,
+            AndroidTvChannelMode.FAVORITES,
             -> {
                 workManager.enqueueUniquePeriodicWork(
                     UNIQUE_WORK_NAME,
@@ -45,6 +46,7 @@ class HomeChannelBackgroundScheduler(
 
             AndroidTvChannelMode.ALL_NEW,
             AndroidTvChannelMode.UNWATCHED,
+            AndroidTvChannelMode.FAVORITES,
             -> {
                 workManager.enqueueUniqueWork(
                     IMMEDIATE_WORK_NAME,

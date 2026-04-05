@@ -82,6 +82,7 @@ fun SettingsScreen(
             INSTALL_UPDATE_TAG to FocusRequester(),
             AndroidTvChannelMode.ALL_NEW.buttonTag() to FocusRequester(),
             AndroidTvChannelMode.UNWATCHED.buttonTag() to FocusRequester(),
+            AndroidTvChannelMode.FAVORITES.buttonTag() to FocusRequester(),
             AndroidTvChannelMode.DISABLED.buttonTag() to FocusRequester(),
             HOME_FAVORITES_SHOW_TAG to FocusRequester(),
             HOME_FAVORITES_HIDE_TAG to FocusRequester(),
@@ -614,6 +615,7 @@ private fun AndroidTvChannelMode.label(): String {
     return when (this) {
         AndroidTvChannelMode.ALL_NEW -> "Все новые релизы"
         AndroidTvChannelMode.UNWATCHED -> "Только непросмотренные"
+        AndroidTvChannelMode.FAVORITES -> "Только избранное"
         AndroidTvChannelMode.DISABLED -> "Не показывать"
     }
 }
@@ -622,6 +624,7 @@ private fun AndroidTvChannelMode.buttonTag(): String {
     return when (this) {
         AndroidTvChannelMode.ALL_NEW -> "settings-tv-channel-all-new"
         AndroidTvChannelMode.UNWATCHED -> "settings-tv-channel-unwatched"
+        AndroidTvChannelMode.FAVORITES -> "settings-tv-channel-favorites"
         AndroidTvChannelMode.DISABLED -> "settings-tv-channel-disabled"
     }
 }

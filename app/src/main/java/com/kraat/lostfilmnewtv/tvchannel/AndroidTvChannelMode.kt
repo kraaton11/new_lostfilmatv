@@ -5,6 +5,7 @@ enum class AndroidTvChannelMode(
 ) {
     ALL_NEW("all_new"),
     UNWATCHED("unwatched"),
+    FAVORITES("favorites"),
     DISABLED("disabled");
 
     companion object {

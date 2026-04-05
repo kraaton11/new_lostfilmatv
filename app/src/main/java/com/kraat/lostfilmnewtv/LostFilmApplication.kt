@@ -6,6 +6,8 @@ import androidx.room.Room
 import com.kraat.lostfilmnewtv.data.auth.AuthRepositoryContract
 import com.kraat.lostfilmnewtv.data.auth.AuthRepository
 import com.kraat.lostfilmnewtv.data.auth.EncryptedSessionStore
+import com.kraat.lostfilmnewtv.data.db.FavoriteReleaseEntity
+import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.db.LostFilmDatabase
 import com.kraat.lostfilmnewtv.data.network.AuthBridgeClient
 import com.kraat.lostfilmnewtv.data.network.AuthenticatedLostFilmHttpClient
@@ -128,7 +130,7 @@ open class LostFilmApplication : Application(), HomeChannelBackgroundRefreshRunn
 
     open val homeChannelSyncManager: HomeChannelSyncManager by lazy {
         HomeChannelSyncManager(
-            programSource = HomeChannelContentRepository(database.releaseDao()),
+            programSource = HomeChannelContentRepository(database.releaseDao(), database.favoriteReleaseDao()),
             preferences = PlaybackStoreHomeChannelPreferences(playbackPreferencesStore),
             publisher = AndroidHomeChannelPublisher(applicationContext),
         )
@@ -142,6 +144,16 @@ open class LostFilmApplication : Application(), HomeChannelBackgroundRefreshRunn
             refreshFirstPage = { repository.loadPage(pageNumber = 1) },
             syncChannel = homeChannelSyncManager::syncNow,
             readFirstPageFetchedAt = { database.releaseDao().getPageMetadata(pageNumber = 1)?.fetchedAt },
+            refreshFavorites = {
+                when (val result = repository.loadFavoriteReleases()) {
+                    is FavoriteReleasesResult.Success -> {
+                        val entities = result.items.map { FavoriteReleaseEntity.fromModel(it) }
+                        database.favoriteReleaseDao().replaceAllFavorites(entities)
+                        true
+                    }
+                    is FavoriteReleasesResult.Unavailable -> false
+                }
+            },
         )
     }
 

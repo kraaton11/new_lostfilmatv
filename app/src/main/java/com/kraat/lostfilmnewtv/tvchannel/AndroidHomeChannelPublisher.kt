@@ -91,6 +91,7 @@ class AndroidHomeChannelPublisher(
         return when (this) {
             AndroidTvChannelMode.ALL_NEW -> "LostFilm: Новые релизы"
             AndroidTvChannelMode.UNWATCHED -> "LostFilm: Непросмотренные"
+            AndroidTvChannelMode.FAVORITES -> "LostFilm: Избранное"
             AndroidTvChannelMode.DISABLED -> appContext.applicationInfo.loadLabel(appContext.packageManager).toString()
         }
     }
@@ -99,6 +100,7 @@ class AndroidHomeChannelPublisher(
         return when (this) {
             AndroidTvChannelMode.ALL_NEW -> "Все новые релизы LostFilm"
             AndroidTvChannelMode.UNWATCHED -> "Непросмотренные релизы LostFilm"
+            AndroidTvChannelMode.FAVORITES -> "Избранные релизы LostFilm"
             AndroidTvChannelMode.DISABLED -> CHANNEL_DESCRIPTION
         }
     }
