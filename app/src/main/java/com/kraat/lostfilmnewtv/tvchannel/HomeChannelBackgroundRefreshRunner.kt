@@ -34,14 +34,10 @@ class HomeChannelBackgroundRefreshRunner(
             AndroidTvChannelMode.ALL_NEW -> Unit
         }
 
-        val firstPageFetchedAt = readFirstPageFetchedAt()
-        if (firstPageFetchedAt != null && clock() - firstPageFetchedAt < minRefreshIntervalMs) {
-            return HomeChannelBackgroundRefreshOutcome.SKIPPED_RECENTLY_REFRESHED
-        }
-
         return when (mode) {
             AndroidTvChannelMode.FAVORITES -> {
-                if (refreshFavorites()) {
+                val favoritesRefreshed = refreshFavorites()
+                if (favoritesRefreshed) {
                     syncChannel()
                     HomeChannelBackgroundRefreshOutcome.REFRESHED
                 } else {
@@ -52,13 +48,18 @@ class HomeChannelBackgroundRefreshRunner(
             AndroidTvChannelMode.ALL_NEW,
             AndroidTvChannelMode.UNWATCHED,
             -> {
-                when (refreshFirstPage()) {
-                    is PageState.Content -> {
-                        syncChannel()
-                        HomeChannelBackgroundRefreshOutcome.REFRESHED
-                    }
+                val firstPageFetchedAt = readFirstPageFetchedAt()
+                if (firstPageFetchedAt != null && clock() - firstPageFetchedAt < minRefreshIntervalMs) {
+                    HomeChannelBackgroundRefreshOutcome.SKIPPED_RECENTLY_REFRESHED
+                } else {
+                    when (refreshFirstPage()) {
+                        is PageState.Content -> {
+                            syncChannel()
+                            HomeChannelBackgroundRefreshOutcome.REFRESHED
+                        }
 
-                    is PageState.Error -> HomeChannelBackgroundRefreshOutcome.FAILED_RETRYABLE
+                        is PageState.Error -> HomeChannelBackgroundRefreshOutcome.FAILED_RETRYABLE
+                    }
                 }
             }
 
