@@ -76,7 +76,7 @@ private class DaoHomeChannelSummaryReader(
     }
 }
 
-private fun ReleaseSummaryEntity.toChannelRow(): ChannelProgramRow {
+internal fun ReleaseSummaryEntity.toChannelRow(): ChannelProgramRow {
     val entity = this
     return object : ChannelProgramRow {
         override val detailsUrl: String get() = entity.detailsUrl

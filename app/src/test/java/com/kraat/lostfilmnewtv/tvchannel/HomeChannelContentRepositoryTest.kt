@@ -60,20 +60,25 @@ class HomeChannelContentRepositoryTest {
 private class FakeSummaryReader(
     private val allRows: List<ReleaseSummaryEntity> = emptyList(),
     private val unwatchedRows: List<ReleaseSummaryEntity> = emptyList(),
+    private val favoriteRows: List<ReleaseSummaryEntity> = emptyList(),
 ) : HomeChannelSummaryReader {
     var allQueryCount: Int = 0
         private set
     var unwatchedQueryCount: Int = 0
         private set
 
-    override suspend fun latest(limit: Int): List<ReleaseSummaryEntity> {
+    override suspend fun latest(limit: Int): List<ChannelProgramRow> {
         allQueryCount += 1
-        return allRows.take(limit)
+        return allRows.take(limit).map { it.toChannelRow() }
     }
 
-    override suspend fun latestUnwatched(limit: Int): List<ReleaseSummaryEntity> {
+    override suspend fun latestUnwatched(limit: Int): List<ChannelProgramRow> {
         unwatchedQueryCount += 1
-        return unwatchedRows.take(limit)
+        return unwatchedRows.take(limit).map { it.toChannelRow() }
+    }
+
+    override suspend fun latestFavorites(limit: Int): List<ChannelProgramRow> {
+        return favoriteRows.take(limit).map { it.toChannelRow() }
     }
 }
 
