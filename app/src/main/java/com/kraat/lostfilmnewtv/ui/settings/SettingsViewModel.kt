@@ -34,6 +34,7 @@ class SettingsViewModel(
     private val syncAppUpdateBackgroundSchedule: () -> Unit = {},
     private val syncAndroidTvChannelBackgroundSchedule: () -> Unit = {},
     private val syncAndroidTvChannel: suspend () -> Unit = {},
+    private val refreshFavoritesForChannel: suspend () -> Unit = {},
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val debounceIntervalMs: Long = DEFAULT_DEBOUNCE_INTERVAL_MS,
 ) : ViewModel() {
@@ -105,6 +106,9 @@ class SettingsViewModel(
         }
         viewModelScope.launch(ioDispatcher) {
             syncAndroidTvChannelBackgroundSchedule()
+            if (mode == AndroidTvChannelMode.FAVORITES) {
+                refreshFavoritesForChannel()
+            }
             syncAndroidTvChannel()
         }
     }

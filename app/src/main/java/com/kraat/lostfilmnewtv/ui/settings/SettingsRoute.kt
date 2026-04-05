@@ -26,6 +26,7 @@ fun SettingsRoute(
     syncAppUpdateBackgroundSchedule: () -> Unit = {},
     syncAndroidTvChannelBackgroundSchedule: () -> Unit = {},
     syncAndroidTvChannel: suspend () -> Unit = {},
+    refreshFavoritesForChannel: suspend () -> Unit = {},
     installedVersion: String = BuildConfig.VERSION_NAME,
     openInstallApk: suspend (Context, String, (Boolean) -> Unit) -> Boolean = { _, _, _ -> false },
 ) {
@@ -39,6 +40,7 @@ fun SettingsRoute(
             syncAppUpdateBackgroundSchedule = syncAppUpdateBackgroundSchedule,
             syncAndroidTvChannelBackgroundSchedule = syncAndroidTvChannelBackgroundSchedule,
             syncAndroidTvChannel = syncAndroidTvChannel,
+            refreshFavoritesForChannel = refreshFavoritesForChannel,
         ),
     )
     val state = settingsViewModel.uiState.collectAsStateWithLifecycle()
@@ -93,6 +95,7 @@ private fun settingsViewModelFactory(
     syncAppUpdateBackgroundSchedule: () -> Unit,
     syncAndroidTvChannelBackgroundSchedule: () -> Unit,
     syncAndroidTvChannel: suspend () -> Unit,
+    refreshFavoritesForChannel: suspend () -> Unit,
 ): ViewModelProvider.Factory {
     return object : ViewModelProvider.Factory {
         override fun <T : ViewModel> create(modelClass: Class<T>): T {

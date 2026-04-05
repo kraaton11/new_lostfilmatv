@@ -247,6 +247,15 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                 syncAppUpdateBackgroundSchedule = application.appUpdateBackgroundScheduler::syncForCurrentMode,
                 syncAndroidTvChannelBackgroundSchedule = application.homeChannelBackgroundScheduler::syncForCurrentMode,
                 syncAndroidTvChannel = application.homeChannelSyncManager::syncNow,
+                refreshFavoritesForChannel = {
+                    when (val result = application.repository.loadFavoriteReleases()) {
+                        is com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult.Success -> {
+                            val entities = result.items.map { com.kraat.lostfilmnewtv.data.db.FavoriteReleaseEntity.fromModel(it) }
+                            application.database.favoriteReleaseDao().replaceAllFavorites(entities)
+                        }
+                        is com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult.Unavailable -> Unit
+                    }
+                },
                 openInstallApk = application.releaseApkLauncher::launch,
             )
         }
