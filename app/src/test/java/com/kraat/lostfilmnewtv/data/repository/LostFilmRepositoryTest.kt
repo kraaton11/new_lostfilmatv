@@ -21,6 +21,7 @@ import com.kraat.lostfilmnewtv.data.parser.LostFilmListParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSeasonEpisodesParser
 import com.kraat.lostfilmnewtv.data.parser.fixture
 import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolver
+import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolverImpl
 import java.io.IOException
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -1331,7 +1332,7 @@ private fun createFakeTmdbResolver(): TmdbPosterResolver {
         override suspend fun deleteExpired(threshold: Long) {}
     }
     val fakeClient = FakeTmdbPosterClient()
-    return TmdbPosterResolver(fakeClient, fakeDao)
+    return TmdbPosterResolverImpl(fakeClient, fakeDao)
 }
 
 private class FakeTmdbPosterClient : com.kraat.lostfilmnewtv.data.network.TmdbPosterClient(

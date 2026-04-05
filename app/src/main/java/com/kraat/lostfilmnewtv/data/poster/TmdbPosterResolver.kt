@@ -14,15 +14,24 @@ import kotlinx.coroutines.sync.withLock
 private const val TAG = "TmdbPosterResolver"
 private const val TMDB_CACHE_TTL_MS = 7L * 24 * 60 * 60 * 1000
 
-class TmdbPosterResolver(
+interface TmdbPosterResolver {
+    suspend fun resolve(
+        detailsUrl: String,
+        titleRu: String,
+        releaseDateRu: String,
+        kind: ReleaseKind,
+    ): TmdbImageUrls?
+}
+
+class TmdbPosterResolverImpl(
     private val tmdbClient: TmdbPosterClient,
     private val tmdbDao: TmdbPosterDao,
     private val clock: () -> Long = { System.currentTimeMillis() },
-) {
+) : TmdbPosterResolver {
     private val inMemoryCache = ConcurrentHashMap<String, TmdbImageUrls>()
     private val locks = ConcurrentHashMap<String, Mutex>()
 
-    suspend fun resolve(
+    override suspend fun resolve(
         detailsUrl: String,
         titleRu: String,
         releaseDateRu: String,

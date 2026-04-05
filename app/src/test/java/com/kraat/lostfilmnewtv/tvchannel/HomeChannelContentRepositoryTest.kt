@@ -2,6 +2,8 @@ package com.kraat.lostfilmnewtv.tvchannel
 
 import com.kraat.lostfilmnewtv.data.db.ReleaseSummaryEntity
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
+import com.kraat.lostfilmnewtv.data.model.TmdbImageUrls
+import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolver
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -10,6 +12,7 @@ import org.junit.Test
 class HomeChannelContentRepositoryTest {
     @Test
     fun loadPrograms_allNew_usesOrderedCachedRows() = runTest {
+        val tmdbResolver = FakeTmdbPosterResolver()
         val repository = HomeChannelContentRepository(
             reader = FakeSummaryReader(
                 allRows = listOf(
@@ -17,6 +20,7 @@ class HomeChannelContentRepositoryTest {
                     movie(detailsUrl = "https://example.com/movie", titleRu = "Необратимость"),
                 ),
             ),
+            tmdbResolver = tmdbResolver,
         )
 
         val results = repository.loadPrograms(AndroidTvChannelMode.ALL_NEW, limit = 30)
@@ -28,12 +32,14 @@ class HomeChannelContentRepositoryTest {
 
     @Test
     fun loadPrograms_unwatched_usesOnlyUnwatchedRows() = runTest {
+        val tmdbResolver = FakeTmdbPosterResolver()
         val repository = HomeChannelContentRepository(
             reader = FakeSummaryReader(
                 unwatchedRows = listOf(
                     summary(detailsUrl = "https://example.com/fresh", titleRu = "Fresh"),
                 ),
             ),
+            tmdbResolver = tmdbResolver,
         )
 
         val results = repository.loadPrograms(AndroidTvChannelMode.UNWATCHED, limit = 30)
@@ -47,13 +53,55 @@ class HomeChannelContentRepositoryTest {
             allRows = listOf(summary(detailsUrl = "https://example.com/unused")),
             unwatchedRows = listOf(summary(detailsUrl = "https://example.com/unused2")),
         )
-        val repository = HomeChannelContentRepository(reader = reader)
+        val tmdbResolver = FakeTmdbPosterResolver()
+        val repository = HomeChannelContentRepository(reader = reader, tmdbResolver = tmdbResolver)
 
         val results = repository.loadPrograms(AndroidTvChannelMode.DISABLED, limit = 30)
 
         assertTrue(results.isEmpty())
         assertEquals(0, reader.allQueryCount)
         assertEquals(0, reader.unwatchedQueryCount)
+    }
+
+    @Test
+    fun loadPrograms_enrichesPostersWithTmdb() = runTest {
+        val tmdbResolver = FakeTmdbPosterResolver(
+            posterOverrides = mapOf(
+                "https://example.com/series" to "https://image.tmdb.org/t/p/w500/series_poster.jpg",
+            ),
+        )
+        val repository = HomeChannelContentRepository(
+            reader = FakeSummaryReader(
+                allRows = listOf(
+                    summary(detailsUrl = "https://example.com/series", titleRu = "9-1-1"),
+                ),
+            ),
+            tmdbResolver = tmdbResolver,
+        )
+
+        val results = repository.loadPrograms(AndroidTvChannelMode.ALL_NEW, limit = 30)
+
+        assertEquals("https://image.tmdb.org/t/p/w500/series_poster.jpg", results.first().posterUrl)
+    }
+
+    @Test
+    fun loadPrograms_fallsBackToOriginalPosterWhenTmdbEmpty() = runTest {
+        val originalPoster = "https://www.lostfilm.today/Static/Images/362/Posters/image_s9.jpg"
+        val tmdbResolver = FakeTmdbPosterResolver(
+            posterOverrides = emptyMap(),
+        )
+        val repository = HomeChannelContentRepository(
+            reader = FakeSummaryReader(
+                allRows = listOf(
+                    summary(detailsUrl = "https://example.com/series", titleRu = "9-1-1", posterUrl = originalPoster),
+                ),
+            ),
+            tmdbResolver = tmdbResolver,
+        )
+
+        val results = repository.loadPrograms(AndroidTvChannelMode.ALL_NEW, limit = 30)
+
+        assertEquals(originalPoster, results.first().posterUrl)
     }
 }
 
@@ -77,10 +125,29 @@ private class FakeSummaryReader(
     }
 }
 
+private class FakeTmdbPosterResolver(
+    private val posterOverrides: Map<String, String> = emptyMap(),
+) : TmdbPosterResolver {
+    override suspend fun resolve(
+        detailsUrl: String,
+        titleRu: String,
+        releaseDateRu: String,
+        kind: ReleaseKind,
+    ): TmdbImageUrls? {
+        val posterUrl = posterOverrides[detailsUrl]
+        return if (posterUrl != null) {
+            TmdbImageUrls(posterUrl = posterUrl, backdropUrl = "")
+        } else {
+            null
+        }
+    }
+}
+
 private fun summary(
     detailsUrl: String,
     titleRu: String = "Title",
     episodeTitleRu: String? = "Episode",
+    posterUrl: String = "https://example.com/poster.jpg",
 ): ReleaseSummaryEntity {
     return ReleaseSummaryEntity(
         detailsUrl = detailsUrl,
@@ -90,7 +157,7 @@ private fun summary(
         seasonNumber = 1,
         episodeNumber = 2,
         releaseDateRu = "21.03.2026",
-        posterUrl = "https://example.com/poster.jpg",
+        posterUrl = posterUrl,
         pageNumber = 1,
         positionInPage = 0,
         fetchedAt = 1L,
