@@ -42,7 +42,7 @@ class TmdbPosterResolverImpl(
         }
 
         val cached = tmdbDao.getByDetailsUrl(detailsUrl)
-        if (cached != null && !cached.isExpired(clock)) {
+        if (cached != null && !cached.isExpired(clock) && canReuseCachedMapping(cached, detailsUrl, kind)) {
             val urls = TmdbImageUrls(
                 posterUrl = cached.posterUrl,
                 backdropUrl = cached.backdropUrl,
@@ -56,7 +56,7 @@ class TmdbPosterResolverImpl(
             inMemoryCache[detailsUrl]?.let { return@withLock it }
 
             val rechecked = tmdbDao.getByDetailsUrl(detailsUrl)
-            if (rechecked != null && !rechecked.isExpired(clock)) {
+            if (rechecked != null && !rechecked.isExpired(clock) && canReuseCachedMapping(rechecked, detailsUrl, kind)) {
                 val urls = TmdbImageUrls(
                     posterUrl = rechecked.posterUrl,
                     backdropUrl = rechecked.backdropUrl,
@@ -70,6 +70,27 @@ class TmdbPosterResolverImpl(
             locks.remove(detailsUrl)
             result
         }
+    }
+
+    private suspend fun canReuseCachedMapping(
+        cached: TmdbPosterMappingEntity,
+        detailsUrl: String,
+        kind: ReleaseKind,
+    ): Boolean {
+        if (cached.backdropUrl.isBlank()) {
+            return false
+        }
+
+        val exactSlugMatch = findExactSlugMatch(detailsUrl, kind) ?: return true
+        if (exactSlugMatch.id == cached.tmdbId) {
+            return true
+        }
+
+        Log.d(
+            TAG,
+            "Refreshing stale TMDB cache for $detailsUrl: cached=${cached.tmdbId}, exact=${exactSlugMatch.id}",
+        )
+        return false
     }
 
     private suspend fun performSearch(
@@ -102,7 +123,7 @@ class TmdbPosterResolverImpl(
             emptyList()
         }
 
-        val bestMatch = pickBestMatch(slugResults, titleResults)
+        val bestMatch = pickBestMatch(englishSlug, slugResults, titleResults)
 
         Log.d(TAG, "TMDB search: slug='$englishSlug'→${slugResults.size} results, title='$titleRu'→${titleResults.size} results, pick=${bestMatch?.name}(id=${bestMatch?.id})")
 
@@ -139,9 +160,20 @@ class TmdbPosterResolverImpl(
     }
 
     private fun pickBestMatch(
+        englishSlug: String?,
         slugResults: List<com.kraat.lostfilmnewtv.data.model.TmdbSearchResult>,
         titleResults: List<com.kraat.lostfilmnewtv.data.model.TmdbSearchResult>,
     ): com.kraat.lostfilmnewtv.data.model.TmdbSearchResult? {
+        val normalizedSlug = englishSlug
+            ?.normalizeForTmdbMatch()
+            ?.takeIf { it.isNotBlank() }
+        if (normalizedSlug != null) {
+            slugResults
+                .filter { it.matchesSlug(normalizedSlug) }
+                .maxByOrNull { it.popularity }
+                ?.let { return it }
+        }
+
         if (slugResults.isEmpty()) return titleResults.firstOrNull()
         if (titleResults.isEmpty()) return slugResults.firstOrNull()
 
@@ -153,6 +185,42 @@ class TmdbPosterResolverImpl(
         }
 
         return slugResults.first()
+    }
+
+    private suspend fun findExactSlugMatch(
+        detailsUrl: String,
+        kind: ReleaseKind,
+    ): com.kraat.lostfilmnewtv.data.model.TmdbSearchResult? {
+        val englishSlug = extractEnglishSlug(detailsUrl)
+            ?.takeIf { it.isNotBlank() }
+            ?: return null
+        val normalizedSlug = englishSlug.normalizeForTmdbMatch()
+        if (normalizedSlug.isBlank()) return null
+
+        return try {
+            val tmdbType = when (kind) {
+                ReleaseKind.SERIES -> TmdbMediaType.TV
+                ReleaseKind.MOVIE -> TmdbMediaType.MOVIE
+            }
+            tmdbClient.searchByTitle(englishSlug, null, tmdbType)
+                .filter { it.matchesSlug(normalizedSlug) }
+                .maxByOrNull { it.popularity }
+        } catch (e: Exception) {
+            Log.e(TAG, "TMDB cache verification failed for $detailsUrl: ${e.message}")
+            null
+        }
+    }
+
+    private fun com.kraat.lostfilmnewtv.data.model.TmdbSearchResult.matchesSlug(normalizedSlug: String): Boolean {
+        return name.normalizeForTmdbMatch() == normalizedSlug ||
+            originalName.normalizeForTmdbMatch() == normalizedSlug
+    }
+
+    private fun String.normalizeForTmdbMatch(): String {
+        return lowercase()
+            .replace(Regex("[^a-z0-9а-я]+"), " ")
+            .trim()
+            .replace(Regex("\\s+"), " ")
     }
 
     private fun extractEnglishSlug(detailsUrl: String): String? {

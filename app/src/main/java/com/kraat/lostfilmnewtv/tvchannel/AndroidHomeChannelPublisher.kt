@@ -3,18 +3,22 @@ package com.kraat.lostfilmnewtv.tvchannel
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import androidx.core.graphics.drawable.toBitmap
+import android.graphics.Canvas
+import android.net.Uri
+import androidx.core.content.ContextCompat
 import com.kraat.lostfilmnewtv.MainActivity
+import com.kraat.lostfilmnewtv.R
 import com.kraat.lostfilmnewtv.navigation.AppLaunchTarget
+
+internal fun isUsableChannelImage(url: String): Boolean {
+    if (url.isBlank()) return false
+    return url.startsWith("https://") || url.startsWith("http://")
+}
 
 class AndroidHomeChannelPublisher(
     private val appContext: Context,
     private val helperFacade: PreviewChannelHelperFacade = AndroidXPreviewChannelHelperFacade(appContext),
-    private val channelLogoProvider: () -> Bitmap = {
-        appContext.packageManager
-            .getApplicationIcon(appContext.packageName)
-            .toBitmap()
-    },
+    private val channelLogoProvider: (() -> Bitmap)? = null,
 ) : HomeChannelPublisher {
     override suspend fun reconcile(
         mode: AndroidTvChannelMode,
@@ -24,6 +28,7 @@ class AndroidHomeChannelPublisher(
         val channel = buildChannelRecord(mode)
         val channelId = resolveChannelId(existingChannelId, channel)
         helperFacade.requestChannelBrowsable(channelId)
+        val eligiblePrograms = programs.filter(::isChannelEligible)
         val existingProgramIds = helperFacade.getPrograms(channelId)
             .mapNotNull { it.programId }
 
@@ -33,16 +38,19 @@ class AndroidHomeChannelPublisher(
             helperFacade.deleteProgram(programId)
         }
 
-        programs.forEachIndexed { index, program ->
+        eligiblePrograms.forEachIndexed { index, program ->
+            val posterImage = channelPosterImageFor(program)
+            val thumbnailImage = channelThumbnailImageFor(program, posterImage)
             helperFacade.upsertProgram(
                 PreviewProgramRecord(
                     internalProviderId = program.internalProviderId,
                     channelId = channelId,
                     title = program.title,
                     description = program.description,
-                    posterUrl = program.posterUrl,
+                    posterUrl = posterImage.asUriOrNull()?.toString().orEmpty(),
+                    thumbnailUrl = thumbnailImage.asUriOrNull()?.toString().orEmpty(),
                     launchIntent = AppLaunchTarget.createDetailsIntent(appContext, program.detailsUrl),
-                    weight = programs.size - index,
+                    weight = eligiblePrograms.size - index,
                 ),
             )
         }
@@ -83,9 +91,39 @@ class AndroidHomeChannelPublisher(
             description = mode.channelDescription(),
             appLinkIntent = Intent(appContext, MainActivity::class.java),
             internalProviderId = CHANNEL_INTERNAL_PROVIDER_ID,
-            logoBitmap = channelLogoProvider(),
+            logoBitmap = channelLogoProvider?.invoke() ?: loadChannelLogoBitmap(),
         )
     }
+
+    private fun channelPosterImageFor(program: HomeChannelProgram): String {
+        return program.posterUrl.takeIf(::isUsableChannelImage).orEmpty()
+    }
+
+    private fun channelThumbnailImageFor(program: HomeChannelProgram, posterImage: String): String {
+        return program.backdropUrl
+            .takeIf(::isUsableChannelImage)
+            .orEmpty()
+            .ifBlank { posterImage }
+    }
+
+    private fun isChannelEligible(program: HomeChannelProgram): Boolean {
+        return channelPosterImageFor(program).isNotBlank() || channelThumbnailImageFor(program, "").isNotBlank()
+    }
+
+    private fun loadChannelLogoBitmap(): Bitmap {
+        val drawable = checkNotNull(ContextCompat.getDrawable(appContext, R.drawable.ic_lf_logo)) {
+            "Channel logo drawable is missing"
+        }
+        val width = drawable.intrinsicWidth.takeIf { it > 0 } ?: 256
+        val height = drawable.intrinsicHeight.takeIf { it > 0 } ?: 256
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        drawable.setBounds(0, 0, canvas.width, canvas.height)
+        drawable.draw(canvas)
+        return bitmap
+    }
+
+    private fun String.asUriOrNull(): Uri? = takeIf { it.isNotBlank() }?.let(Uri::parse)
 
     private fun AndroidTvChannelMode.channelDisplayName(): String {
         return when (this) {

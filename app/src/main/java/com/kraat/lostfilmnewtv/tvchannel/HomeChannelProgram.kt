@@ -5,5 +5,6 @@ data class HomeChannelProgram(
     val title: String,
     val description: String,
     val posterUrl: String,
+    val backdropUrl: String = "",
     val internalProviderId: String,
 )

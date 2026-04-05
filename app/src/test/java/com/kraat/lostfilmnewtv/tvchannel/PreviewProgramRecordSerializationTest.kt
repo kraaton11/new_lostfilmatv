@@ -28,6 +28,7 @@ class PreviewProgramRecordSerializationTest {
             title = "Title",
             description = "Description",
             posterUrl = "https://example.com/poster.jpg",
+            thumbnailUrl = "https://example.com/thumb.jpg",
             launchIntent = launchIntent,
             type = TvContractCompat.PreviewProgramColumns.TYPE_CLIP,
             weight = 9,
@@ -45,6 +46,15 @@ class PreviewProgramRecordSerializationTest {
         assertEquals("Title", values.getAsString("title"))
         assertEquals("Description", values.getAsString("short_description"))
         assertEquals("https://example.com/poster.jpg", values.getAsString("poster_art_uri"))
+        assertEquals("https://example.com/thumb.jpg", values.getAsString("thumbnail_uri"))
+        assertEquals(
+            TvContractCompat.PreviewProgramColumns.ASPECT_RATIO_2_3,
+            values.getAsInteger(TvContractCompat.PreviewProgramColumns.COLUMN_POSTER_ART_ASPECT_RATIO)?.toInt(),
+        )
+        assertEquals(
+            TvContractCompat.PreviewProgramColumns.ASPECT_RATIO_16_9,
+            values.getAsInteger(TvContractCompat.PreviewProgramColumns.COLUMN_THUMBNAIL_ASPECT_RATIO)?.toInt(),
+        )
         assertEquals(launchIntent.toUri(Intent.URI_INTENT_SCHEME), values.getAsString(TvContractCompat.PreviewProgramColumns.COLUMN_INTENT_URI))
         assertEquals(false, values.containsKey(TvContractCompat.PreviewProgramColumns.COLUMN_BROWSABLE))
     }
@@ -61,6 +71,7 @@ class PreviewProgramRecordSerializationTest {
                 "title",
                 "short_description",
                 "poster_art_uri",
+                "thumbnail_uri",
                 TvContractCompat.PreviewProgramColumns.COLUMN_INTENT_URI,
             ),
         )
@@ -74,6 +85,7 @@ class PreviewProgramRecordSerializationTest {
                 "Title",
                 "Description",
                 "https://example.com/poster.jpg",
+                "https://example.com/thumb.jpg",
                 null,
             ),
         )
@@ -90,6 +102,7 @@ class PreviewProgramRecordSerializationTest {
             assertEquals("Title", record.title)
             assertEquals("Description", record.description)
             assertEquals("https://example.com/poster.jpg", record.posterUrl)
+            assertEquals("https://example.com/thumb.jpg", record.thumbnailUrl)
             assertNotNull(record.launchIntent.component)
             assertEquals(MainActivity::class.java.name, record.launchIntent.component?.className)
         }
