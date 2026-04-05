@@ -3,5 +3,6 @@
     "allow": [
       "Bash(ssh *)"
     ]
-  }
+  },
+  "$version": 3
 }
