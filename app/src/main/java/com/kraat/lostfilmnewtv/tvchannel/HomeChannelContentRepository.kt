@@ -3,12 +3,19 @@ package com.kraat.lostfilmnewtv.tvchannel
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
 import com.kraat.lostfilmnewtv.data.db.ReleaseSummaryEntity
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
+import com.kraat.lostfilmnewtv.data.poster.TmdbPosterEnricher
+import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolver
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 
 class HomeChannelContentRepository(
     private val reader: HomeChannelSummaryReader,
+    private val tmdbResolver: TmdbPosterResolver,
 ) : HomeChannelProgramSource {
-    constructor(releaseDao: ReleaseDao) : this(
+    constructor(releaseDao: ReleaseDao, tmdbResolver: TmdbPosterResolver) : this(
         reader = DaoHomeChannelSummaryReader(releaseDao),
+        tmdbResolver = tmdbResolver,
     )
 
     override suspend fun loadPrograms(
@@ -21,7 +28,7 @@ class HomeChannelContentRepository(
             AndroidTvChannelMode.DISABLED -> return emptyList()
         }
 
-        return rows.map { row ->
+        val basePrograms = rows.map { row ->
             HomeChannelProgram(
                 detailsUrl = row.detailsUrl,
                 title = row.titleRu,
@@ -30,6 +37,31 @@ class HomeChannelContentRepository(
                 internalProviderId = row.detailsUrl,
             )
         }
+
+        return coroutineScope {
+            basePrograms.map { program ->
+                async {
+                    val tmdbUrls = tmdbResolver.resolve(
+                        detailsUrl = program.detailsUrl,
+                        titleRu = program.title,
+                        releaseDateRu = program.description,
+                        kind = inferKindFromDescription(program.description),
+                    )
+                    val enrichedPosterUrl = tmdbUrls?.posterUrl?.takeIf { it.isNotBlank() }
+                        ?: program.posterUrl
+                    program.copy(posterUrl = enrichedPosterUrl)
+                }
+            }.awaitAll()
+        }
+    }
+}
+
+private fun inferKindFromDescription(description: String): ReleaseKind {
+    val datePattern = Regex("""\d{2}\.\d{2}\.\d{4}""")
+    return if (datePattern.matches(description.trim())) {
+        ReleaseKind.MOVIE
+    } else {
+        ReleaseKind.SERIES
     }
 }
 

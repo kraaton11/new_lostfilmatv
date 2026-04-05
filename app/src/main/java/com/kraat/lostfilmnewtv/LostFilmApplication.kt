@@ -17,6 +17,7 @@ import com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteSeriesParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmListParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSeasonEpisodesParser
 import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolver
+import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolverImpl
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepositoryImpl
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
@@ -91,7 +92,7 @@ open class LostFilmApplication : Application(), HomeChannelBackgroundRefreshRunn
     }
 
     open val tmdbPosterResolver: TmdbPosterResolver by lazy {
-        TmdbPosterResolver(tmdbPosterClient, database.tmdbPosterDao())
+        TmdbPosterResolverImpl(tmdbPosterClient, database.tmdbPosterDao())
     }
 
     open val repository: LostFilmRepository by lazy {
@@ -128,7 +129,7 @@ open class LostFilmApplication : Application(), HomeChannelBackgroundRefreshRunn
 
     open val homeChannelSyncManager: HomeChannelSyncManager by lazy {
         HomeChannelSyncManager(
-            programSource = HomeChannelContentRepository(database.releaseDao()),
+            programSource = HomeChannelContentRepository(database.releaseDao(), tmdbPosterResolver),
             preferences = PlaybackStoreHomeChannelPreferences(playbackPreferencesStore),
             publisher = AndroidHomeChannelPublisher(applicationContext),
         )
