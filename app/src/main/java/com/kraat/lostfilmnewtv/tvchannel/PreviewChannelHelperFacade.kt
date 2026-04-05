@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.database.Cursor
 import android.graphics.Bitmap
+import android.net.Uri
 import android.provider.BaseColumns
 import androidx.tvprovider.media.tv.PreviewChannel
 import androidx.tvprovider.media.tv.PreviewChannelHelper
@@ -47,6 +48,7 @@ data class PreviewProgramRecord(
     val title: String,
     val description: String,
     val posterUrl: String,
+    val thumbnailUrl: String = "",
     val launchIntent: Intent,
     val type: Int = TvContractCompat.PreviewProgramColumns.TYPE_CLIP,
     val weight: Int = 0,
@@ -143,7 +145,16 @@ internal fun PreviewProgramRecord.toContentValues(): ContentValues {
         put(TvContractCompat.PreviewProgramColumns.COLUMN_TYPE, type)
         put(COLUMN_TITLE, title)
         put(COLUMN_SHORT_DESCRIPTION, description)
-        put(COLUMN_POSTER_ART_URI, posterUrl)
+        put(COLUMN_POSTER_ART_URI, posterUrl.asUriOrNull()?.toString())
+        put(COLUMN_THUMBNAIL_URI, thumbnailUrl.asUriOrNull()?.toString())
+        put(
+            TvContractCompat.PreviewProgramColumns.COLUMN_POSTER_ART_ASPECT_RATIO,
+            TvContractCompat.PreviewProgramColumns.ASPECT_RATIO_2_3,
+        )
+        put(
+            TvContractCompat.PreviewProgramColumns.COLUMN_THUMBNAIL_ASPECT_RATIO,
+            TvContractCompat.PreviewProgramColumns.ASPECT_RATIO_16_9,
+        )
         put(TvContractCompat.PreviewProgramColumns.COLUMN_INTENT_URI, launchIntent.toUri(Intent.URI_INTENT_SCHEME))
         put(TvContractCompat.PreviewProgramColumns.COLUMN_INTERNAL_PROVIDER_ID, internalProviderId)
     }
@@ -159,6 +170,7 @@ internal fun Cursor.toPreviewProgramRecord(context: Context): PreviewProgramReco
         title = getStringOrNull(COLUMN_TITLE).orEmpty(),
         description = getStringOrNull(COLUMN_SHORT_DESCRIPTION).orEmpty(),
         posterUrl = getStringOrNull(COLUMN_POSTER_ART_URI).orEmpty(),
+        thumbnailUrl = getStringOrNull(COLUMN_THUMBNAIL_URI).orEmpty(),
         launchIntent = runCatching {
             Intent.parseUri(intentUri, Intent.URI_INTENT_SCHEME)
         }.getOrElse { fallbackIntent },
@@ -192,9 +204,13 @@ private val PREVIEW_PROGRAM_PROJECTION = arrayOf(
     COLUMN_TITLE,
     COLUMN_SHORT_DESCRIPTION,
     COLUMN_POSTER_ART_URI,
+    COLUMN_THUMBNAIL_URI,
     TvContractCompat.PreviewProgramColumns.COLUMN_INTENT_URI,
 )
 
 private const val COLUMN_TITLE = "title"
 private const val COLUMN_SHORT_DESCRIPTION = "short_description"
 private const val COLUMN_POSTER_ART_URI = "poster_art_uri"
+private const val COLUMN_THUMBNAIL_URI = "thumbnail_uri"
+
+private fun String.asUriOrNull(): Uri? = takeIf { it.isNotBlank() }?.let(Uri::parse)

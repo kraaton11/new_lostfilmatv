@@ -64,10 +64,15 @@ open class TmdbPosterClient(
                     TmdbMediaType.TV -> item.optString("name", "")
                     TmdbMediaType.MOVIE -> item.optString("title", "")
                 }
+                val originalName = when (type) {
+                    TmdbMediaType.TV -> item.optString("original_name", "")
+                    TmdbMediaType.MOVIE -> item.optString("original_title", "")
+                }
                 TmdbSearchResult(
                     id = item.getInt("id"),
-                    name = name.ifBlank { item.optString("original_name", item.optString("original_title", "")) },
+                    name = name.ifBlank { originalName },
                     popularity = item.optDouble("popularity", 0.0),
+                    originalName = originalName.ifBlank { name },
                 )
             }.sortedByDescending { it.popularity }
         }
@@ -82,12 +87,28 @@ open class TmdbPosterClient(
             TmdbMediaType.MOVIE -> "/movie/$tmdbId/images"
         }
 
-        fetchImages("$TMDB_BASE_URL$endpoint", language = "ru")
-            ?: fetchImages("$TMDB_BASE_URL$endpoint", language = null)
+        val baseUrl = "$TMDB_BASE_URL$endpoint"
+        val russianImages = fetchImages(baseUrl, language = "ru")
+        if (russianImages.hasPosterAndBackdrop()) {
+            return@withContext russianImages
+        }
+
+        val englishImages = if (russianImages.needsEnglishFallback()) {
+            fetchImages(baseUrl, language = "en")
+        } else {
+            null
+        }
+
+        mergeImages(russianImages, englishImages)
+            ?: fetchImages(baseUrl, language = null)
     }
 
     private fun fetchImages(baseUrl: String, language: String?): TmdbImageUrls? {
-        val url = if (language != null) "$baseUrl?language=$language" else baseUrl
+        val url = if (language != null) {
+            "$baseUrl?language=$language&include_image_language=$language,null"
+        } else {
+            baseUrl
+        }
 
         val request = Request.Builder()
             .url(url)
@@ -119,6 +140,30 @@ open class TmdbPosterClient(
             if (path.isNotBlank()) return path
         }
         return null
+    }
+
+    private fun TmdbImageUrls?.hasPosterAndBackdrop(): Boolean {
+        return this != null && posterUrl.isNotBlank() && backdropUrl.isNotBlank()
+    }
+
+    private fun TmdbImageUrls?.needsEnglishFallback(): Boolean {
+        return this == null || backdropUrl.isBlank()
+    }
+
+    private fun mergeImages(primary: TmdbImageUrls?, secondary: TmdbImageUrls?): TmdbImageUrls? {
+        val posterUrl = primary?.posterUrl?.ifBlank { secondary?.posterUrl.orEmpty() }
+            ?: secondary?.posterUrl.orEmpty()
+        val backdropUrl = primary?.backdropUrl?.ifBlank { secondary?.backdropUrl.orEmpty() }
+            ?: secondary?.backdropUrl.orEmpty()
+
+        if (posterUrl.isBlank() && backdropUrl.isBlank()) {
+            return null
+        }
+
+        return TmdbImageUrls(
+            posterUrl = posterUrl,
+            backdropUrl = backdropUrl,
+        )
     }
 
     private fun String.encodeUrl(): String = java.net.URLEncoder.encode(this, "UTF-8")

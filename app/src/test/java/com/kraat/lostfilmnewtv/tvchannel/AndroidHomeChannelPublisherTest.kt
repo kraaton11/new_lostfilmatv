@@ -6,6 +6,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.tvprovider.media.tv.TvContractCompat
 import com.kraat.lostfilmnewtv.navigation.AppLaunchTarget
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -38,6 +39,10 @@ class AndroidHomeChannelPublisherTest {
         assertEquals("LostFilm: Новые релизы", facade.publishedChannels.single().displayName)
         assertEquals("Все новые релизы LostFilm", facade.publishedChannels.single().description)
         assertEquals(listOf("https://example.com/1"), facade.upsertedPrograms.map { it.internalProviderId })
+        assertEquals(
+            listOf("https://example.com/poster.jpg"),
+            facade.upsertedPrograms.map { it.thumbnailUrl },
+        )
         assertEquals(
             listOf(TvContractCompat.PreviewProgramColumns.TYPE_CLIP),
             facade.upsertedPrograms.map { it.type },
@@ -150,6 +155,57 @@ class AndroidHomeChannelPublisherTest {
             facade.upsertedPrograms.map { it.weight },
         )
     }
+
+    @Test
+    fun reconcile_skipsProgramsWithoutUsableImages() = runTestPublisher {
+        val facade = RecordingPreviewFacade()
+        val publisher = AndroidHomeChannelPublisher(
+            appContext = context,
+            helperFacade = facade,
+            channelLogoProvider = { testLogo },
+        )
+
+        publisher.reconcile(
+            mode = AndroidTvChannelMode.ALL_NEW,
+            existingChannelId = 42L,
+            programs = listOf(
+                program("https://example.com/1", posterUrl = ""),
+                program(
+                    "https://example.com/2",
+                    posterUrl = "",
+                    backdropUrl = "https://example.com/backdrop.jpg",
+                ),
+            ),
+        )
+
+        assertEquals(listOf("https://example.com/2"), facade.upsertedPrograms.map { it.internalProviderId })
+        assertEquals(listOf("https://example.com/backdrop.jpg"), facade.upsertedPrograms.map { it.thumbnailUrl })
+        assertTrue(facade.upsertedPrograms.single().posterUrl.isBlank())
+    }
+
+    @Test
+    fun reconcile_usesBackdropAsThumbnail_whenAvailable() = runTestPublisher {
+        val facade = RecordingPreviewFacade()
+        val publisher = AndroidHomeChannelPublisher(
+            appContext = context,
+            helperFacade = facade,
+            channelLogoProvider = { testLogo },
+        )
+
+        publisher.reconcile(
+            mode = AndroidTvChannelMode.ALL_NEW,
+            existingChannelId = 42L,
+            programs = listOf(
+                program(
+                    "https://example.com/1",
+                    backdropUrl = "https://example.com/backdrop.jpg",
+                ),
+            ),
+        )
+
+        assertEquals("https://example.com/poster.jpg", facade.upsertedPrograms.single().posterUrl)
+        assertEquals("https://example.com/backdrop.jpg", facade.upsertedPrograms.single().thumbnailUrl)
+    }
 }
 
 private fun runTestPublisher(block: suspend () -> Unit) {
@@ -219,12 +275,17 @@ private class RecordingPreviewFacade(
     }
 }
 
-private fun program(detailsUrl: String): HomeChannelProgram {
+private fun program(
+    detailsUrl: String,
+    posterUrl: String = "https://example.com/poster.jpg",
+    backdropUrl: String = "",
+): HomeChannelProgram {
     return HomeChannelProgram(
         detailsUrl = detailsUrl,
         title = "Title $detailsUrl",
         description = "Description $detailsUrl",
-        posterUrl = "https://example.com/poster.jpg",
+        posterUrl = posterUrl,
+        backdropUrl = backdropUrl,
         internalProviderId = detailsUrl,
     )
 }

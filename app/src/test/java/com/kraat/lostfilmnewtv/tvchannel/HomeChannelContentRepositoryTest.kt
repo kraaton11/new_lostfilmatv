@@ -85,6 +85,27 @@ class HomeChannelContentRepositoryTest {
     }
 
     @Test
+    fun loadPrograms_enrichesBackdropWithTmdb() = runTest {
+        val tmdbResolver = FakeTmdbPosterResolver(
+            backdropOverrides = mapOf(
+                "https://example.com/series" to "https://image.tmdb.org/t/p/w780/series_backdrop.jpg",
+            ),
+        )
+        val repository = HomeChannelContentRepository(
+            reader = FakeSummaryReader(
+                allRows = listOf(
+                    summary(detailsUrl = "https://example.com/series", titleRu = "9-1-1"),
+                ),
+            ),
+            tmdbResolver = tmdbResolver,
+        )
+
+        val results = repository.loadPrograms(AndroidTvChannelMode.ALL_NEW, limit = 30)
+
+        assertEquals("https://image.tmdb.org/t/p/w780/series_backdrop.jpg", results.first().backdropUrl)
+    }
+
+    @Test
     fun loadPrograms_fallsBackToOriginalPosterWhenTmdbEmpty() = runTest {
         val originalPoster = "https://www.lostfilm.today/Static/Images/362/Posters/image_s9.jpg"
         val tmdbResolver = FakeTmdbPosterResolver(
@@ -127,6 +148,7 @@ private class FakeSummaryReader(
 
 private class FakeTmdbPosterResolver(
     private val posterOverrides: Map<String, String> = emptyMap(),
+    private val backdropOverrides: Map<String, String> = emptyMap(),
 ) : TmdbPosterResolver {
     override suspend fun resolve(
         detailsUrl: String,
@@ -135,8 +157,12 @@ private class FakeTmdbPosterResolver(
         kind: ReleaseKind,
     ): TmdbImageUrls? {
         val posterUrl = posterOverrides[detailsUrl]
-        return if (posterUrl != null) {
-            TmdbImageUrls(posterUrl = posterUrl, backdropUrl = "")
+        val backdropUrl = backdropOverrides[detailsUrl]
+        return if (posterUrl != null || backdropUrl != null) {
+            TmdbImageUrls(
+                posterUrl = posterUrl.orEmpty(),
+                backdropUrl = backdropUrl.orEmpty(),
+            )
         } else {
             null
         }

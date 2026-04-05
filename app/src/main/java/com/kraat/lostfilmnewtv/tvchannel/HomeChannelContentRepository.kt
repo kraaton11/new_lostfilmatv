@@ -3,7 +3,6 @@ package com.kraat.lostfilmnewtv.tvchannel
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
 import com.kraat.lostfilmnewtv.data.db.ReleaseSummaryEntity
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
-import com.kraat.lostfilmnewtv.data.poster.TmdbPosterEnricher
 import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolver
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -28,40 +27,27 @@ class HomeChannelContentRepository(
             AndroidTvChannelMode.DISABLED -> return emptyList()
         }
 
-        val basePrograms = rows.map { row ->
-            HomeChannelProgram(
-                detailsUrl = row.detailsUrl,
-                title = row.titleRu,
-                description = row.channelDescription(),
-                posterUrl = row.posterUrl,
-                internalProviderId = row.detailsUrl,
-            )
-        }
-
         return coroutineScope {
-            basePrograms.map { program ->
+            rows.map { row ->
                 async {
                     val tmdbUrls = tmdbResolver.resolve(
-                        detailsUrl = program.detailsUrl,
-                        titleRu = program.title,
-                        releaseDateRu = program.description,
-                        kind = inferKindFromDescription(program.description),
+                        detailsUrl = row.detailsUrl,
+                        titleRu = row.titleRu,
+                        releaseDateRu = row.releaseDateRu,
+                        kind = ReleaseKind.valueOf(row.kind),
                     )
-                    val enrichedPosterUrl = tmdbUrls?.posterUrl?.takeIf { it.isNotBlank() }
-                        ?: program.posterUrl
-                    program.copy(posterUrl = enrichedPosterUrl)
+                    HomeChannelProgram(
+                        detailsUrl = row.detailsUrl,
+                        title = row.titleRu,
+                        description = row.channelDescription(),
+                        posterUrl = tmdbUrls?.posterUrl?.takeIf { it.isNotBlank() }
+                            ?: row.posterUrl,
+                        backdropUrl = tmdbUrls?.backdropUrl?.takeIf { it.isNotBlank() }.orEmpty(),
+                        internalProviderId = row.detailsUrl,
+                    )
                 }
             }.awaitAll()
         }
-    }
-}
-
-private fun inferKindFromDescription(description: String): ReleaseKind {
-    val datePattern = Regex("""\d{2}\.\d{2}\.\d{4}""")
-    return if (datePattern.matches(description.trim())) {
-        ReleaseKind.MOVIE
-    } else {
-        ReleaseKind.SERIES
     }
 }
 
