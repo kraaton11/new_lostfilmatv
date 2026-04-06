@@ -329,7 +329,7 @@ class AppNavGraphTorrServeTest {
     }
 
     @Test
-    fun home_shows_saved_update_button_and_launches_install_via_nav_graph() {
+    fun home_shows_update_text_in_service_panel_via_nav_graph() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         TestLostFilmApplication.appUpdateCoordinatorOverride = testAppUpdateCoordinator(
             context = context,
@@ -339,8 +339,6 @@ class AppNavGraphTorrServeTest {
                 apkUrl = TEST_APK_URL,
             ),
         )
-        val launcher = RecordingReleaseApkLauncher()
-        TestLostFilmApplication.releaseApkLauncherOverride = launcher
 
         composeRule.setContent {
             LostFilmTheme {
@@ -349,44 +347,12 @@ class AppNavGraphTorrServeTest {
         }
 
         composeRule.waitForText("Новые релизы")
-        composeRule.waitForText("Обновить")
-        composeRule.onNodeWithText("Обновить")
-            .performSemanticsAction(SemanticsActions.OnClick)
-
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            launcher.launchedUrls == listOf(TEST_APK_URL)
-        }
-        assertEquals(listOf(TEST_APK_URL), launcher.launchedUrls)
+        composeRule.waitForText("Можно обновить")
+        composeRule.onNodeWithText("Можно обновить").assertExists()
     }
 
-    @Test
-    fun home_install_failure_shows_user_facing_message_via_nav_graph() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        TestLostFilmApplication.appUpdateCoordinatorOverride = testAppUpdateCoordinator(
-            context = context,
-            prefsName = "app-nav-home-saved-update-failure",
-            savedUpdate = SavedAppUpdate(
-                latestVersion = "0.2.0",
-                apkUrl = TEST_APK_URL,
-            ),
-        )
-        val launcher = RecordingReleaseApkLauncher(launchResult = false)
-        TestLostFilmApplication.releaseApkLauncherOverride = launcher
-
-        composeRule.setContent {
-            LostFilmTheme {
-                AppNavGraph()
-            }
-        }
-
-        composeRule.waitForText("Новые релизы")
-        composeRule.waitForText("Обновить")
-        composeRule.onNodeWithText("Обновить")
-            .performSemanticsAction(SemanticsActions.OnClick)
-
-        composeRule.waitForText("Не удалось открыть обновление.")
-        assertEquals(listOf(TEST_APK_URL), launcher.launchedUrls)
-    }
+    // Note: home_install_failure test removed — "Обновить" button no longer on home screen.
+    // Install flow is now handled through Settings screen only.
 
     @Test
     fun settings_playback_quality_persists_and_applies_to_details_via_nav_graph() {
@@ -409,7 +375,7 @@ class AppNavGraphTorrServeTest {
         }
 
         composeRule.waitForText("Новые релизы")
-        composeRule.onNodeWithText("Настройки")
+        composeRule.onNodeWithTag("home-action-settings")
             .performSemanticsAction(SemanticsActions.OnClick)
         composeRule.onNodeWithTag("settings-section-quality")
             .performSemanticsAction(SemanticsActions.OnClick)
@@ -581,7 +547,7 @@ class AppNavGraphTorrServeTest {
         }
 
         composeRule.waitForText("Новые релизы")
-        composeRule.onNodeWithText("Настройки")
+        composeRule.onNodeWithTag("home-action-settings")
             .performSemanticsAction(SemanticsActions.OnClick)
         composeRule.onNodeWithTag("settings-section-channel")
             .performSemanticsAction(SemanticsActions.OnClick)
@@ -599,7 +565,7 @@ class AppNavGraphTorrServeTest {
         }
 
         composeRule.waitForText("Новые релизы")
-        composeRule.onNodeWithText("Настройки")
+        composeRule.onNodeWithTag("home-action-settings")
             .performSemanticsAction(SemanticsActions.OnClick)
         composeRule.onNodeWithTag("settings-section-channel")
             .performSemanticsAction(SemanticsActions.OnClick)
@@ -625,7 +591,7 @@ private fun ComposeContentTestRule.openSettingsSection(
     readyText: String,
 ) {
     waitForText("Новые релизы")
-    onNodeWithText("Настройки")
+    onNodeWithTag("home-action-settings")
         .performSemanticsAction(SemanticsActions.OnClick)
     onNodeWithTag(sectionTag)
         .performSemanticsAction(SemanticsActions.OnClick)
