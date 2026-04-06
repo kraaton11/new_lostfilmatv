@@ -38,6 +38,8 @@ import org.jsoup.Jsoup
 
 private const val FRESH_WINDOW_MS = 6 * 60 * 60 * 1000L
 private const val RETENTION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000L
+private const val FAVORITE_RELEASES_MAX_EPISODES_PER_SEASON = 3
+private const val FAVORITE_RELEASES_MAX_ITEMS = 30
 private val paginatorRegex = Regex("""/new/page_(\d+)""")
 private const val favoriteSeriesRoute = "/my/type_1"
 private val seriesFavoritePageRegex = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)/season_\d+/episode_\d+/?""")
@@ -341,13 +343,6 @@ class LostFilmRepositoryImpl(
             var loadedAnySeasonPage = false
             val items = buildList {
                 favoriteSeries.forEach { series ->
-                    val watchedEpisodeIdsFromSeriesRoot = try {
-                        seasonEpisodesParser.parseWatchedEpisodeIdsFromPage(
-                            httpClient.fetchDetails(series.seriesUrl),
-                        )
-                    } catch (_: IOException) {
-                        emptySet()
-                    }
                     val seasonsUrl = "${series.seriesUrl.trimEnd('/')}/seasons"
                     val seasonsHtml = try {
                         httpClient.fetchDetails(seasonsUrl)
@@ -369,6 +364,17 @@ class LostFilmRepositoryImpl(
                             }
                         }
                         .orEmpty()
+                    val watchedEpisodeIdsFromSeriesRoot = if (watchedEpisodeIdsFromMarks.isEmpty()) {
+                        try {
+                            seasonEpisodesParser.parseWatchedEpisodeIdsFromPage(
+                                httpClient.fetchDetails(series.seriesUrl),
+                            )
+                        } catch (_: IOException) {
+                            emptySet()
+                        }
+                    } else {
+                        emptySet()
+                    }
                     val watchedEpisodeIds = watchedEpisodeIdsFromSeriesRoot + watchedEpisodeIdsFromMarks
                     addAll(
                         seasonEpisodesParser.parse(
@@ -376,6 +382,7 @@ class LostFilmRepositoryImpl(
                             series = series,
                             fetchedAt = fetchedAt,
                             watchedEpisodeIds = watchedEpisodeIds,
+                            maxEpisodesPerSeason = FAVORITE_RELEASES_MAX_EPISODES_PER_SEASON,
                         ),
                     )
                 }
@@ -386,6 +393,7 @@ class LostFilmRepositoryImpl(
                     releaseDate == null || !releaseDate.isAfter(today)
                 }
                 .sortedByDescending { parseFavoriteReleaseDate(it.releaseDateRu) ?: LocalDate.MIN }
+                .take(FAVORITE_RELEASES_MAX_ITEMS)
                 .mapIndexed { index, item -> item.copy(positionInPage = index) }
 
             val enrichedItems = coroutineScope {
