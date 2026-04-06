@@ -38,8 +38,9 @@ import org.jsoup.Jsoup
 
 private const val FRESH_WINDOW_MS = 6 * 60 * 60 * 1000L
 private const val RETENTION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000L
-private const val FAVORITE_RELEASES_MAX_EPISODES_PER_SEASON = 3
+private const val FAVORITE_RELEASES_MAX_EPISODES_PER_SEASON = 1
 private const val FAVORITE_RELEASES_MAX_ITEMS = 30
+private const val FAVORITE_RELEASES_MAX_SEASONS_PER_SERIES = 1
 private val paginatorRegex = Regex("""/new/page_(\d+)""")
 private const val favoriteSeriesRoute = "/my/type_1"
 private val seriesFavoritePageRegex = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)/season_\d+/episode_\d+/?""")
@@ -383,6 +384,7 @@ class LostFilmRepositoryImpl(
                             fetchedAt = fetchedAt,
                             watchedEpisodeIds = watchedEpisodeIds,
                             maxEpisodesPerSeason = FAVORITE_RELEASES_MAX_EPISODES_PER_SEASON,
+                            maxSeasons = FAVORITE_RELEASES_MAX_SEASONS_PER_SERIES,
                         ),
                     )
                 }
