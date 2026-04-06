@@ -35,7 +35,8 @@ import com.kraat.lostfilmnewtv.ui.settings.SettingsRoute
 import kotlinx.coroutines.launch
 
 private const val HOME_WATCHED_DETAILS_URL_KEY = "home.watched_details_url"
-private const val HOME_FAVORITES_INVALIDATED_KEY = "home.favorites_invalidated"
+private const val HOME_FAVORITE_CHANGED_DETAILS_URL_KEY = "home.favorite_changed_details_url"
+private const val HOME_FAVORITE_CHANGED_STATE_KEY = "home.favorite_changed_state"
 private const val HOME_INSTALL_UPDATE_FAILED_MESSAGE = "Не удалось открыть обновление."
 private const val HOME_DOWNLOADING_UPDATE_MESSAGE = "Скачивание обновления…"
 
@@ -92,8 +93,11 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
             val watchedDetailsUrl by backStackEntry.savedStateHandle
                 .getStateFlow<String?>(HOME_WATCHED_DETAILS_URL_KEY, null)
                 .collectAsStateWithLifecycle()
-            val favoritesInvalidated by backStackEntry.savedStateHandle
-                .getStateFlow(HOME_FAVORITES_INVALIDATED_KEY, false)
+            val favoriteChangedDetailsUrl by backStackEntry.savedStateHandle
+                .getStateFlow<String?>(HOME_FAVORITE_CHANGED_DETAILS_URL_KEY, null)
+                .collectAsStateWithLifecycle()
+            val favoriteChangedState by backStackEntry.savedStateHandle
+                .getStateFlow<Boolean?>(HOME_FAVORITE_CHANGED_STATE_KEY, null)
                 .collectAsStateWithLifecycle()
             val scope = rememberCoroutineScope()
             var homeAppUpdateStatusText by rememberSaveable { mutableStateOf<String?>(null) }
@@ -125,10 +129,16 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                 }
             }
 
-            LaunchedEffect(favoritesInvalidated) {
-                if (favoritesInvalidated) {
-                    homeViewModel.onFavoriteContentInvalidated()
-                    backStackEntry.savedStateHandle[HOME_FAVORITES_INVALIDATED_KEY] = false
+            LaunchedEffect(favoriteChangedDetailsUrl, favoriteChangedState) {
+                val detailsUrl = favoriteChangedDetailsUrl
+                val isFavorite = favoriteChangedState
+                if (detailsUrl != null && isFavorite != null) {
+                    homeViewModel.onFavoriteStateChanged(
+                        detailsUrl = detailsUrl,
+                        isFavorite = isFavorite,
+                    )
+                    backStackEntry.savedStateHandle[HOME_FAVORITE_CHANGED_DETAILS_URL_KEY] = null
+                    backStackEntry.savedStateHandle[HOME_FAVORITE_CHANGED_STATE_KEY] = null
                 }
             }
 
@@ -180,10 +190,13 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                         ?.savedStateHandle
                         ?.set(HOME_WATCHED_DETAILS_URL_KEY, watchedDetailsUrl)
                 },
-                onFavoriteContentChanged = {
+                onFavoriteContentChanged = { changedDetailsUrl, isFavorite ->
                     navController.previousBackStackEntry
                         ?.savedStateHandle
-                        ?.set(HOME_FAVORITES_INVALIDATED_KEY, true)
+                        ?.set(HOME_FAVORITE_CHANGED_DETAILS_URL_KEY, changedDetailsUrl)
+                    navController.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.set(HOME_FAVORITE_CHANGED_STATE_KEY, isFavorite)
                 },
                 onOpenSeriesGuide = { detailsUrl ->
                     navController.navigate(AppDestination.SeriesGuide.createRoute(detailsUrl))

@@ -36,7 +36,7 @@ fun DetailsRoute(
     linkBuilder: TorrServeLinkBuilder,
     onMarkedWatched: (String) -> Unit = {},
     onOpenSeriesGuide: (String) -> Unit = {},
-    onFavoriteContentChanged: () -> Unit = {},
+    onFavoriteContentChanged: (String, Boolean) -> Unit = { _, _ -> },
     onChannelContentChanged: suspend () -> Unit = {},
     openTorrServe: suspend (Context, String, String, String) -> TorrServeOpenResult = actionHandler::open,
 ) {
@@ -80,7 +80,11 @@ fun DetailsRoute(
     LaunchedEffect(state.favoriteContentVersion) {
         if (state.favoriteContentVersion > handledFavoriteContentVersion) {
             handledFavoriteContentVersion = state.favoriteContentVersion
-            onFavoriteContentChanged()
+            val currentDetails = state.details
+            val isFavorite = currentDetails?.isFavorite
+            if (currentDetails != null && isFavorite != null) {
+                onFavoriteContentChanged(currentDetails.detailsUrl, isFavorite)
+            }
         }
     }
 

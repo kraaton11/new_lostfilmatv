@@ -87,6 +87,7 @@ class LostFilmSeasonEpisodesParser {
         fetchedAt: Long,
         watchedEpisodeIds: Set<String> = emptySet(),
         maxEpisodesPerSeason: Int = Int.MAX_VALUE,
+        maxSeasons: Int = Int.MAX_VALUE,
     ): List<ReleaseSummary> {
         val document = Jsoup.parse(html, BASE_URL)
 
@@ -101,17 +102,19 @@ class LostFilmSeasonEpisodesParser {
             }
             .distinctBy { it.detailsUrl }
 
-        if (maxEpisodesPerSeason <= 0) {
+        if (maxEpisodesPerSeason <= 0 || maxSeasons <= 0) {
             return emptyList()
         }
 
-        if (maxEpisodesPerSeason == Int.MAX_VALUE) {
+        if (maxEpisodesPerSeason == Int.MAX_VALUE && maxSeasons == Int.MAX_VALUE) {
             return episodes
         }
 
         return episodes
             .groupBy { it.seasonNumber ?: Int.MIN_VALUE }
+            .toSortedMap(compareByDescending { it })
             .values
+            .take(maxSeasons)
             .flatMap { seasonEpisodes ->
                 seasonEpisodes
                     .sortedByDescending { it.episodeNumber ?: Int.MIN_VALUE }
