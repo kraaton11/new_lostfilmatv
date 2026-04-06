@@ -86,62 +86,94 @@ class LostFilmSeasonEpisodesParser {
         series: FavoriteSeriesRef,
         fetchedAt: Long,
         watchedEpisodeIds: Set<String> = emptySet(),
+        maxEpisodesPerSeason: Int = Int.MAX_VALUE,
     ): List<ReleaseSummary> {
         val document = Jsoup.parse(html, BASE_URL)
 
-        return document.select("tr")
+        val episodes = document.select("tr")
             .mapNotNull { row ->
-                val betaCell = row.selectFirst("td.beta")
-                val gammaCell = row.selectFirst("td.gamma")
-                val deltaCell = row.selectFirst("td.delta")
-
-                val detailsUrl = sequenceOf(
-                    betaCell?.attr("onclick"),
-                    gammaCell?.attr("onclick"),
-                    row.attr("onclick"),
-                )
-                    .mapNotNull { onclick -> goToUrlRegex.find(onclick.orEmpty())?.groupValues?.getOrNull(1) }
-                    .map(::resolveUrl)
-                    .firstOrNull()
-                    ?: return@mapNotNull null
-
-                val match = seasonEpisodeUrlRegex.find(detailsUrl) ?: return@mapNotNull null
-                val releaseDateRu = ruReleaseDateRegex.find(deltaCell.textOrEmpty())
-                    ?.groupValues
-                    ?.getOrNull(1)
-                    .orEmpty()
-                    .normalizeText()
-
-                if (releaseDateRu.isBlank()) {
-                    return@mapNotNull null
-                }
-
-                val episodeTitleRu = gammaCell
-                    ?.ownText()
-                    .orEmpty()
-                    .normalizeText()
-                    .ifBlank { null }
-                val watchedButton = row.selectFirst(".haveseen-btn")
-                val isWatched = watchedButton?.classNames()?.contains("checked") == true ||
-                    watchedButton?.attr("data-episode").orEmpty() in watchedEpisodeIds
-
-                ReleaseSummary(
-                    id = detailsUrl,
-                    kind = ReleaseKind.SERIES,
-                    titleRu = series.titleRu,
-                    episodeTitleRu = episodeTitleRu,
-                    seasonNumber = match.groupValues[2].toIntOrNull(),
-                    episodeNumber = match.groupValues[3].toIntOrNull(),
-                    releaseDateRu = releaseDateRu,
-                    posterUrl = series.posterUrl,
-                    detailsUrl = detailsUrl,
-                    pageNumber = 0,
-                    positionInPage = 0,
+                parseFavoriteEpisodeRow(
+                    row = row,
+                    series = series,
                     fetchedAt = fetchedAt,
-                    isWatched = isWatched,
+                    watchedEpisodeIds = watchedEpisodeIds,
                 )
             }
             .distinctBy { it.detailsUrl }
+
+        if (maxEpisodesPerSeason <= 0) {
+            return emptyList()
+        }
+
+        if (maxEpisodesPerSeason == Int.MAX_VALUE) {
+            return episodes
+        }
+
+        return episodes
+            .groupBy { it.seasonNumber ?: Int.MIN_VALUE }
+            .values
+            .flatMap { seasonEpisodes ->
+                seasonEpisodes
+                    .sortedByDescending { it.episodeNumber ?: Int.MIN_VALUE }
+                    .take(maxEpisodesPerSeason)
+            }
+    }
+
+    private fun parseFavoriteEpisodeRow(
+        row: Element,
+        series: FavoriteSeriesRef,
+        fetchedAt: Long,
+        watchedEpisodeIds: Set<String>,
+    ): ReleaseSummary? {
+        val betaCell = row.selectFirst("td.beta")
+        val gammaCell = row.selectFirst("td.gamma")
+        val deltaCell = row.selectFirst("td.delta")
+
+        val detailsUrl = sequenceOf(
+            betaCell?.attr("onclick"),
+            gammaCell?.attr("onclick"),
+            row.attr("onclick"),
+        )
+            .mapNotNull { onclick -> goToUrlRegex.find(onclick.orEmpty())?.groupValues?.getOrNull(1) }
+            .map(::resolveUrl)
+            .firstOrNull()
+            ?: return null
+
+        val match = seasonEpisodeUrlRegex.find(detailsUrl) ?: return null
+        val releaseDateRu = ruReleaseDateRegex.find(deltaCell.textOrEmpty())
+            ?.groupValues
+            ?.getOrNull(1)
+            .orEmpty()
+            .normalizeText()
+
+        if (releaseDateRu.isBlank()) {
+            return null
+        }
+
+        val episodeTitleRu = gammaCell
+            ?.ownText()
+            .orEmpty()
+            .normalizeText()
+            .ifBlank { null }
+        val watchedButton = row.selectFirst(".haveseen-btn")
+        val isWatched = watchedButton?.classNames()?.contains("checked") == true ||
+            watchedButton?.attr("data-episode").orEmpty() in watchedEpisodeIds
+
+        return ReleaseSummary(
+            id = detailsUrl,
+            kind = ReleaseKind.SERIES,
+            titleRu = series.titleRu,
+            episodeTitleRu = episodeTitleRu,
+            seasonNumber = match.groupValues[2].toIntOrNull(),
+            episodeNumber = match.groupValues[3].toIntOrNull(),
+            releaseDateRu = releaseDateRu,
+            posterUrl = series.posterUrl,
+            detailsUrl = detailsUrl,
+            pageNumber = 0,
+            positionInPage = 0,
+            fetchedAt = fetchedAt,
+            isWatched = isWatched,
+        )
     }
 
     private fun parseGuideEpisodeRow(

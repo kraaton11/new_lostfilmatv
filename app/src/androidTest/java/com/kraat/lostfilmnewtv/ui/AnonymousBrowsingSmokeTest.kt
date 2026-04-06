@@ -17,6 +17,7 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
+import com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult
 import com.kraat.lostfilmnewtv.ui.home.posterTag
 import org.junit.Rule
 import org.junit.Test
@@ -115,6 +116,10 @@ private class FakeAnonymousBrowsingRepository : LostFilmRepository {
             details = SMOKE_DETAILS,
             isStale = false,
         )
+    }
+
+    override suspend fun loadSeriesGuide(detailsUrl: String): SeriesGuideResult {
+        return SeriesGuideResult.Error("Unexpected guide request: $detailsUrl")
     }
 
     override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean = true
