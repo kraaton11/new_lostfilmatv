@@ -2,17 +2,24 @@ package com.kraat.lostfilmnewtv.ui.home
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.ui.res.painterResource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.kraat.lostfilmnewtv.R
 import com.kraat.lostfilmnewtv.ui.theme.FocusBorder
 import com.kraat.lostfilmnewtv.ui.theme.FocusBackground
 import com.kraat.lostfilmnewtv.ui.theme.HomeAccentBlue
@@ -53,12 +61,9 @@ fun HomeHeader(
     availableModes: List<HomeFeedMode>,
     onModeActivated: (HomeFeedMode) -> Unit,
     onHeaderInteraction: () -> Unit,
-    hasSavedUpdate: Boolean,
     onSettingsClick: () -> Unit,
-    onInstallUpdateClick: () -> Unit,
     modeToggleFocusRequester: FocusRequester?,
     settingsFocusRequester: FocusRequester,
-    updateFocusRequester: FocusRequester?,
     downTarget: FocusRequester?,
     modifier: Modifier = Modifier,
 ) {
@@ -130,9 +135,9 @@ fun HomeHeader(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            HomeHeaderActionButton(
-                label = "Настройки",
-                subtitle = "Параметры приложения",
+            HomeHeaderIconButton(
+                iconResId = R.drawable.ic_settings,
+                contentDescription = "Настройки",
                 onClick = onSettingsClick,
                 onInteraction = onHeaderInteraction,
                 modifier = Modifier
@@ -142,28 +147,9 @@ fun HomeHeader(
                         if (lastModeRequester != null) {
                             left = lastModeRequester
                         }
-                        if (updateFocusRequester != null) {
-                            right = updateFocusRequester
-                        }
                     }
                     .applyDownFocus(downTarget),
             )
-            if (hasSavedUpdate && updateFocusRequester != null) {
-                HomeHeaderActionButton(
-                    label = "Обновить",
-                    subtitle = "Установить свежую сборку",
-                    onClick = onInstallUpdateClick,
-                    onInteraction = onHeaderInteraction,
-                    isPrimary = true,
-                    modifier = Modifier
-                        .testTag("home-action-update")
-                        .focusRequester(updateFocusRequester)
-                        .focusProperties {
-                            left = settingsFocusRequester
-                        }
-                        .applyDownFocus(downTarget),
-                )
-            }
         }
     }
 }
@@ -273,6 +259,59 @@ private fun HomeHeaderActionButton(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+    }
+}
+
+@Composable
+private fun HomeHeaderIconButton(
+    iconResId: Int,
+    contentDescription: String,
+    onClick: () -> Unit,
+    onInteraction: () -> Unit = {},
+    modifier: Modifier = Modifier,
+    observeKeyInteractions: Boolean = true,
+) {
+    var isFocused by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isFocused) 1.06f else 1f,
+        animationSpec = tween(durationMillis = 120),
+        label = "homeActionScale",
+    )
+
+    val iconColor = if (isFocused) HomeAccentGold else TextPrimary
+    val shape = RoundedCornerShape(12.dp)
+
+    Button(
+        onClick = onClick,
+        shape = shape,
+        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+        modifier = modifier
+            .then(
+                if (observeKeyInteractions) {
+                    Modifier.onPreviewKeyEvent { event ->
+                        if (event.type == KeyEventType.KeyDown && event.key.isHeaderInteractionKey()) {
+                            onInteraction()
+                        }
+                        false
+                    }
+                } else {
+                    Modifier
+                },
+            )
+            .size(64.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .onFocusChanged { isFocused = it.isFocused },
+    ) {
+        Icon(
+            painter = painterResource(id = iconResId),
+            contentDescription = contentDescription,
+            modifier = Modifier.size(48.dp),
+            tint = iconColor,
+        )
     }
 }
 

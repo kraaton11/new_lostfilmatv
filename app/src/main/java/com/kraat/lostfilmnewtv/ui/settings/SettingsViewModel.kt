@@ -179,7 +179,7 @@ private fun SettingsUiState.toCheckedState(refreshResult: AppUpdateRefreshResult
         )
 
         is AppUpdateRefreshResult.UpdateSaved -> copy(
-            savedAppUpdate = refreshResult.savedUpdate,
+            savedAppUpdate = refreshResult.savedUpdate.copy(manuallyChecked = true),
             latestVersionText = refreshResult.savedUpdate.latestVersion,
             statusText = "Доступно обновление",
             isCheckingForUpdates = false,

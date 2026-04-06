@@ -66,7 +66,6 @@ fun HomeScreen(
     appVersionText: String = BuildConfig.VERSION_NAME,
     savedAppUpdate: SavedAppUpdate? = null,
     appUpdateStatusText: String? = null,
-    onInstallUpdateClick: () -> Unit = {},
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val activeModeState = when (state.selectedMode) {
@@ -166,6 +165,8 @@ fun HomeScreen(
                 settingsRequester
             }
 
+            val displayVersionText = if (savedAppUpdate != null) "Можно обновить" else appVersionText
+
             HomeHeader(
                 selectedMode = state.selectedMode,
                 availableModes = state.availableModes,
@@ -174,12 +175,9 @@ fun HomeScreen(
                     onModeSelected(mode)
                 },
                 onHeaderInteraction = { /* navigation within header; rail resets this on focus */ },
-                hasSavedUpdate = savedAppUpdate != null,
                 onSettingsClick = onSettingsClick,
-                onInstallUpdateClick = onInstallUpdateClick,
                 modeToggleFocusRequester = if (state.availableModes.size > 1) modeToggleRequester else null,
                 settingsFocusRequester = settingsRequester,
-                updateFocusRequester = if (savedAppUpdate != null) updateRequester else null,
                 downTarget = headerDownTarget,
             )
 
@@ -358,7 +356,7 @@ fun HomeScreen(
                         if (activeModeState is HomeModeContentState.Content) {
                             HomeBottomStage(
                                 item = focusedItem,
-                                appVersionText = appVersionText,
+                                appVersionText = displayVersionText,
                                 appUpdateStatusText = stageStatusText,
                             )
                         }

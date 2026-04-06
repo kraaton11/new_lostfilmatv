@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(adb *)",
+      "Bash(sleep *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push)"
+    ]
+  },
+  "$version": 3
+}
