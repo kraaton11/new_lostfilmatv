@@ -361,7 +361,7 @@ class DetailsRouteTest {
         ).apply {
             favoriteResults += FavoriteMutationResult.Updated
         }
-        val invalidationCount = AtomicInteger(0)
+        val favoriteChanges = CopyOnWriteArrayList<Pair<String, Boolean>>()
 
         composeRule.setContent {
             DetailsRoute(
@@ -369,16 +369,18 @@ class DetailsRouteTest {
                 repository = repository,
                 actionHandler = succeedingActionHandler(),
                 linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
-                onFavoriteContentChanged = { invalidationCount.incrementAndGet() },
+                onFavoriteContentChanged = { changedDetailsUrl, isFavorite ->
+                    favoriteChanges += changedDetailsUrl to isFavorite
+                },
             )
         }
 
         composeRule.waitForNodeWithTag("details-favorite-action")
         composeRule.onNodeWithTag("details-favorite-action")
             .performSemanticsAction(SemanticsActions.OnClick)
-        composeRule.waitUntil(timeoutMillis = 5_000) { invalidationCount.get() == 1 }
+        composeRule.waitUntil(timeoutMillis = 5_000) { favoriteChanges.size == 1 }
 
-        assertEquals(1, invalidationCount.get())
+        assertEquals(listOf(detailsUrl to true), favoriteChanges)
         assertEquals(listOf(detailsUrl to true), repository.favoriteRequests)
     }
 

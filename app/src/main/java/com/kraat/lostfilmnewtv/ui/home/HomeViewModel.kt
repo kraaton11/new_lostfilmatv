@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 private const val FOCUS_KEY = "home.focused_item_key"
+private val favoriteSeriesSlugRegex = Regex("""/series/([^/]+)""")
 
 class HomeViewModel(
     private val repository: LostFilmRepository,
@@ -177,6 +178,29 @@ class HomeViewModel(
         loadFavoriteReleases()
     }
 
+    fun onFavoriteStateChanged(detailsUrl: String, isFavorite: Boolean) {
+        if (!started || !_uiState.value.isFavoritesRailVisible) {
+            return
+        }
+
+        _uiState.update { state ->
+            val updatedFavoriteItems = applyOptimisticFavoriteChange(
+                currentFavoriteItems = state.favoriteItems,
+                allNewItems = state.items,
+                detailsUrl = detailsUrl,
+                isFavorite = isFavorite,
+            )
+            state.copy(
+                favoriteItems = updatedFavoriteItems,
+                favoritesModeState = state.favoritesModeState.optimisticallyUpdateFavoriteItems(
+                    items = updatedFavoriteItems,
+                ),
+            ).withResolvedHomeSelection()
+        }
+
+        loadFavoriteReleases(retainVisibleItemsOnFailure = true)
+    }
+
     private fun loadPage(pageNumber: Int, isPagingRequest: Boolean) {
         _uiState.update { state ->
             state.copy(
@@ -223,7 +247,7 @@ class HomeViewModel(
         }
     }
 
-    private fun loadFavoriteReleases() {
+    private fun loadFavoriteReleases(retainVisibleItemsOnFailure: Boolean = false) {
         val requestToken = favoriteRequestToken + 1
         favoriteRequestToken = requestToken
         favoriteLoadJob?.cancel()
@@ -247,6 +271,9 @@ class HomeViewModel(
                     }
 
                     is FavoriteReleasesResult.Unavailable -> {
+                        if (retainVisibleItemsOnFailure) {
+                            return@update state.withResolvedHomeSelection()
+                        }
                         val favoriteState = if (result.message.isNullOrBlank()) {
                             HomeModeContentState.Error("Не удалось загрузить избранное")
                         } else if (result.message.contains("Войдите", ignoreCase = true)) {
@@ -274,6 +301,37 @@ class HomeViewModel(
             }
         }
     }
+}
+
+private fun applyOptimisticFavoriteChange(
+    currentFavoriteItems: List<ReleaseSummary>,
+    allNewItems: List<ReleaseSummary>,
+    detailsUrl: String,
+    isFavorite: Boolean,
+): List<ReleaseSummary> {
+    val favoriteSeriesSlug = favoriteSeriesSlug(detailsUrl) ?: return currentFavoriteItems
+    val favoriteItemsWithoutSeries = currentFavoriteItems.filterNot { item ->
+        favoriteSeriesSlug(item.detailsUrl) == favoriteSeriesSlug
+    }
+    if (!isFavorite) {
+        return favoriteItemsWithoutSeries
+    }
+
+    val matchingAllNewItem = allNewItems.firstOrNull { item ->
+        favoriteSeriesSlug(item.detailsUrl) == favoriteSeriesSlug
+    } ?: return currentFavoriteItems
+
+    val matchingAllNewIndex = allNewItems.indexOfFirst { it.detailsUrl == matchingAllNewItem.detailsUrl }
+    val insertIndex = favoriteItemsWithoutSeries.indexOfFirst { existing ->
+        val existingAllNewIndex = allNewItems.indexOfFirst { it.detailsUrl == existing.detailsUrl }
+        existingAllNewIndex == -1 || existingAllNewIndex > matchingAllNewIndex
+    }.let { index ->
+        if (index >= 0) index else favoriteItemsWithoutSeries.size
+    }
+
+    return favoriteItemsWithoutSeries
+        .toMutableList()
+        .apply { add(insertIndex, matchingAllNewItem) }
 }
 
 private fun HomeUiState.withResolvedHomeSelection(): HomeUiState {
@@ -313,6 +371,21 @@ private fun HomeModeContentState.updateItems(items: List<ReleaseSummary>): HomeM
         is HomeModeContentState.Error -> this
         is HomeModeContentState.LoginRequired -> this
         is HomeModeContentState.Content -> HomeModeContentState.Content(items)
+    }
+}
+
+private fun HomeModeContentState.optimisticallyUpdateFavoriteItems(
+    items: List<ReleaseSummary>,
+): HomeModeContentState {
+    if (items.isNotEmpty()) {
+        return HomeModeContentState.Content(items)
+    }
+    return when (this) {
+        HomeModeContentState.Loading -> HomeModeContentState.Loading
+        HomeModeContentState.Empty -> HomeModeContentState.Empty
+        is HomeModeContentState.LoginRequired -> this
+        is HomeModeContentState.Error -> this
+        is HomeModeContentState.Content -> HomeModeContentState.Empty
     }
 }
 
@@ -363,6 +436,10 @@ private fun preferredDetailsUrl(itemKey: String?): String? {
     } else {
         itemKey
     }
+}
+
+private fun favoriteSeriesSlug(detailsUrl: String): String? {
+    return favoriteSeriesSlugRegex.find(detailsUrl)?.groupValues?.getOrNull(1)
 }
 
 private fun Map<HomeFeedMode, String>.withDefaultRememberedKeys(

@@ -128,6 +128,10 @@ class LostFilmDetailsParser {
         }.orEmpty()
     }
 
+    fun parsePlayEpisodeId(html: String): String? {
+        return Jsoup.parse(html, BASE_URL).playEpisodeId()
+    }
+
     fun parseAjaxSessionToken(html: String): String? {
         userDataSessionAssignmentRegex.find(html)?.groupValues?.getOrNull(1)?.let { return it }
         val userDataBlock = userDataBlockRegex.find(html)?.value ?: return null

@@ -38,8 +38,9 @@ import org.jsoup.Jsoup
 
 private const val FRESH_WINDOW_MS = 6 * 60 * 60 * 1000L
 private const val RETENTION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000L
-private const val FAVORITE_RELEASES_MAX_EPISODES_PER_SEASON = 3
+private const val FAVORITE_RELEASES_MAX_EPISODES_PER_SEASON = Int.MAX_VALUE
 private const val FAVORITE_RELEASES_MAX_ITEMS = 30
+private const val FAVORITE_RELEASES_MAX_SEASONS_PER_SERIES = 1
 private val paginatorRegex = Regex("""/new/page_(\d+)""")
 private const val favoriteSeriesRoute = "/my/type_1"
 private val seriesFavoritePageRegex = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)/season_\d+/episode_\d+/?""")
@@ -341,7 +342,7 @@ class LostFilmRepositoryImpl(
             val fetchedAt = clock()
             val today = currentFavoriteReleaseDate()
             var loadedAnySeasonPage = false
-            val items = buildList {
+            val rawItems = buildList {
                 favoriteSeries.forEach { series ->
                     val seasonsUrl = "${series.seriesUrl.trimEnd('/')}/seasons"
                     val seasonsHtml = try {
@@ -383,15 +384,26 @@ class LostFilmRepositoryImpl(
                             fetchedAt = fetchedAt,
                             watchedEpisodeIds = watchedEpisodeIds,
                             maxEpisodesPerSeason = FAVORITE_RELEASES_MAX_EPISODES_PER_SEASON,
+                            maxSeasons = FAVORITE_RELEASES_MAX_SEASONS_PER_SERIES,
                         ),
                     )
                 }
             }
                 .distinctBy { it.detailsUrl }
-                .filter { item ->
-                    val releaseDate = parseFavoriteReleaseDate(item.releaseDateRu)
-                    releaseDate == null || !releaseDate.isAfter(today)
-                }
+            val items = coroutineScope {
+                rawItems.map { item ->
+                    async {
+                        val releaseDate = parseFavoriteReleaseDate(item.releaseDateRu) ?: return@async null
+                        when {
+                            releaseDate.isBefore(today) -> item
+                            releaseDate.isAfter(today) -> null
+                            isFavoriteReleasePublishedToday(item.detailsUrl) -> item
+                            else -> null
+                        }
+                    }
+                }.awaitAll()
+            }
+                .filterNotNull()
                 .sortedByDescending { parseFavoriteReleaseDate(it.releaseDateRu) ?: LocalDate.MIN }
                 .take(FAVORITE_RELEASES_MAX_ITEMS)
                 .mapIndexed { index, item -> item.copy(positionInPage = index) }
@@ -684,6 +696,15 @@ class LostFilmRepositoryImpl(
             .trim('/')
             .replace('_', ' ')
             .normalizeText()
+    }
+
+    private suspend fun isFavoriteReleasePublishedToday(detailsUrl: String): Boolean {
+        return try {
+            val detailsHtml = httpClient.fetchDetails(resolveUrl(detailsUrl))
+            detailsParser.parsePlayEpisodeId(detailsHtml) != null
+        } catch (_: IOException) {
+            false
+        }
     }
 
     private fun parseFavoriteReleaseDate(value: String): LocalDate? {

@@ -370,6 +370,103 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun onFavoriteStateChanged_removesFavoriteSeriesImmediately_beforeBackgroundReloadFinishes() = runTest(dispatcher) {
+        val favoriteRailItem = summary(
+            detailsUrl = "https://www.lostfilm.today/series/favorite/season_4/episode_8/",
+            titleRu = "Любимый сериал",
+        )
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(
+                    pageNumber = 1,
+                    items = listOf(
+                        summary(detailsUrl = "https://www.lostfilm.today/series/main/season_1/episode_1/"),
+                        summary(detailsUrl = "https://www.lostfilm.today/series/favorite/season_4/episode_8/"),
+                    ),
+                    hasNextPage = false,
+                    isStale = false,
+                ),
+            ),
+            favoriteReleaseResults = mutableListOf(
+                FavoriteReleasesResult.Success(listOf(favoriteRailItem)),
+                FavoriteReleasesResult.Success(emptyList()),
+            ),
+        )
+        val viewModel = HomeViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            initialFavoritesRailVisible = true,
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+
+        viewModel.onFavoriteStateChanged(
+            detailsUrl = "https://www.lostfilm.today/series/favorite/season_1/episode_1/",
+            isFavorite = false,
+        )
+
+        assertTrue(viewModel.uiState.value.favoriteItems.isEmpty())
+        assertEquals(HomeModeContentState.Empty, viewModel.uiState.value.favoritesModeState)
+
+        advanceUntilIdle()
+
+        assertEquals(2, repository.favoriteReleaseCalls)
+        assertTrue(viewModel.uiState.value.favoriteItems.isEmpty())
+    }
+
+    @Test
+    fun onFavoriteStateChanged_addsMatchingAllNewSeriesImmediately_beforeBackgroundReloadFinishes() = runTest(dispatcher) {
+        val addedAllNewItem = summary(
+            detailsUrl = "https://www.lostfilm.today/series/favorite/season_4/episode_8/",
+            titleRu = "Любимый сериал",
+        )
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(
+                    pageNumber = 1,
+                    items = listOf(
+                        summary(detailsUrl = "https://www.lostfilm.today/series/main/season_1/episode_1/"),
+                        addedAllNewItem,
+                    ),
+                    hasNextPage = false,
+                    isStale = false,
+                ),
+            ),
+            favoriteReleaseResults = mutableListOf(
+                FavoriteReleasesResult.Success(emptyList()),
+                FavoriteReleasesResult.Success(listOf(addedAllNewItem)),
+            ),
+        )
+        val viewModel = HomeViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            initialFavoritesRailVisible = true,
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+
+        viewModel.onFavoriteStateChanged(
+            detailsUrl = "https://www.lostfilm.today/series/favorite/season_1/episode_1/",
+            isFavorite = true,
+        )
+
+        assertEquals(listOf(addedAllNewItem), viewModel.uiState.value.favoriteItems)
+        assertEquals(
+            HomeModeContentState.Content(listOf(addedAllNewItem)),
+            viewModel.uiState.value.favoritesModeState,
+        )
+
+        advanceUntilIdle()
+
+        assertEquals(2, repository.favoriteReleaseCalls)
+        assertEquals(listOf(addedAllNewItem), viewModel.uiState.value.favoriteItems)
+    }
+
+    @Test
     fun onStart_withPersistedFavoritesMode_keepsFavoritesSelected_andLoadsFavoritesEagerly() = runTest(dispatcher) {
         val favoriteItem = summary(
             detailsUrl = "https://www.lostfilm.today/series/favorite/season_4/episode_7/",
