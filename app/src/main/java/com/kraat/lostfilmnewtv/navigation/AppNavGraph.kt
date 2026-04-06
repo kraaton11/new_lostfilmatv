@@ -155,26 +155,6 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                 isAuthenticated = isAuthenticated,
                 savedAppUpdate = savedAppUpdate,
                 appUpdateStatusText = homeAppUpdateStatusText,
-                onInstallUpdateClick = {
-                    savedAppUpdate?.let { update ->
-                        scope.launch {
-                            val opened = application.releaseApkLauncher.launch(
-                                context,
-                                update.apkUrl,
-                                onDownloadingChange = { downloading ->
-                                    homeAppUpdateStatusText = if (downloading) {
-                                        HOME_DOWNLOADING_UPDATE_MESSAGE
-                                    } else {
-                                        null
-                                    }
-                                },
-                            )
-                            if (!opened) {
-                                homeAppUpdateStatusText = HOME_INSTALL_UPDATE_FAILED_MESSAGE
-                            }
-                        }
-                    }
-                },
             )
         }
         composable(
