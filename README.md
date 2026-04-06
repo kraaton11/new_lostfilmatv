@@ -104,14 +104,14 @@ docs/                   Дополнительная документация п
 
 ## Документация
 
-- [README.project.md](/run/media/al/Toshiba500Gb/ai/tvbox1/new_lostfilm/docs/README.project.md)
-- [LostFilmNewTV_Documentation.docx](/run/media/al/Toshiba500Gb/ai/tvbox1/new_lostfilm/docs/LostFilmNewTV_Documentation.docx)
-- [github-setup.md](/run/media/al/Toshiba500Gb/ai/tvbox1/new_lostfilm/docs/github-setup.md)
-- [auth-bridge-ops.md](/run/media/al/Toshiba500Gb/ai/tvbox1/new_lostfilm/docs/auth-bridge-ops.md)
-- [auth-bridge-server-install.md](/run/media/al/Toshiba500Gb/ai/tvbox1/new_lostfilm/docs/auth-bridge-server-install.md)
-- [google-signin-example.md](/run/media/al/Toshiba500Gb/ai/tvbox1/new_lostfilm/docs/google-signin-example.md)
-- [2026-03-15-lostfilm-android-tv-design.md](/run/media/al/Toshiba500Gb/ai/tvbox1/new_lostfilm/docs/superpowers/specs/2026-03-15-lostfilm-android-tv-design.md)
-- [2026-03-15-lostfilm-android-tv.md](/run/media/al/Toshiba500Gb/ai/tvbox1/new_lostfilm/docs/superpowers/plans/2026-03-15-lostfilm-android-tv.md)
+- [README.project.md](docs/README.project.md)
+- [LostFilmNewTV_Documentation.docx](docs/LostFilmNewTV_Documentation.docx)
+- [github-setup.md](docs/github-setup.md)
+- [auth-bridge-ops.md](docs/auth-bridge-ops.md)
+- [auth-bridge-server-install.md](docs/auth-bridge-server-install.md)
+- [google-signin-example.md](docs/google-signin-example.md)
+- [2026-03-15-lostfilm-android-tv-design.md](docs/superpowers/specs/2026-03-15-lostfilm-android-tv-design.md)
+- [2026-03-15-lostfilm-android-tv.md](docs/superpowers/plans/2026-03-15-lostfilm-android-tv.md)
 
 ## Локальный запуск auth bridge
 
