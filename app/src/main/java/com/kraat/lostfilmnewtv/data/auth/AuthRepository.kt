@@ -17,6 +17,7 @@ class AuthRepository(
     private val verificationMaxAttempts: Int = 3,
     private val verificationRetryDelayMillis: Long = 250L,
 ) : AuthRepositoryContract {
+    @Volatile
     private var currentPairing: PairingSession? = null
 
     override suspend fun getAuthState(): AuthState {

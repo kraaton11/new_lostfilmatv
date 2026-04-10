@@ -2,23 +2,24 @@ package com.kraat.lostfilmnewtv.updates
 
 object VersionComparator {
 
+    /**
+     * Возвращает true если [version] новее чем [other].
+     *
+     * Сравнивает числовые компоненты слева направо: "1.10.0" > "1.9.0".
+     * Нечисловые суффиксы (rc, beta, -SNAPSHOT) игнорируются — учитываются
+     * только цифровые группы. Пример: "2.0.0-beta" == "2.0.0".
+     */
     fun isNewerThan(version: String, other: String): Boolean {
-        val versionParts = extractParts(version)
-        val otherParts = extractParts(other)
-        val maxSize = maxOf(versionParts.size, otherParts.size)
-        for (index in 0 until maxSize) {
-            val versionPart = versionParts.getOrElse(index) { 0 }
-            val otherPart = otherParts.getOrElse(index) { 0 }
-            if (versionPart != otherPart) {
-                return versionPart > otherPart
-            }
+        val a = numericParts(version)
+        val b = numericParts(other)
+        val len = maxOf(a.size, b.size)
+        for (i in 0 until len) {
+            val diff = a.getOrElse(i) { 0 } - b.getOrElse(i) { 0 }
+            if (diff != 0) return diff > 0
         }
         return false
     }
 
-    private fun extractParts(version: String): List<Int> =
-        Regex("""\d+""")
-            .findAll(version)
-            .map { match -> match.value.toInt() }
-            .toList()
+    private fun numericParts(version: String): List<Int> =
+        Regex("""\d+""").findAll(version).map { it.value.toInt() }.toList()
 }

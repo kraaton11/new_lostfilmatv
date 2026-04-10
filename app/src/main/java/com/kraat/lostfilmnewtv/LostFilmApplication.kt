@@ -49,11 +49,12 @@ open class LostFilmApplication : Application(), HomeChannelBackgroundRefreshRunn
             this,
             LostFilmDatabase::class.java,
             "lostfilm-new-tv.db",
-        ).fallbackToDestructiveMigration().build()
+        ).addMigrations(*com.kraat.lostfilmnewtv.data.db.ALL_MIGRATIONS).build()
     }
 
+    // Анонимный клиент (без сессии) — для публичных страниц
     val httpClient: LostFilmHttpClient by lazy {
-        OkHttpLostFilmHttpClient()
+        OkHttpLostFilmHttpClient(sessionStore = null)
     }
 
     val okHttpClient: OkHttpClient by lazy {
@@ -79,8 +80,9 @@ open class LostFilmApplication : Application(), HomeChannelBackgroundRefreshRunn
         EncryptedSessionStore(this)
     }
 
+    // Аутентифицированный клиент — тот же класс, но с sessionStore
     val authenticatedHttpClient: LostFilmHttpClient by lazy {
-        AuthenticatedLostFilmHttpClient(sessionStore = sessionStore)
+        OkHttpLostFilmHttpClient(sessionStore = sessionStore)
     }
 
     open val authRepository: AuthRepositoryContract by lazy {
