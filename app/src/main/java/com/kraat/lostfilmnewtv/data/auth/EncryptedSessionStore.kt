@@ -5,23 +5,38 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.kraat.lostfilmnewtv.data.model.LostFilmSession
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-class EncryptedSessionStore(context: Context) : SessionStore {
+class EncryptedSessionStore(private val context: Context) : SessionStore {
 
-    private val masterKey = MasterKey.Builder(context)
-        .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-        .build()
+    // Инициализация отложена и защищена мьютексом, чтобы избежать I/O на главном потоке
+    // и гонки при одновременных первых обращениях.
+    private val initMutex = Mutex()
 
-    private val prefs = EncryptedSharedPreferences.create(
-        context,
-        "lostfilm_auth_prefs",
-        masterKey,
-        EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-        EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-    )
+    @Volatile
+    private var _prefs: android.content.SharedPreferences? = null
+
+    private suspend fun prefs(): android.content.SharedPreferences {
+        _prefs?.let { return it }
+        return initMutex.withLock {
+            _prefs ?: withContext(Dispatchers.IO) {
+                val masterKey = MasterKey.Builder(context)
+                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                    .build()
+                EncryptedSharedPreferences.create(
+                    context,
+                    "lostfilm_auth_prefs",
+                    masterKey,
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+                ).also { _prefs = it }
+            }
+        }
+    }
 
     private val json = Json {
         ignoreUnknownKeys = true
@@ -29,7 +44,7 @@ class EncryptedSessionStore(context: Context) : SessionStore {
     }
 
     override suspend fun read(): LostFilmSession? = withContext(Dispatchers.IO) {
-        val sessionJson = prefs.getString(KEY_SESSION, null) ?: return@withContext null
+        val sessionJson = prefs().getString(KEY_SESSION, null) ?: return@withContext null
         try {
             json.decodeFromString<LostFilmSession>(sessionJson)
         } catch (e: Exception) {
@@ -40,17 +55,17 @@ class EncryptedSessionStore(context: Context) : SessionStore {
 
     override suspend fun save(session: LostFilmSession) {
         withContext(Dispatchers.IO) {
-        val sessionJson = json.encodeToString(session)
-        prefs.edit()
-            .putString(KEY_SESSION, sessionJson)
-            .remove(KEY_EXPIRED)
-            .apply()
+            val sessionJson = json.encodeToString(session)
+            prefs().edit()
+                .putString(KEY_SESSION, sessionJson)
+                .remove(KEY_EXPIRED)
+                .apply()
         }
     }
 
     override suspend fun markExpired() {
         withContext(Dispatchers.IO) {
-            prefs.edit()
+            prefs().edit()
                 .putBoolean(KEY_EXPIRED, true)
                 .apply()
         }
@@ -58,7 +73,7 @@ class EncryptedSessionStore(context: Context) : SessionStore {
 
     override suspend fun clear() {
         withContext(Dispatchers.IO) {
-            prefs.edit()
+            prefs().edit()
                 .remove(KEY_SESSION)
                 .remove(KEY_EXPIRED)
                 .apply()
@@ -66,7 +81,7 @@ class EncryptedSessionStore(context: Context) : SessionStore {
     }
 
     override suspend fun isExpired(): Boolean = withContext(Dispatchers.IO) {
-        prefs.getBoolean(KEY_EXPIRED, false)
+        prefs().getBoolean(KEY_EXPIRED, false)
     }
 
     companion object {

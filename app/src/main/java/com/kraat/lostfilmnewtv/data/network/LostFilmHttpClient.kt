@@ -34,106 +34,23 @@ interface LostFilmHttpClient {
     ): FavoriteToggleNetworkResult
 }
 
+/**
+ * Единственная реализация [LostFilmHttpClient].
+ *
+ * Если [sessionStore] задан — добавляет Cookie-заголовок к каждому запросу
+ * (аутентифицированный режим). Если null — работает анонимно.
+ *
+ * До рефакторинга были два почти идентичных класса:
+ * [OkHttpLostFilmHttpClient] и [AuthenticatedLostFilmHttpClient]. Они объединены здесь.
+ */
 class OkHttpLostFilmHttpClient(
+    private val sessionStore: SessionStore? = null,
     private val okHttpClient: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
         .build(),
 ) : LostFilmHttpClient {
-    override suspend fun fetchNewPage(pageNumber: Int): String = withContext(Dispatchers.IO) {
-        val url = if (pageNumber <= 1) {
-            "$BASE_URL/new/"
-        } else {
-            "$BASE_URL/new/page_$pageNumber"
-        }
 
-        execute(url)
-    }
-
-    override suspend fun fetchDetails(detailsUrl: String): String = withContext(Dispatchers.IO) {
-        execute(resolveUrl(detailsUrl))
-    }
-
-    override suspend fun fetchAccountPage(path: String): String = withContext(Dispatchers.IO) {
-        execute(resolveUrl(path))
-    }
-
-    override suspend fun fetchSeasonWatchedEpisodeMarks(
-        refererUrl: String,
-        serialId: String,
-    ): String = withContext(Dispatchers.IO) {
-        executeFetchSeasonWatchedEpisodeMarks(
-            okHttpClient = okHttpClient,
-            refererUrl = resolveUrl(refererUrl),
-            serialId = serialId,
-            cookieHeader = null,
-        )
-    }
-
-    override suspend fun fetchTorrentRedirect(playEpisodeId: String): String = withContext(Dispatchers.IO) {
-        execute("$BASE_URL/v_search.php?a=$playEpisodeId")
-    }
-
-    override suspend fun fetchTorrentPage(url: String): String = withContext(Dispatchers.IO) {
-        execute(url)
-    }
-
-    override suspend fun markEpisodeWatched(
-        detailsUrl: String,
-        playEpisodeId: String,
-        ajaxSessionToken: String,
-    ): Boolean = withContext(Dispatchers.IO) {
-        executeMarkEpisodeWatched(
-            okHttpClient = okHttpClient,
-            refererUrl = resolveUrl(detailsUrl),
-            playEpisodeId = playEpisodeId,
-            ajaxSessionToken = ajaxSessionToken,
-            cookieHeader = null,
-        )
-    }
-
-    override suspend fun toggleFavorite(
-        refererUrl: String,
-        favoriteTargetId: Int,
-        ajaxSessionToken: String,
-    ): FavoriteToggleNetworkResult = withContext(Dispatchers.IO) {
-        executeToggleFavorite(
-            okHttpClient = okHttpClient,
-            refererUrl = refererUrl,
-            favoriteTargetId = favoriteTargetId,
-            ajaxSessionToken = ajaxSessionToken,
-            cookieHeader = null,
-        )
-    }
-
-    private fun execute(url: String): String {
-        val request = Request.Builder()
-            .url(url)
-            .header("User-Agent", USER_AGENT)
-            .build()
-
-        okHttpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                throw IOException("HTTP ${response.code} for $url")
-            }
-
-            return response.body?.string()
-                ?: throw IOException("Empty response body for $url")
-        }
-    }
-
-    private companion object {
-        const val USER_AGENT = "Mozilla/5.0 (Android TV; LostFilmNewTV) AppleWebKit/537.36 Chrome/132.0.0.0 Safari/537.36"
-    }
-}
-
-class AuthenticatedLostFilmHttpClient(
-    private val sessionStore: SessionStore,
-    private val okHttpClient: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
-        .build(),
-) : LostFilmHttpClient {
     override suspend fun fetchNewPage(pageNumber: Int): String = withContext(Dispatchers.IO) {
         val url = if (pageNumber <= 1) "$BASE_URL/new/" else "$BASE_URL/new/page_$pageNumber"
         execute(url)
@@ -155,7 +72,7 @@ class AuthenticatedLostFilmHttpClient(
             okHttpClient = okHttpClient,
             refererUrl = resolveUrl(refererUrl),
             serialId = serialId,
-            cookieHeader = sessionStore.read()?.toCookieString(),
+            cookieHeader = sessionStore?.read()?.toCookieString(),
         )
     }
 
@@ -177,7 +94,7 @@ class AuthenticatedLostFilmHttpClient(
             refererUrl = resolveUrl(detailsUrl),
             playEpisodeId = playEpisodeId,
             ajaxSessionToken = ajaxSessionToken,
-            cookieHeader = sessionStore.read()?.toCookieString(),
+            cookieHeader = sessionStore?.read()?.toCookieString(),
         )
     }
 
@@ -191,16 +108,16 @@ class AuthenticatedLostFilmHttpClient(
             refererUrl = refererUrl,
             favoriteTargetId = favoriteTargetId,
             ajaxSessionToken = ajaxSessionToken,
-            cookieHeader = sessionStore.read()?.toCookieString(),
+            cookieHeader = sessionStore?.read()?.toCookieString(),
         )
     }
 
     private suspend fun execute(url: String): String {
         val requestBuilder = Request.Builder()
             .url(url)
-            .header("User-Agent", USER_AGENT)
+            .header("User-Agent", USER_AGENT_PUBLIC)
 
-        sessionStore.read()?.toCookieString()?.takeIf { it.isNotBlank() }?.let {
+        sessionStore?.read()?.toCookieString()?.takeIf { it.isNotBlank() }?.let {
             requestBuilder.header("Cookie", it)
         }
 
@@ -208,16 +125,20 @@ class AuthenticatedLostFilmHttpClient(
             if (!response.isSuccessful) {
                 throw IOException("HTTP ${response.code} for $url")
             }
-
             return response.body?.string()
                 ?: throw IOException("Empty response body for $url")
         }
     }
 
-    private companion object {
-        const val USER_AGENT = "Mozilla/5.0 (Android TV; LostFilmNewTV) AppleWebKit/537.36 Chrome/132.0.0.0 Safari/537.36"
+    companion object {
+        const val USER_AGENT_PUBLIC =
+            "Mozilla/5.0 (Android TV; LostFilmNewTV) AppleWebKit/537.36 Chrome/132.0.0.0 Safari/537.36"
     }
 }
+
+// Псевдоним для обратной совместимости мест, где явно использовался
+// AuthenticatedLostFilmHttpClient (например, в тестах).
+typealias AuthenticatedLostFilmHttpClient = OkHttpLostFilmHttpClient
 
 private val markEpisodeSuccessRegex = Regex(""""result"\s*:\s*"on"""")
 private val favoriteToggleResultRegex = Regex(""""result"\s*:\s*"(on|off)"""")
@@ -230,7 +151,7 @@ private fun executeFetchSeasonWatchedEpisodeMarks(
 ): String {
     val requestBuilder = Request.Builder()
         .url("$BASE_URL/ajaxik.php")
-        .header("User-Agent", "Mozilla/5.0 (Android TV; LostFilmNewTV) AppleWebKit/537.36 Chrome/132.0.0.0 Safari/537.36")
+        .header("User-Agent", OkHttpLostFilmHttpClient.USER_AGENT_PUBLIC)
         .header("Accept", "application/json, text/javascript, */*; q=0.01")
         .header("Origin", BASE_URL)
         .header("Referer", refererUrl)
@@ -250,7 +171,6 @@ private fun executeFetchSeasonWatchedEpisodeMarks(
             val errorBody = response.body?.string().orEmpty()
             throw IOException("HTTP ${response.code} for $BASE_URL/ajaxik.php body=$errorBody")
         }
-
         return response.body?.string()
             ?: throw IOException("Empty response body for $BASE_URL/ajaxik.php")
     }
@@ -265,7 +185,7 @@ private fun executeMarkEpisodeWatched(
 ): Boolean {
     val requestBuilder = Request.Builder()
         .url("$BASE_URL/ajaxik.php")
-        .header("User-Agent", "Mozilla/5.0 (Android TV; LostFilmNewTV) AppleWebKit/537.36 Chrome/132.0.0.0 Safari/537.36")
+        .header("User-Agent", OkHttpLostFilmHttpClient.USER_AGENT_PUBLIC)
         .header("Accept", "application/json, text/javascript, */*; q=0.01")
         .header("Origin", BASE_URL)
         .header("Referer", refererUrl)
@@ -288,7 +208,6 @@ private fun executeMarkEpisodeWatched(
             val errorBody = response.body?.string().orEmpty()
             throw IOException("HTTP ${response.code} for $BASE_URL/ajaxik.php body=$errorBody")
         }
-
         val body = response.body?.string()
             ?: throw IOException("Empty response body for $BASE_URL/ajaxik.php")
         return markEpisodeSuccessRegex.containsMatchIn(body)
@@ -304,7 +223,7 @@ private fun executeToggleFavorite(
 ): FavoriteToggleNetworkResult {
     val requestBuilder = Request.Builder()
         .url("$BASE_URL/ajaxik.php")
-        .header("User-Agent", "Mozilla/5.0 (Android TV; LostFilmNewTV) AppleWebKit/537.36 Chrome/132.0.0.0 Safari/537.36")
+        .header("User-Agent", OkHttpLostFilmHttpClient.USER_AGENT_PUBLIC)
         .header("Accept", "application/json, text/javascript, */*; q=0.01")
         .header("Origin", BASE_URL)
         .header("Referer", refererUrl)
@@ -325,7 +244,6 @@ private fun executeToggleFavorite(
             val errorBody = response.body?.string().orEmpty()
             throw IOException("HTTP ${response.code} for $BASE_URL/ajaxik.php body=$errorBody")
         }
-
         val body = response.body?.string()
             ?: throw IOException("Empty response body for $BASE_URL/ajaxik.php")
         return when (favoriteToggleResultRegex.find(body)?.groupValues?.getOrNull(1)) {
