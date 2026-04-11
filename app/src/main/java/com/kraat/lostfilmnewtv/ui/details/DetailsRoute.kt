@@ -11,17 +11,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.SavedStateHandle
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
-import com.kraat.lostfilmnewtv.navigation.AppDestination
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeActionHandler
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeLinkBuilder
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeOpenResult
+import javax.inject.Inject
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -29,7 +26,6 @@ import kotlinx.coroutines.launch
 @Composable
 fun DetailsRoute(
     detailsUrl: String,
-    repository: LostFilmRepository,
     isAuthenticated: Boolean = true,
     preferredPlaybackQuality: PlaybackQualityPreference = PlaybackQualityPreference.Q1080,
     actionHandler: TorrServeActionHandler,
@@ -40,19 +36,14 @@ fun DetailsRoute(
     onChannelContentChanged: suspend () -> Unit = {},
     openTorrServe: suspend (Context, String, String, String) -> TorrServeOpenResult = actionHandler::open,
 ) {
-    val detailsViewModel: DetailsViewModel = viewModel(
-        key = "details:$detailsUrl",
-        factory = detailsViewModelFactory(repository, detailsUrl, isAuthenticated),
-    )
+    // hiltViewModel() создаёт ViewModel через Hilt — SavedStateHandle заполняется
+    // из nav-аргументов (detailsUrl и isAuthenticated передаются через route)
+    val detailsViewModel: DetailsViewModel = hiltViewModel()
     val state by detailsViewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val supportedTorrentRows = remember(
-        state.details?.torrentLinks,
-        detailsUrl,
-        linkBuilder,
-        preferredPlaybackQuality,
-    ) {
+
+    val supportedTorrentRows = remember(state.details?.torrentLinks, detailsUrl, linkBuilder, preferredPlaybackQuality) {
         state.details?.torrentLinks.orEmpty().mapIndexed { index, link ->
             DetailsTorrentRowUiModel(
                 rowId = "$detailsUrl#$index",
@@ -73,9 +64,7 @@ fun DetailsRoute(
     var handledFavoriteContentVersion by remember(detailsUrl) { mutableIntStateOf(0) }
     var inFlightJob by remember(detailsUrl) { mutableStateOf<Job?>(null) }
 
-    LaunchedEffect(detailsUrl) {
-        detailsViewModel.onStart()
-    }
+    LaunchedEffect(detailsUrl) { detailsViewModel.onStart() }
 
     LaunchedEffect(state.favoriteContentVersion) {
         if (state.favoriteContentVersion > handledFavoriteContentVersion) {
@@ -97,10 +86,7 @@ fun DetailsRoute(
     }
 
     val handleOpenTorrServe: (String, String) -> Unit = handleOpenTorrServe@{ rowId, url ->
-        if (isTorrServeBusy) {
-            return@handleOpenTorrServe
-        }
-
+        if (isTorrServeBusy) return@handleOpenTorrServe
         val currentDetails = state.details
         val token = requestToken + 1
         requestToken = token
@@ -115,7 +101,8 @@ fun DetailsRoute(
                         val playEpisodeId = currentDetails?.playEpisodeId
                         if (playEpisodeId != null) {
                             launch {
-                                val marked = repository.markEpisodeWatched(
+                                // repository доступен через ViewModel — вызываем через него
+                                val marked = detailsViewModel.markEpisodeWatched(
                                     detailsUrl = currentDetails.detailsUrl,
                                     playEpisodeId = playEpisodeId,
                                 )
@@ -127,18 +114,10 @@ fun DetailsRoute(
                         }
                         null
                     }
-                    TorrServeOpenResult.Unavailable -> TorrServeMessage(
-                        rowId = rowId,
-                        text = "Не удалось подключиться к TorrServe",
-                    )
-                    TorrServeOpenResult.LaunchError -> TorrServeMessage(
-                        rowId = rowId,
-                        text = "Не удалось открыть TorrServe",
-                    )
+                    TorrServeOpenResult.Unavailable -> TorrServeMessage(rowId, "Не удалось подключиться к TorrServe")
+                    TorrServeOpenResult.LaunchError -> TorrServeMessage(rowId, "Не удалось открыть TorrServe")
                 }
-                if (requestToken == token) {
-                    torrServeMessage = message
-                }
+                if (requestToken == token) torrServeMessage = message
             } finally {
                 if (requestToken == token) {
                     isTorrServeBusy = false
@@ -148,6 +127,7 @@ fun DetailsRoute(
             }
         }
     }
+
     DetailsScreen(
         state = state,
         isAuthenticated = isAuthenticated,
@@ -161,23 +141,4 @@ fun DetailsRoute(
         onSeriesGuideClick = { onOpenSeriesGuide(detailsUrl) },
         onOpenTorrServe = handleOpenTorrServe,
     )
-}
-
-private fun detailsViewModelFactory(
-    repository: LostFilmRepository,
-    detailsUrl: String,
-    isAuthenticated: Boolean,
-): ViewModelProvider.Factory {
-    return object : ViewModelProvider.Factory {
-        override fun <T : ViewModel> create(modelClass: Class<T>): T {
-            @Suppress("UNCHECKED_CAST")
-            return DetailsViewModel(
-                repository = repository,
-                savedStateHandle = SavedStateHandle(
-                    mapOf(AppDestination.Details.detailsUrlArg to detailsUrl),
-                ),
-                isAuthenticated = isAuthenticated,
-            ) as T
-        }
-    }
 }

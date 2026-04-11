@@ -11,10 +11,12 @@ sealed interface AppDestination {
 
     data object Details : AppDestination {
         const val detailsUrlArg: String = "detailsUrl"
+        const val isAuthenticatedArg: String = "isAuthenticated"
 
-        override val route: String = "details/{$detailsUrlArg}"
+        override val route: String = "details/{$detailsUrlArg}/{$isAuthenticatedArg}"
 
-        fun createRoute(detailsUrl: String): String = "details/${Uri.encode(detailsUrl)}"
+        fun createRoute(detailsUrl: String, isAuthenticated: Boolean): String =
+            "details/${Uri.encode(detailsUrl)}/$isAuthenticated"
     }
 
     data object SeriesGuide : AppDestination {

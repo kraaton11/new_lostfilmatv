@@ -1,8 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
-
-    <application
-        android:name=".DebugLostFilmApplication"
-        tools:replace="android:name" />
-</manifest>
+<!--
+    Debug-манифест больше не переопределяет android:name Application.
+    Подмена зависимостей в тестах — через @TestInstallIn Hilt-модули.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" />
