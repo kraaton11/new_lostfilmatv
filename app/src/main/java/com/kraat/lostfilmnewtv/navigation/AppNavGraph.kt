@@ -4,26 +4,13 @@ import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
-import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.SavedStateHandle
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.kraat.lostfilmnewtv.LostFilmApplication
-import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
-import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
-import com.kraat.lostfilmnewtv.ui.home.HomeFeedMode
 import com.kraat.lostfilmnewtv.ui.auth.AuthScreen
 import com.kraat.lostfilmnewtv.ui.auth.AuthUiState
 import com.kraat.lostfilmnewtv.ui.auth.AuthViewModel
@@ -32,64 +19,37 @@ import com.kraat.lostfilmnewtv.ui.guide.SeriesGuideRoute
 import com.kraat.lostfilmnewtv.ui.home.HomeScreen
 import com.kraat.lostfilmnewtv.ui.home.HomeViewModel
 import com.kraat.lostfilmnewtv.ui.settings.SettingsRoute
-import kotlinx.coroutines.launch
+import com.kraat.lostfilmnewtv.ui.settings.SettingsViewModel
 
 private const val HOME_WATCHED_DETAILS_URL_KEY = "home.watched_details_url"
 private const val HOME_FAVORITE_CHANGED_DETAILS_URL_KEY = "home.favorite_changed_details_url"
 private const val HOME_FAVORITE_CHANGED_STATE_KEY = "home.favorite_changed_state"
-private const val HOME_INSTALL_UPDATE_FAILED_MESSAGE = "Не удалось открыть обновление."
-private const val HOME_DOWNLOADING_UPDATE_MESSAGE = "Скачивание обновления…"
 
 @Composable
 fun AppNavGraph(initialDetailsUrl: String? = null) {
-    val context = LocalContext.current
     val navController = rememberNavController()
-    val application = context.applicationContext as LostFilmApplication
-    val authViewModel: AuthViewModel = viewModel(
-        key = "app-auth",
-        factory = AuthViewModel.Factory(application.authRepository),
-    )
+
+    // AuthViewModel scoped to the NavHost — один экземпляр на весь граф
+    val authViewModel: AuthViewModel = hiltViewModel()
     val authState by authViewModel.uiState.collectAsStateWithLifecycle()
     val isAuthenticated = authState is AuthUiState.Authenticated
-    var selectedPlaybackQuality by remember {
-        mutableStateOf(application.playbackPreferencesStore.readDefaultQuality())
-    }
-    var isHomeFavoritesRailEnabled by remember {
-        mutableStateOf(application.playbackPreferencesStore.readHomeFavoritesRailEnabled())
-    }
-
-    LaunchedEffect(application) {
-        application.homeChannelBackgroundScheduler.syncForCurrentMode()
-        application.appUpdateBackgroundScheduler.syncForCurrentMode()
-    }
 
     LaunchedEffect(initialDetailsUrl) {
-        initialDetailsUrl
-            ?.takeIf { it.isNotBlank() }
-            ?.let { detailsUrl ->
-                navController.navigate(AppDestination.Details.createRoute(detailsUrl)) {
-                    launchSingleTop = true
-                }
+        initialDetailsUrl?.takeIf { it.isNotBlank() }?.let { url ->
+            navController.navigate(AppDestination.Details.createRoute(url, isAuthenticated)) {
+                launchSingleTop = true
             }
+        }
     }
 
-    NavHost(
-        navController = navController,
-        startDestination = AppDestination.Home.route,
-    ) {
+    NavHost(navController = navController, startDestination = AppDestination.Home.route) {
+
+        // ── Home ──────────────────────────────────────────────────────────────
         composable(AppDestination.Home.route) { backStackEntry ->
-            val homeViewModel: HomeViewModel = viewModel(
-                factory = homeViewModelFactory(
-                    repository = application.repository,
-                    savedStateHandle = backStackEntry.savedStateHandle,
-                    onChannelContentChanged = application.homeChannelSyncManager::syncNow,
-                    initialSelectedMode = application.playbackPreferencesStore.readHomeSelectedFeedMode(),
-                    initialFavoritesRailVisible = isHomeFavoritesRailEnabled,
-                    persistSelectedMode = application.playbackPreferencesStore::writeHomeSelectedFeedMode,
-                ),
-            )
+            val homeViewModel: HomeViewModel = hiltViewModel()
             val state by homeViewModel.uiState.collectAsStateWithLifecycle()
-            val savedAppUpdate by application.appUpdateCoordinator.savedUpdateState.collectAsStateWithLifecycle()
+            val savedAppUpdate by homeViewModel.savedAppUpdate.collectAsStateWithLifecycle()
+
             val watchedDetailsUrl by backStackEntry.savedStateHandle
                 .getStateFlow<String?>(HOME_WATCHED_DETAILS_URL_KEY, null)
                 .collectAsStateWithLifecycle()
@@ -99,44 +59,21 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
             val favoriteChangedState by backStackEntry.savedStateHandle
                 .getStateFlow<Boolean?>(HOME_FAVORITE_CHANGED_STATE_KEY, null)
                 .collectAsStateWithLifecycle()
-            val scope = rememberCoroutineScope()
-            var homeAppUpdateStatusText by rememberSaveable { mutableStateOf<String?>(null) }
 
-            LaunchedEffect(Unit) {
-                homeViewModel.onStart()
-            }
-
-            LaunchedEffect(isHomeFavoritesRailEnabled) {
-                homeViewModel.onFavoritesRailVisibilityChanged(
-                    isVisible = isHomeFavoritesRailEnabled,
-                )
-            }
-
-            LaunchedEffect(isAuthenticated) {
-                homeViewModel.onFavoriteContentInvalidated()
-            }
-
-            LaunchedEffect(savedAppUpdate) {
-                if (savedAppUpdate == null) {
-                    homeAppUpdateStatusText = null
-                }
-            }
+            LaunchedEffect(Unit) { homeViewModel.onStart() }
+            LaunchedEffect(isAuthenticated) { homeViewModel.onFavoriteContentInvalidated() }
 
             LaunchedEffect(watchedDetailsUrl) {
-                watchedDetailsUrl?.let { detailsUrl ->
-                    homeViewModel.onItemWatched(detailsUrl)
+                watchedDetailsUrl?.let { url ->
+                    homeViewModel.onItemWatched(url)
                     backStackEntry.savedStateHandle[HOME_WATCHED_DETAILS_URL_KEY] = null
                 }
             }
-
             LaunchedEffect(favoriteChangedDetailsUrl, favoriteChangedState) {
-                val detailsUrl = favoriteChangedDetailsUrl
-                val isFavorite = favoriteChangedState
-                if (detailsUrl != null && isFavorite != null) {
-                    homeViewModel.onFavoriteStateChanged(
-                        detailsUrl = detailsUrl,
-                        isFavorite = isFavorite,
-                    )
+                val url = favoriteChangedDetailsUrl
+                val isFav = favoriteChangedState
+                if (url != null && isFav != null) {
+                    homeViewModel.onFavoriteStateChanged(url, isFav)
                     backStackEntry.savedStateHandle[HOME_FAVORITE_CHANGED_DETAILS_URL_KEY] = null
                     backStackEntry.savedStateHandle[HOME_FAVORITE_CHANGED_STATE_KEY] = null
                 }
@@ -146,33 +83,27 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                 state = state,
                 onItemFocused = homeViewModel::onItemFocused,
                 onModeSelected = homeViewModel::onModeSelected,
-                onOpenDetails = { detailsUrl ->
-                    navController.navigate(AppDestination.Details.createRoute(detailsUrl))
-                },
+                onOpenDetails = { url -> navController.navigate(AppDestination.Details.createRoute(url, isAuthenticated)) },
                 onEndReached = homeViewModel::onEndReached,
                 onRetry = homeViewModel::onRetry,
                 onPagingRetry = homeViewModel::onPagingRetry,
                 onAuthClick = {
-                    if (isAuthenticated) {
-                        authViewModel.logout()
-                    } else {
-                        navController.navigate(AppDestination.Auth.route)
-                    }
+                    if (isAuthenticated) authViewModel.logout()
+                    else navController.navigate(AppDestination.Auth.route)
                 },
-                onSettingsClick = {
-                    navController.navigate(AppDestination.Settings.route)
-                },
+                onSettingsClick = { navController.navigate(AppDestination.Settings.route) },
                 isAuthenticated = isAuthenticated,
                 savedAppUpdate = savedAppUpdate,
-                appUpdateStatusText = homeAppUpdateStatusText,
+                appUpdateStatusText = null,
             )
         }
+
+        // ── Details ───────────────────────────────────────────────────────────
         composable(
             route = AppDestination.Details.route,
             arguments = listOf(
-                navArgument(AppDestination.Details.detailsUrlArg) {
-                    type = NavType.StringType
-                },
+                navArgument(AppDestination.Details.detailsUrlArg) { type = NavType.StringType },
+                navArgument(AppDestination.Details.isAuthenticatedArg) { type = NavType.BoolType; defaultValue = true },
             ),
         ) { backStackEntry ->
             val detailsUrl = Uri.decode(
@@ -180,105 +111,55 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
             )
             DetailsRoute(
                 detailsUrl = detailsUrl,
-                repository = application.repository,
                 isAuthenticated = isAuthenticated,
-                preferredPlaybackQuality = selectedPlaybackQuality,
-                actionHandler = application.torrServeActionHandler,
-                linkBuilder = application.torrServeLinkBuilder,
-                onMarkedWatched = { watchedDetailsUrl ->
-                    navController.previousBackStackEntry
-                        ?.savedStateHandle
-                        ?.set(HOME_WATCHED_DETAILS_URL_KEY, watchedDetailsUrl)
+                onMarkedWatched = { url ->
+                    navController.previousBackStackEntry?.savedStateHandle?.set(HOME_WATCHED_DETAILS_URL_KEY, url)
                 },
-                onFavoriteContentChanged = { changedDetailsUrl, isFavorite ->
-                    navController.previousBackStackEntry
-                        ?.savedStateHandle
-                        ?.set(HOME_FAVORITE_CHANGED_DETAILS_URL_KEY, changedDetailsUrl)
-                    navController.previousBackStackEntry
-                        ?.savedStateHandle
-                        ?.set(HOME_FAVORITE_CHANGED_STATE_KEY, isFavorite)
+                onFavoriteContentChanged = { url, isFav ->
+                    navController.previousBackStackEntry?.savedStateHandle?.set(HOME_FAVORITE_CHANGED_DETAILS_URL_KEY, url)
+                    navController.previousBackStackEntry?.savedStateHandle?.set(HOME_FAVORITE_CHANGED_STATE_KEY, isFav)
                 },
-                onOpenSeriesGuide = { detailsUrl ->
-                    navController.navigate(AppDestination.SeriesGuide.createRoute(detailsUrl))
-                },
-                onChannelContentChanged = application.homeChannelSyncManager::syncNow,
+                onOpenSeriesGuide = { url -> navController.navigate(AppDestination.SeriesGuide.createRoute(url)) },
             )
         }
+
+        // ── Series Guide ──────────────────────────────────────────────────────
         composable(
             route = AppDestination.SeriesGuide.route,
             arguments = listOf(
-                navArgument(AppDestination.SeriesGuide.detailsUrlArg) {
-                    type = NavType.StringType
-                },
+                navArgument(AppDestination.SeriesGuide.detailsUrlArg) { type = NavType.StringType },
             ),
-        ) { backStackEntry ->
-            val detailsUrl = Uri.decode(
-                backStackEntry.arguments?.getString(AppDestination.SeriesGuide.detailsUrlArg).orEmpty(),
-            )
+        ) {
             SeriesGuideRoute(
-                detailsUrl = detailsUrl,
-                repository = application.repository,
-                onOpenDetails = { episodeDetailsUrl ->
-                    navController.navigate(AppDestination.Details.createRoute(episodeDetailsUrl))
-                },
+                onOpenDetails = { url -> navController.navigate(AppDestination.Details.createRoute(url, isAuthenticated)) },
             )
         }
+
+        // ── Settings ──────────────────────────────────────────────────────────
         composable(AppDestination.Settings.route) {
+            val homeBackStack = navController.getBackStackEntry(AppDestination.Home.route)
+            val homeViewModel: HomeViewModel = hiltViewModel(homeBackStack)
+            val settingsViewModel: SettingsViewModel = hiltViewModel()
+            // Передаём колбэк обратно в HomeViewModel через проп SettingsViewModel
+            settingsViewModel.onHomeFavoritesRailVisibilityChanged = homeViewModel::onFavoritesRailVisibilityChanged
+
             SettingsRoute(
-                playbackPreferencesStore = application.playbackPreferencesStore,
-                appUpdateCoordinator = application.appUpdateCoordinator,
+                viewModel = settingsViewModel,
                 isAuthenticated = isAuthenticated,
                 onAuthClick = {
-                    if (isAuthenticated) {
-                        authViewModel.logout()
-                    } else {
-                        navController.navigate(AppDestination.Auth.route)
-                    }
+                    if (isAuthenticated) authViewModel.logout()
+                    else navController.navigate(AppDestination.Auth.route)
                 },
-                onPlaybackQualityChanged = { selectedPlaybackQuality = it },
-                onHomeFavoritesRailVisibilityChanged = { isHomeFavoritesRailEnabled = it },
-                syncAppUpdateBackgroundSchedule = application.appUpdateBackgroundScheduler::syncForCurrentMode,
-                syncAndroidTvChannelBackgroundSchedule = application.homeChannelBackgroundScheduler::syncForCurrentMode,
-                syncAndroidTvChannel = application.homeChannelSyncManager::syncNow,
-                openInstallApk = application.releaseApkLauncher::launch,
             )
         }
+
+        // ── Auth ──────────────────────────────────────────────────────────────
         composable(AppDestination.Auth.route) {
             AuthScreen(
                 viewModel = authViewModel,
-                onAuthComplete = {
-                    navController.popBackStack()
-                },
-                onNavigateBack = {
-                    navController.popBackStack()
-                },
+                onAuthComplete = { navController.popBackStack() },
+                onNavigateBack = { navController.popBackStack() },
             )
-        }
-    }
-}
-
-private fun homeViewModelFactory(
-    repository: LostFilmRepository,
-    savedStateHandle: SavedStateHandle,
-    onChannelContentChanged: suspend () -> Unit,
-    initialSelectedMode: HomeFeedMode,
-    initialFavoritesRailVisible: Boolean,
-    persistSelectedMode: (HomeFeedMode) -> Unit,
-): ViewModelProvider.Factory {
-    return object : ViewModelProvider.Factory {
-        override fun <VM : ViewModel> create(modelClass: Class<VM>): VM {
-            if (modelClass != HomeViewModel::class.java) {
-                throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
-            }
-            @Suppress("UNCHECKED_CAST")
-            return HomeViewModel(
-                repository = repository,
-                savedStateHandle = savedStateHandle,
-                onChannelContentChanged = onChannelContentChanged,
-                initialSelectedMode = initialSelectedMode,
-                initialFavoritesRailVisible = initialFavoritesRailVisible,
-                persistSelectedMode = persistSelectedMode,
-            ) as VM
         }
     }
 }

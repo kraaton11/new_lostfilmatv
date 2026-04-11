@@ -1,21 +1,8 @@
 package com.kraat.lostfilmnewtv
 
-import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
-
-class DebugLostFilmApplication : LostFilmApplication() {
-    override val repository: LostFilmRepository
-        get() = LostFilmDebugHooks.repositoryOverride ?: super.repository
-}
-
-object LostFilmDebugHooks {
-    @Volatile
-    var repositoryOverride: LostFilmRepository? = null
-
-    fun installRepositoryOverride(repository: LostFilmRepository) {
-        repositoryOverride = repository
-    }
-
-    fun clearRepositoryOverride() {
-        repositoryOverride = null
-    }
-}
+// DebugLostFilmApplication и LostFilmDebugHooks удалены.
+// Подмена зависимостей в тестах теперь через @TestInstallIn Hilt-модули:
+//   - TestDataModule  — фейковые LostFilmRepository и AuthRepositoryContract
+//   - TestNetworkModule — no-op TmdbPosterResolver
+//
+// Smoke-тест: AnonymousBrowsingSmokeTest (@HiltAndroidTest)

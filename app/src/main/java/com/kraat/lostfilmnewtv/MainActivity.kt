@@ -10,9 +10,18 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.kraat.lostfilmnewtv.navigation.AppLaunchTarget
 import com.kraat.lostfilmnewtv.navigation.AppNavGraph
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelBackgroundScheduler
+import com.kraat.lostfilmnewtv.updates.AppUpdateBackgroundScheduler
 import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
+import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject lateinit var homeChannelBackgroundScheduler: HomeChannelBackgroundScheduler
+    @Inject lateinit var appUpdateBackgroundScheduler: AppUpdateBackgroundScheduler
+
     private var hasResumedOnce = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -29,19 +38,16 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         if (hasResumedOnce) {
-            (application as? LostFilmApplication)?.let { app ->
-                app.homeChannelBackgroundScheduler.requestImmediateRefresh()
-                app.appUpdateBackgroundScheduler.requestImmediateRefresh()
-            }
+            homeChannelBackgroundScheduler.requestImmediateRefresh()
+            appUpdateBackgroundScheduler.requestImmediateRefresh()
         } else {
             hasResumedOnce = true
         }
     }
+
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) {
-            hideLauncherBars()
-        }
+        if (hasFocus) hideLauncherBars()
     }
 
     private fun hideLauncherBars() {

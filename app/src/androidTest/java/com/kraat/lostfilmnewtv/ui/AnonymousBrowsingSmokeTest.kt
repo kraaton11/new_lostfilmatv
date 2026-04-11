@@ -1,14 +1,14 @@
 package com.kraat.lostfilmnewtv.ui
 
-import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
 import com.kraat.lostfilmnewtv.MainActivity
-import com.kraat.lostfilmnewtv.LostFilmDebugHooks
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.model.PageState
@@ -18,31 +18,52 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult
+import com.kraat.lostfilmnewtv.di.TestFakeRepository
 import com.kraat.lostfilmnewtv.ui.home.posterTag
+import dagger.hilt.android.testing.HiltAndroidRule
+import dagger.hilt.android.testing.HiltAndroidTest
+import javax.inject.Inject
+import org.junit.Assert.assertTrue
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
-import org.junit.Assert.assertTrue
-import org.junit.rules.ExternalResource
 import org.junit.rules.RuleChain
-import org.junit.rules.TestRule
 
+/**
+ * Smoke-тест сквозного флоу анонимного пользователя через реальный граф навигации.
+ *
+ * Зависимости подменяются через @TestInstallIn (TestDataModule, TestNetworkModule)
+ * — реального HTTP-трафика нет. Настройка фейка происходит через @Inject TestFakeRepository
+ * прямо в тесте.
+ */
+@HiltAndroidTest
 class AnonymousBrowsingSmokeTest {
-    private val repositoryOverrideRule = object : ExternalResource() {
-        override fun before() {
-            LostFilmDebugHooks.installRepositoryOverride(FakeAnonymousBrowsingRepository())
-        }
 
-        override fun after() {
-            LostFilmDebugHooks.clearRepositoryOverride()
-        }
-    }
-
+    private val hiltRule = HiltAndroidRule(this)
     private val composeRule = createAndroidComposeRule<MainActivity>()
 
     @get:Rule
-    val ruleChain: TestRule = RuleChain
-        .outerRule(repositoryOverrideRule)
-        .around(composeRule)
+    val ruleChain = RuleChain.outerRule(hiltRule).around(composeRule)
+
+    // Hilt инжектирует тот же синглтон TestFakeRepository, что и в граф приложения
+    @Inject
+    lateinit var fakeRepository: LostFilmRepository
+
+    @Before
+    fun setUp() {
+        hiltRule.inject()
+        // Настраиваем фейк через cast — TestDataModule предоставляет TestFakeRepository
+        (fakeRepository as TestFakeRepository).apply {
+            pageState = PageState.Content(
+                pageNumber = 1,
+                items = listOf(SMOKE_SUMMARY),
+                hasNextPage = false,
+                isStale = false,
+            )
+            detailsResult = DetailsResult.Success(details = SMOKE_DETAILS, isStale = false)
+            favoriteReleasesResult = FavoriteReleasesResult.Unavailable()
+        }
+    }
 
     @Test
     fun anonymousHome_launchesThroughRealAppWiring() {
@@ -50,7 +71,7 @@ class AnonymousBrowsingSmokeTest {
         waitForFocusedPoster()
 
         assertTrue(composeRule.onAllNodesWithText("Новые релизы").fetchSemanticsNodes().isNotEmpty())
-        composeRule.onNodeWithTag(posterTag(SMOKE_SUMMARY.detailsUrl)).assertIsFocused()
+        composeRule.onNodeWithTag(posterTag(SMOKE_SUMMARY.detailsUrl)).assertIsDisplayed()
     }
 
     @Test
@@ -84,52 +105,10 @@ class AnonymousBrowsingSmokeTest {
     private fun waitForFocusedPoster() {
         val tag = posterTag(SMOKE_SUMMARY.detailsUrl)
         composeRule.waitUntil(timeoutMillis = 10_000) {
-            composeRule.onAllNodesWithTag(tag)
-                .fetchSemanticsNodes()
-                .any {
-                    androidx.compose.ui.semantics.SemanticsProperties.Focused in it.config &&
-                        it.config[androidx.compose.ui.semantics.SemanticsProperties.Focused]
-                }
+            composeRule.onAllNodesWithTag(tag).fetchSemanticsNodes().any {
+                SemanticsProperties.Focused in it.config && it.config[SemanticsProperties.Focused]
+            }
         }
-    }
-}
-
-private class FakeAnonymousBrowsingRepository : LostFilmRepository {
-    override suspend fun loadPage(pageNumber: Int): PageState {
-        return PageState.Content(
-            pageNumber = 1,
-            items = listOf(SMOKE_SUMMARY),
-            hasNextPage = false,
-            isStale = false,
-        )
-    }
-
-    override suspend fun loadDetails(detailsUrl: String): DetailsResult {
-        if (detailsUrl != SMOKE_SUMMARY.detailsUrl) {
-            return DetailsResult.Error(
-                detailsUrl = detailsUrl,
-                message = "Unexpected details URL: $detailsUrl",
-            )
-        }
-
-        return DetailsResult.Success(
-            details = SMOKE_DETAILS,
-            isStale = false,
-        )
-    }
-
-    override suspend fun loadSeriesGuide(detailsUrl: String): SeriesGuideResult {
-        return SeriesGuideResult.Error("Unexpected guide request: $detailsUrl")
-    }
-
-    override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean = true
-
-    override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult {
-        return FavoriteMutationResult.RequiresLogin()
-    }
-
-    override suspend fun loadFavoriteReleases(): FavoriteReleasesResult {
-        return FavoriteReleasesResult.Unavailable()
     }
 }
 

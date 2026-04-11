@@ -2,11 +2,20 @@ package com.kraat.lostfilmnewtv.ui.settings
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.kraat.lostfilmnewtv.BuildConfig
+import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelBackgroundScheduler
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelSyncManager
+import com.kraat.lostfilmnewtv.updates.AppUpdateBackgroundScheduler
+import com.kraat.lostfilmnewtv.updates.AppUpdateCoordinator
+import com.kraat.lostfilmnewtv.updates.ReleaseApkLauncher
 import com.kraat.lostfilmnewtv.updates.AppUpdateRefreshResult
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -18,36 +27,35 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-class SettingsViewModel(
-    installedVersion: String,
-    initialPlaybackQuality: PlaybackQualityPreference,
-    initialUpdateMode: UpdateCheckMode,
-    initialChannelMode: AndroidTvChannelMode = AndroidTvChannelMode.ALL_NEW,
-    initialHomeFavoritesRailEnabled: Boolean = false,
-    private val persistPlaybackQuality: (PlaybackQualityPreference) -> Unit = {},
-    private val persistUpdateMode: (UpdateCheckMode) -> Unit = {},
-    private val persistChannelMode: (AndroidTvChannelMode) -> Unit = {},
-    private val persistHomeFavoritesRailEnabled: (Boolean) -> Unit = {},
-    private val onHomeFavoritesRailVisibilityChanged: (Boolean) -> Unit = {},
-    savedUpdateState: StateFlow<SavedAppUpdate?>,
-    private val refreshSavedUpdateState: suspend () -> AppUpdateRefreshResult,
-    private val syncAppUpdateBackgroundSchedule: () -> Unit = {},
-    private val syncAndroidTvChannelBackgroundSchedule: () -> Unit = {},
-    private val syncAndroidTvChannel: suspend () -> Unit = {},
+@HiltViewModel
+class SettingsViewModel @Inject constructor(
+    private val preferencesStore: PlaybackPreferencesStore,
+    private val appUpdateCoordinator: AppUpdateCoordinator,
+    private val homeChannelSyncManager: HomeChannelSyncManager,
+    private val homeChannelBackgroundScheduler: HomeChannelBackgroundScheduler,
+    private val appUpdateBackgroundScheduler: AppUpdateBackgroundScheduler,
+    private val releaseApkLauncher: ReleaseApkLauncher,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val debounceIntervalMs: Long = DEFAULT_DEBOUNCE_INTERVAL_MS,
 ) : ViewModel() {
-    private val initialSavedUpdate = savedUpdateState.value
+
+    // Колбэк уведомляет HomeViewModel об изменении видимости рельса — прокидывается снаружи при навигации
+    var onHomeFavoritesRailVisibilityChanged: (Boolean) -> Unit = {}
+
+    private val savedUpdateState: StateFlow<SavedAppUpdate?> = appUpdateCoordinator.savedUpdateState
+
     private var activeRefreshJob: Job? = null
     private var refreshRequestToken: Long = 0
     private var lastCheckTimestamp = 0L
+
+    private val initialSavedUpdate = savedUpdateState.value
+
     private val _uiState = MutableStateFlow(
         SettingsUiState(
-            playbackQuality = initialPlaybackQuality,
-            updateMode = initialUpdateMode,
-            channelMode = initialChannelMode,
-            isHomeFavoritesRailEnabled = initialHomeFavoritesRailEnabled,
-            installedVersionText = installedVersion,
+            playbackQuality = preferencesStore.readDefaultQuality(),
+            updateMode = preferencesStore.readUpdateCheckMode(),
+            channelMode = preferencesStore.readAndroidTvChannelMode(),
+            isHomeFavoritesRailEnabled = preferencesStore.readHomeFavoritesRailEnabled(),
+            installedVersionText = BuildConfig.VERSION_NAME,
             savedAppUpdate = initialSavedUpdate,
             installUrl = initialSavedUpdate?.apkUrl,
         ),
@@ -57,153 +65,105 @@ class SettingsViewModel(
     init {
         viewModelScope.launch(ioDispatcher) {
             savedUpdateState.drop(1).collectLatest { savedUpdate ->
-                _uiState.update { state ->
-                    state.copy(
-                        savedAppUpdate = savedUpdate,
-                        installUrl = savedUpdate?.apkUrl,
-                        isDownloadingUpdate = false,
-                    )
-                }
+                _uiState.update { it.copy(savedAppUpdate = savedUpdate, installUrl = savedUpdate?.apkUrl, isDownloadingUpdate = false) }
             }
         }
     }
 
     fun onScreenShown() {
-        if (_uiState.value.updateMode == UpdateCheckMode.QUIET_CHECK) {
-            refreshUpdateInfo()
-        }
+        if (_uiState.value.updateMode == UpdateCheckMode.QUIET_CHECK) refreshUpdateInfo()
     }
 
     fun onPlaybackQualitySelected(quality: PlaybackQualityPreference) {
-        persistPlaybackQuality(quality)
-        _uiState.update { state ->
-            state.copy(playbackQuality = quality)
-        }
+        preferencesStore.writeDefaultQuality(quality)
+        _uiState.update { it.copy(playbackQuality = quality) }
     }
 
     fun onUpdateModeSelected(mode: UpdateCheckMode) {
-        if (mode == _uiState.value.updateMode) {
-            return
-        }
-        persistUpdateMode(mode)
-        _uiState.update { state ->
-            state.copy(updateMode = mode)
-        }
-        syncAppUpdateBackgroundSchedule()
-        if (mode == UpdateCheckMode.QUIET_CHECK) {
-            refreshUpdateInfo()
-        }
+        if (mode == _uiState.value.updateMode) return
+        preferencesStore.writeUpdateCheckMode(mode)
+        _uiState.update { it.copy(updateMode = mode) }
+        appUpdateBackgroundScheduler.syncForCurrentMode()
+        if (mode == UpdateCheckMode.QUIET_CHECK) refreshUpdateInfo()
     }
 
     fun onChannelModeSelected(mode: AndroidTvChannelMode) {
-        if (mode == _uiState.value.channelMode) {
-            return
-        }
-        persistChannelMode(mode)
-        _uiState.update { state ->
-            state.copy(channelMode = mode)
-        }
+        if (mode == _uiState.value.channelMode) return
+        preferencesStore.writeAndroidTvChannelMode(mode)
+        _uiState.update { it.copy(channelMode = mode) }
         viewModelScope.launch(ioDispatcher) {
-            syncAndroidTvChannelBackgroundSchedule()
-            syncAndroidTvChannel()
+            homeChannelBackgroundScheduler.syncForCurrentMode()
+            homeChannelSyncManager.syncNow()
         }
     }
 
     fun onHomeFavoritesRailVisibilitySelected(enabled: Boolean) {
-        if (enabled == _uiState.value.isHomeFavoritesRailEnabled) {
-            return
-        }
-        persistHomeFavoritesRailEnabled(enabled)
+        if (enabled == _uiState.value.isHomeFavoritesRailEnabled) return
+        preferencesStore.writeHomeFavoritesRailEnabled(enabled)
         onHomeFavoritesRailVisibilityChanged(enabled)
-        _uiState.update { state ->
-            state.copy(isHomeFavoritesRailEnabled = enabled)
-        }
+        _uiState.update { it.copy(isHomeFavoritesRailEnabled = enabled) }
     }
 
     fun onCheckForUpdatesClick() {
         val now = System.currentTimeMillis()
-        if (now - lastCheckTimestamp < debounceIntervalMs) {
-            return
-        }
+        if (now - lastCheckTimestamp < DEFAULT_DEBOUNCE_INTERVAL_MS) return
         lastCheckTimestamp = now
         refreshUpdateInfo()
     }
 
     fun onInstallUpdateFailed() {
-        _uiState.update { state ->
-            state.copy(
-                statusText = INSTALL_UPDATE_FAILED_MESSAGE,
-                isDownloadingUpdate = false,
-            )
-        }
+        _uiState.update { it.copy(statusText = INSTALL_UPDATE_FAILED_MESSAGE, isDownloadingUpdate = false) }
     }
 
     fun onInstallDownloadProgress(isDownloading: Boolean) {
-        _uiState.update { state ->
-            state.copy(isDownloadingUpdate = isDownloading)
+    }
+
+    fun installUpdate(context: android.content.Context, apkUrl: String) {
+        viewModelScope.launch(ioDispatcher) {
+            onInstallDownloadProgress(true)
+            val launched = releaseApkLauncher.launch(
+                context = context,
+                apkUrl = apkUrl,
+                onDownloadingChange = { onInstallDownloadProgress(it) },
+            )
+            if (!launched) onInstallUpdateFailed()
         }
+        _uiState.update { it.copy(isDownloadingUpdate = isDownloading) }
     }
 
     private fun refreshUpdateInfo() {
-        val requestToken = refreshRequestToken + 1
-        refreshRequestToken = requestToken
+        val requestToken = ++refreshRequestToken
         activeRefreshJob?.cancel()
-        _uiState.update { state ->
-            state.copy(
-                statusText = CHECKING_UPDATES_MESSAGE,
-                isCheckingForUpdates = true,
-                isDownloadingUpdate = false,
-            )
-        }
+        _uiState.update { it.copy(statusText = CHECKING_UPDATES_MESSAGE, isCheckingForUpdates = true, isDownloadingUpdate = false) }
         activeRefreshJob = viewModelScope.launch(ioDispatcher) {
-            val refreshResult = refreshSavedUpdateState()
+            val result = appUpdateCoordinator.refreshSavedUpdateState()
             if (refreshRequestToken == requestToken) {
-                _uiState.update { state ->
-                    state.toCheckedState(refreshResult)
-                }
+                _uiState.update { it.toCheckedState(result) }
             }
         }
     }
 }
 
-private fun SettingsUiState.toCheckedState(refreshResult: AppUpdateRefreshResult): SettingsUiState {
-    return when (refreshResult) {
-        is AppUpdateRefreshResult.UpToDate -> copy(
-            installedVersionText = refreshResult.installedVersion,
-            savedAppUpdate = null,
-            latestVersionText = refreshResult.installedVersion,
-            statusText = "Установлена последняя версия",
-            isCheckingForUpdates = false,
-            isDownloadingUpdate = false,
-            installUrl = null,
-        )
-
-        is AppUpdateRefreshResult.UpdateSaved -> copy(
-            savedAppUpdate = refreshResult.savedUpdate.copy(manuallyChecked = true),
-            latestVersionText = refreshResult.savedUpdate.latestVersion,
-            statusText = "Доступно обновление",
-            isCheckingForUpdates = false,
-            isDownloadingUpdate = false,
-            installUrl = refreshResult.savedUpdate.apkUrl,
-        )
-
-        is AppUpdateRefreshResult.FailedKeptPrevious -> copy(
-            installedVersionText = refreshResult.installedVersion,
-            statusText = refreshResult.message,
-            isCheckingForUpdates = false,
-            isDownloadingUpdate = false,
-        )
-
-        is AppUpdateRefreshResult.FailedEmpty -> copy(
-            installedVersionText = refreshResult.installedVersion,
-            savedAppUpdate = null,
-            latestVersionText = null,
-            statusText = refreshResult.message,
-            isCheckingForUpdates = false,
-            isDownloadingUpdate = false,
-            installUrl = null,
-        )
-    }
+private fun SettingsUiState.toCheckedState(result: AppUpdateRefreshResult): SettingsUiState = when (result) {
+    is AppUpdateRefreshResult.UpToDate -> copy(
+        installedVersionText = result.installedVersion, savedAppUpdate = null,
+        latestVersionText = result.installedVersion, statusText = "Установлена последняя версия",
+        isCheckingForUpdates = false, isDownloadingUpdate = false, installUrl = null,
+    )
+    is AppUpdateRefreshResult.UpdateSaved -> copy(
+        savedAppUpdate = result.savedUpdate.copy(manuallyChecked = true),
+        latestVersionText = result.savedUpdate.latestVersion, statusText = "Доступно обновление",
+        isCheckingForUpdates = false, isDownloadingUpdate = false, installUrl = result.savedUpdate.apkUrl,
+    )
+    is AppUpdateRefreshResult.FailedKeptPrevious -> copy(
+        installedVersionText = result.installedVersion, statusText = result.message,
+        isCheckingForUpdates = false, isDownloadingUpdate = false,
+    )
+    is AppUpdateRefreshResult.FailedEmpty -> copy(
+        installedVersionText = result.installedVersion, savedAppUpdate = null,
+        latestVersionText = null, statusText = result.message,
+        isCheckingForUpdates = false, isDownloadingUpdate = false, installUrl = null,
+    )
 }
 
 private const val CHECKING_UPDATES_MESSAGE = "Проверяем обновления..."
