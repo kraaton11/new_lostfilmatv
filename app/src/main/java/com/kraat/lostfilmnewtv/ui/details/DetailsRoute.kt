@@ -30,7 +30,9 @@ fun DetailsRoute(
     preferredPlaybackQuality: PlaybackQualityPreference = PlaybackQualityPreference.Q1080,
     actionHandler: TorrServeActionHandler,
     linkBuilder: TorrServeLinkBuilder,
+    viewModel: DetailsViewModel? = null,
     onMarkedWatched: (String) -> Unit = {},
+    onOpenSeriesOverview: (String) -> Unit = {},
     onOpenSeriesGuide: (String) -> Unit = {},
     onFavoriteContentChanged: (String, Boolean) -> Unit = { _, _ -> },
     onChannelContentChanged: suspend () -> Unit = {},
@@ -38,7 +40,7 @@ fun DetailsRoute(
 ) {
     // hiltViewModel() создаёт ViewModel через Hilt — SavedStateHandle заполняется
     // из nav-аргументов (detailsUrl и isAuthenticated передаются через route)
-    val detailsViewModel: DetailsViewModel = hiltViewModel()
+    val detailsViewModel: DetailsViewModel = viewModel ?: hiltViewModel()
     val state by detailsViewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -46,7 +48,7 @@ fun DetailsRoute(
     val supportedTorrentRows = remember(state.details?.torrentLinks, detailsUrl, linkBuilder, preferredPlaybackQuality) {
         state.details?.torrentLinks.orEmpty().mapIndexed { index, link ->
             DetailsTorrentRowUiModel(
-                rowId = "$detailsUrl#$index",
+                rowId = "$detailsUrl-$index",
                 label = link.label,
                 url = link.url,
                 isTorrServeSupported = linkBuilder.supportsSource(link.url),
@@ -138,6 +140,7 @@ fun DetailsRoute(
         isTorrServeBusy = isTorrServeBusy,
         onRetry = detailsViewModel::onRetry,
         onFavoriteClick = detailsViewModel::onFavoriteClick,
+        onSeriesOverviewClick = { onOpenSeriesOverview(detailsUrl) },
         onSeriesGuideClick = { onOpenSeriesGuide(detailsUrl) },
         onOpenTorrServe = handleOpenTorrServe,
     )

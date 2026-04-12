@@ -77,7 +77,7 @@ class TmdbPosterResolverImpl(
         detailsUrl: String,
         kind: ReleaseKind,
     ): Boolean {
-        if (cached.backdropUrl.isBlank()) {
+        if (cached.posterUrl.isBlank() || cached.backdropUrl.isBlank()) {
             return false
         }
 

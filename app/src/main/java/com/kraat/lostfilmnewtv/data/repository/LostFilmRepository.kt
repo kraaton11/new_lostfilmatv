@@ -5,6 +5,7 @@ import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.SeriesGuide
+import com.kraat.lostfilmnewtv.data.model.SeriesOverview
 
 sealed interface DetailsResult {
     data class Success(
@@ -28,12 +29,25 @@ sealed interface SeriesGuideResult {
     ) : SeriesGuideResult
 }
 
+sealed interface SeriesOverviewResult {
+    data class Success(
+        val overview: SeriesOverview,
+    ) : SeriesOverviewResult
+
+    data class Error(
+        val message: String,
+    ) : SeriesOverviewResult
+}
+
 interface LostFilmRepository {
     suspend fun loadPage(pageNumber: Int): PageState
 
     suspend fun loadDetails(detailsUrl: String): DetailsResult
 
     suspend fun loadSeriesGuide(detailsUrl: String): SeriesGuideResult
+
+    suspend fun loadSeriesOverview(detailsUrl: String): SeriesOverviewResult =
+        SeriesOverviewResult.Error("Обзор недоступен")
 
     suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean
 

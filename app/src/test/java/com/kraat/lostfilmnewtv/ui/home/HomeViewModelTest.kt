@@ -1,6 +1,8 @@
 package com.kraat.lostfilmnewtv.ui.home
 
+import android.content.Context
 import androidx.lifecycle.SavedStateHandle
+import androidx.test.core.app.ApplicationProvider
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.model.PageState
@@ -9,6 +11,18 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
+import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
+import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPreferences
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelProgram
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelProgramSource
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPublisher
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPublisherResult
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelSyncManager
+import com.kraat.lostfilmnewtv.updates.AppUpdateAvailabilityStore
+import com.kraat.lostfilmnewtv.updates.AppUpdateCoordinator
+import com.kraat.lostfilmnewtv.updates.AppUpdateInfo
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -16,10 +30,14 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
-import org.junit.Assert.assertTrue
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 @OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [35])
 class HomeViewModelTest {
     private val dispatcher = StandardTestDispatcher()
 
@@ -35,7 +53,7 @@ class HomeViewModelTest {
                 ),
             ),
         )
-        val viewModel = HomeViewModel(
+        val viewModel = createViewModel(
             repository = repository,
             savedStateHandle = SavedStateHandle(),
             ioDispatcher = dispatcher,
@@ -62,7 +80,7 @@ class HomeViewModelTest {
             ),
         )
         var syncCalls = 0
-        val viewModel = HomeViewModel(
+        val viewModel = createViewModel(
             repository = repository,
             savedStateHandle = SavedStateHandle(),
             onChannelContentChanged = { syncCalls += 1 },
@@ -98,7 +116,7 @@ class HomeViewModelTest {
                 ),
             ),
         )
-        val viewModel = HomeViewModel(
+        val viewModel = createViewModel(
             repository = repository,
             savedStateHandle = SavedStateHandle(),
             ioDispatcher = dispatcher,
@@ -127,7 +145,7 @@ class HomeViewModelTest {
                 ),
             ),
         )
-        val viewModel = HomeViewModel(
+        val viewModel = createViewModel(
             repository = repository,
             savedStateHandle = SavedStateHandle(),
             ioDispatcher = dispatcher,
@@ -163,7 +181,7 @@ class HomeViewModelTest {
                 ),
             ),
         )
-        val viewModel = HomeViewModel(
+        val viewModel = createViewModel(
             repository = repository,
             savedStateHandle = SavedStateHandle(),
             ioDispatcher = dispatcher,
@@ -195,7 +213,7 @@ class HomeViewModelTest {
                 ),
             ),
         )
-        val viewModel = HomeViewModel(
+        val viewModel = createViewModel(
             repository = repository,
             savedStateHandle = SavedStateHandle(),
             ioDispatcher = dispatcher,
@@ -231,7 +249,7 @@ class HomeViewModelTest {
                 FavoriteReleasesResult.Success(listOf(favoriteItem)),
             ),
         )
-        val viewModel = HomeViewModel(
+        val viewModel = createViewModel(
             repository = repository,
             savedStateHandle = SavedStateHandle(),
             initialFavoritesRailVisible = true,
@@ -267,7 +285,7 @@ class HomeViewModelTest {
                 FavoriteReleasesResult.Success(emptyList()),
             ),
         )
-        val viewModel = HomeViewModel(
+        val viewModel = createViewModel(
             repository = repository,
             savedStateHandle = SavedStateHandle(),
             initialFavoritesRailVisible = true,
@@ -300,7 +318,7 @@ class HomeViewModelTest {
                 FavoriteReleasesResult.Success(listOf(favoriteItem)),
             ),
         )
-        val viewModel = HomeViewModel(
+        val viewModel = createViewModel(
             repository = repository,
             savedStateHandle = SavedStateHandle(),
             initialFavoritesRailVisible = false,
@@ -350,7 +368,7 @@ class HomeViewModelTest {
                 ),
             ),
         )
-        val viewModel = HomeViewModel(
+        val viewModel = createViewModel(
             repository = repository,
             savedStateHandle = SavedStateHandle(),
             initialFavoritesRailVisible = true,
@@ -392,7 +410,7 @@ class HomeViewModelTest {
                 FavoriteReleasesResult.Success(emptyList()),
             ),
         )
-        val viewModel = HomeViewModel(
+        val viewModel = createViewModel(
             repository = repository,
             savedStateHandle = SavedStateHandle(),
             initialFavoritesRailVisible = true,
@@ -439,7 +457,7 @@ class HomeViewModelTest {
                 FavoriteReleasesResult.Success(listOf(addedAllNewItem)),
             ),
         )
-        val viewModel = HomeViewModel(
+        val viewModel = createViewModel(
             repository = repository,
             savedStateHandle = SavedStateHandle(),
             initialFavoritesRailVisible = true,
@@ -485,7 +503,7 @@ class HomeViewModelTest {
                 FavoriteReleasesResult.Success(listOf(favoriteItem)),
             ),
         )
-        val viewModel = HomeViewModel(
+        val viewModel = createViewModel(
             repository = repository,
             savedStateHandle = SavedStateHandle(),
             initialSelectedMode = HomeFeedMode.Favorites,
@@ -516,7 +534,7 @@ class HomeViewModelTest {
                 FavoriteReleasesResult.Unavailable("Войдите в LostFilm"),
             ),
         )
-        val viewModel = HomeViewModel(
+        val viewModel = createViewModel(
             repository = repository,
             savedStateHandle = SavedStateHandle(),
             initialSelectedMode = HomeFeedMode.Favorites,
@@ -562,7 +580,7 @@ class HomeViewModelTest {
                 FavoriteReleasesResult.Success(listOf(favoriteFirst, favoriteSecond)),
             ),
         )
-        val viewModel = HomeViewModel(
+        val viewModel = createViewModel(
             repository = repository,
             savedStateHandle = SavedStateHandle(),
             initialSelectedMode = HomeFeedMode.AllNew,
@@ -583,7 +601,6 @@ class HomeViewModelTest {
 
     @Test
     fun onFavoritesModeAvailabilityChanged_whenFavoritesSelected_fallsBackToAllNew_andPersistsFallback() = runTest(dispatcher) {
-        val persistedModes = mutableListOf<HomeFeedMode>()
         val repository = FakeLostFilmRepository(
             pageResults = mapOf(
                 1 to PageState.Content(
@@ -604,12 +621,11 @@ class HomeViewModelTest {
                 ),
             ),
         )
-        val viewModel = HomeViewModel(
+        val viewModel = createViewModel(
             repository = repository,
             savedStateHandle = SavedStateHandle(),
             initialSelectedMode = HomeFeedMode.Favorites,
             initialFavoritesRailVisible = true,
-            persistSelectedMode = { persistedModes += it },
             ioDispatcher = dispatcher,
         )
 
@@ -618,7 +634,7 @@ class HomeViewModelTest {
         viewModel.onFavoritesRailVisibilityChanged(false)
 
         assertEquals(HomeFeedMode.AllNew, viewModel.uiState.value.selectedMode)
-        assertEquals(listOf(HomeFeedMode.AllNew), persistedModes)
+        assertEquals(HomeFeedMode.AllNew, checkNotNull(lastHomePreferencesStore).readHomeSelectedFeedMode())
     }
 }
 
@@ -687,3 +703,79 @@ private fun summary(
     positionInPage = 0,
     fetchedAt = 0L,
 )
+
+private var homePrefsCounter = 0
+private var updatePrefsCounter = 0
+private var lastHomePreferencesStore: PlaybackPreferencesStore? = null
+
+private fun createViewModel(
+    repository: LostFilmRepository,
+    savedStateHandle: SavedStateHandle,
+    initialSelectedMode: HomeFeedMode = HomeFeedMode.AllNew,
+    initialFavoritesRailVisible: Boolean = false,
+    onChannelContentChanged: () -> Unit = {},
+    ioDispatcher: CoroutineDispatcher,
+): HomeViewModel {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val prefsName = "home-view-model-test-${homePrefsCounter++}"
+    context.deleteSharedPreferences(prefsName)
+    val preferencesStore = PlaybackPreferencesStore(context, prefsName = prefsName).also {
+        it.writeHomeSelectedFeedMode(initialSelectedMode)
+        it.writeHomeFavoritesRailEnabled(initialFavoritesRailVisible)
+    }
+    lastHomePreferencesStore = preferencesStore
+
+    val updatePrefsName = "home-view-model-updates-${updatePrefsCounter++}"
+    context.deleteSharedPreferences(updatePrefsName)
+    val appUpdateCoordinator = AppUpdateCoordinator(
+        installedVersion = "0.1.0",
+        store = AppUpdateAvailabilityStore(context, prefsName = updatePrefsName),
+        checkForUpdates = { AppUpdateInfo.UpToDate(installedVersion = "0.1.0") },
+    )
+
+    val homeChannelSyncManager = HomeChannelSyncManager(
+        programSource = object : HomeChannelProgramSource {
+            override suspend fun loadPrograms(mode: AndroidTvChannelMode, limit: Int): List<HomeChannelProgram> {
+                return emptyList()
+            }
+        },
+        preferences = object : HomeChannelPreferences {
+            private var channelId: Long? = null
+
+            override fun readMode(): AndroidTvChannelMode = AndroidTvChannelMode.ALL_NEW
+
+            override fun readChannelId(): Long? = channelId
+
+            override fun writeChannelId(channelId: Long) {
+                this.channelId = channelId
+            }
+
+            override fun clearChannelId() {
+                channelId = null
+            }
+        },
+        publisher = object : HomeChannelPublisher {
+            override suspend fun reconcile(
+                mode: AndroidTvChannelMode,
+                existingChannelId: Long?,
+                programs: List<HomeChannelProgram>,
+            ): HomeChannelPublisherResult {
+                onChannelContentChanged()
+                return HomeChannelPublisherResult(channelId = existingChannelId ?: 1L)
+            }
+
+            override suspend fun deleteChannel(channelId: Long) {
+                onChannelContentChanged()
+            }
+        },
+    )
+
+    return HomeViewModel(
+        repository = repository,
+        savedStateHandle = savedStateHandle,
+        preferencesStore = preferencesStore,
+        homeChannelSyncManager = homeChannelSyncManager,
+        appUpdateCoordinator = appUpdateCoordinator,
+        ioDispatcher = ioDispatcher,
+    )
+}

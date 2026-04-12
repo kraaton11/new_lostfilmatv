@@ -44,6 +44,26 @@ class LostFilmDetailsParserTest {
     }
 
     @Test
+    fun parsesSeriesStatus_fromSeriesRootPage() {
+        val html = """
+            <html>
+                <body>
+                    <div class="title-block">
+                        <div class="status">
+                            Статус:
+                            Идет 1 сезон. Следующая серия: 12 апреля 2026 года
+                        </div>
+                    </div>
+                </body>
+            </html>
+        """.trimIndent()
+
+        val status = LostFilmDetailsParser().parseSeriesStatus(html)
+
+        assertEquals("Идет 1 сезон. Следующая серия: 12 апреля 2026 года", status)
+    }
+
+    @Test
     fun parsesAjaxSessionTokenFromAuthenticatedUserData() {
         val html = """
             <html>

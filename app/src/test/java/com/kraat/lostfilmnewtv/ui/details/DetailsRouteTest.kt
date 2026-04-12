@@ -23,6 +23,7 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.TorrentLink
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
+import com.kraat.lostfilmnewtv.navigation.AppDestination
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeActionHandler
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeAvailabilityChecker
@@ -35,6 +36,8 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import androidx.lifecycle.SavedStateHandle
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -72,16 +75,16 @@ class DetailsRouteTest {
         composeRule.setContent {
             DetailsRoute(
                 detailsUrl = detailsUrl,
-                repository = repository,
+                viewModel = routeViewModel(detailsUrl, repository),
                 actionHandler = succeedingActionHandler(),
                 linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
             )
         }
 
-        composeRule.waitForNodeWithTag(torrServeButtonTag("$detailsUrl#0"))
+        composeRule.waitForNodeWithTag(torrServeButtonTag(routeRowId(detailsUrl, 0)))
 
-        composeRule.onNodeWithTag(torrServeButtonTag("$detailsUrl#0")).assertIsEnabled()
-        composeRule.onNodeWithTag(torrServeButtonTag("$detailsUrl#1")).assertDoesNotExist()
+        composeRule.onNodeWithTag(torrServeButtonTag(routeRowId(detailsUrl, 0))).assertIsEnabled()
+        composeRule.onNodeWithTag(torrServeButtonTag(routeRowId(detailsUrl, 1))).assertDoesNotExist()
     }
 
     @Test
@@ -107,16 +110,16 @@ class DetailsRouteTest {
         composeRule.setContent {
             DetailsRoute(
                 detailsUrl = detailsUrl,
-                repository = repository,
+                viewModel = routeViewModel(detailsUrl, repository),
                 preferredPlaybackQuality = PlaybackQualityPreference.Q720,
                 actionHandler = succeedingActionHandler(),
                 linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
             )
         }
 
-        composeRule.waitForNodeWithTag(torrServeButtonTag("$detailsUrl#1"))
-        composeRule.onNodeWithTag(torrServeButtonTag("$detailsUrl#1")).assertExists()
-        composeRule.onNodeWithTag(torrServeButtonTag("$detailsUrl#0")).assertDoesNotExist()
+        composeRule.waitForNodeWithTag(torrServeButtonTag(routeRowId(detailsUrl, 1)))
+        composeRule.onNodeWithTag(torrServeButtonTag(routeRowId(detailsUrl, 1))).assertExists()
+        composeRule.onNodeWithTag(torrServeButtonTag(routeRowId(detailsUrl, 0))).assertDoesNotExist()
     }
 
     @Test
@@ -141,7 +144,7 @@ class DetailsRouteTest {
         composeRule.setContent {
             DetailsRoute(
                 detailsUrl = detailsUrl,
-                repository = repository,
+                viewModel = routeViewModel(detailsUrl, repository),
                 preferredPlaybackQuality = PlaybackQualityPreference.Q1080,
                 actionHandler = succeedingActionHandler(),
                 linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
@@ -162,7 +165,7 @@ class DetailsRouteTest {
         composeRule.setContent {
             DetailsRoute(
                 detailsUrl = detailsUrl,
-                repository = RouteFakeDetailsRepository.success(detailsUrl),
+                viewModel = routeViewModel(detailsUrl, RouteFakeDetailsRepository.success(detailsUrl)),
                 actionHandler = succeedingActionHandler(),
                 linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
                 openTorrServe = { _, _, _, _ ->
@@ -177,19 +180,19 @@ class DetailsRouteTest {
             )
         }
 
-        composeRule.waitForNodeWithTag(torrServeButtonTag("$detailsUrl#0"))
+        composeRule.waitForNodeWithTag(torrServeButtonTag(routeRowId(detailsUrl, 0)))
 
-        composeRule.onNodeWithTag(torrServeButtonTag("$detailsUrl#0")).performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.onNodeWithTag(torrServeButtonTag(routeRowId(detailsUrl, 0))).performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitUntil(timeoutMillis = 5_000) { launchCount.get() == 1 }
-        composeRule.onNodeWithTag(torrServeButtonTag("$detailsUrl#0")).assertIsNotEnabled()
+        composeRule.onNodeWithTag(torrServeButtonTag(routeRowId(detailsUrl, 0))).assertIsNotEnabled()
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag(torrServeButtonTag("$detailsUrl#0")).performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.onNodeWithTag(torrServeButtonTag(routeRowId(detailsUrl, 0))).performSemanticsAction(SemanticsActions.OnClick)
 
         assertEquals(1, launchCount.get())
 
         result.complete(TorrServeOpenResult.Success)
         composeRule.waitUntil(timeoutMillis = 5_000) { activeLaunches.get() == 0 }
-        composeRule.onNodeWithTag(torrServeButtonTag("$detailsUrl#0")).assertIsEnabled()
+        composeRule.onNodeWithTag(torrServeButtonTag(routeRowId(detailsUrl, 0))).assertIsEnabled()
     }
 
     @Test
@@ -209,7 +212,7 @@ class DetailsRouteTest {
             if (showRoute) {
                 DetailsRoute(
                     detailsUrl = detailsUrl,
-                    repository = RouteFakeDetailsRepository.success(detailsUrl),
+                    viewModel = routeViewModel(detailsUrl, RouteFakeDetailsRepository.success(detailsUrl)),
                     actionHandler = succeedingActionHandler(),
                     linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
                     openTorrServe = { _, _, _, _ ->
@@ -220,9 +223,9 @@ class DetailsRouteTest {
             }
         }
 
-        composeRule.waitForNodeWithTag(torrServeButtonTag("$detailsUrl#0"))
+        composeRule.waitForNodeWithTag(torrServeButtonTag(routeRowId(detailsUrl, 0)))
 
-        composeRule.onNodeWithTag(torrServeButtonTag("$detailsUrl#0")).performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.onNodeWithTag(torrServeButtonTag(routeRowId(detailsUrl, 0))).performSemanticsAction(SemanticsActions.OnClick)
 
         composeRule.runOnIdle {
             showRoute = false
@@ -233,7 +236,7 @@ class DetailsRouteTest {
             showRoute = true
         }
 
-        composeRule.waitForNodeWithTag(torrServeButtonTag("$detailsUrl#0"))
+        composeRule.waitForNodeWithTag(torrServeButtonTag(routeRowId(detailsUrl, 0)))
     }
 
     @Test
@@ -244,19 +247,19 @@ class DetailsRouteTest {
         restorationTester.setContent {
             DetailsRoute(
                 detailsUrl = detailsUrl,
-                repository = RouteFakeDetailsRepository.success(detailsUrl),
+                viewModel = routeViewModel(detailsUrl, RouteFakeDetailsRepository.success(detailsUrl)),
                 actionHandler = succeedingActionHandler(),
                 linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
                 openTorrServe = { _, _, _, _ -> TorrServeOpenResult.Unavailable },
             )
         }
 
-        composeRule.waitForNodeWithTag(torrServeButtonTag("$detailsUrl#0"))
-        composeRule.onNodeWithTag(torrServeButtonTag("$detailsUrl#0")).performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitForNodeWithTag(torrServeButtonTag(routeRowId(detailsUrl, 0)))
+        composeRule.onNodeWithTag(torrServeButtonTag(routeRowId(detailsUrl, 0))).performSemanticsAction(SemanticsActions.OnClick)
 
         restorationTester.emulateSavedInstanceStateRestore()
 
-        composeRule.waitForNodeWithTag(torrServeButtonTag("$detailsUrl#0"))
+        composeRule.waitForNodeWithTag(torrServeButtonTag(routeRowId(detailsUrl, 0)))
     }
 
     @Test
@@ -274,7 +277,7 @@ class DetailsRouteTest {
         composeRule.setContent {
             DetailsRoute(
                 detailsUrl = currentUrl,
-                repository = repository,
+                viewModel = routeViewModel(currentUrl, repository),
                 actionHandler = succeedingActionHandler(),
                 linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
             )
@@ -307,7 +310,7 @@ class DetailsRouteTest {
         composeRule.setContent {
             DetailsRoute(
                 detailsUrl = detailsUrl,
-                repository = repository,
+                viewModel = routeViewModel(detailsUrl, repository),
                 actionHandler = succeedingActionHandler(),
                 linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
             )
@@ -330,7 +333,7 @@ class DetailsRouteTest {
         composeRule.setContent {
             DetailsRoute(
                 detailsUrl = detailsUrl,
-                repository = repository,
+                viewModel = routeViewModel(detailsUrl, repository),
                 actionHandler = succeedingActionHandler(),
                 linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
                 onMarkedWatched = { watchedDetailsUrls += it },
@@ -339,8 +342,8 @@ class DetailsRouteTest {
             )
         }
 
-        composeRule.waitForNodeWithTag(torrServeButtonTag("$detailsUrl#0"))
-        composeRule.onNodeWithTag(torrServeButtonTag("$detailsUrl#0"))
+        composeRule.waitForNodeWithTag(torrServeButtonTag(routeRowId(detailsUrl, 0)))
+        composeRule.onNodeWithTag(torrServeButtonTag(routeRowId(detailsUrl, 0)))
             .performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitForIdle()
 
@@ -366,7 +369,7 @@ class DetailsRouteTest {
         composeRule.setContent {
             DetailsRoute(
                 detailsUrl = detailsUrl,
-                repository = repository,
+                viewModel = routeViewModel(detailsUrl, repository),
                 actionHandler = succeedingActionHandler(),
                 linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
                 onFavoriteContentChanged = { changedDetailsUrl, isFavorite ->
@@ -392,7 +395,7 @@ class DetailsRouteTest {
         composeRule.setContent {
             DetailsRoute(
                 detailsUrl = detailsUrl,
-                repository = RouteFakeDetailsRepository.success(detailsUrl),
+                viewModel = routeViewModel(detailsUrl, RouteFakeDetailsRepository.success(detailsUrl)),
                 actionHandler = succeedingActionHandler(),
                 linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
                 onOpenSeriesGuide = { openedGuideUrl = it },
@@ -419,6 +422,20 @@ private fun ComposeContentTestRule.waitForNodeWithText(text: String) {
     }
 }
 
+private fun routeViewModel(
+    detailsUrl: String,
+    repository: LostFilmRepository,
+): DetailsViewModel = DetailsViewModel(
+    repository = repository,
+    savedStateHandle = SavedStateHandle(
+        mapOf(
+            AppDestination.Details.detailsUrlArg to detailsUrl,
+            AppDestination.Details.isAuthenticatedArg to true,
+        ),
+    ),
+    ioDispatcher = Dispatchers.Unconfined,
+)
+
 private fun succeedingActionHandler(): TorrServeActionHandler = TorrServeActionHandler(
     builder = IdentityBuilder(),
     probe = AlwaysAvailableChecker(),
@@ -426,6 +443,7 @@ private fun succeedingActionHandler(): TorrServeActionHandler = TorrServeActionH
 )
 
 private fun torrServeButtonTag(rowId: String) = "torrent-torrserve-$rowId"
+private fun routeRowId(detailsUrl: String, index: Int) = "$detailsUrl-$index"
 
 private class IdentityBuilder : TorrServeSourceBuilder {
     override fun build(rawUrl: String): String = rawUrl

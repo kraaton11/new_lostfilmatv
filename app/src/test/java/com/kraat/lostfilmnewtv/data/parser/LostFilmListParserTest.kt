@@ -53,4 +53,37 @@ class LostFilmListParserTest {
         assertTrue(watchedSeries.isWatched)
         assertFalse(unwatchedMovie.isWatched)
     }
+
+    @Test
+    fun fallsBackToEnglishEpisodeTitle_whenRussianTitleMissingInListRow() {
+        val html = """
+            <div class="serials-list">
+                <div class="row">
+                    <a href="/series/The_Testaments/season_1/episode_1/" style="text-decoration:none;display:block">
+                        <div class="picture-box">
+                            <div class="overlay">
+                                <div class="left-part">1 сезон 1 серия</div>
+                            </div>
+                            <img src="/Static/Images/1093/Posters/image_s1.jpg" class="thumb" />
+                        </div>
+                        <div class="body">
+                            <div class="name-ru">Заветы</div>
+                            <div class="details-pane">
+                                <div class="alpha"></div>
+                                <div class="beta">Precious Flowers</div>
+                                <div class="alpha">Дата выхода Ru: 11.04.2026</div>
+                                <div class="beta">Дата выхода Eng: 08.04.2026</div>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        """.trimIndent()
+
+        val item = LostFilmListParser().parse(html, pageNumber = 1).single()
+
+        assertEquals("Заветы", item.titleRu)
+        assertEquals("Precious Flowers", item.episodeTitleRu)
+        assertEquals("11.04.2026", item.releaseDateRu)
+    }
 }

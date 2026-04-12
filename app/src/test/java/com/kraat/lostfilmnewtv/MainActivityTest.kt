@@ -6,19 +6,41 @@ import android.view.View
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.WorkManager
 import com.kraat.lostfilmnewtv.di.AppModule
+import com.kraat.lostfilmnewtv.di.UnitTestAppOverrides
+import com.kraat.lostfilmnewtv.data.model.PageState
+import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
+import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
+import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeActionHandler
+import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeAvailabilityChecker
+import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeConfig
+import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeLinkBuilder
+import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeUrlLauncher
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelBackgroundRefreshRunner
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPreferences
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelProgram
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelProgramSource
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPublisher
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPublisherResult
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelBackgroundScheduler
+import com.kraat.lostfilmnewtv.tvchannel.HomeChannelSyncManager
+import com.kraat.lostfilmnewtv.updates.AppUpdateAvailabilityStore
 import com.kraat.lostfilmnewtv.updates.AppUpdateBackgroundScheduler
+import com.kraat.lostfilmnewtv.updates.AppUpdateCoordinator
+import com.kraat.lostfilmnewtv.updates.AppUpdateInfo
+import com.kraat.lostfilmnewtv.updates.ReleaseApkLauncher
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import dagger.hilt.components.SingletonComponent
 import dagger.hilt.testing.TestInstallIn
 import javax.inject.Inject
 import javax.inject.Singleton
+import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Rule
@@ -26,6 +48,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.mockingDetails
+import org.mockito.Mockito.reset
 import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -46,6 +69,7 @@ class MainActivityTest {
     @Before
     fun setUp() {
         hiltRule.inject()
+        reset(homeChannelWorkManager, homeChannelWM, appUpdateWM)
     }
 
     @Test
@@ -139,24 +163,134 @@ object MainActivityTestAppModule {
     @Provides @Singleton @AppUpdateWorkManager
     fun provideAppUpdateWorkManager(): WorkManager = appUpdateWM
 
+    @Provides
+    @Singleton
+    fun provideWorkManager(@HomeChannelWorkManager wm: WorkManager): WorkManager = wm
+
+    @Provides
+    @Singleton
+    fun providePlaybackPreferencesStore(@ApplicationContext context: Context): PlaybackPreferencesStore {
+        return UnitTestAppOverrides.playbackPreferencesStore ?: PlaybackPreferencesStore(
+            context,
+            prefsName = "unit-test-playback-prefs",
+        ).also {
+            it.writeAndroidTvChannelMode(AndroidTvChannelMode.ALL_NEW)
+            it.writeUpdateCheckMode(UpdateCheckMode.QUIET_CHECK)
+        }
+    }
+
+    @Provides
+    @Singleton
+    fun provideTorrServeConfig(): TorrServeConfig = TorrServeConfig()
+
+    @Provides
+    @Singleton
+    fun provideTorrServeLinkBuilder(config: TorrServeConfig): TorrServeLinkBuilder =
+        UnitTestAppOverrides.torrServeLinkBuilder ?: TorrServeLinkBuilder(config)
+
+    @Provides
+    @Singleton
+    fun provideTorrServeActionHandler(linkBuilder: TorrServeLinkBuilder): TorrServeActionHandler =
+        UnitTestAppOverrides.torrServeActionHandler ?: TorrServeActionHandler(
+            builder = linkBuilder,
+            probe = TorrServeAvailabilityChecker { false },
+            launcher = TorrServeUrlLauncher { _, _, _, _ -> false },
+        )
+
+    @Provides
+    @Singleton
+    fun provideHomeChannelSyncManager(
+        playbackPreferencesStore: PlaybackPreferencesStore,
+    ): HomeChannelSyncManager = UnitTestAppOverrides.homeChannelSyncManager ?: HomeChannelSyncManager(
+        programSource = object : HomeChannelProgramSource {
+            override suspend fun loadPrograms(mode: AndroidTvChannelMode, limit: Int): List<HomeChannelProgram> = emptyList()
+        },
+        preferences = object : HomeChannelPreferences {
+            private var channelId: Long? = null
+
+            override fun readMode(): AndroidTvChannelMode = playbackPreferencesStore.readAndroidTvChannelMode()
+
+            override fun readChannelId(): Long? = channelId
+
+            override fun writeChannelId(channelId: Long) {
+                this.channelId = channelId
+            }
+
+            override fun clearChannelId() {
+                channelId = null
+            }
+        },
+        publisher = object : HomeChannelPublisher {
+            override suspend fun reconcile(
+                mode: AndroidTvChannelMode,
+                existingChannelId: Long?,
+                programs: List<HomeChannelProgram>,
+            ): HomeChannelPublisherResult = HomeChannelPublisherResult(channelId = existingChannelId ?: 1L)
+
+            override suspend fun deleteChannel(channelId: Long) = Unit
+        },
+    )
+
     @Provides @Singleton
     fun provideHomeChannelBackgroundScheduler(
+        playbackPreferencesStore: PlaybackPreferencesStore,
         @HomeChannelWorkManager wm: WorkManager,
-    ): HomeChannelBackgroundScheduler = HomeChannelBackgroundScheduler(
-        readMode = { AndroidTvChannelMode.ALL_NEW },
-        workManager = wm,
+    ): HomeChannelBackgroundScheduler = UnitTestAppOverrides.homeChannelBackgroundScheduler
+        ?: HomeChannelBackgroundScheduler(
+            readMode = playbackPreferencesStore::readAndroidTvChannelMode,
+            workManager = wm,
+        )
+
+    @Provides
+    @Singleton
+    fun provideHomeChannelBackgroundRefreshRunner(
+        playbackPreferencesStore: PlaybackPreferencesStore,
+        repository: LostFilmRepository,
+        homeChannelSyncManager: HomeChannelSyncManager,
+    ): HomeChannelBackgroundRefreshRunner = HomeChannelBackgroundRefreshRunner(
+        readMode = playbackPreferencesStore::readAndroidTvChannelMode,
+        readSession = { null },
+        isSessionExpired = { false },
+        refreshFirstPage = { repository.loadPage(pageNumber = 1) },
+        syncChannel = homeChannelSyncManager::syncNow,
+        readFirstPageFetchedAt = { null },
+    )
+
+    @Provides
+    @Singleton
+    fun provideAppUpdateCoordinator(
+        @ApplicationContext context: Context,
+    ): AppUpdateCoordinator = UnitTestAppOverrides.appUpdateCoordinator ?: AppUpdateCoordinator(
+        installedVersion = "0.1.0",
+        store = AppUpdateAvailabilityStore(context, prefsName = "unit-test-app-updates"),
+        checkForUpdates = {
+            val overrideRepository = UnitTestAppOverrides.appUpdateRepository
+            if (overrideRepository != null) {
+                overrideRepository.checkForUpdate()
+            } else {
+                AppUpdateInfo.UpToDate(installedVersion = "0.1.0")
+            }
+        },
     )
 
     @Provides @Singleton
     fun provideAppUpdateBackgroundScheduler(
+        playbackPreferencesStore: PlaybackPreferencesStore,
         @AppUpdateWorkManager wm: WorkManager,
-    ): AppUpdateBackgroundScheduler = AppUpdateBackgroundScheduler(
-        readMode = { UpdateCheckMode.QUIET_CHECK },
+    ): AppUpdateBackgroundScheduler = UnitTestAppOverrides.appUpdateBackgroundScheduler ?: AppUpdateBackgroundScheduler(
+        readMode = playbackPreferencesStore::readUpdateCheckMode,
         workManager = wm,
     )
 
-    // Все остальные провайды делегируем стандартному AppModule
-    // через явный forward — или просто не replaces, а @InstallIn дополнительно.
-    // Поскольку replaces = [AppModule::class], нужно переопределить всё что тест использует.
-    // Остальные зависимости из AppModule продолжают работать через UnitTestDataModule и UnitTestNetworkModule.
+    @Provides
+    @Singleton
+    fun provideReleaseApkLauncher(): ReleaseApkLauncher =
+        UnitTestAppOverrides.releaseApkLauncher ?: object : ReleaseApkLauncher(OkHttpClient()) {
+            override suspend fun launch(
+                context: Context,
+                apkUrl: String,
+                onDownloadingChange: (Boolean) -> Unit,
+                onDownloadProgress: (Int) -> Unit,
+            ): Boolean = true
+        }
 }

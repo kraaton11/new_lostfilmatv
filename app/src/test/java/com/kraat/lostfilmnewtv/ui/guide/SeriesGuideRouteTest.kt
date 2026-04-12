@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.ui.guide
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertIsFocused
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
@@ -20,8 +21,10 @@ import com.kraat.lostfilmnewtv.data.model.SeriesGuideSeason
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult
+import com.kraat.lostfilmnewtv.navigation.AppDestination
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -41,9 +44,11 @@ class SeriesGuideRouteTest {
 
         composeRule.setContent {
             SeriesGuideRoute(
-                detailsUrl = currentEpisodeUrl,
-                repository = FakeSeriesGuideRepository.success(currentEpisodeUrl),
                 onOpenDetails = {},
+                viewModel = routeViewModel(
+                    currentEpisodeUrl,
+                    FakeSeriesGuideRepository.success(currentEpisodeUrl),
+                ),
             )
         }
 
@@ -57,9 +62,11 @@ class SeriesGuideRouteTest {
 
         composeRule.setContent {
             SeriesGuideRoute(
-                detailsUrl = currentEpisodeUrl,
-                repository = FakeSeriesGuideRepository.success(currentEpisodeUrl),
                 onOpenDetails = {},
+                viewModel = routeViewModel(
+                    currentEpisodeUrl,
+                    FakeSeriesGuideRepository.success(currentEpisodeUrl),
+                ),
             )
         }
 
@@ -80,9 +87,11 @@ class SeriesGuideRouteTest {
 
         composeRule.setContent {
             SeriesGuideRoute(
-                detailsUrl = currentEpisodeUrl,
-                repository = FakeSeriesGuideRepository.error(currentEpisodeUrl, "offline"),
                 onOpenDetails = {},
+                viewModel = routeViewModel(
+                    currentEpisodeUrl,
+                    FakeSeriesGuideRepository.error(currentEpisodeUrl, "offline"),
+                ),
             )
         }
 
@@ -98,9 +107,11 @@ class SeriesGuideRouteTest {
 
         composeRule.setContent {
             SeriesGuideRoute(
-                detailsUrl = currentEpisodeUrl,
-                repository = FakeSeriesGuideRepository.success(currentEpisodeUrl),
                 onOpenDetails = { openedUrl = it },
+                viewModel = routeViewModel(
+                    currentEpisodeUrl,
+                    FakeSeriesGuideRepository.success(currentEpisodeUrl),
+                ),
             )
         }
 
@@ -123,6 +134,17 @@ private fun ComposeContentTestRule.waitForText(text: String) {
         onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty()
     }
 }
+
+private fun routeViewModel(
+    detailsUrl: String,
+    repository: LostFilmRepository,
+): SeriesGuideViewModel = SeriesGuideViewModel(
+    repository = repository,
+    savedStateHandle = SavedStateHandle(
+        mapOf(AppDestination.SeriesGuide.detailsUrlArg to detailsUrl),
+    ),
+    ioDispatcher = Dispatchers.Unconfined,
+)
 
 private class FakeSeriesGuideRepository(
     private val scriptedGuideResults: ConcurrentHashMap<String, MutableList<SeriesGuideResult>>,

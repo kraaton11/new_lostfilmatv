@@ -147,7 +147,7 @@ open class TmdbPosterClient(
     }
 
     private fun TmdbImageUrls?.needsEnglishFallback(): Boolean {
-        return this == null || backdropUrl.isBlank()
+        return this == null || posterUrl.isBlank() || backdropUrl.isBlank()
     }
 
     private fun mergeImages(primary: TmdbImageUrls?, secondary: TmdbImageUrls?): TmdbImageUrls? {

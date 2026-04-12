@@ -293,9 +293,11 @@ class DetailsViewModelTest {
         val viewModel = DetailsViewModel(
             repository = repository,
             savedStateHandle = SavedStateHandle(
-                mapOf(AppDestination.Details.detailsUrlArg to "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"),
+                mapOf(
+                    AppDestination.Details.detailsUrlArg to "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/",
+                    AppDestination.Details.isAuthenticatedArg to false,
+                ),
             ),
-            isAuthenticated = false,
             ioDispatcher = dispatcher,
         )
 

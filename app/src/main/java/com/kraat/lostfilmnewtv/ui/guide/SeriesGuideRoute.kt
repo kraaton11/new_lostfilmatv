@@ -6,15 +6,18 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 @Composable
-fun SeriesGuideRoute(onOpenDetails: (String) -> Unit) {
-    val viewModel: SeriesGuideViewModel = hiltViewModel()
-    val state = viewModel.uiState.collectAsStateWithLifecycle()
+fun SeriesGuideRoute(
+    onOpenDetails: (String) -> Unit,
+    viewModel: SeriesGuideViewModel? = null,
+) {
+    val routeViewModel: SeriesGuideViewModel = viewModel ?: hiltViewModel()
+    val state = routeViewModel.uiState.collectAsStateWithLifecycle()
 
-    LaunchedEffect(Unit) { viewModel.onStart() }
+    LaunchedEffect(Unit) { routeViewModel.onStart() }
 
     SeriesGuideScreen(
         state = state.value,
-        onRetry = viewModel::onRetry,
+        onRetry = routeViewModel::onRetry,
         onEpisodeClick = onOpenDetails,
     )
 }

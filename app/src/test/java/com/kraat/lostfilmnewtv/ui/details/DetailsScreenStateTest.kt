@@ -143,6 +143,37 @@ class DetailsScreenStateTest {
     }
 
     @Test
+    fun detailsScreen_focusesPrimaryAction_whenPlaybackIsUnavailable() {
+        composeRule.setContent {
+            LostFilmTheme {
+                DetailsScreen(
+                    state = DetailsUiState(
+                        details = seriesDetails(),
+                    ),
+                    isAuthenticated = true,
+                    availableTorrentRowsCount = 0,
+                    playbackRow = null,
+                    torrServeMessage = null,
+                    activeTorrServeRowId = null,
+                    isTorrServeBusy = false,
+                    onRetry = {},
+                    onOpenTorrServe = { _, _ -> },
+                )
+            }
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag("details-primary-action")
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag("details-primary-action").assertIsFocused()
+    }
+
+    @Test
     fun detailsScreen_rendersHeroMeta_withSeasonAndEpisode() {
         composeRule.setContent {
             LostFilmTheme {
@@ -168,6 +199,35 @@ class DetailsScreenStateTest {
         }
 
         composeRule.onNodeWithTag("details-hero-meta").assertExists()
+    }
+
+    @Test
+    fun detailsScreen_rendersSeriesStatus_whenAvailable() {
+        composeRule.setContent {
+            LostFilmTheme {
+                DetailsScreen(
+                    state = DetailsUiState(
+                        details = seriesDetails(),
+                    ),
+                    isAuthenticated = true,
+                    availableTorrentRowsCount = 1,
+                    playbackRow = DetailsTorrentRowUiModel(
+                        rowId = "row-0",
+                        label = "1080p",
+                        url = "https://example.com/1080",
+                        isTorrServeSupported = true,
+                    ),
+                    torrServeMessage = null,
+                    activeTorrServeRowId = null,
+                    isTorrServeBusy = false,
+                    onRetry = {},
+                    onOpenTorrServe = { _, _ -> },
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("details-hero-status").assertExists()
+        composeRule.onNodeWithText("Статус: Идет 1 сезон. Следующая серия: 12 апреля 2026 года").assertExists()
     }
 
     @Test
@@ -207,6 +267,7 @@ private fun seriesDetails(): ReleaseDetails = ReleaseDetails(
     posterUrl = "https://example.com/poster.jpg",
     fetchedAt = 0L,
     episodeTitleRu = "Маменькин сынок",
+    seriesStatusRu = "Идет 1 сезон. Следующая серия: 12 апреля 2026 года",
     torrentLinks = listOf(
         TorrentLink(
             label = "1080p",
