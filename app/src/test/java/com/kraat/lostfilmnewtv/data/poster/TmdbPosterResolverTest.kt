@@ -56,6 +56,44 @@ class TmdbPosterResolverTest {
     }
 
     @Test
+    fun resolve_refetchesCachedMapping_whenPosterMissing() = runTest {
+        val dao = FakeTmdbPosterDao(
+            cached = TmdbPosterMappingEntity.create(
+                detailsUrl = "https://www.lostfilm.today/series/The_Testaments/season_1/episode_1/",
+                tmdbId = 287527,
+                tmdbType = TmdbMediaType.TV.name,
+                posterUrl = "",
+                backdropUrl = "https://image.tmdb.org/t/p/original/old-backdrop.jpg",
+                fetchedAt = System.currentTimeMillis(),
+            ),
+        )
+        val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType): List<TmdbSearchResult> {
+                return listOf(TmdbSearchResult(id = 287527, name = "The Testaments", popularity = 10.0))
+            }
+
+            override suspend fun getPosterAndBackdrop(tmdbId: Int, type: TmdbMediaType): TmdbImageUrls {
+                return TmdbImageUrls(
+                    posterUrl = "https://image.tmdb.org/t/p/w780/new-poster.jpg",
+                    backdropUrl = "https://image.tmdb.org/t/p/original/new-backdrop.jpg",
+                )
+            }
+        }
+        val resolver = TmdbPosterResolverImpl(client, dao)
+
+        val result = resolver.resolve(
+            detailsUrl = "https://www.lostfilm.today/series/The_Testaments/season_1/episode_1/",
+            titleRu = "Заветы",
+            releaseDateRu = "11.04.2026",
+            kind = ReleaseKind.SERIES,
+        )
+
+        assertNotNull(result)
+        assertEquals("https://image.tmdb.org/t/p/w780/new-poster.jpg", result?.posterUrl)
+        assertEquals("https://image.tmdb.org/t/p/w780/new-poster.jpg", dao.upserted?.posterUrl)
+    }
+
+    @Test
     fun resolve_prefersExactEnglishSlugMatch_forGenericRussianTitle() = runTest {
         val dao = FakeTmdbPosterDao()
         val client = object : TmdbPosterClient(OkHttpClient(), "fake") {

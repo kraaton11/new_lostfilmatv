@@ -156,10 +156,47 @@ class LostFilmRepositoryTest {
     }
 
     @Test
+    fun loadPage_persistsTmdbEnrichedPosterIntoSummaryCache() = runTest {
+        val targetDetailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        val tmdbPosterUrl = "https://image.tmdb.org/t/p/w780/tmdb-poster.jpg"
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            tmdbResolver = object : TmdbPosterResolver {
+                override suspend fun resolve(
+                    detailsUrl: String,
+                    titleRu: String,
+                    releaseDateRu: String,
+                    kind: com.kraat.lostfilmnewtv.data.model.ReleaseKind,
+                ): TmdbImageUrls? {
+                    return if (detailsUrl == targetDetailsUrl) {
+                        TmdbImageUrls(
+                            posterUrl = tmdbPosterUrl,
+                            backdropUrl = "https://image.tmdb.org/t/p/original/tmdb-backdrop.jpg",
+                        )
+                    } else {
+                        null
+                    }
+                }
+            },
+        )
+
+        val result = repository.loadPage(1) as PageState.Content
+
+        assertEquals(tmdbPosterUrl, result.items.first { it.detailsUrl == targetDetailsUrl }.posterUrl)
+        assertEquals(tmdbPosterUrl, releaseDao.getSummary(targetDetailsUrl)?.posterUrl)
+    }
+
+    @Test
     fun loadDetails_enrichesSeriesWithTorrentLinkFromRedirectPage() = runTest {
         val repository = createRepository(
             pageHandler = { fixture("new-page-1.html") },
-            detailsHandler = { fixture("series-details.html") },
+            detailsHandler = { requestedUrl ->
+                when (requestedUrl) {
+                    "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/" -> fixture("series-details.html")
+                    "https://www.lostfilm.today/series/9-1-1/" -> seriesRootPageWithStatusHtml()
+                    else -> error("Unexpected details request: $requestedUrl")
+                }
+            },
             torrentHandler = { episodeId ->
                 assertEquals("362009013", episodeId)
                 fixture("torrent-redirect.html")
@@ -174,6 +211,34 @@ class LostFilmRepositoryTest {
         assertEquals(
             "https://www.lostfilm.today/V/?c=1103&s=1&e=1&u=999999&h=fixturehash&n=1&newbie=&br=&ts=1773683822",
             result.details.torrentLinks.single().url,
+        )
+    }
+
+    @Test
+    fun loadDetails_enrichesSeriesWithStatusFromSeriesRoot() = runTest {
+        val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            detailsHandler = { requestedUrl ->
+                when (requestedUrl) {
+                    detailsUrl -> fixture("series-details.html")
+                    "https://www.lostfilm.today/series/9-1-1/" -> seriesRootPageWithStatusHtml()
+                    else -> error("Unexpected details request: $requestedUrl")
+                }
+            },
+            torrentHandler = { fixture("torrent-redirect.html") },
+            torrentPageHandler = { throw IOException("options page unavailable") },
+        )
+
+        val result = repository.loadDetails(detailsUrl) as DetailsResult.Success
+
+        assertEquals(
+            "Идет 9 сезон. Следующая серия: 21 марта 2026 года",
+            result.details.seriesStatusRu,
+        )
+        assertEquals(
+            "Идет 9 сезон. Следующая серия: 21 марта 2026 года",
+            releaseDao.getReleaseDetails(detailsUrl)?.toModel()?.seriesStatusRu,
         )
     }
 
@@ -197,7 +262,7 @@ class LostFilmRepositoryTest {
     @Test
     fun loadDetails_refreshesFreshCachedDetailsWithTorrentLinkAfterLogin() = runTest {
         val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
-        val favoritePageUrl = "https://www.lostfilm.today/series/9-1-1"
+        val favoritePageUrl = "https://www.lostfilm.today/series/9-1-1/"
         seedDetails(detailsUrl = detailsUrl, fetchedAt = NOW - 1_000L)
         val detailsRequests = mutableListOf<String>()
         var torrentRequests = 0
@@ -230,7 +295,7 @@ class LostFilmRepositoryTest {
     @Test
     fun loadDetails_refreshesFreshCachedDetailsWithFavoriteMetadataAfterLogin() = runTest {
         val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
-        val favoritePageUrl = "https://www.lostfilm.today/series/9-1-1"
+        val favoritePageUrl = "https://www.lostfilm.today/series/9-1-1/"
         seedDetails(detailsUrl = detailsUrl, fetchedAt = NOW - 1_000L)
         val detailsRequests = mutableListOf<String>()
         val repository = createRepository(
@@ -311,7 +376,7 @@ class LostFilmRepositoryTest {
     @Test
     fun loadDetails_refreshesFreshCachedDetailsWhenFavoriteStateIsUnknown() = runTest {
         val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
-        val favoritePageUrl = "https://www.lostfilm.today/series/9-1-1"
+        val favoritePageUrl = "https://www.lostfilm.today/series/9-1-1/"
         seedDetails(detailsUrl = detailsUrl, fetchedAt = NOW - 1_000L)
         val cachedDetails = checkNotNull(releaseDao.getReleaseDetails(detailsUrl))
         releaseDao.upsertDetails(
@@ -346,7 +411,7 @@ class LostFilmRepositoryTest {
     @Test
     fun loadDetails_forSeriesWithoutEpisodeFavoriteMetadata_enrichesFromSeriesRootPage() = runTest {
         val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
-        val favoritePageUrl = "https://www.lostfilm.today/series/9-1-1"
+        val favoritePageUrl = "https://www.lostfilm.today/series/9-1-1/"
         val detailsRequests = mutableListOf<String>()
         val repository = createRepository(
             pageHandler = { fixture("new-page-1.html") },
@@ -384,6 +449,7 @@ class LostFilmRepositoryTest {
                     url = "https://www.lostfilm.today/V/?c=1103&s=1&e=1&u=999999&h=fixturehash&n=1&newbie=&br=&ts=1773683822",
                 ),
             ),
+            seriesStatusRu = "Идет 9 сезон",
         )
         releaseDao.upsertDetails(ReleaseDetailsEntity.fromModel(parsed))
 
@@ -502,7 +568,7 @@ class LostFilmRepositoryTest {
     @Test
     fun setFavorite_updatesCachedDetailsWhenRemoteToggleSucceeds() = runTest {
         val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
-        val favoritePageUrl = "https://www.lostfilm.today/series/9-1-1"
+        val favoritePageUrl = "https://www.lostfilm.today/series/9-1-1/"
         seedDetails(detailsUrl = detailsUrl, fetchedAt = NOW - 1_000L)
         var detailsRequestCount = 0
         val repository = createRepository(
@@ -534,7 +600,7 @@ class LostFilmRepositoryTest {
     @Test
     fun setFavorite_forSeries_readsAndTogglesAgainstSeriesRootPage() = runTest {
         val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
-        val favoritePageUrl = "https://www.lostfilm.today/series/9-1-1"
+        val favoritePageUrl = "https://www.lostfilm.today/series/9-1-1/"
         seedDetails(detailsUrl = detailsUrl, fetchedAt = NOW - 1_000L)
         var detailsRequestCount = 0
         val detailsRequests = mutableListOf<String>()
@@ -1554,6 +1620,19 @@ private fun seriesFavoritePageHtml(
         </html>
     """.trimIndent()
 }
+
+private fun seriesRootPageWithStatusHtml(): String = """
+    <html>
+        <body>
+            <div class="title-block">
+                <div class="status">
+                    Статус:
+                    Идет 9 сезон. Следующая серия: 21 марта 2026 года
+                </div>
+            </div>
+        </body>
+    </html>
+""".trimIndent()
 
 private fun expectedTedGuide(): SeriesGuide = SeriesGuide(
     seriesTitleRu = "Третий лишний",

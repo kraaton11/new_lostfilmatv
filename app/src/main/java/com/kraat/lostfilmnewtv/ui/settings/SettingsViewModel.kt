@@ -41,6 +41,8 @@ class SettingsViewModel @Inject constructor(
     // Колбэк уведомляет HomeViewModel об изменении видимости рельса — прокидывается снаружи при навигации
     var onHomeFavoritesRailVisibilityChanged: (Boolean) -> Unit = {}
 
+    private var debounceIntervalMs: Long = DEFAULT_DEBOUNCE_INTERVAL_MS
+
     private val savedUpdateState: StateFlow<SavedAppUpdate?> = appUpdateCoordinator.savedUpdateState
 
     private var activeRefreshJob: Job? = null
@@ -106,7 +108,7 @@ class SettingsViewModel @Inject constructor(
 
     fun onCheckForUpdatesClick() {
         val now = System.currentTimeMillis()
-        if (now - lastCheckTimestamp < DEFAULT_DEBOUNCE_INTERVAL_MS) return
+        if (now - lastCheckTimestamp < debounceIntervalMs) return
         lastCheckTimestamp = now
         refreshUpdateInfo()
     }
@@ -141,6 +143,27 @@ class SettingsViewModel @Inject constructor(
                 _uiState.update { it.toCheckedState(result) }
             }
         }
+    }
+
+    constructor(
+        preferencesStore: PlaybackPreferencesStore,
+        appUpdateCoordinator: AppUpdateCoordinator,
+        homeChannelSyncManager: HomeChannelSyncManager,
+        homeChannelBackgroundScheduler: HomeChannelBackgroundScheduler,
+        appUpdateBackgroundScheduler: AppUpdateBackgroundScheduler,
+        releaseApkLauncher: ReleaseApkLauncher,
+        ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+        debounceIntervalMs: Long,
+    ) : this(
+        preferencesStore = preferencesStore,
+        appUpdateCoordinator = appUpdateCoordinator,
+        homeChannelSyncManager = homeChannelSyncManager,
+        homeChannelBackgroundScheduler = homeChannelBackgroundScheduler,
+        appUpdateBackgroundScheduler = appUpdateBackgroundScheduler,
+        releaseApkLauncher = releaseApkLauncher,
+        ioDispatcher = ioDispatcher,
+    ) {
+        this.debounceIntervalMs = debounceIntervalMs
     }
 }
 

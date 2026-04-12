@@ -153,11 +153,7 @@ class LostFilmSeasonEpisodesParser {
             return null
         }
 
-        val episodeTitleRu = gammaCell
-            ?.ownText()
-            .orEmpty()
-            .normalizeText()
-            .ifBlank { null }
+        val episodeTitleRu = gammaCell.extractEpisodeTitle()
         val watchedButton = row.selectFirst(".haveseen-btn")
         val isWatched = watchedButton?.classNames()?.contains("checked") == true ||
             watchedButton?.attr("data-episode").orEmpty() in watchedEpisodeIds
@@ -209,16 +205,7 @@ class LostFilmSeasonEpisodesParser {
                 ?.normalizeText()
                 ?: return null
 
-        val episodeTitleRu = gammaCell
-            ?.selectFirst("div")
-            ?.ownText()
-            ?.normalizeText()
-            ?.ifBlank { null }
-            ?: gammaCell
-                ?.ownText()
-                .orEmpty()
-                .normalizeText()
-                .ifBlank { null }
+        val episodeTitleRu = gammaCell.extractEpisodeTitle()
 
         val watchedButton = row.selectFirst(".haveseen-btn")
         val episodeId = watchedButton
@@ -238,4 +225,17 @@ class LostFilmSeasonEpisodesParser {
             isWatched = isWatched,
         )
     }
+}
+
+private fun Element?.extractEpisodeTitle(): String? {
+    return this
+        ?.selectFirst("div")
+        ?.ownText()
+        ?.normalizeText()
+        ?.ifBlank { null }
+        ?: this
+            ?.ownText()
+            .orEmpty()
+            .normalizeText()
+            .ifBlank { null }
 }

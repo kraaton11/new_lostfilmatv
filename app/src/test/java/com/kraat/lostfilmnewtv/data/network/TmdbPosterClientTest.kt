@@ -67,7 +67,57 @@ class TmdbPosterClientTest {
     }
 
     @Test
-    fun getPosterAndBackdrop_doesNotCallEnglish_whenRussianBackdropExists() = runTest {
+    fun getPosterAndBackdrop_usesEnglishPoster_whenRussianPosterMissing() = runTest {
+        val requestedUrls = mutableListOf<String>()
+        val client = TmdbPosterClient(
+            okHttpClient = OkHttpClient.Builder()
+                .addInterceptor(Interceptor { chain ->
+                    val url = chain.request().url.toString()
+                    requestedUrls += url
+                    val body = when {
+                        url.contains("language=ru") -> {
+                            """
+                            {
+                              "posters": [],
+                              "backdrops": [{"file_path": "/ru-backdrop.jpg"}]
+                            }
+                            """.trimIndent()
+                        }
+
+                        url.contains("language=en") -> {
+                            """
+                            {
+                              "posters": [{"file_path": "/en-poster.jpg"}],
+                              "backdrops": [{"file_path": "/en-backdrop.jpg"}]
+                            }
+                            """.trimIndent()
+                        }
+
+                        else -> "{" + "\"posters\": [], \"backdrops\": []}"
+                    }
+
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body(body.toResponseBody())
+                        .build()
+                })
+                .build(),
+            apiKey = "test",
+        )
+
+        val result = client.getPosterAndBackdrop(123, TmdbMediaType.TV)
+
+        requireNotNull(result)
+        assertEquals("https://image.tmdb.org/t/p/w780/en-poster.jpg", result.posterUrl)
+        assertEquals("https://image.tmdb.org/t/p/original/ru-backdrop.jpg", result.backdropUrl)
+        assertTrue(requestedUrls.any { it.contains("language=en") && it.contains("include_image_language=en,null") })
+    }
+
+    @Test
+    fun getPosterAndBackdrop_doesNotCallEnglish_whenRussianPosterAndBackdropExist() = runTest {
         val requestedUrls = mutableListOf<String>()
         val client = TmdbPosterClient(
             okHttpClient = OkHttpClient.Builder()

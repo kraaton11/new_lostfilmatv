@@ -21,6 +21,7 @@ import com.kraat.lostfilmnewtv.ui.auth.AuthViewModel
 import com.kraat.lostfilmnewtv.ui.details.DetailsRoute
 import com.kraat.lostfilmnewtv.ui.guide.SeriesGuideRoute
 import com.kraat.lostfilmnewtv.ui.home.HomeScreen
+import com.kraat.lostfilmnewtv.ui.overview.SeriesOverviewRoute
 import com.kraat.lostfilmnewtv.ui.home.HomeViewModel
 import com.kraat.lostfilmnewtv.ui.settings.SettingsRoute
 import com.kraat.lostfilmnewtv.ui.settings.SettingsViewModel
@@ -131,9 +132,20 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                     navController.previousBackStackEntry?.savedStateHandle?.set(HOME_FAVORITE_CHANGED_DETAILS_URL_KEY, url)
                     navController.previousBackStackEntry?.savedStateHandle?.set(HOME_FAVORITE_CHANGED_STATE_KEY, isFav)
                 },
+                onOpenSeriesOverview = { url -> navController.navigate(AppDestination.SeriesOverview.createRoute(url)) },
                 onOpenSeriesGuide = { url -> navController.navigate(AppDestination.SeriesGuide.createRoute(url)) },
                 onChannelContentChanged = appGraphEntryPoint.homeChannelSyncManager()::syncNow,
             )
+        }
+
+        // ── Series Overview ───────────────────────────────────────────────────
+        composable(
+            route = AppDestination.SeriesOverview.route,
+            arguments = listOf(
+                navArgument(AppDestination.SeriesOverview.detailsUrlArg) { type = NavType.StringType },
+            ),
+        ) {
+            SeriesOverviewRoute()
         }
 
         // ── Series Guide ──────────────────────────────────────────────────────

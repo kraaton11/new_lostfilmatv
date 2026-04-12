@@ -37,13 +37,13 @@ class LostFilmListParser {
         }
         val overlayLabel = contentLink.selectFirst(".overlay .left-part").textOrEmpty()
         val isMovie = overlayLabel.contains("Фильм", ignoreCase = true)
-        val detailsAlphaValues = contentLink.select(".details-pane .alpha")
+        val detailsPaneValues = contentLink.select(".details-pane .alpha, .details-pane .beta")
             .map { it.text().normalizeText() }
 
         val detailsUrl = contentLink.absoluteUrl("href")
         val posterUrl = contentLink.selectFirst(".picture-box img.thumb").absoluteUrl("src")
         val isWatched = row.selectFirst(".haveseen-btn.checked") != null
-        val releaseDateRu = detailsAlphaValues
+        val releaseDateRu = detailsPaneValues
             .firstOrNull { it.startsWith("Дата выхода Ru:") }
             ?.substringAfter(':')
             ?.trim()
@@ -58,9 +58,9 @@ class LostFilmListParser {
             match.groupValues[1].toInt() to match.groupValues[2].toInt()
         }
 
-        val episodeTitleRu = detailsAlphaValues
+        val episodeTitleRu = detailsPaneValues
             .firstOrNull { value ->
-                value.isNotBlank() && !value.startsWith("Дата выхода Ru:")
+                value.isNotBlank() && !value.startsWith("Дата выхода", ignoreCase = true)
             }
             ?.takeUnless { it.isBlank() }
 

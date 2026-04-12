@@ -8,6 +8,7 @@ data class DetailsStageUiModel(
     val title: String,
     val heroEpisodeTitle: String,
     val heroMetaLine: String,
+    val heroStatusLine: String,
     val primaryAction: DetailsStageActionUiModel,
     val secondaryActions: List<DetailsStageActionUiModel>,
 )
@@ -44,6 +45,7 @@ fun buildDetailsStageUi(
             enabled = false,
         )
     val heroMetaLine = buildHeroMetaLine(details = details)
+    val heroStatusLine = buildHeroStatusLine(details = details)
     val favoriteAction = details
         ?.takeIf { it.favoriteTargetId != null || state.favoriteActionLabel.isNotBlank() }
         ?.let {
@@ -64,6 +66,19 @@ fun buildDetailsStageUi(
             enabled = state.isFavoriteActionEnabled,
         )
     }
+    val overviewAction = details
+        ?.takeIf { it.kind == ReleaseKind.SERIES }
+        ?.let {
+            DetailsStageActionUiModel(
+                actionId = "series-overview",
+                rowId = null,
+                label = "Обзор",
+                subtitle = "Описание сериала",
+                qualityLabel = null,
+                actionType = DetailsStageActionType.OPEN_SERIES_OVERVIEW,
+                enabled = true,
+            )
+        }
     val guideAction = details
         ?.takeIf { it.kind == ReleaseKind.SERIES }
         ?.let {
@@ -83,8 +98,9 @@ fun buildDetailsStageUi(
         title = details?.titleRu ?: "",
         heroEpisodeTitle = buildHeroEpisodeTitle(details = details),
         heroMetaLine = heroMetaLine,
+        heroStatusLine = heroStatusLine,
         primaryAction = primaryAction,
-        secondaryActions = listOfNotNull(favoriteAction, guideAction),
+        secondaryActions = listOfNotNull(overviewAction, favoriteAction, guideAction),
     )
 }
 
@@ -109,6 +125,27 @@ private fun buildHeroMetaLine(details: ReleaseDetails?): String {
     }
 }
 
+private fun buildHeroStatusLine(details: ReleaseDetails?): String {
+    if (details?.kind != ReleaseKind.SERIES) {
+        return ""
+    }
+
+    val status = details.seriesStatusRu
+        ?.replace(Regex("""\s+"""), " ")
+        ?.trim()
+        .orEmpty()
+
+    if (status.isBlank()) {
+        return ""
+    }
+
+    return if (status.startsWith("Статус:", ignoreCase = true)) {
+        status
+    } else {
+        "Статус: $status"
+    }
+}
+
 private fun DetailsTorrentRowUiModel.toPrimaryAction(
     isBusy: Boolean,
 ): DetailsStageActionUiModel {
@@ -126,6 +163,7 @@ private fun DetailsTorrentRowUiModel.toPrimaryAction(
 enum class DetailsStageActionType {
     OPEN_TORRSERVE,
     TOGGLE_FAVORITE,
+    OPEN_SERIES_OVERVIEW,
     OPEN_SERIES_GUIDE,
     NONE,
 }

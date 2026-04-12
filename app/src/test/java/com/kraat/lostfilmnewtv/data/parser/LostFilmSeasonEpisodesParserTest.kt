@@ -81,6 +81,23 @@ class LostFilmSeasonEpisodesParserTest {
     }
 
     @Test
+    fun parse_extractsEpisodeTitlesForFavorites_whenGammaCellUsesNestedDiv() {
+        val items = parser.parse(
+            html = fixture("series-guide-ted-seasons.html"),
+            series = FavoriteSeriesRef(
+                titleRu = "Третий лишний",
+                posterUrl = "https://www.lostfilm.today/Static/Images/810/Posters/image.jpg",
+                seriesUrl = "https://www.lostfilm.today/series/Ted",
+            ),
+            fetchedAt = 1_773_576_000_000L,
+        )
+
+        assertEquals(4, items.size)
+        assertEquals("Левые новости", items.first { it.episodeNumber == 8 }.episodeTitleRu)
+        assertEquals("Сьюзен мотает срок", items.first { it.episodeNumber == 7 }.episodeTitleRu)
+    }
+
+    @Test
     fun parseGuide_marksEpisodeWatched_whenEpisodeIdPresentInWatchedSetOrCheckedInPage() {
         val guide = parser.parseGuide(
             html = fixture("series-guide-ted-seasons.html"),

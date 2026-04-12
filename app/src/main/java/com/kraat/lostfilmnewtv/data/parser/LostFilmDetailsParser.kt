@@ -69,6 +69,23 @@ class LostFilmDetailsParser {
         )
     }
 
+    fun parseSeriesStatus(html: String): String? {
+        val statusText = Jsoup.parse(html, BASE_URL)
+            .selectFirst(".title-block .status")
+            ?.text()
+            ?.normalizeText()
+            .orEmpty()
+
+        if (statusText.isBlank()) {
+            return null
+        }
+
+        return statusText
+            .substringAfter("Статус:", statusText)
+            .normalizeText()
+            .takeIf { it.isNotBlank() }
+    }
+
     fun parseTorrentRedirect(html: String): String? {
         val match = torrentRedirectRegex.find(html) ?: return null
         return resolveUrl(match.value)

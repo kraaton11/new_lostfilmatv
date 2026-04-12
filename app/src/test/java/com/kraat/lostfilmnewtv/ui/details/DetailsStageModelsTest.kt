@@ -47,6 +47,14 @@ class DetailsStageModelsTest {
             true,
             ui.secondaryActions.any { it.actionType == DetailsStageActionType.OPEN_SERIES_GUIDE },
         )
+        assertEquals(
+            true,
+            ui.secondaryActions.any { it.actionType == DetailsStageActionType.OPEN_SERIES_OVERVIEW },
+        )
+        assertEquals(
+            DetailsStageActionType.OPEN_SERIES_OVERVIEW,
+            ui.secondaryActions.first().actionType,
+        )
     }
 
     @Test
@@ -69,6 +77,7 @@ class DetailsStageModelsTest {
 
         assertEquals("The Engineer", ui.heroEpisodeTitle)
         assertEquals("Сезон 1 • Серия 5", ui.heroMetaLine)
+        assertEquals("Статус: Идет 1 сезон. Следующая серия: 12 апреля 2026 года", ui.heroStatusLine)
     }
 
     @Test
@@ -91,6 +100,7 @@ class DetailsStageModelsTest {
 
         assertEquals("", ui.heroEpisodeTitle)
         assertEquals("Фильм", ui.heroMetaLine)
+        assertEquals("", ui.heroStatusLine)
     }
 
     @Test
@@ -187,6 +197,7 @@ private fun seriesDetails(): ReleaseDetails = ReleaseDetails(
     posterUrl = "https://example.com/poster.jpg",
     fetchedAt = 0L,
     episodeTitleRu = "The Engineer",
+    seriesStatusRu = "Идет 1 сезон. Следующая серия: 12 апреля 2026 года",
 )
 
 private fun movieDetails(): ReleaseDetails = ReleaseDetails(

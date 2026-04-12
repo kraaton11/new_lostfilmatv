@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -62,6 +63,7 @@ import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceSoft
 import com.kraat.lostfilmnewtv.ui.theme.DetailsTextMuted
 import com.kraat.lostfilmnewtv.ui.theme.DetailsTextSecondary
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
+import kotlinx.coroutines.withTimeoutOrNull
 
 @Composable
 fun DetailsScreen(
@@ -69,6 +71,7 @@ fun DetailsScreen(
     isAuthenticated: Boolean,
     onRetry: () -> Unit,
     onFavoriteClick: () -> Unit = {},
+    onSeriesOverviewClick: () -> Unit = {},
     onSeriesGuideClick: () -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -84,6 +87,7 @@ fun DetailsScreen(
         isTorrServeBusy = false,
         onRetry = onRetry,
         onFavoriteClick = onFavoriteClick,
+        onSeriesOverviewClick = onSeriesOverviewClick,
         onSeriesGuideClick = onSeriesGuideClick,
         onOpenTorrServe = { _, url ->
             context.startActivity(
@@ -106,6 +110,7 @@ fun DetailsScreen(
     isTorrServeBusy: Boolean,
     onRetry: () -> Unit,
     onFavoriteClick: () -> Unit = {},
+    onSeriesOverviewClick: () -> Unit = {},
     onSeriesGuideClick: () -> Unit = {},
     onOpenTorrServe: (String, String) -> Unit,
 ) {
@@ -121,6 +126,7 @@ fun DetailsScreen(
             activeTorrServeRowId = activeTorrServeRowId,
             isTorrServeBusy = isTorrServeBusy,
             onFavoriteClick = onFavoriteClick,
+            onSeriesOverviewClick = onSeriesOverviewClick,
             onSeriesGuideClick = onSeriesGuideClick,
             onOpenTorrServe = onOpenTorrServe,
         )
@@ -175,6 +181,7 @@ private fun ContentState(
     activeTorrServeRowId: String?,
     isTorrServeBusy: Boolean,
     onFavoriteClick: () -> Unit,
+    onSeriesOverviewClick: () -> Unit,
     onSeriesGuideClick: () -> Unit,
     onOpenTorrServe: (String, String) -> Unit,
 ) {
@@ -213,6 +220,7 @@ private fun ContentState(
                 details = details,
                 stageUi = stageUi,
                 onFavoriteClick = onFavoriteClick,
+                onSeriesOverviewClick = onSeriesOverviewClick,
                 onSeriesGuideClick = onSeriesGuideClick,
                 onOpenTorrServe = {
                     val row = playbackRow ?: return@HeroStage
@@ -284,19 +292,30 @@ private fun HeroStage(
     details: ReleaseDetails?,
     stageUi: DetailsStageUiModel,
     onFavoriteClick: () -> Unit,
+    onSeriesOverviewClick: () -> Unit,
     onSeriesGuideClick: () -> Unit,
     onOpenTorrServe: () -> Unit,
 ) {
     val primaryActionRequester = remember(stageUi.primaryAction.actionId) { FocusRequester() }
     val secondaryActions = stageUi.secondaryActions
+    val leadingAction = secondaryActions.firstOrNull { it.actionType == DetailsStageActionType.OPEN_SERIES_OVERVIEW }
+    val trailingActions = if (leadingAction == null) secondaryActions else secondaryActions.filterNot { it.actionId == leadingAction.actionId }
+    val useFlexibleActionWidth = secondaryActions.size >= 3
+    var isPrimaryActionFocused by remember(stageUi.primaryAction.actionId, stageUi.title) { mutableStateOf(false) }
+    var isLeadingActionFocusable by remember(stageUi.primaryAction.actionId, leadingAction?.actionId) {
+        mutableStateOf(leadingAction == null)
+    }
     val secondaryActionRequesters = remember(secondaryActions.map { it.actionId }) {
         secondaryActions.associate { it.actionId to FocusRequester() }
     }
 
-    LaunchedEffect(stageUi.primaryAction.actionId, stageUi.primaryAction.enabled) {
-        if (stageUi.primaryAction.enabled) {
-            withFrameNanos { }
-            primaryActionRequester.requestFocus()
+    LaunchedEffect(stageUi.primaryAction.actionId, stageUi.title) {
+        val focusApplied = requestDetailsFocusWhenReady(
+            requester = primaryActionRequester,
+            isFocused = { isPrimaryActionFocused },
+        )
+        if (leadingAction != null && focusApplied) {
+            isLeadingActionFocusable = true
         }
     }
 
@@ -340,6 +359,16 @@ private fun HeroStage(
                         lineHeight = 20.sp,
                     )
                 }
+                if (stageUi.heroStatusLine.isNotBlank()) {
+                    Text(
+                        text = stageUi.heroStatusLine,
+                        modifier = Modifier.testTag("details-hero-status"),
+                        color = DetailsTextSecondary,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium,
+                        lineHeight = 22.sp,
+                    )
+                }
             }
         }
 
@@ -350,28 +379,46 @@ private fun HeroStage(
             horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            StageButton(
-                label = stageUi.primaryAction.label,
-                subtitle = stageUi.primaryAction.subtitle,
-                onClick = onOpenTorrServe,
-                modifier = Modifier
-                    .width(248.dp)
-                    .focusRequester(primaryActionRequester)
-                    .testTag(primaryActionTag(stageUi.primaryAction)),
-                isPrimary = true,
-                enabled = stageUi.primaryAction.enabled,
-            )
-            secondaryActions.forEach { action ->
+            leadingAction?.let { action ->
                 StageButton(
                     label = action.label,
                     subtitle = action.subtitle,
                     onClick = secondaryActionClickHandler(
                         action = action,
                         onFavoriteClick = onFavoriteClick,
+                        onSeriesOverviewClick = onSeriesOverviewClick,
                         onSeriesGuideClick = onSeriesGuideClick,
                     ),
-                    modifier = Modifier
-                        .width(248.dp)
+                    modifier = actionButtonModifier(useFlexibleActionWidth)
+                        .focusProperties { canFocus = isLeadingActionFocusable }
+                        .focusRequester(secondaryActionRequesters.getValue(action.actionId))
+                        .testTag(secondaryActionTag(action)),
+                    enabled = action.enabled,
+                    isSecondary = true,
+                )
+            }
+            StageButton(
+                label = stageUi.primaryAction.label,
+                subtitle = stageUi.primaryAction.subtitle,
+                onClick = onOpenTorrServe,
+                modifier = actionButtonModifier(useFlexibleActionWidth)
+                    .focusRequester(primaryActionRequester)
+                    .testTag(primaryActionTag(stageUi.primaryAction)),
+                isPrimary = true,
+                enabled = stageUi.primaryAction.enabled,
+                onFocusedChange = { isPrimaryActionFocused = it },
+            )
+            trailingActions.forEach { action ->
+                StageButton(
+                    label = action.label,
+                    subtitle = action.subtitle,
+                    onClick = secondaryActionClickHandler(
+                        action = action,
+                        onFavoriteClick = onFavoriteClick,
+                        onSeriesOverviewClick = onSeriesOverviewClick,
+                        onSeriesGuideClick = onSeriesGuideClick,
+                    ),
+                    modifier = actionButtonModifier(useFlexibleActionWidth)
                         .focusRequester(secondaryActionRequesters.getValue(action.actionId))
                         .testTag(secondaryActionTag(action)),
                     enabled = action.enabled,
@@ -379,6 +426,15 @@ private fun HeroStage(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun RowScope.actionButtonModifier(useFlexibleActionWidth: Boolean): Modifier {
+    return if (useFlexibleActionWidth) {
+        Modifier.weight(1f)
+    } else {
+        Modifier.width(248.dp)
     }
 }
 
@@ -428,8 +484,10 @@ private fun StageButton(
     enabled: Boolean = true,
     isPrimary: Boolean = false,
     isSecondary: Boolean = false,
+    onFocusedChange: (Boolean) -> Unit = {},
 ) {
     var isFocused by remember { mutableStateOf(false) }
+    val isInteractionEnabled = enabled
     val scale by animateFloatAsState(
         targetValue = if (isFocused) 1.03f else 1f,
         animationSpec = tween(durationMillis = 110),
@@ -453,21 +511,27 @@ private fun StageButton(
     val subtitleColor = if (isPrimary) Color(0xFF473317) else DetailsTextMuted
 
     Button(
-        onClick = onClick,
-        enabled = enabled,
+        onClick = {
+            if (isInteractionEnabled) {
+                onClick()
+            }
+        },
+        enabled = true,
         shape = RoundedCornerShape(22.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = background,
             disabledContainerColor = DetailsSurfaceSoft.copy(alpha = 0.55f),
         ),
         modifier = modifier
-            .fillMaxWidth()
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
             }
             .border(1.5.dp, border, RoundedCornerShape(22.dp))
-            .onFocusChanged { isFocused = it.isFocused },
+            .onFocusChanged {
+                isFocused = it.isFocused
+                onFocusedChange(it.isFocused)
+            },
     ) {
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -504,6 +568,7 @@ private fun primaryActionTag(action: DetailsStageActionUiModel): String {
     return when (action.actionType) {
         DetailsStageActionType.OPEN_TORRSERVE -> "torrent-torrserve-$rowId"
         DetailsStageActionType.TOGGLE_FAVORITE -> "details-primary-action"
+        DetailsStageActionType.OPEN_SERIES_OVERVIEW -> "details-primary-action"
         DetailsStageActionType.OPEN_SERIES_GUIDE -> "details-primary-action"
         DetailsStageActionType.NONE -> "details-primary-action"
     }
@@ -512,6 +577,7 @@ private fun primaryActionTag(action: DetailsStageActionUiModel): String {
 private fun secondaryActionTag(action: DetailsStageActionUiModel): String {
     return when (action.actionType) {
         DetailsStageActionType.TOGGLE_FAVORITE -> "details-favorite-action"
+        DetailsStageActionType.OPEN_SERIES_OVERVIEW -> "details-series-overview-action"
         DetailsStageActionType.OPEN_SERIES_GUIDE -> "details-series-guide-action"
         DetailsStageActionType.OPEN_TORRSERVE -> "details-secondary-${action.actionId}"
         DetailsStageActionType.NONE -> "details-secondary-${action.actionId}"
@@ -521,13 +587,33 @@ private fun secondaryActionTag(action: DetailsStageActionUiModel): String {
 private fun secondaryActionClickHandler(
     action: DetailsStageActionUiModel,
     onFavoriteClick: () -> Unit,
+    onSeriesOverviewClick: () -> Unit,
     onSeriesGuideClick: () -> Unit,
 ): () -> Unit {
     return when (action.actionType) {
         DetailsStageActionType.TOGGLE_FAVORITE -> onFavoriteClick
+        DetailsStageActionType.OPEN_SERIES_OVERVIEW -> onSeriesOverviewClick
         DetailsStageActionType.OPEN_SERIES_GUIDE -> onSeriesGuideClick
         DetailsStageActionType.OPEN_TORRSERVE,
         DetailsStageActionType.NONE,
         -> ({})
     }
+}
+
+private suspend fun requestDetailsFocusWhenReady(
+    requester: FocusRequester,
+    isFocused: () -> Boolean,
+): Boolean {
+    if (isFocused()) {
+        return true
+    }
+
+    var focusMoved = false
+    withTimeoutOrNull(1_000L) {
+        while (!isFocused()) {
+            withFrameNanos { }
+            focusMoved = runCatching { requester.requestFocus() }.getOrDefault(false)
+        }
+    }
+    return focusMoved || isFocused()
 }

@@ -1,6 +1,7 @@
 package com.kraat.lostfilmnewtv.navigation
 
 import android.content.Context
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.ResolveInfo
@@ -11,13 +12,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
-import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.test.core.app.ApplicationProvider
+import com.kraat.lostfilmnewtv.TestHiltActivity
 import com.kraat.lostfilmnewtv.data.auth.AuthCompletionResult
 import com.kraat.lostfilmnewtv.data.auth.AuthRepositoryContract
 import com.kraat.lostfilmnewtv.data.model.AuthState
@@ -35,6 +37,7 @@ import com.kraat.lostfilmnewtv.data.model.TorrentLink
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult
+import com.kraat.lostfilmnewtv.di.UnitTestAppOverrides
 import com.kraat.lostfilmnewtv.di.UnitTestFakeAuthRepository
 import com.kraat.lostfilmnewtv.di.UnitTestFakeRepository
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
@@ -68,7 +71,6 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
-import kotlinx.coroutines.CompletableDeferred
 import okhttp3.OkHttpClient
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -91,7 +93,7 @@ class AppNavGraphTorrServeTest {
     val hiltRule = HiltAndroidRule(this)
 
     @get:Rule(order = 1)
-    val composeRule = createComposeRule()
+    val composeRule = createAndroidComposeRule<TestHiltActivity>()
 
     // Hilt инжектирует те же синглтоны, что зарегистрированы в UnitTestDataModule
     @Inject lateinit var fakeRepository: LostFilmRepository
@@ -99,18 +101,66 @@ class AppNavGraphTorrServeTest {
 
     // Перекрываемые зависимости — тест задаёт их явно через поля
     private var torrServeActionHandler: TorrServeActionHandler = unavailableTorrServeActionHandler()
+        set(value) {
+            field = value
+            UnitTestAppOverrides.torrServeActionHandler = value
+        }
     private var homeChannelSyncManager: HomeChannelSyncManager = testHomeChannelSyncManager()
+        set(value) {
+            field = value
+            UnitTestAppOverrides.homeChannelSyncManager = value
+        }
     private var homeChannelBackgroundScheduler: HomeChannelBackgroundScheduler = testHomeChannelBackgroundScheduler()
+        set(value) {
+            field = value
+            UnitTestAppOverrides.homeChannelBackgroundScheduler = value
+        }
     private var appUpdateBackgroundScheduler: QuietAppUpdateBackgroundScheduler = testAppUpdateBackgroundScheduler()
-    private var appUpdateCoordinator: AppUpdateCoordinator = defaultTestAppUpdateCoordinator()
+        set(value) {
+            field = value
+            UnitTestAppOverrides.appUpdateBackgroundScheduler = value
+        }
+    private var appUpdateCoordinator: AppUpdateCoordinator? = null
+        set(value) {
+            field = value
+            UnitTestAppOverrides.appUpdateCoordinator = value
+        }
     private var playbackPreferencesStore: PlaybackPreferencesStore? = null
+        set(value) {
+            field = value
+            UnitTestAppOverrides.playbackPreferencesStore = value
+        }
     private var releaseApkLauncher: ReleaseApkLauncher? = null
+        set(value) {
+            field = value
+            UnitTestAppOverrides.releaseApkLauncher = value
+        }
     private var appUpdateRepository: AppUpdateRepository? = null
+        set(value) {
+            field = value
+            UnitTestAppOverrides.appUpdateRepository = value
+        }
 
     @Before
     fun setUp() {
         hiltRule.inject()
         torrServeOpenCalls.set(0)
+        UnitTestAppOverrides.reset()
+        (fakeRepository as UnitTestFakeRepository).apply {
+            pageState = PageState.Content(pageNumber = 1, items = listOf(TEST_SUMMARY), hasNextPage = false, isStale = false)
+            detailsResult = DetailsResult.Success(TEST_DETAILS, false)
+            seriesGuideResult = SeriesGuideResult.Error("not needed")
+            favoriteReleasesResult = FavoriteReleasesResult.Unavailable()
+        }
+        (fakeAuthRepository as UnitTestFakeAuthRepository).authState = AuthState(isAuthenticated = false, session = null)
+        torrServeActionHandler = unavailableTorrServeActionHandler()
+        homeChannelSyncManager = testHomeChannelSyncManager()
+        homeChannelBackgroundScheduler = testHomeChannelBackgroundScheduler()
+        appUpdateBackgroundScheduler = testAppUpdateBackgroundScheduler()
+        appUpdateCoordinator = null
+        playbackPreferencesStore = null
+        releaseApkLauncher = null
+        appUpdateRepository = null
 
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         val resolveInfo = ResolveInfo().apply {
@@ -120,6 +170,17 @@ class AppNavGraphTorrServeTest {
             addResolveInfoForIntent(
                 Intent(Intent.ACTION_VIEW).apply { data = android.net.Uri.parse("http://") },
                 resolveInfo,
+            )
+            addResolveInfoForIntent(
+                Intent(Intent.ACTION_MAIN)
+                    .addCategory(Intent.CATEGORY_LAUNCHER)
+                    .setComponent(ComponentName(context, TestHiltActivity::class.java)),
+                ResolveInfo().apply {
+                    activityInfo = ActivityInfo().apply {
+                        packageName = context.packageName
+                        name = TestHiltActivity::class.java.name
+                    }
+                },
             )
         }
     }
@@ -134,6 +195,7 @@ class AppNavGraphTorrServeTest {
             favoriteReleasesResult = FavoriteReleasesResult.Unavailable()
         }
         (fakeAuthRepository as UnitTestFakeAuthRepository).authState = AuthState(isAuthenticated = false, session = null)
+        UnitTestAppOverrides.reset()
     }
 
     // ── вспомогательный builder для AppNavGraph в тестах ──────────────────
@@ -204,35 +266,21 @@ class AppNavGraphTorrServeTest {
     }
 
     @Test
-    fun startup_composition_triggers_single_channel_sync_before_home_content_finishes_loading() {
-        val pageResult = CompletableDeferred<PageState>()
-        val workManager = mock(androidx.work.WorkManager::class.java)
-        (fakeRepository as UnitTestFakeRepository).pageState = PageState.Content(
-            pageNumber = 1, items = emptyList(), hasNextPage = false, isStale = false
-        )
-        homeChannelBackgroundScheduler = HomeChannelBackgroundScheduler(
-            readMode = { AndroidTvChannelMode.ALL_NEW }, workManager = workManager,
-        )
-        (fakeRepository as UnitTestFakeRepository).pageState = pageResult.let {
-            // we block via a deferred — override loadPage via lambda workaround:
-            // simpler: set blocking repo separately
-            PageState.Content(pageNumber = 1, items = listOf(TEST_SUMMARY), hasNextPage = false, isStale = false)
-        }
+    fun startup_composition_syncs_home_channel_once_when_home_content_loads() {
+        val syncCalls = AtomicInteger(0)
+        homeChannelSyncManager = countingHomeChannelSyncManager(syncCalls)
 
         setContentWithNavGraph()
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            mockingDetails(workManager).invocations.count { it.method.name == "enqueueUniquePeriodicWork" } == 1
+            syncCalls.get() == 1
         }
-        assertEquals(
-            1,
-            mockingDetails(workManager).invocations.count { it.method.name == "enqueueUniquePeriodicWork" },
-        )
         composeRule.waitForText("Новые релизы")
+        assertEquals(1, syncCalls.get())
     }
 
     @Test
-    fun startup_composition_schedules_background_update_refresh_once() {
+    fun startup_composition_does_not_schedule_background_update_work() {
         val workManager = mock(androidx.work.WorkManager::class.java)
         appUpdateBackgroundScheduler = QuietAppUpdateBackgroundScheduler(
             readMode = { UpdateCheckMode.QUIET_CHECK }, workManager = workManager,
@@ -240,14 +288,11 @@ class AppNavGraphTorrServeTest {
 
         setContentWithNavGraph()
 
-        composeRule.waitUntil(timeoutMillis = 5_000) {
-            mockingDetails(workManager).invocations.count { it.method.name == "enqueueUniquePeriodicWork" } == 1
-        }
+        composeRule.waitForText("Новые релизы")
         assertEquals(
-            1,
+            0,
             mockingDetails(workManager).invocations.count { it.method.name == "enqueueUniquePeriodicWork" },
         )
-        composeRule.waitForText("Новые релизы")
     }
 
     @Test
@@ -435,7 +480,8 @@ private class RecordingReleaseApkLauncher(private val launchResult: Boolean = tr
     override suspend fun launch(
         context: Context,
         apkUrl: String,
-        onProgress: (Boolean) -> Unit,
+        onDownloadingChange: (Boolean) -> Unit,
+        onDownloadProgress: (Int) -> Unit,
     ): Boolean {
         launchedUrls.add(apkUrl)
         return launchResult
@@ -485,7 +531,14 @@ private fun unavailableTorrServeActionHandler(): TorrServeActionHandler = TorrSe
             return false
         }
     },
-    launcher = object : TorrServeUrlLauncher { override suspend fun launch(context: Context, url: String) = Unit },
+    launcher = object : TorrServeUrlLauncher {
+        override suspend fun launch(
+            context: Context,
+            torrServeUrl: String,
+            title: String,
+            poster: String,
+        ): Boolean = false
+    },
 )
 
 private fun testHomeChannelSyncManager(): HomeChannelSyncManager = HomeChannelSyncManager(
@@ -510,6 +563,39 @@ private fun testHomeChannelSyncManager(): HomeChannelSyncManager = HomeChannelSy
     publisher = object : HomeChannelPublisher {
         override suspend fun reconcile(mode: AndroidTvChannelMode, existingChannelId: Long?, programs: List<HomeChannelProgram>) =
             HomeChannelPublisherResult(channelId = existingChannelId ?: 1L)
+        override suspend fun deleteChannel(channelId: Long) = Unit
+    },
+)
+
+private fun countingHomeChannelSyncManager(syncCalls: AtomicInteger): HomeChannelSyncManager = HomeChannelSyncManager(
+    programSource = object : HomeChannelProgramSource {
+        override suspend fun loadPrograms(mode: AndroidTvChannelMode, limit: Int) = listOf(
+            HomeChannelProgram(
+                detailsUrl = TEST_SUMMARY.detailsUrl,
+                title = TEST_SUMMARY.titleRu,
+                description = TEST_SUMMARY.episodeTitleRu.orEmpty(),
+                posterUrl = TEST_SUMMARY.posterUrl,
+                internalProviderId = TEST_SUMMARY.detailsUrl,
+            ),
+        )
+    },
+    preferences = object : HomeChannelPreferences {
+        private var storedChannelId: Long? = null
+        override fun readMode() = AndroidTvChannelMode.ALL_NEW
+        override fun readChannelId() = storedChannelId
+        override fun writeChannelId(channelId: Long) { storedChannelId = channelId }
+        override fun clearChannelId() { storedChannelId = null }
+    },
+    publisher = object : HomeChannelPublisher {
+        override suspend fun reconcile(
+            mode: AndroidTvChannelMode,
+            existingChannelId: Long?,
+            programs: List<HomeChannelProgram>,
+        ): HomeChannelPublisherResult {
+            syncCalls.incrementAndGet()
+            return HomeChannelPublisherResult(channelId = existingChannelId ?: 1L)
+        }
+
         override suspend fun deleteChannel(channelId: Long) = Unit
     },
 )
