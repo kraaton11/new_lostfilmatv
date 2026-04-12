@@ -60,11 +60,10 @@ fun HomeRail(
         cardFocusRequesters[homeItemKey(railId, detailsUrl)]
     }
     val listState = remember(railId) { LazyListState() }
-    var railHasFocus by remember(railId) { mutableStateOf(false) }
     var focusedCardKey by remember(railId) { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(railHasFocus, shouldRequestFocus, targetIndex, targetRequester) {
-        if (!railHasFocus || !shouldRequestFocus || targetRequester == null || targetIndex < 0) {
+    LaunchedEffect(shouldRequestFocus, targetIndex, targetRequester) {
+        if (!shouldRequestFocus || targetRequester == null || targetIndex < 0) {
             return@LaunchedEffect
         }
 
@@ -84,7 +83,7 @@ fun HomeRail(
                     }
                 }
             }
-            .onFocusChanged { railHasFocus = it.hasFocus }
+            .focusable()
             .height(308.dp),
         horizontalArrangement = Arrangement.spacedBy(20.dp),
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
@@ -119,6 +118,7 @@ fun HomeRail(
                             focusedCardKey = null
                         }
                     }
+                    .focusable()
                     .clickable { onOpenDetails(item.detailsUrl) },
             )
         }

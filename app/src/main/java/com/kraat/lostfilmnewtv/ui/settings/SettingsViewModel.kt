@@ -116,6 +116,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun onInstallDownloadProgress(isDownloading: Boolean) {
+        _uiState.update { it.copy(isDownloadingUpdate = isDownloading) }
     }
 
     fun installUpdate(context: android.content.Context, apkUrl: String) {
@@ -128,7 +129,6 @@ class SettingsViewModel @Inject constructor(
             )
             if (!launched) onInstallUpdateFailed()
         }
-        _uiState.update { it.copy(isDownloadingUpdate = isDownloading) }
     }
 
     private fun refreshUpdateInfo() {
