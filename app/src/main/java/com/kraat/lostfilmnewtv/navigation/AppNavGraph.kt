@@ -4,6 +4,8 @@ import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavType
@@ -11,6 +13,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import dagger.hilt.android.EntryPointAccessors
+import com.kraat.lostfilmnewtv.di.AppGraphEntryPoint
 import com.kraat.lostfilmnewtv.ui.auth.AuthScreen
 import com.kraat.lostfilmnewtv.ui.auth.AuthUiState
 import com.kraat.lostfilmnewtv.ui.auth.AuthViewModel
@@ -27,7 +31,12 @@ private const val HOME_FAVORITE_CHANGED_STATE_KEY = "home.favorite_changed_state
 
 @Composable
 fun AppNavGraph(initialDetailsUrl: String? = null) {
+    val context = LocalContext.current
     val navController = rememberNavController()
+    val appContext = context.applicationContext
+    val appGraphEntryPoint = remember(appContext) {
+        EntryPointAccessors.fromApplication(appContext, AppGraphEntryPoint::class.java)
+    }
 
     // AuthViewModel scoped to the NavHost — один экземпляр на весь граф
     val authViewModel: AuthViewModel = hiltViewModel()
@@ -112,6 +121,9 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
             DetailsRoute(
                 detailsUrl = detailsUrl,
                 isAuthenticated = isAuthenticated,
+                preferredPlaybackQuality = appGraphEntryPoint.playbackPreferencesStore().readDefaultQuality(),
+                actionHandler = appGraphEntryPoint.torrServeActionHandler(),
+                linkBuilder = appGraphEntryPoint.torrServeLinkBuilder(),
                 onMarkedWatched = { url ->
                     navController.previousBackStackEntry?.savedStateHandle?.set(HOME_WATCHED_DETAILS_URL_KEY, url)
                 },
@@ -120,6 +132,7 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                     navController.previousBackStackEntry?.savedStateHandle?.set(HOME_FAVORITE_CHANGED_STATE_KEY, isFav)
                 },
                 onOpenSeriesGuide = { url -> navController.navigate(AppDestination.SeriesGuide.createRoute(url)) },
+                onChannelContentChanged = appGraphEntryPoint.homeChannelSyncManager()::syncNow,
             )
         }
 

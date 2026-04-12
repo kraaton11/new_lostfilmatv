@@ -1,9 +1,10 @@
 package com.kraat.lostfilmnewtv.ui
 
+import androidx.test.core.app.ActivityScenario
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
@@ -24,6 +25,7 @@ import dagger.hilt.android.testing.HiltAndroidRule
 import dagger.hilt.android.testing.HiltAndroidTest
 import javax.inject.Inject
 import org.junit.Assert.assertTrue
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -40,7 +42,8 @@ import org.junit.rules.RuleChain
 class AnonymousBrowsingSmokeTest {
 
     private val hiltRule = HiltAndroidRule(this)
-    private val composeRule = createAndroidComposeRule<MainActivity>()
+    private val composeRule = createEmptyComposeRule()
+    private var scenario: ActivityScenario<MainActivity>? = null
 
     @get:Rule
     val ruleChain = RuleChain.outerRule(hiltRule).around(composeRule)
@@ -63,6 +66,13 @@ class AnonymousBrowsingSmokeTest {
             detailsResult = DetailsResult.Success(details = SMOKE_DETAILS, isStale = false)
             favoriteReleasesResult = FavoriteReleasesResult.Unavailable()
         }
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+    }
+
+    @After
+    fun tearDown() {
+        scenario?.close()
+        scenario = null
     }
 
     @Test
@@ -83,13 +93,13 @@ class AnonymousBrowsingSmokeTest {
         waitForText("Smoke Series Details")
         assertTrue(composeRule.onAllNodesWithText("Smoke Series Details").fetchSemanticsNodes().isNotEmpty())
         assertTrue(composeRule.onAllNodesWithText("Pilot").fetchSemanticsNodes().isNotEmpty())
-        assertTrue(composeRule.onAllNodesWithText("14 марта 2026").fetchSemanticsNodes().isNotEmpty())
+        assertTrue(composeRule.onAllNodesWithText("Сезон 1 • Серия 1").fetchSemanticsNodes().isNotEmpty())
         assertTrue(composeRule.onAllNodesWithText("TorrServe").fetchSemanticsNodes().isEmpty())
         composeRule.onNodeWithTag("details-primary-action").assertIsNotEnabled()
-        assertTrue(composeRule.onAllNodesWithText("Видео недоступно").fetchSemanticsNodes().isNotEmpty())
+        assertTrue(composeRule.onAllNodesWithText("Недоступно").fetchSemanticsNodes().isNotEmpty())
         assertTrue(composeRule.onAllNodesWithTag("details-back").fetchSemanticsNodes().isEmpty())
 
-        composeRule.activityRule.scenario.onActivity { activity ->
+        scenario?.onActivity { activity ->
             activity.onBackPressedDispatcher.onBackPressed()
         }
         waitForText("Новые релизы")

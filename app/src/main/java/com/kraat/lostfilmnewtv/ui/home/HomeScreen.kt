@@ -132,14 +132,20 @@ fun HomeScreen(
         ?: railItems.firstOrNull()
     val stageStatusText = appUpdateStatusText ?: savedAppUpdate?.let { "Доступно обновление ${it.latestVersion}" }
 
-    LaunchedEffect(startupContentFocusPending, activeModeState, headerDownTarget) {
-        if (!startupContentFocusPending || headerDownTarget == null) {
+    val startupAuxFocusTarget = when (activeModeState) {
+        is HomeModeContentState.Error -> retryActionRequester
+        is HomeModeContentState.LoginRequired -> loginActionRequester
+        else -> null
+    }
+
+    LaunchedEffect(startupContentFocusPending, activeModeState, startupAuxFocusTarget) {
+        if (!startupContentFocusPending || startupAuxFocusTarget == null) {
             return@LaunchedEffect
         }
         if (activeModeState == HomeModeContentState.Loading) {
             return@LaunchedEffect
         }
-        requestFocusWhenReady(headerDownTarget)
+        requestFocusWhenReady(startupAuxFocusTarget)
     }
 
     Box(
@@ -462,10 +468,7 @@ internal suspend fun requestFocusWhenReady(requester: FocusRequester): Boolean {
     withTimeoutOrNull(1_000L) {
         while (!focusMoved) {
             withFrameNanos { }
-            focusMoved = runCatching {
-                    requester.requestFocus()
-                    true
-                }.getOrDefault(false)
+            focusMoved = runCatching { requester.requestFocus() }.getOrDefault(false)
         }
     }
     return focusMoved
