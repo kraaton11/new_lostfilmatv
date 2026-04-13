@@ -61,6 +61,7 @@ fun HomeHeader(
     availableModes: List<HomeFeedMode>,
     onModeActivated: (HomeFeedMode) -> Unit,
     onHeaderInteraction: () -> Unit,
+    onBackToContent: () -> Boolean,
     onSearchClick: () -> Unit,
     onSettingsClick: () -> Unit,
     modeToggleFocusRequester: FocusRequester?,
@@ -120,6 +121,7 @@ fun HomeHeader(
                         onModeActivated(nextMode)
                     },
                     onInteraction = onHeaderInteraction,
+                    onBackClick = onBackToContent,
                     modifier = Modifier
                         .testTag("home-mode-toggle")
                         .focusRequester(modeToggleFocusRequester)
@@ -137,6 +139,7 @@ fun HomeHeader(
                 subtitle = "Сериал или фильм",
                 onClick = onSearchClick,
                 onInteraction = onHeaderInteraction,
+                onBackClick = onBackToContent,
                 modifier = Modifier
                     .testTag("home-action-search")
                     .focusRequester(searchFocusRequester)
@@ -161,6 +164,7 @@ fun HomeHeader(
                 contentDescription = "Настройки",
                 onClick = onSettingsClick,
                 onInteraction = onHeaderInteraction,
+                onBackClick = onBackToContent,
                 modifier = Modifier
                     .testTag("home-action-settings")
                     .focusRequester(settingsFocusRequester)
@@ -179,6 +183,7 @@ private fun HomeHeaderModeToggleButton(
     nextMode: HomeFeedMode,
     onClick: () -> Unit,
     onInteraction: () -> Unit,
+    onBackClick: () -> Boolean,
     modifier: Modifier = Modifier,
 ) {
     val label = when (nextMode) {
@@ -194,6 +199,7 @@ private fun HomeHeaderModeToggleButton(
         subtitle = subtitle,
         onClick = onClick,
         onInteraction = onInteraction,
+        onBackClick = onBackClick,
         isPrimary = false,
         modifier = modifier,
     )
@@ -205,6 +211,7 @@ private fun HomeHeaderActionButton(
     subtitle: String,
     onClick: () -> Unit,
     onInteraction: () -> Unit = {},
+    onBackClick: () -> Boolean = { false },
     modifier: Modifier = Modifier,
     isPrimary: Boolean = false,
     observeKeyInteractions: Boolean = true,
@@ -239,6 +246,9 @@ private fun HomeHeaderActionButton(
             .then(
                 if (observeKeyInteractions) {
                     Modifier.onPreviewKeyEvent { event ->
+                        if (event.type == KeyEventType.KeyDown && event.key == Key.Back) {
+                            return@onPreviewKeyEvent onBackClick()
+                        }
                         if (event.type == KeyEventType.KeyDown && event.key.isHeaderInteractionKey()) {
                             onInteraction()
                         }
@@ -254,7 +264,12 @@ private fun HomeHeaderActionButton(
                 scaleY = scale
             }
             .border(3.dp, borderColor, shape)
-            .onFocusChanged { isFocused = it.isFocused },
+            .onFocusChanged {
+                isFocused = it.isFocused
+                if (it.isFocused) {
+                    onInteraction()
+                }
+            },
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 2.dp, vertical = 1.dp),
@@ -287,6 +302,7 @@ private fun HomeHeaderIconButton(
     contentDescription: String,
     onClick: () -> Unit,
     onInteraction: () -> Unit = {},
+    onBackClick: () -> Boolean = { false },
     modifier: Modifier = Modifier,
     observeKeyInteractions: Boolean = true,
 ) {
@@ -309,6 +325,9 @@ private fun HomeHeaderIconButton(
             .then(
                 if (observeKeyInteractions) {
                     Modifier.onPreviewKeyEvent { event ->
+                        if (event.type == KeyEventType.KeyDown && event.key == Key.Back) {
+                            return@onPreviewKeyEvent onBackClick()
+                        }
                         if (event.type == KeyEventType.KeyDown && event.key.isHeaderInteractionKey()) {
                             onInteraction()
                         }
@@ -323,7 +342,12 @@ private fun HomeHeaderIconButton(
                 scaleX = scale
                 scaleY = scale
             }
-            .onFocusChanged { isFocused = it.isFocused },
+            .onFocusChanged {
+                isFocused = it.isFocused
+                if (it.isFocused) {
+                    onInteraction()
+                }
+            },
     ) {
         Icon(
             painter = painterResource(id = iconResId),

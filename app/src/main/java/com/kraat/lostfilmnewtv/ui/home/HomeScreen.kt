@@ -22,6 +22,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.withFrameNanos
@@ -50,6 +51,7 @@ import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 import com.kraat.lostfilmnewtv.ui.theme.HomeStatusError
 import com.kraat.lostfilmnewtv.ui.theme.HomeTextSecondary
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 @Composable
@@ -123,13 +125,18 @@ fun HomeScreen(
     val cardFocusRequesters = remember(activeRailId) {
         linkedMapOf<String, FocusRequester>()
     }
+    val focusScope = rememberCoroutineScope()
     val activeItemFocusKeys = itemKeys.map { detailsUrl -> homeItemKey(activeRailId, detailsUrl) }
     cardFocusRequesters.keys.retainAll(activeItemFocusKeys.toSet())
     activeItemFocusKeys.forEach { itemKey ->
         cardFocusRequesters.getOrPut(itemKey) { FocusRequester() }
     }
+    val activeContentDetailsUrl = focusedItemKey?.takeIf(itemKeys::contains) ?: itemKeys.firstOrNull()
+    val activeContentRequester = activeContentDetailsUrl?.let { detailsUrl ->
+        cardFocusRequesters[homeItemKey(activeRailId, detailsUrl)]
+    }
     val headerDownTarget = when (activeModeState) {
-        is HomeModeContentState.Content -> contentEntryRequester
+        is HomeModeContentState.Content -> activeContentRequester ?: contentEntryRequester
         is HomeModeContentState.Error -> retryActionRequester
         is HomeModeContentState.LoginRequired -> loginActionRequester
         else -> null
@@ -188,7 +195,17 @@ fun HomeScreen(
                     startupContentFocusPending = true
                     onModeSelected(mode)
                 },
-                onHeaderInteraction = { /* navigation within header; rail resets this on focus */ },
+                onHeaderInteraction = { startupContentFocusPending = false },
+                onBackToContent = {
+                    if (headerDownTarget == null) {
+                        false
+                    } else {
+                        focusScope.launch {
+                            requestFocusWhenReady(headerDownTarget)
+                        }
+                        true
+                    }
+                },
                 onSearchClick = onSearchClick,
                 onSettingsClick = onSettingsClick,
                 modeToggleFocusRequester = if (state.availableModes.size > 1) modeToggleRequester else null,
