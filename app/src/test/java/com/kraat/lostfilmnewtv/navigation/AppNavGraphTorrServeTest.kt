@@ -237,6 +237,17 @@ class AppNavGraphTorrServeTest {
     }
 
     @Test
+    fun homeSearchAction_opensSearchScreen() {
+        setContentWithNavGraph()
+
+        composeRule.waitForTag("home-action-search")
+        composeRule.onNodeWithTag("home-action-search")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        composeRule.waitForTag("search-query-input")
+    }
+
+    @Test
     fun detailsGuideAction_opensGuide_andGuideRowNavigatesToEpisodeDetails() {
         val targetEpisodeUrl = "https://www.lostfilm.today/series/Ted/season_2/episode_7/"
         val targetDetails = TEST_DETAILS.copy(

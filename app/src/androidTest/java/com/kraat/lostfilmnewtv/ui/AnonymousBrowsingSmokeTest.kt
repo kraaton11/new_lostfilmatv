@@ -8,16 +8,20 @@ import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performTextInput
 import com.kraat.lostfilmnewtv.MainActivity
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
+import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
+import com.kraat.lostfilmnewtv.data.repository.SearchResultsResult
 import com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult
 import com.kraat.lostfilmnewtv.di.TestFakeRepository
 import com.kraat.lostfilmnewtv.ui.home.posterTag
@@ -64,6 +68,19 @@ class AnonymousBrowsingSmokeTest {
                 isStale = false,
             )
             detailsResult = DetailsResult.Success(details = SMOKE_DETAILS, isStale = false)
+            searchResult = SearchResultsResult.Success(
+                query = "dragon",
+                items = listOf(
+                    LostFilmSearchItem(
+                        titleRu = "Путь дракона",
+                        titleEn = "The Way of the Dragon",
+                        subtitle = "Год выхода: 1972 • Жанр: Боевик",
+                        posterUrl = null,
+                        targetUrl = "https://www.lostfilm.today/movies/The_Way_of_the_Dragon",
+                        kind = ReleaseKind.MOVIE,
+                    ),
+                ),
+            )
             favoriteReleasesResult = FavoriteReleasesResult.Unavailable()
         }
         scenario = ActivityScenario.launch(MainActivity::class.java)
@@ -104,6 +121,20 @@ class AnonymousBrowsingSmokeTest {
         }
         waitForText("Новые релизы")
         waitForFocusedPoster()
+    }
+
+    @Test
+    fun anonymousSearch_opensFromHomeThroughRealNavGraph() {
+        waitForText("Новые релизы")
+
+        composeRule.onNodeWithTag("home-action-search").performClick()
+
+        composeRule.onNodeWithTag("search-query-input").assertIsDisplayed()
+        composeRule.onNodeWithTag("search-query-input").performTextInput("dragon")
+        composeRule.onNodeWithTag("search-submit").performClick()
+
+        waitForText("Путь дракона")
+        composeRule.onNodeWithText("The Way of the Dragon").assertIsDisplayed()
     }
 
     private fun waitForText(text: String) {

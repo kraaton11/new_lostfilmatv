@@ -22,6 +22,7 @@ import com.kraat.lostfilmnewtv.ui.details.DetailsRoute
 import com.kraat.lostfilmnewtv.ui.guide.SeriesGuideRoute
 import com.kraat.lostfilmnewtv.ui.home.HomeScreen
 import com.kraat.lostfilmnewtv.ui.overview.SeriesOverviewRoute
+import com.kraat.lostfilmnewtv.ui.search.SearchRoute
 import com.kraat.lostfilmnewtv.ui.home.HomeViewModel
 import com.kraat.lostfilmnewtv.ui.settings.SettingsRoute
 import com.kraat.lostfilmnewtv.ui.settings.SettingsViewModel
@@ -101,6 +102,7 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                     if (isAuthenticated) authViewModel.logout()
                     else navController.navigate(AppDestination.Auth.route)
                 },
+                onSearchClick = { navController.navigate(AppDestination.Search.route) },
                 onSettingsClick = { navController.navigate(AppDestination.Settings.route) },
                 isAuthenticated = isAuthenticated,
                 savedAppUpdate = savedAppUpdate,
@@ -160,9 +162,27 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
             )
         }
 
+        // ── Search ───────────────────────────────────────────────────────────
+        composable(AppDestination.Search.route) {
+            SearchRoute(
+                onOpenItem = { item ->
+                    when (item.kind) {
+                        com.kraat.lostfilmnewtv.data.model.ReleaseKind.SERIES -> {
+                            navController.navigate(AppDestination.SeriesGuide.createRoute(item.targetUrl))
+                        }
+                        com.kraat.lostfilmnewtv.data.model.ReleaseKind.MOVIE -> {
+                            navController.navigate(AppDestination.Details.createRoute(item.targetUrl, isAuthenticated))
+                        }
+                    }
+                },
+            )
+        }
+
         // ── Settings ──────────────────────────────────────────────────────────
-        composable(AppDestination.Settings.route) {
-            val homeBackStack = navController.getBackStackEntry(AppDestination.Home.route)
+        composable(AppDestination.Settings.route) { backStackEntry ->
+            val homeBackStack = remember(backStackEntry) {
+                navController.getBackStackEntry(AppDestination.Home.route)
+            }
             val homeViewModel: HomeViewModel = hiltViewModel(homeBackStack)
             val settingsViewModel: SettingsViewModel = hiltViewModel()
             // Передаём колбэк обратно в HomeViewModel через проп SettingsViewModel

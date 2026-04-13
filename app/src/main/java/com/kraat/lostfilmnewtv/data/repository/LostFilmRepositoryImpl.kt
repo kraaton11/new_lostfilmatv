@@ -17,6 +17,7 @@ import com.kraat.lostfilmnewtv.data.parser.BASE_URL
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteSeriesParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmListParser
+import com.kraat.lostfilmnewtv.data.parser.LostFilmSearchParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSeriesOverviewParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSeasonEpisodesParser
 import com.kraat.lostfilmnewtv.data.parser.absoluteUrl
@@ -29,6 +30,8 @@ import com.kraat.lostfilmnewtv.data.parser.toSummaryModels
 import com.kraat.lostfilmnewtv.data.poster.TmdbPosterEnricher
 import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolver
 import java.io.IOException
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -57,6 +60,7 @@ class LostFilmRepositoryImpl(
     private val detailsParser: LostFilmDetailsParser,
     private val favoriteSeriesParser: LostFilmFavoriteSeriesParser = LostFilmFavoriteSeriesParser(),
     private val seasonEpisodesParser: LostFilmSeasonEpisodesParser = LostFilmSeasonEpisodesParser(),
+    private val searchParser: LostFilmSearchParser = LostFilmSearchParser(),
     private val seriesOverviewParser: LostFilmSeriesOverviewParser = LostFilmSeriesOverviewParser(),
     private val tmdbResolver: TmdbPosterResolver,
     private val hasAuthenticatedSession: suspend () -> Boolean,
@@ -267,6 +271,36 @@ class LostFilmRepositoryImpl(
             )
         } catch (exception: IOException) {
             SeriesOverviewResult.Error(exception.message ?: "Не удалось загрузить обзор")
+        }
+    }
+
+    override suspend fun search(query: String): SearchResultsResult {
+        val normalizedQuery = query.normalizeSearchQuery()
+        if (normalizedQuery.length < 2) {
+            return SearchResultsResult.Success(
+                query = normalizedQuery,
+                items = emptyList(),
+            )
+        }
+
+        return try {
+            val encodedQuery = URLEncoder.encode(normalizedQuery, StandardCharsets.UTF_8.toString())
+                .replace("+", "%20")
+            val html = httpClient.fetchDetails("$BASE_URL/search/?q=$encodedQuery")
+
+            SearchResultsResult.Success(
+                query = normalizedQuery,
+                items = searchParser.parse(html),
+            )
+        } catch (exception: Exception) {
+            if (exception is IOException || exception is IllegalStateException) {
+                SearchResultsResult.Error(
+                    query = normalizedQuery,
+                    message = exception.message ?: "Не удалось выполнить поиск",
+                )
+            } else {
+                throw exception
+            }
         }
     }
 
@@ -790,3 +824,5 @@ class LostFilmRepositoryImpl(
             .toLocalDate()
     }
 }
+
+private fun String.normalizeSearchQuery(): String = normalizeText().replace(Regex("""\s+"""), " ")
