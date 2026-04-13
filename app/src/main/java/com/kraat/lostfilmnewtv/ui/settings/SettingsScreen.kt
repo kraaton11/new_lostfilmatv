@@ -150,18 +150,22 @@ fun SettingsScreen(
                 onSectionSelected = { selectedSectionName = it.name },
                 focusRequesterForSection = { railRequesters.getValue(it) },
                 contentRequesterForSection = { section ->
-                    val tag = targetContentTag(
-                        section = section,
-                        selectedQuality = selectedQuality,
-                        selectedUpdateMode = selectedUpdateMode,
-                        selectedChannelMode = selectedChannelMode,
-                        installUrl = installUrl,
-                        rememberedActionBySection = rememberedActionBySection,
-                    )
-                    if (tag.isBlank()) {
+                    if (section == SettingsSection.ABOUT) {
                         railRequesters.getValue(section)
                     } else {
-                        contentRequesters.getValue(tag)
+                        val tag = targetContentTag(
+                            section = section,
+                            selectedQuality = selectedQuality,
+                            selectedUpdateMode = selectedUpdateMode,
+                            selectedChannelMode = selectedChannelMode,
+                            installUrl = installUrl,
+                            rememberedActionBySection = rememberedActionBySection,
+                        )
+                        if (tag.isBlank()) {
+                            railRequesters.getValue(section)
+                        } else {
+                            contentRequesters.getValue(tag)
+                        }
                     }
                 },
                 modifier = Modifier
@@ -191,8 +195,9 @@ fun SettingsScreen(
                                 ) {
                                     SettingsOverviewValue(text = "Сейчас выбрано: $qualitySummary")
                                 }
+                                val qualityOptions = PlaybackQualityPreference.entries
                                 Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                                    PlaybackQualityPreference.entries.forEach { quality ->
+                                    qualityOptions.forEachIndexed { index, quality ->
                                         SettingsTvButton(
                                             text = quality.label(),
                                             onClick = { onQualitySelected(quality) },
@@ -207,6 +212,16 @@ fun SettingsScreen(
                                                 .focusRequester(contentRequesters.getValue(quality.buttonTag()))
                                                 .focusProperties {
                                                     left = railRequesters.getValue(SettingsSection.QUALITY)
+                                                    up = if (index > 0) {
+                                                        contentRequesters.getValue(qualityOptions[index - 1].buttonTag())
+                                                    } else {
+                                                        railRequesters.getValue(SettingsSection.QUALITY)
+                                                    }
+                                                    down = if (index < qualityOptions.lastIndex) {
+                                                        contentRequesters.getValue(qualityOptions[index + 1].buttonTag())
+                                                    } else {
+                                                        FocusRequester.Default
+                                                    }
                                                 },
                                         )
                                     }
@@ -247,8 +262,9 @@ fun SettingsScreen(
                                 ) {
                                     SettingsOverviewValue(text = "Сейчас выбрано: $channelSummary")
                                 }
+                                val channelModes = AndroidTvChannelMode.entries
                                 Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                                    AndroidTvChannelMode.entries.forEach { mode ->
+                                    channelModes.forEachIndexed { index, mode ->
                                         SettingsTvButton(
                                             text = mode.label(),
                                             onClick = { onChannelModeSelected(mode) },
@@ -263,6 +279,16 @@ fun SettingsScreen(
                                                 .focusRequester(contentRequesters.getValue(mode.buttonTag()))
                                                 .focusProperties {
                                                     left = railRequesters.getValue(SettingsSection.CHANNEL)
+                                                    up = if (index > 0) {
+                                                        contentRequesters.getValue(channelModes[index - 1].buttonTag())
+                                                    } else {
+                                                        railRequesters.getValue(SettingsSection.CHANNEL)
+                                                    }
+                                                    down = if (index < channelModes.lastIndex) {
+                                                        contentRequesters.getValue(channelModes[index + 1].buttonTag())
+                                                    } else {
+                                                        FocusRequester.Default
+                                                    }
                                                 },
                                         )
                                     }
@@ -301,6 +327,8 @@ fun SettingsScreen(
                                             .focusRequester(contentRequesters.getValue(HOME_FAVORITES_SHOW_TAG))
                                             .focusProperties {
                                                 left = railRequesters.getValue(SettingsSection.HOME_SCREEN)
+                                                up = railRequesters.getValue(SettingsSection.HOME_SCREEN)
+                                                down = contentRequesters.getValue(HOME_FAVORITES_HIDE_TAG)
                                             },
                                     )
                                     SettingsTvButton(
@@ -317,6 +345,8 @@ fun SettingsScreen(
                                             .focusRequester(contentRequesters.getValue(HOME_FAVORITES_HIDE_TAG))
                                             .focusProperties {
                                                 left = railRequesters.getValue(SettingsSection.HOME_SCREEN)
+                                                up = contentRequesters.getValue(HOME_FAVORITES_SHOW_TAG)
+                                                down = FocusRequester.Default
                                             },
                                     )
                                 }
@@ -352,6 +382,8 @@ fun SettingsScreen(
                                             .focusRequester(contentRequesters.getValue(ACCOUNT_AUTH_ACTION_TAG))
                                             .focusProperties {
                                                 left = railRequesters.getValue(SettingsSection.ACCOUNT)
+                                                up = railRequesters.getValue(SettingsSection.ACCOUNT)
+                                                down = FocusRequester.Default
                                             },
                                     )
                                 }
@@ -486,20 +518,38 @@ private fun UpdatesSectionContent(
         modifier = Modifier.focusGroup(),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
+        val orderedTags = buildList {
+            UpdateCheckMode.entries.forEach { add(it.buttonTag()) }
+            add(CHECK_UPDATES_TAG)
+            if (!installUrl.isNullOrBlank()) add(INSTALL_UPDATE_TAG)
+        }
         UpdateCheckMode.entries.forEach { mode ->
+            val tag = mode.buttonTag()
+            val index = orderedTags.indexOf(tag)
             SettingsTvButton(
                 text = mode.label(),
                 onClick = { onUpdateModeSelected(mode) },
                 isSelected = mode == selectedUpdateMode,
-                tag = mode.buttonTag(),
-                onFocused = { onActionFocused(mode.buttonTag()) },
+                tag = tag,
+                onFocused = { onActionFocused(tag) },
                 modifier = Modifier
-                    .focusRequester(contentRequesters.getValue(mode.buttonTag()))
+                    .focusRequester(contentRequesters.getValue(tag))
                     .focusProperties {
                         left = railRequester
+                        up = if (index > 0) {
+                            contentRequesters.getValue(orderedTags[index - 1])
+                        } else {
+                            railRequester
+                        }
+                        down = if (index < orderedTags.lastIndex) {
+                            contentRequesters.getValue(orderedTags[index + 1])
+                        } else {
+                            FocusRequester.Default
+                        }
                     },
             )
         }
+        val checkUpdatesIndex = orderedTags.indexOf(CHECK_UPDATES_TAG)
         SettingsTvButton(
             text = if (isCheckingForUpdates) "Проверяем..." else "Проверить обновления",
             onClick = onCheckForUpdatesClick,
@@ -510,9 +560,20 @@ private fun UpdatesSectionContent(
                 .focusRequester(contentRequesters.getValue(CHECK_UPDATES_TAG))
                 .focusProperties {
                     left = railRequester
+                    up = if (checkUpdatesIndex > 0) {
+                        contentRequesters.getValue(orderedTags[checkUpdatesIndex - 1])
+                    } else {
+                        railRequester
+                    }
+                    down = if (checkUpdatesIndex < orderedTags.lastIndex) {
+                        contentRequesters.getValue(orderedTags[checkUpdatesIndex + 1])
+                    } else {
+                        FocusRequester.Default
+                    }
                 },
         )
         if (!installUrl.isNullOrBlank()) {
+            val installUpdateIndex = orderedTags.indexOf(INSTALL_UPDATE_TAG)
             SettingsTvButton(
                 text = if (isDownloadingUpdate) "Скачивание…" else "Скачать и установить",
                 onClick = onInstallUpdateClick,
@@ -523,6 +584,16 @@ private fun UpdatesSectionContent(
                     .focusRequester(contentRequesters.getValue(INSTALL_UPDATE_TAG))
                     .focusProperties {
                         left = railRequester
+                        up = if (installUpdateIndex > 0) {
+                            contentRequesters.getValue(orderedTags[installUpdateIndex - 1])
+                        } else {
+                            railRequester
+                        }
+                        down = if (installUpdateIndex < orderedTags.lastIndex) {
+                            contentRequesters.getValue(orderedTags[installUpdateIndex + 1])
+                        } else {
+                            FocusRequester.Default
+                        }
                     },
             )
         }
