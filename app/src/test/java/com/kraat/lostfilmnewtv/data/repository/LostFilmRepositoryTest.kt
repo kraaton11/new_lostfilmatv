@@ -10,9 +10,11 @@ import com.kraat.lostfilmnewtv.data.db.ReleaseDetailsEntity
 import com.kraat.lostfilmnewtv.data.db.TmdbPosterDao
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
+import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
 import com.kraat.lostfilmnewtv.data.model.FavoriteTargetKind
 import com.kraat.lostfilmnewtv.data.model.FavoriteToggleNetworkResult
 import com.kraat.lostfilmnewtv.data.model.PageState
+import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.SeriesGuide
 import com.kraat.lostfilmnewtv.data.model.TmdbImageUrls
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
@@ -371,6 +373,58 @@ class LostFilmRepositoryTest {
         val result = repository.loadSeriesGuide("https://www.lostfilm.today/series/Ted/season_2/episode_8/")
 
         assertEquals(SeriesGuideResult.Error("offline"), result)
+    }
+
+    @Test
+    fun search_normalizesQuery_fetchesLostFilmSearchPage_andParsesResults() = runTest {
+        val detailsRequests = mutableListOf<String>()
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            detailsHandler = { requestedUrl ->
+                detailsRequests += requestedUrl
+                when (requestedUrl) {
+                    "https://www.lostfilm.today/search/?q=house%20dragon" -> fixture("search-dragon.html")
+                    else -> error("Unexpected details request: $requestedUrl")
+                }
+            },
+        )
+
+        val result = repository.search("  house   dragon ")
+
+        assertEquals(
+            listOf("https://www.lostfilm.today/search/?q=house%20dragon"),
+            detailsRequests,
+        )
+        assertEquals(
+            SearchResultsResult.Success(
+                query = "house dragon",
+                items = expectedSearchItems(),
+            ),
+            result,
+        )
+    }
+
+    @Test
+    fun search_returnsError_whenLostFilmSearchFails() = runTest {
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            detailsHandler = { requestedUrl ->
+                when (requestedUrl) {
+                    "https://www.lostfilm.today/search/?q=dragon" -> throw IOException("offline")
+                    else -> error("Unexpected details request: $requestedUrl")
+                }
+            },
+        )
+
+        val result = repository.search("dragon")
+
+        assertEquals(
+            SearchResultsResult.Error(
+                query = "dragon",
+                message = "offline",
+            ),
+            result,
+        )
     }
 
     @Test
@@ -1822,6 +1876,25 @@ private fun favoriteSeriesRootPageHtml(
         </html>
     """.trimIndent()
 }
+
+private fun expectedSearchItems(): List<LostFilmSearchItem> = listOf(
+    LostFilmSearchItem(
+        titleRu = "Дом дракона",
+        titleEn = "House of the Dragon",
+        subtitle = "Статус: Идет • Год выхода: 2022 • Канал: HBO",
+        posterUrl = "https://www.lostfilm.today/Static/Images/676/Posters/image.jpg",
+        targetUrl = "https://www.lostfilm.today/series/House_of_the_Dragon",
+        kind = ReleaseKind.SERIES,
+    ),
+    LostFilmSearchItem(
+        titleRu = "Путь дракона",
+        titleEn = "The Way of the Dragon",
+        subtitle = "Год выхода: 1972 • Жанр: Боевик",
+        posterUrl = "https://www.lostfilm.today/Static/Images/1112/Posters/image.jpg",
+        targetUrl = "https://www.lostfilm.today/movies/The_Way_of_the_Dragon",
+        kind = ReleaseKind.MOVIE,
+    ),
+)
 
 private data class SeasonEpisodeRow(
     val seasonNumber: Int,

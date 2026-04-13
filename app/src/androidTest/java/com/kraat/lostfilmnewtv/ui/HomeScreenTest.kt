@@ -224,6 +224,49 @@ class HomeScreenTest {
     }
 
     @Test
+    fun backPress_inFavoritesMode_switchesToAllNewInsteadOfClosing() {
+        composeRule.setContent {
+            LostFilmTheme {
+                var state by remember {
+                    mutableStateOf(
+                        seededModeState().copy(
+                            selectedMode = HomeFeedMode.Favorites,
+                            selectedItem = seededModeState().favoriteItems.first(),
+                            selectedItemKey = favoriteDetailsUrl,
+                        ),
+                    )
+                }
+                HomeScreen(
+                    state = state,
+                    onModeSelected = { mode ->
+                        state = state.copy(
+                            selectedMode = mode,
+                            selectedItemKey = when (mode) {
+                                HomeFeedMode.AllNew -> firstDetailsUrl
+                                HomeFeedMode.Favorites -> favoriteDetailsUrl
+                            },
+                            selectedItem = when (mode) {
+                                HomeFeedMode.AllNew -> state.items.first()
+                                HomeFeedMode.Favorites -> state.favoriteItems.first()
+                            },
+                        )
+                    },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Любимчики").assertExists()
+
+        composeRule.runOnIdle {
+            composeRule.activity.onBackPressedDispatcher.onBackPressed()
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("9-1-1").assertExists()
+        composeRule.onNodeWithTag(posterTag(HOME_RAIL_ALL_NEW, firstDetailsUrl)).assertIsFocused()
+    }
+
+    @Test
     fun favoritesContentArrival_movesFocusFromHeaderToFavoriteCardOnStartup() {
         var state by mutableStateOf(
             seededModeState().copy(

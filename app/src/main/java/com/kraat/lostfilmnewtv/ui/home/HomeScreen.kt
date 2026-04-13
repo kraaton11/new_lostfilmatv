@@ -1,4 +1,5 @@
 package com.kraat.lostfilmnewtv.ui.home
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -58,6 +59,7 @@ fun HomeScreen(
     onModeSelected: (HomeFeedMode) -> Unit = {},
     onOpenDetails: (String) -> Unit = {},
     onEndReached: () -> Unit = {},
+    onSearchClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onAuthClick: () -> Unit = {},
     onRetry: () -> Unit = {},
@@ -94,6 +96,11 @@ fun HomeScreen(
         }
     }
 
+    BackHandler(enabled = state.selectedMode == HomeFeedMode.Favorites) {
+        startupContentFocusPending = true
+        onModeSelected(HomeFeedMode.AllNew)
+    }
+
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -107,6 +114,7 @@ fun HomeScreen(
     }
 
     val modeToggleRequester = remember { FocusRequester() }
+    val searchRequester = remember { FocusRequester() }
     val settingsRequester = remember { FocusRequester() }
     val updateRequester = remember { FocusRequester() }
     val loginActionRequester = remember { FocusRequester() }
@@ -168,7 +176,7 @@ fun HomeScreen(
             val headerPrimaryRequester = if (state.availableModes.size > 1) {
                 modeToggleRequester
             } else {
-                settingsRequester
+                searchRequester
             }
 
             val displayVersionText = if (savedAppUpdate != null) "Можно обновить" else appVersionText
@@ -181,8 +189,10 @@ fun HomeScreen(
                     onModeSelected(mode)
                 },
                 onHeaderInteraction = { /* navigation within header; rail resets this on focus */ },
+                onSearchClick = onSearchClick,
                 onSettingsClick = onSettingsClick,
                 modeToggleFocusRequester = if (state.availableModes.size > 1) modeToggleRequester else null,
+                searchFocusRequester = searchRequester,
                 settingsFocusRequester = settingsRequester,
                 downTarget = headerDownTarget,
             )

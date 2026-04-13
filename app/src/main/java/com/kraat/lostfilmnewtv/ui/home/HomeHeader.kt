@@ -61,8 +61,10 @@ fun HomeHeader(
     availableModes: List<HomeFeedMode>,
     onModeActivated: (HomeFeedMode) -> Unit,
     onHeaderInteraction: () -> Unit,
+    onSearchClick: () -> Unit,
     onSettingsClick: () -> Unit,
     modeToggleFocusRequester: FocusRequester?,
+    searchFocusRequester: FocusRequester,
     settingsFocusRequester: FocusRequester,
     downTarget: FocusRequester?,
     modifier: Modifier = Modifier,
@@ -77,7 +79,7 @@ fun HomeHeader(
     }
     val hasModeToggle = availableModes.size > 1
     val nextMode = selectedMode.toggled(availableModes)
-    val lastModeRequester = if (hasModeToggle) modeToggleFocusRequester else null
+    val modeRequester = if (hasModeToggle) modeToggleFocusRequester else null
 
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -122,13 +124,32 @@ fun HomeHeader(
                         .testTag("home-mode-toggle")
                         .focusRequester(modeToggleFocusRequester)
                         .focusProperties {
-                            right = settingsFocusRequester
+                            right = searchFocusRequester
                             if (downTarget != null) {
                                 down = downTarget
                             }
                         },
                 )
             }
+
+            HomeHeaderActionButton(
+                label = "Поиск",
+                subtitle = "Сериал или фильм",
+                onClick = onSearchClick,
+                onInteraction = onHeaderInteraction,
+                modifier = Modifier
+                    .testTag("home-action-search")
+                    .focusRequester(searchFocusRequester)
+                    .focusProperties {
+                        if (modeRequester != null) {
+                            left = modeRequester
+                        }
+                        right = settingsFocusRequester
+                        if (downTarget != null) {
+                            down = downTarget
+                        }
+                    },
+            )
         }
 
         Row(
@@ -144,9 +165,7 @@ fun HomeHeader(
                     .testTag("home-action-settings")
                     .focusRequester(settingsFocusRequester)
                     .focusProperties {
-                        if (lastModeRequester != null) {
-                            left = lastModeRequester
-                        }
+                        left = searchFocusRequester
                     }
                     .applyDownFocus(downTarget),
             )

@@ -2,6 +2,7 @@ package com.kraat.lostfilmnewtv.data.repository
 
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
+import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.SeriesGuide
@@ -39,6 +40,18 @@ sealed interface SeriesOverviewResult {
     ) : SeriesOverviewResult
 }
 
+sealed interface SearchResultsResult {
+    data class Success(
+        val query: String,
+        val items: List<LostFilmSearchItem>,
+    ) : SearchResultsResult
+
+    data class Error(
+        val query: String,
+        val message: String,
+    ) : SearchResultsResult
+}
+
 interface LostFilmRepository {
     suspend fun loadPage(pageNumber: Int): PageState
 
@@ -48,6 +61,9 @@ interface LostFilmRepository {
 
     suspend fun loadSeriesOverview(detailsUrl: String): SeriesOverviewResult =
         SeriesOverviewResult.Error("Обзор недоступен")
+
+    suspend fun search(query: String): SearchResultsResult =
+        SearchResultsResult.Error(query, "Поиск недоступен")
 
     suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean
 

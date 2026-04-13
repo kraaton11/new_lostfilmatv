@@ -4,10 +4,12 @@ import com.kraat.lostfilmnewtv.data.auth.AuthRepositoryContract
 import com.kraat.lostfilmnewtv.data.model.AuthState
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
+import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.PairingSession
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
+import com.kraat.lostfilmnewtv.data.repository.SearchResultsResult
 import com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult
 import dagger.Module
 import dagger.Provides
@@ -45,6 +47,7 @@ class TestFakeRepository : LostFilmRepository {
     var pageState: PageState = PageState.Content(pageNumber = 1, items = emptyList(), hasNextPage = false, isStale = false)
     var detailsResult: DetailsResult = DetailsResult.Error("detailsUrl", "Not configured")
     var seriesGuideResult: SeriesGuideResult = SeriesGuideResult.Error("Not configured")
+    var searchResult: SearchResultsResult = SearchResultsResult.Success(query = "", items = emptyList())
     var markEpisodeWatchedResult: Boolean = false
     var setFavoriteResult: FavoriteMutationResult = FavoriteMutationResult.RequiresLogin()
     var favoriteReleasesResult: FavoriteReleasesResult = FavoriteReleasesResult.Unavailable()
@@ -52,6 +55,10 @@ class TestFakeRepository : LostFilmRepository {
     override suspend fun loadPage(pageNumber: Int): PageState = pageState
     override suspend fun loadDetails(detailsUrl: String): DetailsResult = detailsResult
     override suspend fun loadSeriesGuide(detailsUrl: String): SeriesGuideResult = seriesGuideResult
+    override suspend fun search(query: String): SearchResultsResult = when (val result = searchResult) {
+        is SearchResultsResult.Success -> result.copy(query = query)
+        is SearchResultsResult.Error -> result.copy(query = query)
+    }
     override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean = markEpisodeWatchedResult
     override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult = setFavoriteResult
     override suspend fun loadFavoriteReleases(): FavoriteReleasesResult = favoriteReleasesResult
