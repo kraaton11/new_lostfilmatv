@@ -125,6 +125,7 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                 detailsUrl = detailsUrl,
                 isAuthenticated = isAuthenticated,
                 preferredPlaybackQuality = appGraphEntryPoint.playbackPreferencesStore().readDefaultQuality(),
+                watchedMarkingMode = appGraphEntryPoint.playbackPreferencesStore().readWatchedMarkingMode(),
                 actionHandler = appGraphEntryPoint.torrServeActionHandler(),
                 linkBuilder = appGraphEntryPoint.torrServeLinkBuilder(),
                 onMarkedWatched = { url ->

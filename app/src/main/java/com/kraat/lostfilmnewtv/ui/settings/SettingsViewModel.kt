@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.kraat.lostfilmnewtv.BuildConfig
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
+import com.kraat.lostfilmnewtv.playback.WatchedMarkingMode
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelBackgroundScheduler
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelSyncManager
@@ -57,6 +58,7 @@ class SettingsViewModel @Inject constructor(
             updateMode = preferencesStore.readUpdateCheckMode(),
             channelMode = preferencesStore.readAndroidTvChannelMode(),
             isHomeFavoritesRailEnabled = preferencesStore.readHomeFavoritesRailEnabled(),
+            watchedMarkingMode = preferencesStore.readWatchedMarkingMode(),
             installedVersionText = BuildConfig.VERSION_NAME,
             savedAppUpdate = initialSavedUpdate,
             installUrl = initialSavedUpdate?.apkUrl,
@@ -104,6 +106,12 @@ class SettingsViewModel @Inject constructor(
         preferencesStore.writeHomeFavoritesRailEnabled(enabled)
         onHomeFavoritesRailVisibilityChanged(enabled)
         _uiState.update { it.copy(isHomeFavoritesRailEnabled = enabled) }
+    }
+
+    fun onWatchedMarkingModeSelected(mode: WatchedMarkingMode) {
+        if (mode == _uiState.value.watchedMarkingMode) return
+        preferencesStore.writeWatchedMarkingMode(mode)
+        _uiState.update { it.copy(watchedMarkingMode = mode) }
     }
 
     fun onCheckForUpdatesClick() {

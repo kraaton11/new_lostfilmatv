@@ -27,6 +27,8 @@ fun SettingsRoute(
         selectedUpdateMode = state.value.updateMode,
         selectedChannelMode = state.value.channelMode,
         isHomeFavoritesRailEnabled = state.value.isHomeFavoritesRailEnabled,
+        selectedWatchedMarkingMode = state.value.watchedMarkingMode,
+        onWatchedMarkingModeSelected = viewModel::onWatchedMarkingModeSelected,
         isAuthenticated = isAuthenticated,
         onAuthClick = onAuthClick,
         installedVersionText = state.value.installedVersionText,

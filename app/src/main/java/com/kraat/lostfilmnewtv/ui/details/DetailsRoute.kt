@@ -15,6 +15,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
+import com.kraat.lostfilmnewtv.playback.WatchedMarkingMode
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeActionHandler
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeLinkBuilder
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeOpenResult
@@ -28,6 +29,7 @@ fun DetailsRoute(
     detailsUrl: String,
     isAuthenticated: Boolean = true,
     preferredPlaybackQuality: PlaybackQualityPreference = PlaybackQualityPreference.Q1080,
+    watchedMarkingMode: WatchedMarkingMode = WatchedMarkingMode.AUTO,
     actionHandler: TorrServeActionHandler,
     linkBuilder: TorrServeLinkBuilder,
     viewModel: DetailsViewModel? = null,
@@ -101,9 +103,8 @@ fun DetailsRoute(
                 val message = when (openTorrServe(context, url, currentDetails?.titleRu.orEmpty(), currentDetails?.posterUrl.orEmpty())) {
                     TorrServeOpenResult.Success -> {
                         val playEpisodeId = currentDetails?.playEpisodeId
-                        if (playEpisodeId != null) {
+                        if (playEpisodeId != null && watchedMarkingMode == WatchedMarkingMode.AUTO) {
                             launch {
-                                // repository доступен через ViewModel — вызываем через него
                                 val marked = detailsViewModel.markEpisodeWatched(
                                     detailsUrl = currentDetails.detailsUrl,
                                     playEpisodeId = playEpisodeId,

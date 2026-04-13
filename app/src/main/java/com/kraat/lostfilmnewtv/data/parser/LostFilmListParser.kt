@@ -8,6 +8,12 @@ import org.jsoup.nodes.Element
 const val BASE_URL = "https://www.lostfilm.today"
 private val seasonEpisodeRegex = Regex("""(\d+)\s+сезон\s+(\d+)\s+серия""")
 
+data class ReleaseWatchMarker(
+    val detailsUrl: String,
+    val episodeId: String,
+    val serialId: String,
+)
+
 class LostFilmListParser {
     fun parse(
         html: String,
@@ -22,6 +28,34 @@ class LostFilmListParser {
                 pageNumber = pageNumber,
                 positionInPage = index,
                 fetchedAt = fetchedAt,
+            )
+        }
+    }
+
+    fun parseWatchMarkers(html: String): List<ReleaseWatchMarker> {
+        val document = Jsoup.parse(html, BASE_URL)
+
+        return document.select(".serials-list .row").mapNotNull { row ->
+            val detailsUrl = row.selectFirst("a[href]:not(.comment-blue-box)")
+                .absoluteUrl("href")
+                .takeIf { it.isNotBlank() }
+                ?: return@mapNotNull null
+            val watchedButton = row.selectFirst(".haveseen-btn, .isawthat-btn")
+                ?: return@mapNotNull null
+            val episodeId = watchedButton.attr("data-episode")
+                .trim()
+                .takeIf { it.isNotEmpty() }
+                ?: return@mapNotNull null
+            val serialId = watchedButton.attr("data-code")
+                .substringBefore('-')
+                .trim()
+                .takeIf { it.isNotEmpty() }
+                ?: return@mapNotNull null
+
+            ReleaseWatchMarker(
+                detailsUrl = detailsUrl,
+                episodeId = episodeId,
+                serialId = serialId,
             )
         }
     }

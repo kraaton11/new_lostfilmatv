@@ -55,6 +55,20 @@ class LostFilmListParserTest {
     }
 
     @Test
+    fun parsesWatchMarkersFromListRows() {
+        val html = fixture("new-page-1.html")
+
+        val markers = LostFilmListParser().parseWatchMarkers(html)
+        val seriesMarker = markers.first { it.detailsUrl.endsWith("/series/9-1-1/season_9/episode_13/") }
+        val movieMarker = markers.first { it.detailsUrl.endsWith("/movies/Irreversible") }
+
+        assertEquals("362009013", seriesMarker.episodeId)
+        assertEquals("362", seriesMarker.serialId)
+        assertEquals("1080001001", movieMarker.episodeId)
+        assertEquals("1080", movieMarker.serialId)
+    }
+
+    @Test
     fun fallsBackToEnglishEpisodeTitle_whenRussianTitleMissingInListRow() {
         val html = """
             <div class="serials-list">
