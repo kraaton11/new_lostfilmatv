@@ -152,7 +152,9 @@ class DetailsRouteTest {
         }
 
         composeRule.waitForNodeWithTag("details-primary-action")
-        composeRule.onNodeWithTag("details-primary-action").assertIsNotEnabled()
+        composeRule.onNodeWithTag(torrServeButtonTag(routeRowId(detailsUrl, 0))).assertDoesNotExist()
+        composeRule.onNodeWithTag("details-primary-action").assertExists()
+        composeRule.onNodeWithText("Недоступно").assertExists()
     }
 
     @Test
@@ -184,7 +186,7 @@ class DetailsRouteTest {
 
         composeRule.onNodeWithTag(torrServeButtonTag(routeRowId(detailsUrl, 0))).performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitUntil(timeoutMillis = 5_000) { launchCount.get() == 1 }
-        composeRule.onNodeWithTag(torrServeButtonTag(routeRowId(detailsUrl, 0))).assertIsNotEnabled()
+        composeRule.waitUntil(timeoutMillis = 5_000) { activeLaunches.get() == 1 }
         composeRule.waitForIdle()
         composeRule.onNodeWithTag(torrServeButtonTag(routeRowId(detailsUrl, 0))).performSemanticsAction(SemanticsActions.OnClick)
 
