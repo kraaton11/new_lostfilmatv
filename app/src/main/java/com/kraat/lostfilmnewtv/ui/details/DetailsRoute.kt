@@ -68,6 +68,7 @@ fun DetailsRoute(
     var handledFavoriteContentVersion by remember(detailsUrl) { mutableIntStateOf(0) }
     var inFlightJob by remember(detailsUrl) { mutableStateOf<Job?>(null) }
 
+    LaunchedEffect(isAuthenticated) { detailsViewModel.onAuthenticationChanged(isAuthenticated) }
     LaunchedEffect(detailsUrl) { detailsViewModel.onStart() }
 
     LaunchedEffect(state.favoriteContentVersion) {

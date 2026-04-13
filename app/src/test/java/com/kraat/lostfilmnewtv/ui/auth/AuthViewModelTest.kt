@@ -8,6 +8,8 @@ import com.kraat.lostfilmnewtv.data.model.PairingStatus
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -107,14 +109,43 @@ class AuthViewModelTest {
         )
     }
 
+    @Test
+    fun observedAuthExpiry_switchesAuthenticatedStateBackToIdle() = runTest(dispatcher) {
+        val repository = FakeAuthRepository(
+            authState = AuthState(isAuthenticated = true),
+            startPairingResult = pairing(status = PairingStatus.PENDING),
+            pollBehavior = FakePollBehavior.Suspend,
+        )
+        val viewModel = AuthViewModel(
+            authRepository = repository,
+            ioDispatcher = dispatcher,
+        )
+
+        advanceUntilIdle()
+        assertEquals(AuthUiState.Authenticated, viewModel.uiState.value)
+
+        repository.authState = AuthState(isAuthenticated = false)
+        advanceUntilIdle()
+
+        assertEquals(AuthUiState.Idle, viewModel.uiState.value)
+    }
+
     private class FakeAuthRepository(
-        private val authState: AuthState = AuthState(),
+        authState: AuthState = AuthState(),
         private val startPairingResult: PairingSession,
         private val pollBehavior: FakePollBehavior = FakePollBehavior.Queue,
         private val pollResults: ArrayDeque<PairingSession> = ArrayDeque(),
         private val completionResult: CompletableDeferred<AuthCompletionResult> = CompletableDeferred(AuthCompletionResult.Authenticated),
     ) : AuthRepositoryContract {
-        override suspend fun getAuthState(): AuthState = authState
+        private val authStateFlow = MutableStateFlow(authState)
+        var authState: AuthState
+            get() = authStateFlow.value
+            set(value) {
+                authStateFlow.value = value
+            }
+
+        override suspend fun getAuthState(): AuthState = authStateFlow.value
+        override fun observeAuthState(): Flow<AuthState> = authStateFlow
 
         override suspend fun startPairing(): PairingSession = startPairingResult
 
@@ -132,7 +163,9 @@ class AuthViewModelTest {
 
         override suspend fun claimAndPersistSession(): AuthCompletionResult = completionResult.await()
 
-        override suspend fun logout() = Unit
+        override suspend fun logout() {
+            authState = AuthState()
+        }
     }
 
     private enum class FakePollBehavior {

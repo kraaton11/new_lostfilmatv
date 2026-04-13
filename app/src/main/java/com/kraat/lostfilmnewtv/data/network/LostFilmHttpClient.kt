@@ -113,20 +113,23 @@ class OkHttpLostFilmHttpClient(
     }
 
     private suspend fun execute(url: String): String {
+        val cookieHeader = sessionStore?.read()?.toCookieString()?.takeIf { it.isNotBlank() }
         val requestBuilder = Request.Builder()
             .url(url)
             .header("User-Agent", USER_AGENT_PUBLIC)
 
-        sessionStore?.read()?.toCookieString()?.takeIf { it.isNotBlank() }?.let {
-            requestBuilder.header("Cookie", it)
-        }
+        cookieHeader?.let { requestBuilder.header("Cookie", it) }
 
         okHttpClient.newCall(requestBuilder.build()).execute().use { response ->
             if (!response.isSuccessful) {
                 throw IOException("HTTP ${response.code} for $url")
             }
-            return response.body?.string()
+            val body = response.body?.string()
                 ?: throw IOException("Empty response body for $url")
+            if (cookieHeader != null && lostFilmResponseLooksAnonymous(body)) {
+                sessionStore?.markExpired()
+            }
+            return body
         }
     }
 

@@ -71,6 +71,8 @@ import dagger.hilt.android.testing.HiltAndroidTest
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 import javax.inject.Inject
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
 import okhttp3.OkHttpClient
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -478,6 +480,7 @@ private fun legacyTorrServeTag(index: Int) = "torrent-torrserve-torrent-row-$ind
 
 private class FakeAuthRepository : AuthRepositoryContract {
     override suspend fun getAuthState() = AuthState()
+    override fun observeAuthState(): Flow<AuthState> = flowOf(AuthState())
     override suspend fun startPairing(): PairingSession = error("Not used in this test")
     override suspend fun pollPairingStatus(): PairingSession? = null
     override suspend fun claimAndPersistSession() = AuthCompletionResult.RecoverableFailure()

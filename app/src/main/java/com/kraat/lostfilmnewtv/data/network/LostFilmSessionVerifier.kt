@@ -28,26 +28,37 @@ class LostFilmSessionVerifier(
             }
 
             val body = response.body?.string() ?: throw IOException("Empty response body for $probeUrl")
-            val normalizedBody = body.lowercase()
-            val looksAnonymous = normalizedBody.contains(ANONYMOUS_LOGIN_MARKER)
-            val hasProfileLink = normalizedBody.contains(PROFILE_LINK_MARKER)
-            val hasUserPane = normalizedBody.contains(USER_PANE_MARKER)
-            val hasAvatarMarker =
-                normalizedBody.contains(AVATAR_MARKER) || normalizedBody.contains(DEFAULT_AVATAR_MARKER)
-            val hasLogoutLink = normalizedBody.contains(LOGOUT_MARKER)
-
-            return@withContext !looksAnonymous && (hasLogoutLink || (hasProfileLink && hasUserPane && hasAvatarMarker))
+            return@withContext lostFilmResponseLooksAuthenticated(body)
         }
     }
 
     private companion object {
         const val DEFAULT_PROBE_URL = "https://www.lostfilm.today/"
         const val USER_AGENT = "Mozilla/5.0 (Android TV; LostFilmNewTV) AppleWebKit/537.36 Chrome/132.0.0.0 Safari/537.36"
-        const val ANONYMOUS_LOGIN_MARKER = "id=\"lf-login-form\""
-        const val LOGOUT_MARKER = "href=\"/logout\""
-        const val PROFILE_LINK_MARKER = "href=\"/my\""
-        const val USER_PANE_MARKER = "class=\"user-pane\""
-        const val AVATAR_MARKER = "/static/users/"
-        const val DEFAULT_AVATAR_MARKER = "/vision/no-avatar-50.jpg"
     }
 }
+
+internal fun lostFilmResponseLooksAuthenticated(body: String): Boolean {
+    val normalizedBody = body.lowercase()
+    val looksAnonymous = normalizedBody.contains(ANONYMOUS_LOGIN_MARKER)
+    val hasProfileLink = normalizedBody.contains(PROFILE_LINK_MARKER)
+    val hasUserPane = normalizedBody.contains(USER_PANE_MARKER)
+    val hasAvatarMarker =
+        normalizedBody.contains(AVATAR_MARKER) || normalizedBody.contains(DEFAULT_AVATAR_MARKER)
+    val hasLogoutLink = normalizedBody.contains(LOGOUT_MARKER)
+
+    return !looksAnonymous && (hasLogoutLink || (hasProfileLink && hasUserPane && hasAvatarMarker))
+}
+
+internal fun lostFilmResponseLooksAnonymous(body: String): Boolean {
+    val normalizedBody = body.lowercase()
+    val looksAnonymous = normalizedBody.contains(ANONYMOUS_LOGIN_MARKER)
+    return looksAnonymous && !lostFilmResponseLooksAuthenticated(body)
+}
+
+private const val ANONYMOUS_LOGIN_MARKER = "id=\"lf-login-form\""
+private const val LOGOUT_MARKER = "href=\"/logout\""
+private const val PROFILE_LINK_MARKER = "href=\"/my\""
+private const val USER_PANE_MARKER = "class=\"user-pane\""
+private const val AVATAR_MARKER = "/static/users/"
+private const val DEFAULT_AVATAR_MARKER = "/vision/no-avatar-50.jpg"

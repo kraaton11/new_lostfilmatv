@@ -18,6 +18,8 @@ import dagger.Provides
 import dagger.hilt.components.SingletonComponent
 import dagger.hilt.testing.TestInstallIn
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
  * Заменяет [DataModule] в Robolectric unit-тестах.
@@ -81,9 +83,15 @@ class UnitTestFakeRepository : LostFilmRepository {
 }
 
 class UnitTestFakeAuthRepository : AuthRepositoryContract {
-    var authState: AuthState = AuthState(isAuthenticated = false, session = null)
+    private val authStateFlow = MutableStateFlow(AuthState(isAuthenticated = false, session = null))
+    var authState: AuthState
+        get() = authStateFlow.value
+        set(value) {
+            authStateFlow.value = value
+        }
 
     override suspend fun getAuthState() = authState
+    override fun observeAuthState(): Flow<AuthState> = authStateFlow
     override suspend fun startPairing(): PairingSession = error("Not configured")
     override suspend fun pollPairingStatus(): PairingSession? = null
     override suspend fun claimAndPersistSession() = AuthCompletionResult.RecoverableFailure()

@@ -43,6 +43,25 @@ class DetailsViewModel @Inject constructor(
         loadDetails()
     }
 
+    fun onAuthenticationChanged(isAuthenticated: Boolean) {
+        val authStateChanged = hasValidSession != isAuthenticated
+        hasValidSession = isAuthenticated
+
+        if (!started) {
+            return
+        }
+
+        val needsFavoriteRefresh = isAuthenticated && authStateChanged && _uiState.value.details?.let { details ->
+            details.favoriteTargetId == null || details.isFavorite == null
+        } == true
+
+        if (needsFavoriteRefresh) {
+            loadDetails()
+        } else {
+            _uiState.update { it.withFavoritePresentation() }
+        }
+    }
+
     fun onRetry() = loadDetails()
 
     suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean =

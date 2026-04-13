@@ -16,6 +16,8 @@ import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
 import org.junit.Test
 
@@ -96,13 +98,16 @@ class AuthScreenTest {
     }
 
     private class FakeAuthRepository(
-        private val authState: AuthState = AuthState(),
+        authState: AuthState = AuthState(),
         private val startPairingResult: PairingSession,
         private val pollBehavior: FakePollBehavior = FakePollBehavior.Queue,
         private val pollResults: ArrayDeque<PairingSession> = ArrayDeque(),
         private val completionResult: CompletableDeferred<AuthCompletionResult> = CompletableDeferred(AuthCompletionResult.Authenticated),
     ) : AuthRepositoryContract {
-        override suspend fun getAuthState(): AuthState = authState
+        private val authStateFlow = MutableStateFlow(authState)
+
+        override suspend fun getAuthState(): AuthState = authStateFlow.value
+        override fun observeAuthState(): Flow<AuthState> = authStateFlow
 
         override suspend fun startPairing(): PairingSession = startPairingResult
 
@@ -116,7 +121,9 @@ class AuthScreenTest {
 
         override suspend fun claimAndPersistSession(): AuthCompletionResult = completionResult.await()
 
-        override suspend fun logout() = Unit
+        override suspend fun logout() {
+            authStateFlow.value = AuthState()
+        }
     }
 
     private enum class FakePollBehavior {

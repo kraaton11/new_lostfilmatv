@@ -14,13 +14,7 @@ data class LostFilmCookie(
 data class LostFilmSession(
     val cookies: List<LostFilmCookie>,
     val accountId: String? = null,
-    val createdAt: Long = System.currentTimeMillis()
 ) {
-    fun isExpired(): Boolean {
-        val sevenDays = 7 * 24 * 60 * 60 * 1000L
-        return System.currentTimeMillis() - createdAt > sevenDays
-    }
-
     fun toCookieString(): String {
         return cookies.joinToString("; ") { "${it.name}=${it.value}" }
     }

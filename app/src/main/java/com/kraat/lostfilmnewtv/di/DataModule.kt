@@ -59,7 +59,7 @@ object DataModule {
         tmdbResolver = tmdbResolver,
         hasAuthenticatedSession = {
             val session = sessionStore.read()
-            session != null && !session.isExpired()
+            session != null && !sessionStore.isExpired()
         },
     )
 }
