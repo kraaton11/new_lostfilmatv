@@ -24,6 +24,11 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -118,6 +123,14 @@ fun HomeRail(
                             focusedCardKey = null
                         }
                     }
+                    .onPreviewKeyEvent { event ->
+                        if (event.type == KeyEventType.KeyDown && event.key.isPosterActivationKey()) {
+                            onOpenDetails(item.detailsUrl)
+                            true
+                        } else {
+                            false
+                        }
+                    }
                     .focusable()
                     .clickable { onOpenDetails(item.detailsUrl) },
             )
@@ -149,3 +162,14 @@ fun HomeRail(
 internal fun posterTag(detailsUrl: String): String = posterTag(HOME_RAIL_ALL_NEW, detailsUrl)
 
 internal fun posterTag(railId: String, detailsUrl: String): String = "poster:$railId:$detailsUrl"
+
+private fun Key.isPosterActivationKey(): Boolean {
+    return when (this) {
+        Key.DirectionCenter,
+        Key.Enter,
+        Key.NumPadEnter,
+        -> true
+
+        else -> false
+    }
+}

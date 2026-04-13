@@ -93,6 +93,35 @@ class HomeScreenTest {
     }
 
     @Test
+    @OptIn(ExperimentalTestApi::class)
+    fun homeScreen_centerKeyOnFocusedPoster_opensDetails() {
+        var openedUrl: String? = null
+
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(
+                    state = seededState(),
+                    onOpenDetails = { openedUrl = it },
+                )
+            }
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag(posterTag(firstDetailsUrl))
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag(posterTag(firstDetailsUrl))
+            .performKeyInput { pressKey(Key.DirectionCenter) }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) { openedUrl == firstDetailsUrl }
+        assertEquals(firstDetailsUrl, openedUrl)
+    }
+
+    @Test
     fun homeScreen_initialFocusedPoster_keepsSafeInsetFromLeftEdge() {
         composeRule.setContent {
             LostFilmTheme {
