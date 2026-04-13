@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kraat.lostfilmnewtv.BuildConfig
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
+import com.kraat.lostfilmnewtv.playback.WatchedMarkingMode
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundSurface
@@ -51,6 +52,8 @@ fun SettingsScreen(
     selectedUpdateMode: UpdateCheckMode,
     selectedChannelMode: AndroidTvChannelMode,
     isHomeFavoritesRailEnabled: Boolean = false,
+    selectedWatchedMarkingMode: WatchedMarkingMode = WatchedMarkingMode.AUTO,
+    onWatchedMarkingModeSelected: (WatchedMarkingMode) -> Unit = {},
     isAuthenticated: Boolean = false,
     onAuthClick: () -> Unit = {},
     installedVersionText: String,
@@ -86,6 +89,8 @@ fun SettingsScreen(
             HOME_FAVORITES_SHOW_TAG to FocusRequester(),
             HOME_FAVORITES_HIDE_TAG to FocusRequester(),
             ACCOUNT_AUTH_ACTION_TAG to FocusRequester(),
+            WATCHED_MARKING_AUTO_TAG to FocusRequester(),
+            WATCHED_MARKING_DISABLED_TAG to FocusRequester(),
         )
     }
     var rememberedActionBySection by rememberSaveable {
@@ -95,6 +100,7 @@ fun SettingsScreen(
                 SettingsSection.UPDATES.name to selectedUpdateMode.buttonTag(),
                 SettingsSection.CHANNEL.name to selectedChannelMode.buttonTag(),
                 SettingsSection.HOME_SCREEN.name to if (isHomeFavoritesRailEnabled) HOME_FAVORITES_SHOW_TAG else HOME_FAVORITES_HIDE_TAG,
+                SettingsSection.PLAYBACK.name to if (selectedWatchedMarkingMode == WatchedMarkingMode.AUTO) WATCHED_MARKING_AUTO_TAG else WATCHED_MARKING_DISABLED_TAG,
                 SettingsSection.ACCOUNT.name to ACCOUNT_AUTH_ACTION_TAG,
             ),
         )
@@ -117,6 +123,7 @@ fun SettingsScreen(
     )
     val channelSummary = selectedChannelMode.label()
     val homeScreenSummary = if (isHomeFavoritesRailEnabled) "Показывать" else "Скрывать"
+    val watchedSummary = if (selectedWatchedMarkingMode == WatchedMarkingMode.AUTO) "Автоматически" else "Не отмечать"
     val accountSummary = if (isAuthenticated) "Выполнен вход" else "Не выполнен вход"
     val aboutSummary = BuildConfig.VERSION_NAME
 
@@ -145,6 +152,7 @@ fun SettingsScreen(
                 updateSummary = updateSummary,
                 channelSummary = channelSummary,
                 homeScreenSummary = homeScreenSummary,
+                watchedSummary = watchedSummary,
                 accountSummary = accountSummary,
                 aboutSummary = aboutSummary,
                 onSectionSelected = { selectedSectionName = it.name },
@@ -158,6 +166,7 @@ fun SettingsScreen(
                             selectedQuality = selectedQuality,
                             selectedUpdateMode = selectedUpdateMode,
                             selectedChannelMode = selectedChannelMode,
+                            selectedWatchedMarkingMode = selectedWatchedMarkingMode,
                             installUrl = installUrl,
                             rememberedActionBySection = rememberedActionBySection,
                         )
@@ -353,6 +362,52 @@ fun SettingsScreen(
                             }
                         }
 
+                        SettingsSection.PLAYBACK -> {
+                            SettingsOptionsSection {
+                                SettingsOverviewCard(
+                                    title = "Отметка просмотрено",
+                                    subtitle = "Автоматически отмечать эпизод просмотренным при запуске воспроизведения.",
+                                    modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(22.dp)),
+                                ) {
+                                    SettingsOverviewValue(text = "Сейчас: $watchedSummary")
+                                }
+                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                                    SettingsTvButton(
+                                        text = "Отмечать автоматически",
+                                        onClick = { onWatchedMarkingModeSelected(WatchedMarkingMode.AUTO) },
+                                        isSelected = selectedWatchedMarkingMode == WatchedMarkingMode.AUTO,
+                                        tag = WATCHED_MARKING_AUTO_TAG,
+                                        onFocused = {
+                                            rememberedActionBySection = rememberedActionBySection + (
+                                                SettingsSection.PLAYBACK.name to WATCHED_MARKING_AUTO_TAG
+                                            )
+                                        },
+                                        modifier = Modifier
+                                            .focusRequester(contentRequesters.getValue(WATCHED_MARKING_AUTO_TAG))
+                                            .focusProperties {
+                                                left = railRequesters.getValue(SettingsSection.PLAYBACK)
+                                            },
+                                    )
+                                    SettingsTvButton(
+                                        text = "Не отмечать",
+                                        onClick = { onWatchedMarkingModeSelected(WatchedMarkingMode.DISABLED) },
+                                        isSelected = selectedWatchedMarkingMode == WatchedMarkingMode.DISABLED,
+                                        tag = WATCHED_MARKING_DISABLED_TAG,
+                                        onFocused = {
+                                            rememberedActionBySection = rememberedActionBySection + (
+                                                SettingsSection.PLAYBACK.name to WATCHED_MARKING_DISABLED_TAG
+                                            )
+                                        },
+                                        modifier = Modifier
+                                            .focusRequester(contentRequesters.getValue(WATCHED_MARKING_DISABLED_TAG))
+                                            .focusProperties {
+                                                left = railRequesters.getValue(SettingsSection.PLAYBACK)
+                                            },
+                                    )
+                                }
+                            }
+                        }
+
                         SettingsSection.ACCOUNT -> {
                             SettingsOptionsSection {
                                 SettingsOverviewCard(
@@ -421,6 +476,7 @@ private enum class SettingsSection(
     UPDATES("Обновления", "settings-section-updates", "settings-section-updates-summary"),
     CHANNEL("Канал Android TV", "settings-section-channel", "settings-section-channel-summary"),
     HOME_SCREEN("Главный экран", "settings-section-home-screen", "settings-section-home-screen-summary"),
+    PLAYBACK("Воспроизведение", "settings-section-playback", "settings-section-playback-summary"),
     ACCOUNT("Аккаунт", "settings-section-account", "settings-section-account-summary"),
     ABOUT("О приложении", "settings-section-about", "settings-section-about-summary"),
 }
@@ -432,6 +488,7 @@ private fun SettingsSectionRail(
     updateSummary: String,
     channelSummary: String,
     homeScreenSummary: String,
+    watchedSummary: String,
     accountSummary: String,
     aboutSummary: String,
     onSectionSelected: (SettingsSection) -> Unit,
@@ -455,6 +512,7 @@ private fun SettingsSectionRail(
                     SettingsSection.UPDATES -> updateSummary
                     SettingsSection.CHANNEL -> channelSummary
                     SettingsSection.HOME_SCREEN -> homeScreenSummary
+                    SettingsSection.PLAYBACK -> watchedSummary
                     SettingsSection.ACCOUNT -> accountSummary
                     SettingsSection.ABOUT -> aboutSummary
                 },
@@ -605,6 +663,7 @@ private fun targetContentTag(
     selectedQuality: PlaybackQualityPreference,
     selectedUpdateMode: UpdateCheckMode,
     selectedChannelMode: AndroidTvChannelMode,
+    selectedWatchedMarkingMode: WatchedMarkingMode,
     installUrl: String?,
     rememberedActionBySection: Map<String, String>,
 ): String {
@@ -615,6 +674,7 @@ private fun targetContentTag(
         section == SettingsSection.UPDATES -> selectedUpdateMode.buttonTag()
         section == SettingsSection.CHANNEL -> selectedChannelMode.buttonTag()
         section == SettingsSection.HOME_SCREEN -> if (rememberedActionBySection[section.name] != null) rememberedActionBySection[section.name]!! else HOME_FAVORITES_SHOW_TAG
+        section == SettingsSection.PLAYBACK -> if (selectedWatchedMarkingMode == WatchedMarkingMode.AUTO) WATCHED_MARKING_AUTO_TAG else WATCHED_MARKING_DISABLED_TAG
         section == SettingsSection.ACCOUNT -> ACCOUNT_AUTH_ACTION_TAG
         section == SettingsSection.ABOUT -> ""
         else -> selectedQuality.buttonTag()
@@ -702,3 +762,5 @@ private const val INSTALL_UPDATE_TAG = "settings-install-update"
 private const val HOME_FAVORITES_SHOW_TAG = "settings-home-favorites-show"
 private const val HOME_FAVORITES_HIDE_TAG = "settings-home-favorites-hide"
 private const val ACCOUNT_AUTH_ACTION_TAG = "settings-account-auth-action"
+private const val WATCHED_MARKING_AUTO_TAG = "settings-watched-marking-auto"
+private const val WATCHED_MARKING_DISABLED_TAG = "settings-watched-marking-disabled"

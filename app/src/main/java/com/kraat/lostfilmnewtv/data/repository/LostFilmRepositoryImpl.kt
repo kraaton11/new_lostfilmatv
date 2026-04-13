@@ -78,14 +78,12 @@ class LostFilmRepositoryImpl(
                 pageNumber = pageNumber,
                 fetchedAt = fetchedAt,
             )
-            val itemsToPersist = if (hasAuthenticatedSession) {
-                parsedItems
-            } else {
-                preserveWatchedState(
-                    pageNumber = pageNumber,
-                    parsedItems = parsedItems,
-                )
-            }
+            val itemsToPersist = mergeWatchedState(
+                pageNumber = pageNumber,
+                html = html,
+                parsedItems = parsedItems,
+                hasAuthenticatedSession = hasAuthenticatedSession,
+            )
 
             releaseDao.replacePage(
                 pageNumber = pageNumber,
@@ -574,14 +572,85 @@ class LostFilmRepositoryImpl(
         releaseDao.deleteExpiredData(clock() - RETENTION_WINDOW_MS)
     }
 
+    private suspend fun mergeWatchedState(
+        pageNumber: Int,
+        html: String,
+        parsedItems: List<com.kraat.lostfilmnewtv.data.model.ReleaseSummary>,
+        hasAuthenticatedSession: Boolean,
+    ): List<com.kraat.lostfilmnewtv.data.model.ReleaseSummary> {
+        val watchedStateByUrl = if (hasAuthenticatedSession) {
+            fetchWatchedStateByUrl(
+                pageNumber = pageNumber,
+                html = html,
+            )
+        } else {
+            emptyMap()
+        }
+        val itemsWithRemoteState = parsedItems.map { item ->
+            watchedStateByUrl[item.detailsUrl]
+                ?.let { isWatched -> item.copy(isWatched = isWatched) }
+                ?: item
+        }
+
+        return preserveWatchedState(
+            pageNumber = pageNumber,
+            parsedItems = itemsWithRemoteState,
+            skipDetailsUrls = watchedStateByUrl.keys,
+        )
+    }
+
+    private suspend fun fetchWatchedStateByUrl(
+        pageNumber: Int,
+        html: String,
+    ): Map<String, Boolean> {
+        val watchMarkers = listParser.parseWatchMarkers(html)
+        if (watchMarkers.isEmpty()) {
+            return emptyMap()
+        }
+
+        val refererUrl = if (pageNumber <= 1) {
+            "$BASE_URL/new/"
+        } else {
+            "$BASE_URL/new/page_$pageNumber"
+        }
+        val watchedIdsBySerialId = coroutineScope {
+            watchMarkers
+                .map { it.serialId }
+                .distinct()
+                .map { serialId ->
+                    async {
+                        serialId to try {
+                            seasonEpisodesParser.parseWatchedEpisodeIds(
+                                httpClient.fetchSeasonWatchedEpisodeMarks(
+                                    refererUrl = refererUrl,
+                                    serialId = serialId,
+                                ),
+                            )
+                        } catch (_: IOException) {
+                            null
+                        }
+                    }
+                }
+                .awaitAll()
+                .toMap()
+        }
+
+        return watchMarkers.mapNotNull { marker ->
+            watchedIdsBySerialId[marker.serialId]?.let { watchedIds ->
+                marker.detailsUrl to watchedIds.contains(marker.episodeId)
+            }
+        }.toMap()
+    }
+
     private suspend fun preserveWatchedState(
         pageNumber: Int,
         parsedItems: List<com.kraat.lostfilmnewtv.data.model.ReleaseSummary>,
+        skipDetailsUrls: Set<String> = emptySet(),
     ): List<com.kraat.lostfilmnewtv.data.model.ReleaseSummary> {
         val existingWatchedByUrl = releaseDao.getPageSummaries(pageNumber)
             .associate { entity -> entity.detailsUrl to entity.isWatched }
         return parsedItems.map { item ->
-            if (existingWatchedByUrl[item.detailsUrl] == true) {
+            if (item.detailsUrl !in skipDetailsUrls && existingWatchedByUrl[item.detailsUrl] == true) {
                 item.copy(isWatched = true)
             } else {
                 item

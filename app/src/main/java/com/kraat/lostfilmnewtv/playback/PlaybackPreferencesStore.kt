@@ -4,6 +4,7 @@ import android.content.Context
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.ui.home.HomeFeedMode
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
+import com.kraat.lostfilmnewtv.playback.WatchedMarkingMode
 
 class PlaybackPreferencesStore(
     context: Context,
@@ -77,6 +78,18 @@ class PlaybackPreferencesStore(
             .apply()
     }
 
+    fun readWatchedMarkingMode(): WatchedMarkingMode {
+        return WatchedMarkingMode.fromStorageValue(
+            prefs.getString(KEY_WATCHED_MARKING_MODE, null),
+        )
+    }
+
+    fun writeWatchedMarkingMode(value: WatchedMarkingMode) {
+        prefs.edit()
+            .putString(KEY_WATCHED_MARKING_MODE, value.storageValue)
+            .apply()
+    }
+
     fun readHomeSelectedFeedMode(): HomeFeedMode {
         return HomeFeedMode.fromStorageValue(
             prefs.getString(KEY_HOME_SELECTED_FEED_MODE, null),
@@ -97,5 +110,6 @@ class PlaybackPreferencesStore(
         const val KEY_ANDROID_TV_CHANNEL_ID = "android_tv_channel_id"
         const val KEY_HOME_FAVORITES_RAIL_ENABLED = "home_favorites_rail_enabled"
         const val KEY_HOME_SELECTED_FEED_MODE = "home_selected_feed_mode"
+        const val KEY_WATCHED_MARKING_MODE = "watched_marking_mode"
     }
 }

@@ -158,6 +158,71 @@ class LostFilmRepositoryTest {
     }
 
     @Test
+    fun loadPage_withAuthenticatedSession_marksWatchedItemsFromSeasonMarksResponse() = runTest {
+        val watchedMarksRequests = mutableListOf<String>()
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            watchedEpisodeMarksHandler = { serialId ->
+                watchedMarksRequests += serialId
+                when (serialId) {
+                    "362" -> """["362009013"]"""
+                    "1080" -> """["1080001001"]"""
+                    else -> "[]"
+                }
+            },
+            isAuthenticated = true,
+        )
+
+        val result = repository.loadPage(1) as PageState.Content
+
+        assertTrue(result.items.first { it.detailsUrl.endsWith("/series/9-1-1/season_9/episode_13/") }.isWatched)
+        assertTrue(result.items.first { it.detailsUrl.endsWith("/movies/Irreversible") }.isWatched)
+        assertFalse(result.items.first { it.detailsUrl.endsWith("/series/Love_Story/season_1/episode_7/") }.isWatched)
+        assertTrue(watchedMarksRequests.contains("362"))
+        assertTrue(watchedMarksRequests.contains("1080"))
+    }
+
+    @Test
+    fun loadPage_withAuthenticatedSession_usesRemoteWatchedStateInsteadOfStaleCache() = runTest {
+        val watchedDetailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        releaseDao.upsertSummaries(
+            listOf(
+                ReleaseSummaryEntity(
+                    detailsUrl = watchedDetailsUrl,
+                    kind = "SERIES",
+                    titleRu = "9-1-1",
+                    episodeTitleRu = "Маменькин сынок",
+                    seasonNumber = 9,
+                    episodeNumber = 13,
+                    releaseDateRu = "14.03.2026",
+                    posterUrl = "https://www.lostfilm.today/Static/Images/362/Posters/image_s9.jpg",
+                    pageNumber = 1,
+                    positionInPage = 0,
+                    fetchedAt = NOW - 10_000L,
+                    isWatched = true,
+                ),
+            ),
+        )
+        releaseDao.upsertPageMetadata(
+            PageCacheMetadataEntity(
+                pageNumber = 1,
+                fetchedAt = NOW - 10_000L,
+                itemCount = 1,
+            ),
+        )
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            watchedEpisodeMarksHandler = { "[]" },
+            isAuthenticated = true,
+        )
+
+        val result = repository.loadPage(1) as PageState.Content
+
+        assertFalse(result.items.first { it.detailsUrl == watchedDetailsUrl }.isWatched)
+        assertFalse(releaseDao.getSummary(watchedDetailsUrl)?.isWatched == true)
+    }
+
+    @Test
     fun loadPage_persistsTmdbEnrichedPosterIntoSummaryCache() = runTest {
         val targetDetailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
         val tmdbPosterUrl = "https://image.tmdb.org/t/p/w780/tmdb-poster.jpg"
