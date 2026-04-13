@@ -10,4 +10,7 @@ internal class PlaybackStoreHomeChannelPreferences(
     override fun readChannelId() = store.readAndroidTvChannelId()
     override fun writeChannelId(channelId: Long) = store.writeAndroidTvChannelId(channelId)
     override fun clearChannelId() = store.clearAndroidTvChannelId()
+    override fun readFavoriteChannelId() = store.readAndroidTvFavoritesChannelId()
+    override fun writeFavoriteChannelId(channelId: Long) = store.writeAndroidTvFavoritesChannelId(channelId)
+    override fun clearFavoriteChannelId() = store.clearAndroidTvFavoritesChannelId()
 }

@@ -68,6 +68,26 @@ class PlaybackPreferencesStore(
             .apply()
     }
 
+    fun readAndroidTvFavoritesChannelId(): Long? {
+        return if (prefs.contains(KEY_ANDROID_TV_FAVORITES_CHANNEL_ID)) {
+            prefs.getLong(KEY_ANDROID_TV_FAVORITES_CHANNEL_ID, 0L)
+        } else {
+            null
+        }
+    }
+
+    fun writeAndroidTvFavoritesChannelId(value: Long) {
+        prefs.edit()
+            .putLong(KEY_ANDROID_TV_FAVORITES_CHANNEL_ID, value)
+            .apply()
+    }
+
+    fun clearAndroidTvFavoritesChannelId() {
+        prefs.edit()
+            .remove(KEY_ANDROID_TV_FAVORITES_CHANNEL_ID)
+            .apply()
+    }
+
     fun readHomeFavoritesRailEnabled(): Boolean {
         return prefs.getBoolean(KEY_HOME_FAVORITES_RAIL_ENABLED, false)
     }
@@ -108,6 +128,7 @@ class PlaybackPreferencesStore(
         const val KEY_UPDATE_CHECK_MODE = "update_check_mode"
         const val KEY_ANDROID_TV_CHANNEL_MODE = "android_tv_channel_mode"
         const val KEY_ANDROID_TV_CHANNEL_ID = "android_tv_channel_id"
+        const val KEY_ANDROID_TV_FAVORITES_CHANNEL_ID = "android_tv_favorites_channel_id"
         const val KEY_HOME_FAVORITES_RAIL_ENABLED = "home_favorites_rail_enabled"
         const val KEY_HOME_SELECTED_FEED_MODE = "home_selected_feed_mode"
         const val KEY_WATCHED_MARKING_MODE = "watched_marking_mode"

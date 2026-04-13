@@ -2,7 +2,9 @@ package com.kraat.lostfilmnewtv.tvchannel
 
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
 import com.kraat.lostfilmnewtv.data.db.ReleaseSummaryEntity
+import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
+import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolver
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -11,10 +13,20 @@ import kotlinx.coroutines.coroutineScope
 class HomeChannelContentRepository(
     private val reader: HomeChannelSummaryReader,
     private val tmdbResolver: TmdbPosterResolver,
+    private val loadFavoriteReleases: suspend () -> FavoriteReleasesResult = {
+        FavoriteReleasesResult.Unavailable()
+    },
 ) : HomeChannelProgramSource {
-    constructor(releaseDao: ReleaseDao, tmdbResolver: TmdbPosterResolver) : this(
+    constructor(
+        releaseDao: ReleaseDao,
+        tmdbResolver: TmdbPosterResolver,
+        loadFavoriteReleases: suspend () -> FavoriteReleasesResult = {
+            FavoriteReleasesResult.Unavailable()
+        },
+    ) : this(
         reader = DaoHomeChannelSummaryReader(releaseDao),
         tmdbResolver = tmdbResolver,
+        loadFavoriteReleases = loadFavoriteReleases,
     )
 
     override suspend fun loadPrograms(
@@ -27,6 +39,19 @@ class HomeChannelContentRepository(
             AndroidTvChannelMode.DISABLED -> return emptyList()
         }
 
+        return mapEntityRows(rows)
+    }
+
+    override suspend fun loadFavoritePrograms(limit: Int): List<HomeChannelProgram> {
+        val items = when (val result = loadFavoriteReleases()) {
+            is FavoriteReleasesResult.Success -> result.items.take(limit)
+            is FavoriteReleasesResult.Unavailable -> return emptyList()
+        }
+
+        return mapSummaryRows(items)
+    }
+
+    private suspend fun mapEntityRows(rows: List<ReleaseSummaryEntity>): List<HomeChannelProgram> {
         return coroutineScope {
             rows.map { row ->
                 async {
@@ -49,6 +74,30 @@ class HomeChannelContentRepository(
             }.awaitAll()
         }
     }
+
+    private suspend fun mapSummaryRows(items: List<ReleaseSummary>): List<HomeChannelProgram> {
+        return coroutineScope {
+            items.map { item ->
+                async {
+                    val tmdbUrls = tmdbResolver.resolve(
+                        detailsUrl = item.detailsUrl,
+                        titleRu = item.titleRu,
+                        releaseDateRu = item.releaseDateRu,
+                        kind = item.kind,
+                    )
+                    HomeChannelProgram(
+                        detailsUrl = item.detailsUrl,
+                        title = item.titleRu,
+                        description = item.channelDescription(),
+                        posterUrl = tmdbUrls?.posterUrl?.takeIf { it.isNotBlank() }
+                            ?: item.posterUrl,
+                        backdropUrl = tmdbUrls?.backdropUrl?.takeIf { it.isNotBlank() }.orEmpty(),
+                        internalProviderId = item.detailsUrl,
+                    )
+                }
+            }.awaitAll()
+        }
+    }
 }
 
 interface HomeChannelProgramSource {
@@ -56,6 +105,8 @@ interface HomeChannelProgramSource {
         mode: AndroidTvChannelMode,
         limit: Int,
     ): List<HomeChannelProgram>
+
+    suspend fun loadFavoritePrograms(limit: Int): List<HomeChannelProgram> = emptyList()
 }
 
 interface HomeChannelSummaryReader {
@@ -64,7 +115,7 @@ interface HomeChannelSummaryReader {
     suspend fun latestUnwatched(limit: Int): List<ReleaseSummaryEntity>
 }
 
-private class DaoHomeChannelSummaryReader(
+class DaoHomeChannelSummaryReader(
     private val releaseDao: ReleaseDao,
 ) : HomeChannelSummaryReader {
     override suspend fun latest(limit: Int): List<ReleaseSummaryEntity> {
@@ -78,6 +129,20 @@ private class DaoHomeChannelSummaryReader(
 
 private fun ReleaseSummaryEntity.channelDescription(): String {
     return when (ReleaseKind.valueOf(kind)) {
+        ReleaseKind.MOVIE -> releaseDateRu
+        ReleaseKind.SERIES -> episodeTitleRu
+            ?.takeIf { it.isNotBlank() }
+            ?: buildString {
+                append("S")
+                append(seasonNumber ?: "?")
+                append("E")
+                append(episodeNumber ?: "?")
+            }
+    }
+}
+
+private fun ReleaseSummary.channelDescription(): String {
+    return when (kind) {
         ReleaseKind.MOVIE -> releaseDateRu
         ReleaseKind.SERIES -> episodeTitleRu
             ?.takeIf { it.isNotBlank() }
