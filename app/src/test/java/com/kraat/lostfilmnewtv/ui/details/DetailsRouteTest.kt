@@ -390,6 +390,59 @@ class DetailsRouteTest {
     }
 
     @Test
+    fun route_updatesFavoriteActionWhenAuthenticationStateChanges() {
+        val detailsUrl = "https://www.lostfilm.today/series/auth-sync"
+        var isAuthenticated by mutableStateOf(false)
+        val repository = RouteFakeDetailsRepository.success(
+            detailsUrl = detailsUrl,
+            details = details(detailsUrl).copy(
+                favoriteTargetId = 915,
+                isFavorite = false,
+            ),
+        ).apply {
+            favoriteResults += FavoriteMutationResult.Updated
+        }
+        val viewModel = DetailsViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(
+                    AppDestination.Details.detailsUrlArg to detailsUrl,
+                    AppDestination.Details.isAuthenticatedArg to false,
+                ),
+            ),
+            ioDispatcher = Dispatchers.Unconfined,
+        )
+
+        composeRule.setContent {
+            DetailsRoute(
+                detailsUrl = detailsUrl,
+                isAuthenticated = isAuthenticated,
+                viewModel = viewModel,
+                actionHandler = succeedingActionHandler(),
+                linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
+            )
+        }
+
+        composeRule.waitForNodeWithTag("details-favorite-action")
+        composeRule.onNodeWithText("Войдите в LostFilm").assertExists()
+        composeRule.onNodeWithTag("details-favorite-action")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        assertEquals(emptyList<Pair<String, Boolean>>(), repository.favoriteRequests)
+
+        composeRule.runOnIdle {
+            isAuthenticated = true
+        }
+
+        composeRule.waitForNodeWithText("Добавить в избранное")
+        composeRule.onNodeWithTag("details-favorite-action")
+            .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitUntil(timeoutMillis = 5_000) { repository.favoriteRequests.size == 1 }
+
+        assertEquals(listOf(detailsUrl to true), repository.favoriteRequests)
+    }
+
+    @Test
     fun route_callsOnOpenSeriesGuide_whenGuideActionIsClicked() {
         val detailsUrl = "https://www.lostfilm.today/series/guide"
         var openedGuideUrl: String? = null

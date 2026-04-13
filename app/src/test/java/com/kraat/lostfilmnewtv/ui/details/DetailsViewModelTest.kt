@@ -307,6 +307,59 @@ class DetailsViewModelTest {
         assertEquals("Войдите в LostFilm", viewModel.uiState.value.favoriteActionLabel)
         assertEquals(false, viewModel.uiState.value.isFavoriteActionEnabled)
     }
+
+    @Test
+    fun onAuthenticationChanged_reloadsDetailsWhenFavoriteMetadataBecomesAvailable() = runTest(dispatcher) {
+        val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        val repository = ReloadingDetailsRepository(
+            results = listOf(
+                DetailsResult.Success(
+                    details = details(
+                        kind = ReleaseKind.SERIES,
+                        titleRu = "9-1-1",
+                        seasonNumber = 9,
+                        episodeNumber = 13,
+                        releaseDateRu = "14 марта 2026",
+                    ),
+                    isStale = false,
+                ),
+                DetailsResult.Success(
+                    details = details(
+                        kind = ReleaseKind.SERIES,
+                        titleRu = "9-1-1",
+                        seasonNumber = 9,
+                        episodeNumber = 13,
+                        releaseDateRu = "14 марта 2026",
+                    ).copy(
+                        favoriteTargetId = 915,
+                        isFavorite = false,
+                    ),
+                    isStale = false,
+                ),
+            ),
+        )
+        val viewModel = DetailsViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(
+                    AppDestination.Details.detailsUrlArg to detailsUrl,
+                    AppDestination.Details.isAuthenticatedArg to false,
+                ),
+            ),
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+        assertEquals("Войдите в LostFilm", viewModel.uiState.value.favoriteActionLabel)
+
+        viewModel.onAuthenticationChanged(true)
+        advanceUntilIdle()
+
+        assertEquals(listOf(detailsUrl, detailsUrl), repository.loadedDetailsUrls)
+        assertEquals("Добавить в избранное", viewModel.uiState.value.favoriteActionLabel)
+        assertEquals(true, viewModel.uiState.value.isFavoriteActionEnabled)
+    }
 }
 
 private class FakeDetailsRepository(
@@ -343,6 +396,36 @@ private class SequencedDetailsRepository(
 
     override suspend fun loadDetails(detailsUrl: String): DetailsResult {
         return results[index++].await()
+    }
+
+    override suspend fun loadSeriesGuide(detailsUrl: String): com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult {
+        return com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult.Error("not needed")
+    }
+
+    override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean = false
+
+    override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult {
+        return FavoriteMutationResult.RequiresLogin()
+    }
+
+    override suspend fun loadFavoriteReleases(): FavoriteReleasesResult {
+        return FavoriteReleasesResult.Unavailable()
+    }
+}
+
+private class ReloadingDetailsRepository(
+    private val results: List<DetailsResult>,
+) : LostFilmRepository {
+    val loadedDetailsUrls = mutableListOf<String>()
+    private var index = 0
+
+    override suspend fun loadPage(pageNumber: Int): PageState {
+        error("Page loading is not used in details tests")
+    }
+
+    override suspend fun loadDetails(detailsUrl: String): DetailsResult {
+        loadedDetailsUrls += detailsUrl
+        return results[index++]
     }
 
     override suspend fun loadSeriesGuide(detailsUrl: String): com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult {

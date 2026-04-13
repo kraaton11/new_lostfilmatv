@@ -5,6 +5,8 @@ import com.kraat.lostfilmnewtv.data.model.FavoriteToggleNetworkResult
 import com.kraat.lostfilmnewtv.data.model.LostFilmCookie
 import com.kraat.lostfilmnewtv.data.model.LostFilmSession
 import com.kraat.lostfilmnewtv.data.parser.BASE_URL
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import okhttp3.Protocol
@@ -14,6 +16,7 @@ import okhttp3.ResponseBody.Companion.toResponseBody
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNotNull
 import org.junit.Test
 
@@ -61,6 +64,36 @@ class AuthenticatedLostFilmHttpClientTest {
 
             val request = server.takeRequest()
             assertEquals(null, request.getHeader("Cookie"))
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun fetchDetails_marksSessionExpired_whenCookieBackedRequestLooksAnonymous() = runTest {
+        val server = MockWebServer()
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""<html><body><form id="lf-login-form"></form></body></html>"""),
+        )
+        server.start()
+        try {
+            val sessionStore = FakeSessionStore(
+                LostFilmSession(
+                    cookies = listOf(
+                        LostFilmCookie("lf_session", "cookie-value", ".lostfilm.today"),
+                    ),
+                ),
+            )
+            val client = AuthenticatedLostFilmHttpClient(
+                sessionStore = sessionStore,
+                okHttpClient = OkHttpClient(),
+            )
+
+            client.fetchDetails(server.url("/series/test").toString())
+
+            assertTrue(sessionStore.expired)
         } finally {
             server.shutdown()
         }
@@ -170,15 +203,26 @@ class AuthenticatedLostFilmHttpClientTest {
 
     private class FakeSessionStore(
         private var session: LostFilmSession?,
+        var expired: Boolean = false,
     ) : SessionStore {
+        private val changesFlow = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
         override suspend fun read(): LostFilmSession? = session
         override suspend fun save(session: LostFilmSession) {
             this.session = session
+            expired = false
+            changesFlow.tryEmit(Unit)
         }
-        override suspend fun markExpired() = Unit
+        override suspend fun markExpired() {
+            expired = true
+            changesFlow.tryEmit(Unit)
+        }
         override suspend fun clear() {
             session = null
+            expired = false
+            changesFlow.tryEmit(Unit)
         }
-        override suspend fun isExpired(): Boolean = false
+        override suspend fun isExpired(): Boolean = expired
+        override fun changes(): Flow<Unit> = changesFlow
     }
 }

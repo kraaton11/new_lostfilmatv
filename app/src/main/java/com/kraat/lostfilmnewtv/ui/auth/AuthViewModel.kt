@@ -10,6 +10,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -25,16 +26,18 @@ class AuthViewModel @Inject constructor(
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
     init {
-        checkExistingAuth()
+        observeAuthState()
     }
 
-    private fun checkExistingAuth() {
+    private fun observeAuthState() {
         viewModelScope.launch(ioDispatcher) {
-            val authState = authRepository.getAuthState()
-            _uiState.value = if (authState.isAuthenticated) {
-                AuthUiState.Authenticated
-            } else {
-                AuthUiState.Idle
+            authRepository.observeAuthState().collect { authState ->
+                when {
+                    authState.isAuthenticated -> _uiState.value = AuthUiState.Authenticated
+                    _uiState.value is AuthUiState.Authenticated || _uiState.value is AuthUiState.Idle -> {
+                        _uiState.value = AuthUiState.Idle
+                    }
+                }
             }
         }
     }

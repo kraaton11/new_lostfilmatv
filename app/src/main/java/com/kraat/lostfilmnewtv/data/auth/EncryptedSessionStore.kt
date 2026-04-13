@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.kraat.lostfilmnewtv.data.model.LostFilmSession
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -12,6 +14,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 class EncryptedSessionStore(private val context: Context) : SessionStore {
+    private val changesFlow = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
     // Инициализация отложена и защищена мьютексом, чтобы избежать I/O на главном потоке
     // и гонки при одновременных первых обращениях.
@@ -60,6 +63,7 @@ class EncryptedSessionStore(private val context: Context) : SessionStore {
                 .putString(KEY_SESSION, sessionJson)
                 .remove(KEY_EXPIRED)
                 .apply()
+            changesFlow.tryEmit(Unit)
         }
     }
 
@@ -68,6 +72,7 @@ class EncryptedSessionStore(private val context: Context) : SessionStore {
             prefs().edit()
                 .putBoolean(KEY_EXPIRED, true)
                 .apply()
+            changesFlow.tryEmit(Unit)
         }
     }
 
@@ -77,12 +82,15 @@ class EncryptedSessionStore(private val context: Context) : SessionStore {
                 .remove(KEY_SESSION)
                 .remove(KEY_EXPIRED)
                 .apply()
+            changesFlow.tryEmit(Unit)
         }
     }
 
     override suspend fun isExpired(): Boolean = withContext(Dispatchers.IO) {
         prefs().getBoolean(KEY_EXPIRED, false)
     }
+
+    override fun changes(): Flow<Unit> = changesFlow
 
     companion object {
         private const val KEY_SESSION = "lostfilm_session"

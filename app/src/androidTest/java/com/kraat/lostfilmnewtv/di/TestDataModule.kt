@@ -16,6 +16,8 @@ import dagger.Provides
 import dagger.hilt.components.SingletonComponent
 import dagger.hilt.testing.TestInstallIn
 import javax.inject.Singleton
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
  * Заменяет [DataModule] в инструментальных тестах.
@@ -65,10 +67,16 @@ class TestFakeRepository : LostFilmRepository {
 }
 
 class TestFakeAuthRepository : AuthRepositoryContract {
-    var authState: AuthState = AuthState(isAuthenticated = false, session = null)
+    private val authStateFlow = MutableStateFlow(AuthState(isAuthenticated = false, session = null))
+    var authState: AuthState
+        get() = authStateFlow.value
+        set(value) {
+            authStateFlow.value = value
+        }
     var pairingSession: PairingSession? = null
 
     override suspend fun getAuthState(): AuthState = authState
+    override fun observeAuthState(): Flow<AuthState> = authStateFlow
     override suspend fun startPairing(): PairingSession =
         pairingSession ?: error("startPairing not configured in TestFakeAuthRepository")
     override suspend fun pollPairingStatus(): PairingSession? = pairingSession

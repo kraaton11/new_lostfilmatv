@@ -9,6 +9,10 @@ import com.kraat.lostfilmnewtv.data.network.AuthBridgeClient
 import com.kraat.lostfilmnewtv.data.network.LostFilmSessionVerifier
 import java.io.IOException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 
 class AuthRepository(
     private val authBridgeClient: AuthBridgeClient,
@@ -22,10 +26,37 @@ class AuthRepository(
 
     override suspend fun getAuthState(): AuthState {
         val session = sessionStore.read()
-        return AuthState(
-            isAuthenticated = session != null && !session.isExpired(),
-            session = session,
-        )
+            ?: return AuthState(isAuthenticated = false, session = null)
+        if (sessionStore.isExpired()) {
+            return AuthState(isAuthenticated = false, session = session)
+        }
+
+        return when (verifyClaimedSessionWithRetries(session)) {
+            VerificationResult.AUTHENTICATED -> AuthState(
+                isAuthenticated = true,
+                session = session,
+            )
+
+            VerificationResult.UNAUTHENTICATED -> {
+                sessionStore.markExpired()
+                AuthState(
+                    isAuthenticated = false,
+                    session = session,
+                )
+            }
+
+            VerificationResult.NETWORK_ERROR -> AuthState(
+                isAuthenticated = true,
+                session = session,
+            )
+        }
+    }
+
+    override fun observeAuthState(): Flow<AuthState> {
+        return sessionStore.changes()
+            .onStart { emit(Unit) }
+            .map { getAuthState() }
+            .distinctUntilChanged()
     }
 
     override suspend fun startPairing(): PairingSession {
