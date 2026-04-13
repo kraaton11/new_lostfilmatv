@@ -7,9 +7,9 @@ import org.junit.Test
 
 class HomeChannelSyncManagerTest {
     @Test
-    fun syncNow_activeMode_createsChannelWhenIdMissing_andPersistsReturnedId() = runTest {
+    fun syncNow_activeMode_createsPrimaryChannelWhenIdMissing_andPersistsReturnedId() = runTest {
         val preferences = FakeChannelPreferences(mode = AndroidTvChannelMode.ALL_NEW, channelId = null)
-        val publisher = RecordingHomeChannelPublisher(createdChannelId = 42L)
+        val publisher = RecordingHomeChannelPublisher(primaryChannelId = 42L)
         val manager = HomeChannelSyncManager(
             programSource = FakeProgramSource(
                 programs = listOf(program(detailsUrl = "https://example.com/1")),
@@ -27,9 +27,58 @@ class HomeChannelSyncManagerTest {
     }
 
     @Test
-    fun syncNow_disabled_deletesChannelAndClearsStoredId() = runTest {
-        val preferences = FakeChannelPreferences(mode = AndroidTvChannelMode.DISABLED, channelId = 42L)
-        val publisher = RecordingHomeChannelPublisher(createdChannelId = 99L)
+    fun syncNow_activeMode_syncsFavoritesChannelSeparately_whenFavoriteProgramsExist() = runTest {
+        val preferences = FakeChannelPreferences(mode = AndroidTvChannelMode.ALL_NEW, channelId = 42L)
+        val publisher = RecordingHomeChannelPublisher(primaryChannelId = 42L, favoritesChannelId = 99L)
+        val manager = HomeChannelSyncManager(
+            programSource = FakeProgramSource(
+                programs = listOf(program(detailsUrl = "https://example.com/1")),
+                favoritePrograms = listOf(program(detailsUrl = "https://example.com/favorite")),
+            ),
+            preferences = preferences,
+            publisher = publisher,
+            logger = NoOpChannelLogger(),
+        )
+
+        manager.syncNow()
+
+        assertEquals(listOf(AndroidTvChannelMode.ALL_NEW), publisher.reconciledModes)
+        assertEquals(listOf(listOf("https://example.com/favorite")), publisher.publishedFavoriteDetailsUrls)
+        assertEquals(listOf(99L), preferences.writtenFavoriteChannelIds)
+    }
+
+    @Test
+    fun syncNow_activeMode_deletesFavoritesChannel_whenFavoriteProgramsAreEmpty() = runTest {
+        val preferences = FakeChannelPreferences(
+            mode = AndroidTvChannelMode.ALL_NEW,
+            channelId = 42L,
+            favoriteChannelId = 77L,
+        )
+        val publisher = RecordingHomeChannelPublisher(primaryChannelId = 42L, favoritesChannelId = 99L)
+        val manager = HomeChannelSyncManager(
+            programSource = FakeProgramSource(
+                programs = listOf(program(detailsUrl = "https://example.com/1")),
+                favoritePrograms = emptyList(),
+            ),
+            preferences = preferences,
+            publisher = publisher,
+            logger = NoOpChannelLogger(),
+        )
+
+        manager.syncNow()
+
+        assertEquals(listOf(77L), publisher.deletedChannelIds)
+        assertTrue(preferences.clearFavoriteChannelIdCalled)
+    }
+
+    @Test
+    fun syncNow_disabled_deletesBothChannelsAndClearsStoredIds() = runTest {
+        val preferences = FakeChannelPreferences(
+            mode = AndroidTvChannelMode.DISABLED,
+            channelId = 42L,
+            favoriteChannelId = 77L,
+        )
+        val publisher = RecordingHomeChannelPublisher(primaryChannelId = 99L, favoritesChannelId = 199L)
         val manager = HomeChannelSyncManager(
             programSource = FakeProgramSource(emptyList()),
             preferences = preferences,
@@ -39,8 +88,9 @@ class HomeChannelSyncManagerTest {
 
         manager.syncNow()
 
-        assertEquals(listOf(42L), publisher.deletedChannelIds)
+        assertEquals(listOf(42L, 77L), publisher.deletedChannelIds)
         assertTrue(preferences.clearChannelIdCalled)
+        assertTrue(preferences.clearFavoriteChannelIdCalled)
     }
 
     @Test
@@ -52,7 +102,8 @@ class HomeChannelSyncManagerTest {
             ),
             preferences = preferences,
             publisher = RecordingHomeChannelPublisher(
-                createdChannelId = 7L,
+                primaryChannelId = 7L,
+                favoritesChannelId = 17L,
                 failure = IllegalStateException("launcher unavailable"),
             ),
             logger = NoOpChannelLogger(),
@@ -67,19 +118,26 @@ class HomeChannelSyncManagerTest {
 
 private class FakeProgramSource(
     private val programs: List<HomeChannelProgram>,
+    private val favoritePrograms: List<HomeChannelProgram> = emptyList(),
 ) : HomeChannelProgramSource {
     override suspend fun loadPrograms(
         mode: AndroidTvChannelMode,
         limit: Int,
     ): List<HomeChannelProgram> = programs.take(limit)
+
+    override suspend fun loadFavoritePrograms(limit: Int): List<HomeChannelProgram> = favoritePrograms.take(limit)
 }
 
 private class FakeChannelPreferences(
     private val mode: AndroidTvChannelMode,
     private val channelId: Long?,
+    private val favoriteChannelId: Long? = null,
 ) : HomeChannelPreferences {
     val writtenChannelIds = mutableListOf<Long>()
+    val writtenFavoriteChannelIds = mutableListOf<Long>()
     var clearChannelIdCalled: Boolean = false
+        private set
+    var clearFavoriteChannelIdCalled: Boolean = false
         private set
 
     override fun readMode(): AndroidTvChannelMode = mode
@@ -93,14 +151,26 @@ private class FakeChannelPreferences(
     override fun clearChannelId() {
         clearChannelIdCalled = true
     }
+
+    override fun readFavoriteChannelId(): Long? = favoriteChannelId
+
+    override fun writeFavoriteChannelId(channelId: Long) {
+        writtenFavoriteChannelIds += channelId
+    }
+
+    override fun clearFavoriteChannelId() {
+        clearFavoriteChannelIdCalled = true
+    }
 }
 
 private class RecordingHomeChannelPublisher(
-    private val createdChannelId: Long,
+    private val primaryChannelId: Long,
+    private val favoritesChannelId: Long = 100L,
     private val failure: Throwable? = null,
 ) : HomeChannelPublisher {
     val reconciledModes = mutableListOf<AndroidTvChannelMode>()
     val publishedDetailsUrls = mutableListOf<List<String>>()
+    val publishedFavoriteDetailsUrls = mutableListOf<List<String>>()
     val deletedChannelIds = mutableListOf<Long>()
 
     override suspend fun reconcile(
@@ -111,7 +181,16 @@ private class RecordingHomeChannelPublisher(
         failure?.let { throw it }
         reconciledModes += mode
         publishedDetailsUrls += programs.map { it.detailsUrl }
-        return HomeChannelPublisherResult(channelId = existingChannelId ?: createdChannelId)
+        return HomeChannelPublisherResult(channelId = existingChannelId ?: primaryChannelId)
+    }
+
+    override suspend fun reconcileFavorites(
+        existingChannelId: Long?,
+        programs: List<HomeChannelProgram>,
+    ): HomeChannelPublisherResult {
+        failure?.let { throw it }
+        publishedFavoriteDetailsUrls += programs.map { it.detailsUrl }
+        return HomeChannelPublisherResult(channelId = existingChannelId ?: favoritesChannelId)
     }
 
     override suspend fun deleteChannel(channelId: Long) {

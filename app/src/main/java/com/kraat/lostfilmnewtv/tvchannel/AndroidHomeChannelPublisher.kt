@@ -25,7 +25,29 @@ class AndroidHomeChannelPublisher(
         existingChannelId: Long?,
         programs: List<HomeChannelProgram>,
     ): HomeChannelPublisherResult {
-        val channel = buildChannelRecord(mode)
+        return reconcileChannel(
+            channel = buildPrimaryChannelRecord(mode),
+            existingChannelId = existingChannelId,
+            programs = programs,
+        )
+    }
+
+    override suspend fun reconcileFavorites(
+        existingChannelId: Long?,
+        programs: List<HomeChannelProgram>,
+    ): HomeChannelPublisherResult {
+        return reconcileChannel(
+            channel = buildFavoritesChannelRecord(),
+            existingChannelId = existingChannelId,
+            programs = programs,
+        )
+    }
+
+    private suspend fun reconcileChannel(
+        channel: PreviewChannelRecord,
+        existingChannelId: Long?,
+        programs: List<HomeChannelProgram>,
+    ): HomeChannelPublisherResult {
         val channelId = resolveChannelId(existingChannelId, channel)
         helperFacade.requestChannelBrowsable(channelId)
         val eligiblePrograms = programs.filter(::isChannelEligible)
@@ -85,12 +107,22 @@ class AndroidHomeChannelPublisher(
         return helperFacade.publishDefaultChannel(channel)
     }
 
-    private fun buildChannelRecord(mode: AndroidTvChannelMode): PreviewChannelRecord {
+    private fun buildPrimaryChannelRecord(mode: AndroidTvChannelMode): PreviewChannelRecord {
         return PreviewChannelRecord(
             displayName = mode.channelDisplayName(),
             description = mode.channelDescription(),
             appLinkIntent = Intent(appContext, MainActivity::class.java),
-            internalProviderId = CHANNEL_INTERNAL_PROVIDER_ID,
+            internalProviderId = PRIMARY_CHANNEL_INTERNAL_PROVIDER_ID,
+            logoBitmap = channelLogoProvider?.invoke() ?: loadChannelLogoBitmap(),
+        )
+    }
+
+    private fun buildFavoritesChannelRecord(): PreviewChannelRecord {
+        return PreviewChannelRecord(
+            displayName = "Избранное",
+            description = "Избранные релизы LostFilm",
+            appLinkIntent = Intent(appContext, MainActivity::class.java),
+            internalProviderId = FAVORITES_CHANNEL_INTERNAL_PROVIDER_ID,
             logoBitmap = channelLogoProvider?.invoke() ?: loadChannelLogoBitmap(),
         )
     }
@@ -127,8 +159,8 @@ class AndroidHomeChannelPublisher(
 
     private fun AndroidTvChannelMode.channelDisplayName(): String {
         return when (this) {
-            AndroidTvChannelMode.ALL_NEW -> "LostFilm: Новые релизы"
-            AndroidTvChannelMode.UNWATCHED -> "LostFilm: Непросмотренные"
+            AndroidTvChannelMode.ALL_NEW -> "Новые релизы"
+            AndroidTvChannelMode.UNWATCHED -> "Непросмотренные"
             AndroidTvChannelMode.DISABLED -> appContext.applicationInfo.loadLabel(appContext.packageManager).toString()
         }
     }
@@ -142,7 +174,8 @@ class AndroidHomeChannelPublisher(
     }
 
     private companion object {
-        const val CHANNEL_INTERNAL_PROVIDER_ID = "lostfilm-home-channel"
+        const val PRIMARY_CHANNEL_INTERNAL_PROVIDER_ID = "lostfilm-home-channel"
+        const val FAVORITES_CHANNEL_INTERNAL_PROVIDER_ID = "lostfilm-home-channel-favorites"
         const val CHANNEL_DESCRIPTION = "LostFilm releases"
     }
 }

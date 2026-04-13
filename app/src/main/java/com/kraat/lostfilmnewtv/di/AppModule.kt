@@ -101,7 +101,12 @@ object AppModule {
     fun provideHomeChannelContentRepository(
         releaseDao: ReleaseDao,
         tmdbResolver: TmdbPosterResolver,
-    ): HomeChannelContentRepository = HomeChannelContentRepository(releaseDao, tmdbResolver)
+        repository: LostFilmRepository,
+    ): HomeChannelContentRepository = HomeChannelContentRepository(
+        releaseDao = releaseDao,
+        tmdbResolver = tmdbResolver,
+        loadFavoriteReleases = repository::loadFavoriteReleases,
+    )
 
     @Provides
     @Singleton

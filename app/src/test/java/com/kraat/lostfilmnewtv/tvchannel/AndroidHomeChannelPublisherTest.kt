@@ -36,7 +36,7 @@ class AndroidHomeChannelPublisherTest {
         assertEquals(1, facade.publishedChannels.size)
         assertEquals(listOf(42L), facade.requestedBrowsableChannelIds)
         assertEquals(testLogo, facade.publishedChannels.single().logoBitmap)
-        assertEquals("LostFilm: Новые релизы", facade.publishedChannels.single().displayName)
+        assertEquals("Новые релизы", facade.publishedChannels.single().displayName)
         assertEquals("Все новые релизы LostFilm", facade.publishedChannels.single().description)
         assertEquals(listOf("https://example.com/1"), facade.upsertedPrograms.map { it.internalProviderId })
         assertEquals(
@@ -94,7 +94,7 @@ class AndroidHomeChannelPublisherTest {
 
         assertEquals(0, facade.publishDefaultChannelCalls)
         assertEquals(listOf(42L), facade.updatedChannelIds)
-        assertEquals("LostFilm: Непросмотренные", facade.updatedChannels.single().displayName)
+        assertEquals("Непросмотренные", facade.updatedChannels.single().displayName)
         assertEquals("Непросмотренные релизы LostFilm", facade.updatedChannels.single().description)
         assertEquals(listOf(42L), facade.requestedBrowsableChannelIds)
         assertEquals(listOf(7L, 8L), facade.deletedProgramIds)
@@ -205,6 +205,26 @@ class AndroidHomeChannelPublisherTest {
 
         assertEquals("https://example.com/poster.jpg", facade.upsertedPrograms.single().posterUrl)
         assertEquals("https://example.com/backdrop.jpg", facade.upsertedPrograms.single().thumbnailUrl)
+    }
+
+    @Test
+    fun reconcileFavorites_publishesDedicatedFavoritesChannel() = runTestPublisher {
+        val facade = RecordingPreviewFacade()
+        val publisher = AndroidHomeChannelPublisher(
+            appContext = context,
+            helperFacade = facade,
+            channelLogoProvider = { testLogo },
+        )
+
+        val result = publisher.reconcileFavorites(
+            existingChannelId = null,
+            programs = listOf(program("https://example.com/favorite")),
+        )
+
+        assertEquals(42L, result.channelId)
+        assertEquals("Избранное", facade.publishedChannels.single().displayName)
+        assertEquals("Избранные релизы LostFilm", facade.publishedChannels.single().description)
+        assertEquals("lostfilm-home-channel-favorites", facade.publishedChannels.single().internalProviderId)
     }
 }
 

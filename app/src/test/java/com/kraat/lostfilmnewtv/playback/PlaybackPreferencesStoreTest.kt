@@ -126,6 +126,34 @@ class PlaybackPreferencesStoreTest {
     }
 
     @Test
+    fun readAndroidTvFavoritesChannelId_returnsNull_whenNothingWasSaved() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsName = "playback-store-tv-favorites-channel-id-default"
+        context.deleteSharedPreferences(prefsName)
+        val store = PlaybackPreferencesStore(context, prefsName = prefsName)
+
+        assertNull(store.readAndroidTvFavoritesChannelId())
+    }
+
+    @Test
+    fun writeAndClearAndroidTvFavoritesChannelId_persistIndependently() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsName = "playback-store-tv-favorites-channel-id-write"
+        context.deleteSharedPreferences(prefsName)
+        val store = PlaybackPreferencesStore(context, prefsName = prefsName)
+
+        store.writeAndroidTvChannelId(42L)
+        store.writeAndroidTvFavoritesChannelId(77L)
+        assertEquals(42L, store.readAndroidTvChannelId())
+        assertEquals(77L, store.readAndroidTvFavoritesChannelId())
+
+        store.clearAndroidTvFavoritesChannelId()
+
+        assertEquals(42L, store.readAndroidTvChannelId())
+        assertNull(store.readAndroidTvFavoritesChannelId())
+    }
+
+    @Test
     fun readHomeFavoritesRailEnabled_returnsFalse_whenNothingWasSaved() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val prefsName = "playback-store-home-favorites-default"
