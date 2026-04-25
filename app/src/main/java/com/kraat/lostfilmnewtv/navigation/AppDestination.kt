@@ -40,7 +40,12 @@ sealed interface AppDestination {
     }
 
     data object Auth : AppDestination {
-        override val route: String = "auth"
+        const val autoStartArg: String = "autoStart"
+        private const val baseRoute: String = "auth"
+
+        override val route: String = "$baseRoute?$autoStartArg={$autoStartArg}"
+
+        fun createRoute(autoStart: Boolean = false): String = "$baseRoute?$autoStartArg=$autoStart"
     }
 
     data object Settings : AppDestination {

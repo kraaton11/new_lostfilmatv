@@ -70,14 +70,16 @@ class UnitTestFakeRepository : LostFilmRepository {
     )
     var detailsResult: DetailsResult = DetailsResult.Error("", "Not configured")
     var seriesGuideResult: SeriesGuideResult = SeriesGuideResult.Error("Not configured")
-    var markWatchedResult: Boolean = false
+    var watchedStateResult: Boolean? = null
+    var markWatchedResult: Boolean? = false
     var favoriteResult: FavoriteMutationResult = FavoriteMutationResult.RequiresLogin()
     var favoriteReleasesResult: FavoriteReleasesResult = FavoriteReleasesResult.Unavailable()
 
     override suspend fun loadPage(pageNumber: Int) = pageState
     override suspend fun loadDetails(detailsUrl: String) = detailsResult
     override suspend fun loadSeriesGuide(detailsUrl: String) = seriesGuideResult
-    override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String) = markWatchedResult
+    override suspend fun loadWatchedState(detailsUrl: String) = watchedStateResult
+    override suspend fun setEpisodeWatched(detailsUrl: String, playEpisodeId: String, targetWatched: Boolean) = markWatchedResult
     override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean) = favoriteResult
     override suspend fun loadFavoriteReleases() = favoriteReleasesResult
 }

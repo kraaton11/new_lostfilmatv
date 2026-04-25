@@ -70,9 +70,11 @@ fun DetailsScreen(
     state: DetailsUiState,
     isAuthenticated: Boolean,
     onRetry: () -> Unit,
+    onWatchedClick: () -> Unit = {},
     onFavoriteClick: () -> Unit = {},
     onSeriesOverviewClick: () -> Unit = {},
     onSeriesGuideClick: () -> Unit = {},
+    onAuthClick: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val torrentRows = state.details?.toTorrentRows().orEmpty()
@@ -86,9 +88,11 @@ fun DetailsScreen(
         activeTorrServeRowId = null,
         isTorrServeBusy = false,
         onRetry = onRetry,
+        onWatchedClick = onWatchedClick,
         onFavoriteClick = onFavoriteClick,
         onSeriesOverviewClick = onSeriesOverviewClick,
         onSeriesGuideClick = onSeriesGuideClick,
+        onAuthClick = onAuthClick,
         onOpenTorrServe = { _, url ->
             context.startActivity(
                 Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
@@ -109,9 +113,11 @@ fun DetailsScreen(
     activeTorrServeRowId: String?,
     isTorrServeBusy: Boolean,
     onRetry: () -> Unit,
+    onWatchedClick: () -> Unit = {},
     onFavoriteClick: () -> Unit = {},
     onSeriesOverviewClick: () -> Unit = {},
     onSeriesGuideClick: () -> Unit = {},
+    onAuthClick: () -> Unit = {},
     onOpenTorrServe: (String, String) -> Unit,
 ) {
     when {
@@ -125,9 +131,11 @@ fun DetailsScreen(
             torrServeMessage = torrServeMessage,
             activeTorrServeRowId = activeTorrServeRowId,
             isTorrServeBusy = isTorrServeBusy,
+            onWatchedClick = onWatchedClick,
             onFavoriteClick = onFavoriteClick,
             onSeriesOverviewClick = onSeriesOverviewClick,
             onSeriesGuideClick = onSeriesGuideClick,
+            onAuthClick = onAuthClick,
             onOpenTorrServe = onOpenTorrServe,
         )
     }
@@ -180,9 +188,11 @@ private fun ContentState(
     torrServeMessage: TorrServeMessage?,
     activeTorrServeRowId: String?,
     isTorrServeBusy: Boolean,
+    onWatchedClick: () -> Unit,
     onFavoriteClick: () -> Unit,
     onSeriesOverviewClick: () -> Unit,
     onSeriesGuideClick: () -> Unit,
+    onAuthClick: () -> Unit,
     onOpenTorrServe: (String, String) -> Unit,
 ) {
     val details = state.details
@@ -219,9 +229,11 @@ private fun ContentState(
             HeroStage(
                 details = details,
                 stageUi = stageUi,
+                onWatchedClick = onWatchedClick,
                 onFavoriteClick = onFavoriteClick,
                 onSeriesOverviewClick = onSeriesOverviewClick,
                 onSeriesGuideClick = onSeriesGuideClick,
+                onAuthClick = onAuthClick,
                 onOpenTorrServe = {
                     val row = playbackRow ?: return@HeroStage
                     onOpenTorrServe(row.rowId, row.url)
@@ -291,9 +303,11 @@ private fun BoxScope.AmbientGlow() {
 private fun HeroStage(
     details: ReleaseDetails?,
     stageUi: DetailsStageUiModel,
+    onWatchedClick: () -> Unit,
     onFavoriteClick: () -> Unit,
     onSeriesOverviewClick: () -> Unit,
     onSeriesGuideClick: () -> Unit,
+    onAuthClick: () -> Unit,
     onOpenTorrServe: () -> Unit,
 ) {
     val primaryActionRequester = remember(stageUi.primaryAction.actionId) { FocusRequester() }
@@ -385,6 +399,7 @@ private fun HeroStage(
                     subtitle = action.subtitle,
                     onClick = secondaryActionClickHandler(
                         action = action,
+                        onWatchedClick = onWatchedClick,
                         onFavoriteClick = onFavoriteClick,
                         onSeriesOverviewClick = onSeriesOverviewClick,
                         onSeriesGuideClick = onSeriesGuideClick,
@@ -394,13 +409,18 @@ private fun HeroStage(
                         .focusRequester(secondaryActionRequesters.getValue(action.actionId))
                         .testTag(secondaryActionTag(action)),
                     enabled = action.enabled,
+                    isHighlighted = action.isHighlighted,
                     isSecondary = true,
                 )
             }
             StageButton(
                 label = stageUi.primaryAction.label,
                 subtitle = stageUi.primaryAction.subtitle,
-                onClick = onOpenTorrServe,
+                onClick = primaryActionClickHandler(
+                    action = stageUi.primaryAction,
+                    onAuthClick = onAuthClick,
+                    onOpenTorrServe = onOpenTorrServe,
+                ),
                 modifier = actionButtonModifier(useFlexibleActionWidth)
                     .focusRequester(primaryActionRequester)
                     .testTag(primaryActionTag(stageUi.primaryAction)),
@@ -414,6 +434,7 @@ private fun HeroStage(
                     subtitle = action.subtitle,
                     onClick = secondaryActionClickHandler(
                         action = action,
+                        onWatchedClick = onWatchedClick,
                         onFavoriteClick = onFavoriteClick,
                         onSeriesOverviewClick = onSeriesOverviewClick,
                         onSeriesGuideClick = onSeriesGuideClick,
@@ -422,6 +443,7 @@ private fun HeroStage(
                         .focusRequester(secondaryActionRequesters.getValue(action.actionId))
                         .testTag(secondaryActionTag(action)),
                     enabled = action.enabled,
+                    isHighlighted = action.isHighlighted,
                     isSecondary = true,
                 )
             }
@@ -484,6 +506,7 @@ private fun StageButton(
     enabled: Boolean = true,
     isPrimary: Boolean = false,
     isSecondary: Boolean = false,
+    isHighlighted: Boolean = false,
     onFocusedChange: (Boolean) -> Unit = {},
 ) {
     var isFocused by remember { mutableStateOf(false) }
@@ -497,6 +520,7 @@ private fun StageButton(
     val background = when {
         !enabled -> DetailsSurfaceSoft.copy(alpha = 0.6f)
         isPrimary -> DetailsAccentGold
+        isHighlighted -> DetailsAccentGold
         isFocused -> DetailsSurfaceFocused
         isSecondary -> DetailsSurfaceSoft
         else -> DetailsSurfaceCard
@@ -504,11 +528,13 @@ private fun StageButton(
     val border = when {
         isPrimary && isFocused -> DetailsAccentGoldFocus
         isPrimary -> DetailsAccentGold
+        isHighlighted && isFocused -> DetailsAccentGoldFocus
+        isHighlighted -> DetailsAccentGold
         isFocused -> DetailsAccentBlue
         else -> DetailsBorderDefault
     }
-    val textColor = if (isPrimary) Color(0xFF17120D) else TextPrimary
-    val subtitleColor = if (isPrimary) Color(0xFF473317) else DetailsTextMuted
+    val textColor = if (isPrimary || isHighlighted) Color(0xFF17120D) else TextPrimary
+    val subtitleColor = if (isPrimary || isHighlighted) Color(0xFF473317) else DetailsTextMuted
 
     Button(
         onClick = {
@@ -544,13 +570,15 @@ private fun StageButton(
                 fontWeight = FontWeight.SemiBold,
                 lineHeight = 20.sp,
             )
-            Text(
-                text = subtitle,
-                color = if (enabled) subtitleColor else DetailsTextMuted.copy(alpha = 0.8f),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Medium,
-                letterSpacing = 0.6.sp,
-            )
+            if (subtitle.isNotBlank()) {
+                Text(
+                    text = subtitle,
+                    color = if (enabled) subtitleColor else DetailsTextMuted.copy(alpha = 0.8f),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = 0.6.sp,
+                )
+            }
         }
     }
 }
@@ -567,6 +595,8 @@ private fun primaryActionTag(action: DetailsStageActionUiModel): String {
     val rowId = action.rowId ?: return "details-primary-action"
     return when (action.actionType) {
         DetailsStageActionType.OPEN_TORRSERVE -> "torrent-torrserve-$rowId"
+        DetailsStageActionType.OPEN_AUTH -> "details-primary-action"
+        DetailsStageActionType.TOGGLE_WATCHED -> "details-primary-action"
         DetailsStageActionType.TOGGLE_FAVORITE -> "details-primary-action"
         DetailsStageActionType.OPEN_SERIES_OVERVIEW -> "details-primary-action"
         DetailsStageActionType.OPEN_SERIES_GUIDE -> "details-primary-action"
@@ -576,25 +606,42 @@ private fun primaryActionTag(action: DetailsStageActionUiModel): String {
 
 private fun secondaryActionTag(action: DetailsStageActionUiModel): String {
     return when (action.actionType) {
+        DetailsStageActionType.TOGGLE_WATCHED -> "details-watched-action"
         DetailsStageActionType.TOGGLE_FAVORITE -> "details-favorite-action"
         DetailsStageActionType.OPEN_SERIES_OVERVIEW -> "details-series-overview-action"
         DetailsStageActionType.OPEN_SERIES_GUIDE -> "details-series-guide-action"
         DetailsStageActionType.OPEN_TORRSERVE -> "details-secondary-${action.actionId}"
+        DetailsStageActionType.OPEN_AUTH -> "details-secondary-${action.actionId}"
         DetailsStageActionType.NONE -> "details-secondary-${action.actionId}"
+    }
+}
+
+private fun primaryActionClickHandler(
+    action: DetailsStageActionUiModel,
+    onAuthClick: () -> Unit,
+    onOpenTorrServe: () -> Unit,
+): () -> Unit {
+    return when (action.actionType) {
+        DetailsStageActionType.OPEN_AUTH -> onAuthClick
+        DetailsStageActionType.OPEN_TORRSERVE -> onOpenTorrServe
+        else -> ({})
     }
 }
 
 private fun secondaryActionClickHandler(
     action: DetailsStageActionUiModel,
+    onWatchedClick: () -> Unit,
     onFavoriteClick: () -> Unit,
     onSeriesOverviewClick: () -> Unit,
     onSeriesGuideClick: () -> Unit,
 ): () -> Unit {
     return when (action.actionType) {
+        DetailsStageActionType.TOGGLE_WATCHED -> onWatchedClick
         DetailsStageActionType.TOGGLE_FAVORITE -> onFavoriteClick
         DetailsStageActionType.OPEN_SERIES_OVERVIEW -> onSeriesOverviewClick
         DetailsStageActionType.OPEN_SERIES_GUIDE -> onSeriesGuideClick
         DetailsStageActionType.OPEN_TORRSERVE,
+        DetailsStageActionType.OPEN_AUTH,
         DetailsStageActionType.NONE,
         -> ({})
     }

@@ -4,6 +4,7 @@ import com.kraat.lostfilmnewtv.data.model.FavoriteTargetKind
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LostFilmDetailsParserTest {
@@ -99,6 +100,25 @@ class LostFilmDetailsParserTest {
         val token = LostFilmDetailsParser().parseAjaxSessionToken(html)
 
         assertEquals("ajax-session-token", token)
+    }
+
+    @Test
+    fun parsesWatchedState_fromDetailsButton() {
+        val parser = LostFilmDetailsParser()
+
+        assertFalse(parser.parseWatchedState(fixture("series-details.html"))!!)
+
+        val watchedHtml = fixture("series-details.html")
+            .replace(
+                oldValue = """<div class="isawthat-btn " title="Пометить серию как просмотренную"""",
+                newValue = """<div class="isawthat-btn checked" title="Серия просмотрена"""",
+            )
+            .replace(
+                oldValue = "Серия не просмотрена</div>",
+                newValue = "Серия просмотрена</div>",
+            )
+
+        assertTrue(parser.parseWatchedState(watchedHtml)!!)
     }
 
     @Test

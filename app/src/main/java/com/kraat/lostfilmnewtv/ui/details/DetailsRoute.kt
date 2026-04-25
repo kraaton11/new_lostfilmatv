@@ -36,6 +36,7 @@ fun DetailsRoute(
     onMarkedWatched: (String) -> Unit = {},
     onOpenSeriesOverview: (String) -> Unit = {},
     onOpenSeriesGuide: (String) -> Unit = {},
+    onAuthClick: () -> Unit = {},
     onFavoriteContentChanged: (String, Boolean) -> Unit = { _, _ -> },
     onChannelContentChanged: suspend () -> Unit = {},
     openTorrServe: suspend (Context, String, String, String) -> TorrServeOpenResult = actionHandler::open,
@@ -141,9 +142,11 @@ fun DetailsRoute(
         activeTorrServeRowId = activeTorrServeRowId,
         isTorrServeBusy = isTorrServeBusy,
         onRetry = detailsViewModel::onRetry,
+        onWatchedClick = detailsViewModel::onWatchedClick,
         onFavoriteClick = detailsViewModel::onFavoriteClick,
         onSeriesOverviewClick = { onOpenSeriesOverview(detailsUrl) },
         onSeriesGuideClick = { onOpenSeriesGuide(detailsUrl) },
+        onAuthClick = onAuthClick,
         onOpenTorrServe = handleOpenTorrServe,
     )
 }

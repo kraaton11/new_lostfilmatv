@@ -14,10 +14,17 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @Composable
 fun AuthScreen(
     viewModel: AuthViewModel,
+    autoStart: Boolean = false,
     onAuthComplete: () -> Unit,
     onNavigateBack: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    LaunchedEffect(autoStart) {
+        if (autoStart && uiState is AuthUiState.Idle) {
+            viewModel.startAuth()
+        }
+    }
 
     LaunchedEffect(uiState) {
         if (uiState is AuthUiState.Authenticated) {

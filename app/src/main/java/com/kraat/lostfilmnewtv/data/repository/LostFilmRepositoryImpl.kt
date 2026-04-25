@@ -302,38 +302,69 @@ class LostFilmRepositoryImpl(
         }
     }
 
-    override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean {
+    override suspend fun loadWatchedState(detailsUrl: String): Boolean? {
         if (!hasAuthenticatedSession()) {
-            return false
+            return null
         }
 
         val normalizedDetailsUrl = resolveUrl(detailsUrl)
         return try {
             val detailsHtml = httpClient.fetchDetails(normalizedDetailsUrl)
+            val watchedState = detailsParser.parseWatchedState(detailsHtml)
+            watchedState?.let { isWatched ->
+                releaseDao.updateSummaryWatched(
+                    detailsUrl = normalizedDetailsUrl,
+                    isWatched = isWatched,
+                )
+            }
+            watchedState
+        } catch (_: IOException) {
+            null
+        }
+    }
+
+    override suspend fun setEpisodeWatched(
+        detailsUrl: String,
+        playEpisodeId: String,
+        targetWatched: Boolean,
+    ): Boolean? {
+        if (!hasAuthenticatedSession()) {
+            return null
+        }
+
+        val normalizedDetailsUrl = resolveUrl(detailsUrl)
+        return try {
+            val detailsHtml = httpClient.fetchDetails(normalizedDetailsUrl)
+            val currentWatched = detailsParser.parseWatchedState(detailsHtml)
             val ajaxSessionToken = detailsParser.parseAjaxSessionToken(detailsHtml)
             if (ajaxSessionToken == null) {
-                return false
+                return currentWatched
             }
-            val marked = httpClient.markEpisodeWatched(
+            if (currentWatched == targetWatched) {
+                return currentWatched
+            }
+            val requestSucceeded = httpClient.setEpisodeWatched(
                 detailsUrl = normalizedDetailsUrl,
                 playEpisodeId = playEpisodeId,
                 ajaxSessionToken = ajaxSessionToken,
+                targetWatched = targetWatched,
             )
-            val effectiveMarked = if (marked) {
-                true
-            } else {
-                val refreshedDetailsHtml = httpClient.fetchDetails(normalizedDetailsUrl)
-                detailsParser.parseWatchedState(refreshedDetailsHtml) == true
+            val refreshedDetailsHtml = httpClient.fetchDetails(normalizedDetailsUrl)
+            val refreshedWatched = detailsParser.parseWatchedState(refreshedDetailsHtml)
+            val effectiveWatched = when {
+                refreshedWatched == targetWatched -> refreshedWatched
+                requestSucceeded -> targetWatched
+                else -> refreshedWatched ?: currentWatched
             }
-            if (effectiveMarked) {
+            if (effectiveWatched != null) {
                 releaseDao.updateSummaryWatched(
                     detailsUrl = normalizedDetailsUrl,
-                    isWatched = true,
+                    isWatched = effectiveWatched,
                 )
             }
-            effectiveMarked
+            effectiveWatched
         } catch (_: IOException) {
-            false
+            null
         }
     }
 

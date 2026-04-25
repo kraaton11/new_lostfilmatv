@@ -205,6 +205,70 @@ class DetailsViewModelTest {
     }
 
     @Test
+    fun onStart_loadsWatchedStateFromSiteAndEnablesToggle() = runTest(dispatcher) {
+        val repository = FakeDetailsRepository(
+            detailsResult = DetailsResult.Success(
+                details = details(
+                    kind = ReleaseKind.SERIES,
+                    titleRu = "9-1-1",
+                    seasonNumber = 9,
+                    episodeNumber = 13,
+                    releaseDateRu = "14 марта 2026",
+                ).copy(playEpisodeId = "362009013"),
+                isStale = false,
+            ),
+            watchedStateResult = true,
+        )
+        val viewModel = DetailsViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(AppDestination.Details.detailsUrlArg to "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"),
+            ),
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+
+        assertEquals(true, viewModel.uiState.value.isWatched)
+        assertEquals("Просмотрено", viewModel.uiState.value.watchedActionLabel)
+        assertEquals(true, viewModel.uiState.value.isWatchedActionEnabled)
+    }
+
+    @Test
+    fun onWatchedClick_togglesStateAfterSuccessfulMutation() = runTest(dispatcher) {
+        val repository = FakeDetailsRepository(
+            detailsResult = DetailsResult.Success(
+                details = details(
+                    kind = ReleaseKind.SERIES,
+                    titleRu = "9-1-1",
+                    seasonNumber = 9,
+                    episodeNumber = 13,
+                    releaseDateRu = "14 марта 2026",
+                ).copy(playEpisodeId = "362009013"),
+                isStale = false,
+            ),
+            watchedStateResult = false,
+        )
+        val viewModel = DetailsViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(AppDestination.Details.detailsUrlArg to "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"),
+            ),
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+        viewModel.onWatchedClick()
+        advanceUntilIdle()
+
+        assertEquals(true, viewModel.uiState.value.isWatched)
+        assertEquals("Просмотрено", viewModel.uiState.value.watchedActionLabel)
+        assertEquals(false, viewModel.uiState.value.isWatchedMutationInFlight)
+    }
+
+    @Test
     fun onFavoriteClick_failure_restoresPreviousStableStateAndMessage() = runTest(dispatcher) {
         val repository = FakeDetailsRepository(
             detailsResult = DetailsResult.Success(
@@ -364,6 +428,7 @@ class DetailsViewModelTest {
 
 private class FakeDetailsRepository(
     private val detailsResult: DetailsResult,
+    private val watchedStateResult: Boolean? = false,
     private val favoriteResult: CompletableDeferred<FavoriteMutationResult> = CompletableDeferred(FavoriteMutationResult.RequiresLogin()),
 ) : LostFilmRepository {
     override suspend fun loadPage(pageNumber: Int): PageState {
@@ -376,7 +441,10 @@ private class FakeDetailsRepository(
         return com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult.Error("not needed")
     }
 
-    override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean = false
+    override suspend fun loadWatchedState(detailsUrl: String): Boolean? = watchedStateResult
+
+    override suspend fun setEpisodeWatched(detailsUrl: String, playEpisodeId: String, targetWatched: Boolean): Boolean? =
+        targetWatched
 
     override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult = favoriteResult.await()
 
@@ -402,7 +470,9 @@ private class SequencedDetailsRepository(
         return com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult.Error("not needed")
     }
 
-    override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean = false
+    override suspend fun loadWatchedState(detailsUrl: String): Boolean? = false
+
+    override suspend fun setEpisodeWatched(detailsUrl: String, playEpisodeId: String, targetWatched: Boolean): Boolean? = targetWatched
 
     override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult {
         return FavoriteMutationResult.RequiresLogin()
@@ -432,7 +502,9 @@ private class ReloadingDetailsRepository(
         return com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult.Error("not needed")
     }
 
-    override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean = false
+    override suspend fun loadWatchedState(detailsUrl: String): Boolean? = false
+
+    override suspend fun setEpisodeWatched(detailsUrl: String, playEpisodeId: String, targetWatched: Boolean): Boolean? = targetWatched
 
     override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult {
         return FavoriteMutationResult.RequiresLogin()

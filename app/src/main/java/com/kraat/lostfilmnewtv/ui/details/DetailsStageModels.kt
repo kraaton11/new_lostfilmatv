@@ -21,6 +21,7 @@ data class DetailsStageActionUiModel(
     val qualityLabel: String? = null,
     val actionType: DetailsStageActionType,
     val enabled: Boolean = true,
+    val isHighlighted: Boolean = false,
 )
 
 fun buildDetailsStageUi(
@@ -34,8 +35,21 @@ fun buildDetailsStageUi(
 ): DetailsStageUiModel {
     val details = state.details
     val isBusy = isTorrServeBusy && activeTorrServeRowId == playbackRow?.rowId
-    val primaryAction = playbackRow?.toPrimaryAction(isBusy = isBusy)
-        ?: DetailsStageActionUiModel(
+    val primaryAction = when {
+        !isAuthenticated -> DetailsStageActionUiModel(
+            actionId = "auth-primary",
+            rowId = null,
+            label = "Войти в LostFilm",
+            subtitle = "",
+            qualityLabel = null,
+            actionType = DetailsStageActionType.OPEN_AUTH,
+            enabled = true,
+        )
+        playbackRow != null -> playbackRow.toPrimaryAction(
+            isBusy = isBusy,
+            isAuthenticated = isAuthenticated,
+        )
+        else -> DetailsStageActionUiModel(
             actionId = "empty-primary",
             rowId = null,
             label = "Смотреть",
@@ -44,6 +58,7 @@ fun buildDetailsStageUi(
             actionType = DetailsStageActionType.NONE,
             enabled = false,
         )
+    }
     val heroMetaLine = buildHeroMetaLine(details = details)
     val heroStatusLine = buildHeroStatusLine(details = details)
     val favoriteAction = details
@@ -66,6 +81,20 @@ fun buildDetailsStageUi(
             enabled = state.isFavoriteActionEnabled,
         )
     }
+    val watchedAction = details
+        ?.takeIf { it.playEpisodeId != null || state.watchedActionLabel.isNotBlank() }
+        ?.let {
+            DetailsStageActionUiModel(
+                actionId = "watched",
+                rowId = null,
+                label = state.watchedActionLabel.ifBlank { "Статус недоступен" },
+                subtitle = "",
+                qualityLabel = null,
+                actionType = DetailsStageActionType.TOGGLE_WATCHED,
+                enabled = state.isWatchedActionEnabled,
+                isHighlighted = state.isWatched == true,
+            )
+        }
     val overviewAction = details
         ?.takeIf { it.kind == ReleaseKind.SERIES }
         ?.let {
@@ -100,7 +129,11 @@ fun buildDetailsStageUi(
         heroMetaLine = heroMetaLine,
         heroStatusLine = heroStatusLine,
         primaryAction = primaryAction,
-        secondaryActions = listOfNotNull(overviewAction, favoriteAction, guideAction),
+        secondaryActions = if (isAuthenticated) {
+            listOfNotNull(overviewAction, watchedAction, favoriteAction, guideAction)
+        } else {
+            emptyList()
+        },
     )
 }
 
@@ -148,20 +181,27 @@ private fun buildHeroStatusLine(details: ReleaseDetails?): String {
 
 private fun DetailsTorrentRowUiModel.toPrimaryAction(
     isBusy: Boolean,
+    isAuthenticated: Boolean,
 ): DetailsStageActionUiModel {
     return DetailsStageActionUiModel(
         actionId = "playback-$rowId",
         rowId = rowId,
         label = "Смотреть",
-        subtitle = label,
+        subtitle = if (isAuthenticated) label else "Войдите в LostFilm",
         qualityLabel = label,
-        actionType = DetailsStageActionType.OPEN_TORRSERVE,
+        actionType = if (isAuthenticated) {
+            DetailsStageActionType.OPEN_TORRSERVE
+        } else {
+            DetailsStageActionType.OPEN_AUTH
+        },
         enabled = !isBusy,
     )
 }
 
 enum class DetailsStageActionType {
     OPEN_TORRSERVE,
+    OPEN_AUTH,
+    TOGGLE_WATCHED,
     TOGGLE_FAVORITE,
     OPEN_SERIES_OVERVIEW,
     OPEN_SERIES_GUIDE,

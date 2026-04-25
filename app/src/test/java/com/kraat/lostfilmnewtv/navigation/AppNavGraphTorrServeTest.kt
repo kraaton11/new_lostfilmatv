@@ -214,6 +214,7 @@ class AppNavGraphTorrServeTest {
 
     @Test
     fun details_quality_pill_shows_torrserve_feedback_when_opened_from_real_nav_graph() {
+        (fakeAuthRepository as UnitTestFakeAuthRepository).authState = AuthState(isAuthenticated = true, session = null)
         setContentWithNavGraph()
 
         composeRule.waitForTag(posterTag(TEST_SUMMARY.detailsUrl))
@@ -251,6 +252,7 @@ class AppNavGraphTorrServeTest {
 
     @Test
     fun detailsGuideAction_opensGuide_andGuideRowNavigatesToEpisodeDetails() {
+        (fakeAuthRepository as UnitTestFakeAuthRepository).authState = AuthState(isAuthenticated = true, session = null)
         val targetEpisodeUrl = "https://www.lostfilm.today/series/Ted/season_2/episode_7/"
         val targetDetails = TEST_DETAILS.copy(
             detailsUrl = targetEpisodeUrl,
@@ -338,6 +340,7 @@ class AppNavGraphTorrServeTest {
 
     @Test
     fun settings_playback_quality_persists_and_applies_to_details_via_nav_graph() {
+        (fakeAuthRepository as UnitTestFakeAuthRepository).authState = AuthState(isAuthenticated = true, session = null)
         val context = ApplicationProvider.getApplicationContext<Context>()
         val prefsName = "app-nav-playback-quality-settings"
         context.deleteSharedPreferences(prefsName)

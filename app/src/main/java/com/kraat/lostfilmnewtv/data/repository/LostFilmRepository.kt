@@ -65,7 +65,9 @@ interface LostFilmRepository {
     suspend fun search(query: String): SearchResultsResult =
         SearchResultsResult.Error(query, "Поиск недоступен")
 
-    suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean
+    suspend fun loadWatchedState(detailsUrl: String): Boolean?
+
+    suspend fun setEpisodeWatched(detailsUrl: String, playEpisodeId: String, targetWatched: Boolean): Boolean?
 
     suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult
 
