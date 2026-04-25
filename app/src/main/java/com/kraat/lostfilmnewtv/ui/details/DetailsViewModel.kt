@@ -35,6 +35,7 @@ class DetailsViewModel @Inject constructor(
     private var started = false
     private var loadRequestToken = 0
     private var loadJob: Job? = null
+    private var watchedStateJob: Job? = null
     private var hasValidSession = isAuthenticated
 
     fun onStart() {
@@ -54,18 +55,72 @@ class DetailsViewModel @Inject constructor(
         val needsFavoriteRefresh = isAuthenticated && authStateChanged && _uiState.value.details?.let { details ->
             details.favoriteTargetId == null || details.isFavorite == null
         } == true
+        val needsWatchedRefresh = isAuthenticated && authStateChanged && _uiState.value.details?.playEpisodeId != null
 
         if (needsFavoriteRefresh) {
             loadDetails()
         } else {
-            _uiState.update { it.withFavoritePresentation() }
+            _uiState.update { it.withFavoritePresentation().withWatchedPresentation() }
+            if (needsWatchedRefresh) {
+                refreshWatchedState(
+                    requestToken = loadRequestToken,
+                    detailsUrl = _uiState.value.details?.detailsUrl.orEmpty(),
+                    playEpisodeId = _uiState.value.details?.playEpisodeId,
+                )
+            }
         }
     }
 
     fun onRetry() = loadDetails()
 
     suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean =
-        repository.markEpisodeWatched(detailsUrl, playEpisodeId)
+        repository.setEpisodeWatched(detailsUrl, playEpisodeId, targetWatched = true) == true
+
+    fun onWatchedClick() {
+        val currentState = _uiState.value
+        val currentDetails = currentState.details ?: return
+        val currentWatched = currentState.isWatched ?: return
+        val playEpisodeId = currentDetails.playEpisodeId ?: return
+        if (currentState.isWatchedMutationInFlight) return
+
+        _uiState.update {
+            it.copy(
+                isWatchedMutationInFlight = true,
+                watchedStatusMessage = null,
+            ).withWatchedPresentation()
+        }
+
+        viewModelScope.launch(ioDispatcher) {
+            val targetWatched = !currentWatched
+            val effectiveWatched = repository.setEpisodeWatched(
+                detailsUrl = currentDetails.detailsUrl,
+                playEpisodeId = playEpisodeId,
+                targetWatched = targetWatched,
+            )
+            _uiState.update { state ->
+                when {
+                    effectiveWatched == null -> {
+                        state.copy(
+                            isWatchedMutationInFlight = false,
+                            watchedStatusMessage = "Не удалось обновить статус просмотра",
+                        ).withWatchedPresentation()
+                    }
+
+                    else -> {
+                        state.copy(
+                            isWatched = effectiveWatched,
+                            isWatchedMutationInFlight = false,
+                            watchedStatusMessage = if (effectiveWatched) {
+                                "Отмечено как просмотренное"
+                            } else {
+                                "Отмечено как непросмотренное"
+                            },
+                        ).withWatchedPresentation()
+                    }
+                }
+            }
+        }
+    }
 
     fun onFavoriteClick() {
         val currentState = _uiState.value
@@ -106,7 +161,17 @@ class DetailsViewModel @Inject constructor(
         val detailsUrl = savedStateHandle.get<String>(AppDestination.Details.detailsUrlArg).orEmpty()
         val requestToken = ++loadRequestToken
         loadJob?.cancel()
-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        watchedStateJob?.cancel()
+        _uiState.update {
+            it.copy(
+                isLoading = true,
+                errorMessage = null,
+                isWatched = null,
+                isWatchedStateLoading = false,
+                isWatchedMutationInFlight = false,
+                watchedStatusMessage = null,
+            ).withWatchedPresentation()
+        }
 
         loadJob = viewModelScope.launch(ioDispatcher) {
             when (val result = repository.loadDetails(detailsUrl)) {
@@ -118,8 +183,13 @@ class DetailsViewModel @Inject constructor(
                             isLoading = false,
                             showStaleBanner = result.isStale,
                             errorMessage = null,
-                        ).withFavoritePresentation()
+                        ).withFavoritePresentation().withWatchedPresentation()
                     }
+                    refreshWatchedState(
+                        requestToken = requestToken,
+                        detailsUrl = result.details.detailsUrl,
+                        playEpisodeId = result.details.playEpisodeId,
+                    )
                 }
                 is DetailsResult.Error -> {
                     if (loadRequestToken != requestToken) return@launch
@@ -129,9 +199,33 @@ class DetailsViewModel @Inject constructor(
                             isLoading = false,
                             showStaleBanner = false,
                             errorMessage = result.message,
-                        ).withFavoritePresentation()
+                        ).withFavoritePresentation().withWatchedPresentation()
                     }
                 }
+            }
+        }
+    }
+
+    private fun refreshWatchedState(
+        requestToken: Int,
+        detailsUrl: String,
+        playEpisodeId: String?,
+    ) {
+        if (!hasValidSession || playEpisodeId == null) {
+            _uiState.update { it.copy(isWatchedStateLoading = false).withWatchedPresentation() }
+            return
+        }
+
+        _uiState.update { it.copy(isWatchedStateLoading = true).withWatchedPresentation() }
+        watchedStateJob?.cancel()
+        watchedStateJob = viewModelScope.launch(ioDispatcher) {
+            val watchedState = repository.loadWatchedState(detailsUrl)
+            if (loadRequestToken != requestToken) return@launch
+            _uiState.update {
+                it.copy(
+                    isWatched = watchedState,
+                    isWatchedStateLoading = false,
+                ).withWatchedPresentation()
             }
         }
     }
@@ -145,6 +239,19 @@ class DetailsViewModel @Inject constructor(
             true -> copy(favoriteActionLabel = "Убрать из избранного", isFavoriteActionEnabled = true)
             false -> copy(favoriteActionLabel = "Добавить в избранное", isFavoriteActionEnabled = true)
             null -> copy(favoriteActionLabel = "Избранное недоступно", isFavoriteActionEnabled = false)
+        }
+    }
+
+    private fun DetailsUiState.withWatchedPresentation(): DetailsUiState {
+        val currentDetails = details ?: return copy(watchedActionLabel = "", isWatchedActionEnabled = false)
+        if (!hasValidSession) return copy(watchedActionLabel = "Войдите в LostFilm", isWatchedActionEnabled = false)
+        if (currentDetails.playEpisodeId == null) return copy(watchedActionLabel = "Статус недоступен", isWatchedActionEnabled = false)
+        if (isWatchedMutationInFlight) return copy(watchedActionLabel = "Сохраняем...", isWatchedActionEnabled = false)
+        if (isWatchedStateLoading) return copy(watchedActionLabel = "Проверяем статус...", isWatchedActionEnabled = false)
+        return when (isWatched) {
+            true -> copy(watchedActionLabel = "Просмотрено", isWatchedActionEnabled = true)
+            false -> copy(watchedActionLabel = "Не просмотрено", isWatchedActionEnabled = true)
+            null -> copy(watchedActionLabel = "Статус недоступен", isWatchedActionEnabled = false)
         }
     }
 }

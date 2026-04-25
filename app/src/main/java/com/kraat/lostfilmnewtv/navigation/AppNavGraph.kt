@@ -100,7 +100,7 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                 onPagingRetry = homeViewModel::onPagingRetry,
                 onAuthClick = {
                     if (isAuthenticated) authViewModel.logout()
-                    else navController.navigate(AppDestination.Auth.route)
+                    else navController.navigate(AppDestination.Auth.createRoute())
                 },
                 onSearchClick = { navController.navigate(AppDestination.Search.route) },
                 onSettingsClick = { navController.navigate(AppDestination.Settings.route) },
@@ -137,6 +137,7 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                 },
                 onOpenSeriesOverview = { url -> navController.navigate(AppDestination.SeriesOverview.createRoute(url)) },
                 onOpenSeriesGuide = { url -> navController.navigate(AppDestination.SeriesGuide.createRoute(url)) },
+                onAuthClick = { navController.navigate(AppDestination.Auth.createRoute(autoStart = true)) },
                 onChannelContentChanged = appGraphEntryPoint.homeChannelSyncManager()::syncNow,
             )
         }
@@ -194,15 +195,25 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                 isAuthenticated = isAuthenticated,
                 onAuthClick = {
                     if (isAuthenticated) authViewModel.logout()
-                    else navController.navigate(AppDestination.Auth.route)
+                    else navController.navigate(AppDestination.Auth.createRoute())
                 },
             )
         }
 
         // ── Auth ──────────────────────────────────────────────────────────────
-        composable(AppDestination.Auth.route) {
+        composable(
+            route = AppDestination.Auth.route,
+            arguments = listOf(
+                navArgument(AppDestination.Auth.autoStartArg) {
+                    type = NavType.BoolType
+                    defaultValue = false
+                },
+            ),
+        ) { backStackEntry ->
+            val autoStart = backStackEntry.arguments?.getBoolean(AppDestination.Auth.autoStartArg) ?: false
             AuthScreen(
                 viewModel = authViewModel,
+                autoStart = autoStart,
                 onAuthComplete = { navController.popBackStack() },
                 onNavigateBack = { navController.popBackStack() },
             )

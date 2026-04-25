@@ -674,7 +674,9 @@ private class FakeLostFilmRepository(
         return com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult.Error("not needed")
     }
 
-    override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean = false
+    override suspend fun loadWatchedState(detailsUrl: String): Boolean? = null
+
+    override suspend fun setEpisodeWatched(detailsUrl: String, playEpisodeId: String, targetWatched: Boolean): Boolean? = targetWatched
 
     override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult {
         return FavoriteMutationResult.RequiresLogin()

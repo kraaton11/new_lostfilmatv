@@ -125,10 +125,11 @@ class AuthenticatedLostFilmHttpClientTest {
                 .build(),
         )
 
-        val marked = client.markEpisodeWatched(
+        val marked = client.setEpisodeWatched(
             detailsUrl = "https://www.lostfilm.today/series/Invincible/season_4/episode_1/",
             playEpisodeId = "362009013",
             ajaxSessionToken = "ajax-session-token",
+            targetWatched = true,
         )
 
         assertEquals(true, marked)
@@ -146,6 +147,51 @@ class AuthenticatedLostFilmHttpClientTest {
         requestBody!!.writeTo(buffer)
         assertEquals(
             "act=serial&type=markepisode&val=362009013&auto=0&mode=on&session=ajax-session-token",
+            buffer.readUtf8(),
+        )
+    }
+
+    @Test
+    fun setEpisodeWatched_offMode_addsAjaxHeadersAndSessionCookie() = runTest {
+        var capturedRequest: Request? = null
+        val client = AuthenticatedLostFilmHttpClient(
+            sessionStore = FakeSessionStore(
+                LostFilmSession(
+                    cookies = listOf(
+                        LostFilmCookie("lf_session", "cookie-value", ".lostfilm.today"),
+                        LostFilmCookie("uid", "42", ".lostfilm.today"),
+                    ),
+                ),
+            ),
+            okHttpClient = OkHttpClient.Builder()
+                .addInterceptor { chain ->
+                    capturedRequest = chain.request()
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body("""{"result":"on"}""".toResponseBody())
+                        .build()
+                }
+                .build(),
+        )
+
+        val marked = client.setEpisodeWatched(
+            detailsUrl = "https://www.lostfilm.today/series/Invincible/season_4/episode_1/",
+            playEpisodeId = "362009013",
+            ajaxSessionToken = "ajax-session-token",
+            targetWatched = false,
+        )
+
+        assertEquals(true, marked)
+        val request = requireNotNull(capturedRequest)
+        val requestBody = request.body
+        assertNotNull(requestBody)
+        val buffer = okio.Buffer()
+        requestBody!!.writeTo(buffer)
+        assertEquals(
+            "act=serial&type=markepisode&val=362009013&auto=0&mode=off&session=ajax-session-token",
             buffer.readUtf8(),
         )
     }

@@ -33,9 +33,53 @@ class DetailsStageModelsTest {
     }
 
     @Test
-    fun buildStageUi_addsGuideAction_forSeriesDetails() {
+    fun buildStageUi_routesPrimaryWatchActionToAuth_whenAnonymous() {
+        val playbackRow = DetailsTorrentRowUiModel(
+            rowId = "row-1",
+            label = "720p",
+            url = "https://example.com/720",
+            isTorrServeSupported = true,
+        )
+
         val ui = buildDetailsStageUi(
             state = DetailsUiState(details = seriesDetails()),
+            isAuthenticated = false,
+            availableTorrentRowsCount = 1,
+            playbackRow = playbackRow,
+            activeTorrServeRowId = null,
+            isTorrServeBusy = false,
+        )
+
+        assertEquals("Войти в LostFilm", ui.primaryAction.label)
+        assertEquals("", ui.primaryAction.subtitle)
+        assertEquals(DetailsStageActionType.OPEN_AUTH, ui.primaryAction.actionType)
+        assertEquals(true, ui.primaryAction.enabled)
+        assertEquals(emptyList<DetailsStageActionUiModel>(), ui.secondaryActions)
+    }
+
+    @Test
+    fun buildStageUi_routesPrimaryWatchActionToAuth_whenAnonymousAndNoPlaybackRow() {
+        val ui = buildDetailsStageUi(
+            state = DetailsUiState(details = seriesDetails()),
+            isAuthenticated = false,
+            availableTorrentRowsCount = 0,
+            playbackRow = null,
+            activeTorrServeRowId = null,
+            isTorrServeBusy = false,
+        )
+
+        assertEquals(null, ui.activeRowId)
+        assertEquals("Войти в LostFilm", ui.primaryAction.label)
+        assertEquals("", ui.primaryAction.subtitle)
+        assertEquals(DetailsStageActionType.OPEN_AUTH, ui.primaryAction.actionType)
+        assertEquals(true, ui.primaryAction.enabled)
+        assertEquals(emptyList<DetailsStageActionUiModel>(), ui.secondaryActions)
+    }
+
+    @Test
+    fun buildStageUi_addsGuideAction_forSeriesDetails() {
+        val ui = buildDetailsStageUi(
+            state = DetailsUiState(details = seriesDetails(), isWatched = false, isWatchedActionEnabled = true, watchedActionLabel = "Не просмотрено"),
             isAuthenticated = true,
             availableTorrentRowsCount = 1,
             playbackRow = DetailsTorrentRowUiModel("row-0", "1080p", "https://example.com/1080"),
@@ -54,6 +98,31 @@ class DetailsStageModelsTest {
         assertEquals(
             DetailsStageActionType.OPEN_SERIES_OVERVIEW,
             ui.secondaryActions.first().actionType,
+        )
+        assertEquals(
+            true,
+            ui.secondaryActions.any { it.actionType == DetailsStageActionType.TOGGLE_WATCHED },
+        )
+        assertEquals(
+            false,
+            ui.secondaryActions.first { it.actionType == DetailsStageActionType.TOGGLE_WATCHED }.isHighlighted,
+        )
+    }
+
+    @Test
+    fun buildStageUi_highlightsWatchedAction_whenEpisodeAlreadyWatched() {
+        val ui = buildDetailsStageUi(
+            state = DetailsUiState(details = seriesDetails(), isWatched = true, isWatchedActionEnabled = true, watchedActionLabel = "Просмотрено"),
+            isAuthenticated = true,
+            availableTorrentRowsCount = 1,
+            playbackRow = DetailsTorrentRowUiModel("row-0", "1080p", "https://example.com/1080"),
+            activeTorrServeRowId = null,
+            isTorrServeBusy = false,
+        )
+
+        assertEquals(
+            true,
+            ui.secondaryActions.first { it.actionType == DetailsStageActionType.TOGGLE_WATCHED }.isHighlighted,
         )
     }
 
@@ -196,6 +265,7 @@ private fun seriesDetails(): ReleaseDetails = ReleaseDetails(
     releaseDateRu = "21 марта 2026",
     posterUrl = "https://example.com/poster.jpg",
     fetchedAt = 0L,
+    playEpisodeId = "362009013",
     episodeTitleRu = "The Engineer",
     seriesStatusRu = "Идет 1 сезон. Следующая серия: 12 апреля 2026 года",
 )

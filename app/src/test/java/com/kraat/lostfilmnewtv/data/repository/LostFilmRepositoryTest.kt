@@ -601,21 +601,23 @@ class LostFilmRepositoryTest {
                     """.trimIndent(),
                 )
             },
-            markEpisodeHandler = { markedDetailsUrl, playEpisodeId, ajaxSessionToken ->
+            markEpisodeHandler = { markedDetailsUrl, playEpisodeId, ajaxSessionToken, targetWatched ->
                 assertEquals(detailsUrl, markedDetailsUrl)
                 assertEquals("362009013", playEpisodeId)
                 assertEquals("ajax-session-token", ajaxSessionToken)
+                assertTrue(targetWatched)
                 true
             },
             isAuthenticated = true,
         )
 
-        val marked = repository.markEpisodeWatched(
+        val marked = repository.setEpisodeWatched(
             detailsUrl = detailsUrl,
             playEpisodeId = "362009013",
+            targetWatched = true,
         )
 
-        assertTrue(marked)
+        assertTrue(marked == true)
         assertTrue(releaseDao.getSummary(detailsUrl)?.isWatched == true)
     }
 
@@ -651,16 +653,101 @@ class LostFilmRepositoryTest {
                     else -> error("Unexpected details request #$detailsRequestCount")
                 }
             },
-            markEpisodeHandler = { _, _, _ -> false },
+            markEpisodeHandler = { _, _, _, _ -> false },
             isAuthenticated = true,
         )
 
-        val marked = repository.markEpisodeWatched(
+        val marked = repository.setEpisodeWatched(
             detailsUrl = detailsUrl,
             playEpisodeId = "362009013",
+            targetWatched = true,
         )
 
-        assertTrue(marked)
+        assertTrue(marked == true)
+        assertTrue(releaseDao.getSummary(detailsUrl)?.isWatched == true)
+    }
+
+    @Test
+    fun setEpisodeWatched_updatesCachedSummaryWhenRemoteUnmarkSucceeds() = runTest {
+        val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        seedPage(pageNumber = 1, fetchedAt = NOW - 1_000L)
+        releaseDao.updateSummaryWatched(detailsUrl, true)
+        var detailsRequestCount = 0
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            detailsHandler = {
+                detailsRequestCount += 1
+                when (detailsRequestCount) {
+                    1 -> fixture("series-details.html")
+                        .replace(
+                            oldValue = "let UserData = {};",
+                            newValue = """
+                                let UserData = {};
+                                UserData.id = 42;
+                                UserData.session = 'ajax-session-token';
+                            """.trimIndent(),
+                        )
+                        .replace(
+                            oldValue = """<div class="isawthat-btn " title="Пометить серию как просмотренную"""",
+                            newValue = """<div class="isawthat-btn checked" title="Серия просмотрена"""",
+                        )
+                        .replace(
+                            oldValue = "Серия не просмотрена</div>",
+                            newValue = "Серия просмотрена</div>",
+                        )
+
+                    2 -> fixture("series-details.html").replace(
+                        oldValue = "let UserData = {};",
+                        newValue = """
+                            let UserData = {};
+                            UserData.id = 42;
+                            UserData.session = 'ajax-session-token';
+                        """.trimIndent(),
+                    )
+
+                    else -> error("Unexpected details request #$detailsRequestCount")
+                }
+            },
+            markEpisodeHandler = { _, _, _, targetWatched ->
+                assertFalse(targetWatched)
+                true
+            },
+            isAuthenticated = true,
+        )
+
+        val watched = repository.setEpisodeWatched(
+            detailsUrl = detailsUrl,
+            playEpisodeId = "362009013",
+            targetWatched = false,
+        )
+
+        assertFalse(watched!!)
+        assertTrue(releaseDao.getSummary(detailsUrl)?.isWatched == false)
+    }
+
+    @Test
+    fun loadWatchedState_readsCurrentStateFromSiteAndUpdatesCache() = runTest {
+        val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        seedPage(pageNumber = 1, fetchedAt = NOW - 1_000L)
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            detailsHandler = {
+                fixture("series-details.html")
+                    .replace(
+                        oldValue = """<div class="isawthat-btn " title="Пометить серию как просмотренную"""",
+                        newValue = """<div class="isawthat-btn checked" title="Серия просмотрена"""",
+                    )
+                    .replace(
+                        oldValue = "Серия не просмотрена</div>",
+                        newValue = "Серия просмотрена</div>",
+                    )
+            },
+            isAuthenticated = true,
+        )
+
+        val watched = repository.loadWatchedState(detailsUrl)
+
+        assertTrue(watched == true)
         assertTrue(releaseDao.getSummary(detailsUrl)?.isWatched == true)
     }
 
@@ -1577,7 +1664,7 @@ class LostFilmRepositoryTest {
         detailsHandler: suspend (String) -> String = { error("Unexpected details request: $it") },
         torrentHandler: suspend (String) -> String = { error("Unexpected torrent request: $it") },
         torrentPageHandler: suspend (String) -> String = { error("Unexpected torrent page request: $it") },
-        markEpisodeHandler: suspend (String, String, String) -> Boolean = { _, _, _ ->
+        markEpisodeHandler: suspend (String, String, String, Boolean) -> Boolean = { _, _, _, _ ->
             error("Unexpected mark episode request")
         },
         watchedEpisodeMarksHandler: suspend (String) -> String = { "[]" },
@@ -1616,7 +1703,7 @@ private class FakeLostFilmHttpClient(
     private val detailsHandler: suspend (String) -> String,
     private val torrentHandler: suspend (String) -> String,
     private val torrentPageHandler: suspend (String) -> String,
-    private val markEpisodeHandler: suspend (String, String, String) -> Boolean,
+    private val markEpisodeHandler: suspend (String, String, String, Boolean) -> Boolean,
     private val watchedEpisodeMarksHandler: suspend (String) -> String,
     private val favoriteToggleHandler: suspend (String, Int, String) -> FavoriteToggleNetworkResult,
     private val accountPageHandler: suspend (String) -> String,
@@ -1635,12 +1722,13 @@ private class FakeLostFilmHttpClient(
 
     override suspend fun fetchTorrentPage(url: String): String = torrentPageHandler(url)
 
-    override suspend fun markEpisodeWatched(
+    override suspend fun setEpisodeWatched(
         detailsUrl: String,
         playEpisodeId: String,
         ajaxSessionToken: String,
+        targetWatched: Boolean,
     ): Boolean {
-        return markEpisodeHandler(detailsUrl, playEpisodeId, ajaxSessionToken)
+        return markEpisodeHandler(detailsUrl, playEpisodeId, ajaxSessionToken, targetWatched)
     }
 
     override suspend fun toggleFavorite(

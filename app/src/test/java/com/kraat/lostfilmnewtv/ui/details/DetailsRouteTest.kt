@@ -198,6 +198,45 @@ class DetailsRouteTest {
     }
 
     @Test
+    fun route_opensAuthInsteadOfTorrServe_whenAnonymousClicksWatch() {
+        val detailsUrl = "https://www.lostfilm.today/series/login-required"
+        val authClicks = AtomicInteger(0)
+        val launchCount = AtomicInteger(0)
+
+        composeRule.setContent {
+            DetailsRoute(
+                detailsUrl = detailsUrl,
+                isAuthenticated = false,
+                viewModel = routeViewModel(
+                    detailsUrl = detailsUrl,
+                    repository = RouteFakeDetailsRepository.success(detailsUrl),
+                    isAuthenticated = false,
+                ),
+                actionHandler = succeedingActionHandler(),
+                linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
+                onAuthClick = { authClicks.incrementAndGet() },
+                openTorrServe = { _, _, _, _ ->
+                    launchCount.incrementAndGet()
+                    TorrServeOpenResult.Success
+                },
+            )
+        }
+
+        composeRule.waitForNodeWithTag("details-primary-action")
+        composeRule.onNodeWithText("Войти в LostFilm").assertExists()
+        composeRule.onNodeWithTag("details-series-overview-action").assertDoesNotExist()
+        composeRule.onNodeWithTag("details-watched-action").assertDoesNotExist()
+        composeRule.onNodeWithTag("details-favorite-action").assertDoesNotExist()
+        composeRule.onNodeWithTag("details-series-guide-action").assertDoesNotExist()
+        composeRule.onNodeWithTag("details-primary-action").assertIsEnabled()
+        composeRule.onNodeWithTag("details-primary-action")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        assertEquals(1, authClicks.get())
+        assertEquals(0, launchCount.get())
+    }
+
+    @Test
     fun route_maps_torrserve_errors_clears_message_and_ignores_stale_completion_after_reentry() {
         val detailsUrl = "https://www.lostfilm.today/series/errors"
         val staleCompletion = CompletableDeferred<TorrServeOpenResult>()
@@ -423,10 +462,9 @@ class DetailsRouteTest {
             )
         }
 
-        composeRule.waitForNodeWithTag("details-favorite-action")
-        composeRule.onNodeWithText("Войдите в LostFilm").assertExists()
-        composeRule.onNodeWithTag("details-favorite-action")
-            .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitForNodeWithTag("details-primary-action")
+        composeRule.onNodeWithText("Войти в LostFilm").assertExists()
+        composeRule.onNodeWithTag("details-favorite-action").assertDoesNotExist()
 
         assertEquals(emptyList<Pair<String, Boolean>>(), repository.favoriteRequests)
 
@@ -480,12 +518,13 @@ private fun ComposeContentTestRule.waitForNodeWithText(text: String) {
 private fun routeViewModel(
     detailsUrl: String,
     repository: LostFilmRepository,
+    isAuthenticated: Boolean = true,
 ): DetailsViewModel = DetailsViewModel(
     repository = repository,
     savedStateHandle = SavedStateHandle(
         mapOf(
             AppDestination.Details.detailsUrlArg to detailsUrl,
-            AppDestination.Details.isAuthenticatedArg to true,
+            AppDestination.Details.isAuthenticatedArg to isAuthenticated,
         ),
     ),
     ioDispatcher = Dispatchers.Unconfined,
@@ -527,6 +566,7 @@ private class RouteFakeDetailsRepository(
     private val scriptedResults = ConcurrentHashMap(detailsResults)
     val loadedDetailsUrls = CopyOnWriteArrayList<String>()
     val markedEpisodes = CopyOnWriteArrayList<Pair<String, String>>()
+    val loadedWatchedUrls = CopyOnWriteArrayList<String>()
     val favoriteResults = CopyOnWriteArrayList<FavoriteMutationResult>()
     val favoriteRequests = CopyOnWriteArrayList<Pair<String, Boolean>>()
 
@@ -544,9 +584,14 @@ private class RouteFakeDetailsRepository(
         return com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult.Error("not needed")
     }
 
-    override suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean {
+    override suspend fun loadWatchedState(detailsUrl: String): Boolean? {
+        loadedWatchedUrls += detailsUrl
+        return false
+    }
+
+    override suspend fun setEpisodeWatched(detailsUrl: String, playEpisodeId: String, targetWatched: Boolean): Boolean? {
         markedEpisodes += detailsUrl to playEpisodeId
-        return true
+        return targetWatched
     }
 
     override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult {

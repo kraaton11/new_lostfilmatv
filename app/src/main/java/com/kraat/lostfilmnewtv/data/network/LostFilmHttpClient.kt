@@ -25,7 +25,12 @@ interface LostFilmHttpClient {
 
     suspend fun fetchTorrentPage(url: String): String
 
-    suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String, ajaxSessionToken: String): Boolean
+    suspend fun setEpisodeWatched(
+        detailsUrl: String,
+        playEpisodeId: String,
+        ajaxSessionToken: String,
+        targetWatched: Boolean,
+    ): Boolean
 
     suspend fun toggleFavorite(
         refererUrl: String,
@@ -84,16 +89,18 @@ class OkHttpLostFilmHttpClient(
         execute(url)
     }
 
-    override suspend fun markEpisodeWatched(
+    override suspend fun setEpisodeWatched(
         detailsUrl: String,
         playEpisodeId: String,
         ajaxSessionToken: String,
+        targetWatched: Boolean,
     ): Boolean = withContext(Dispatchers.IO) {
-        executeMarkEpisodeWatched(
+        executeSetEpisodeWatched(
             okHttpClient = okHttpClient,
             refererUrl = resolveUrl(detailsUrl),
             playEpisodeId = playEpisodeId,
             ajaxSessionToken = ajaxSessionToken,
+            targetWatched = targetWatched,
             cookieHeader = sessionStore?.read()?.toCookieString(),
         )
     }
@@ -179,11 +186,12 @@ private fun executeFetchSeasonWatchedEpisodeMarks(
     }
 }
 
-private fun executeMarkEpisodeWatched(
+private fun executeSetEpisodeWatched(
     okHttpClient: OkHttpClient,
     refererUrl: String,
     playEpisodeId: String,
     ajaxSessionToken: String,
+    targetWatched: Boolean,
     cookieHeader: String?,
 ): Boolean {
     val requestBuilder = Request.Builder()
@@ -199,7 +207,7 @@ private fun executeMarkEpisodeWatched(
                 .add("type", "markepisode")
                 .add("val", playEpisodeId)
                 .add("auto", "0")
-                .add("mode", "on")
+                .add("mode", if (targetWatched) "on" else "off")
                 .add("session", ajaxSessionToken)
                 .build(),
         )

@@ -8,6 +8,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ExperimentalTestApi
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsFocused
@@ -210,7 +211,7 @@ class DetailsScreenTest {
     }
 
     @Test
-    fun detailsScreen_showsDisabledFavoriteLoginAction_whenAnonymousMetadataIsMissing() {
+    fun detailsScreen_showsOnlyLoginAction_whenAnonymous() {
         val playbackRow = row("preferred", "1080p", "https://example.com/1080.torrent", true)
 
         composeRule.setDetailsContent(
@@ -224,8 +225,11 @@ class DetailsScreenTest {
             playbackRow = playbackRow,
         )
 
-        composeRule.onNodeWithTag("details-favorite-action").assertIsDisplayed()
-        composeRule.onNodeWithTag("details-favorite-action").assertIsNotEnabled()
+        composeRule.onNodeWithTag("details-primary-action").assertIsDisplayed()
+        composeRule.onNodeWithText("Войти в LostFilm").assertIsDisplayed()
+        composeRule.onNodeWithTag(torrServeTag("preferred")).assertDoesNotExist()
+        composeRule.onNodeWithTag("details-favorite-action").assertDoesNotExist()
+        composeRule.onNodeWithTag("details-series-guide-action").assertDoesNotExist()
     }
 
     @Test
