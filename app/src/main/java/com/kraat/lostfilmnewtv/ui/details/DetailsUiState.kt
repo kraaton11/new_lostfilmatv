@@ -13,6 +13,7 @@ data class DetailsUiState(
     val watchedStatusMessage: String? = null,
     val watchedActionLabel: String = "",
     val isWatchedActionEnabled: Boolean = false,
+    val watchedContentVersion: Int = 0,
     val isFavoriteMutationInFlight: Boolean = false,
     val favoriteStatusMessage: String? = null,
     val favoriteActionLabel: String = "",

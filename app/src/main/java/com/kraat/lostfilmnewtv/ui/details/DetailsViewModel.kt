@@ -110,6 +110,7 @@ class DetailsViewModel @Inject constructor(
                         state.copy(
                             isWatched = effectiveWatched,
                             isWatchedMutationInFlight = false,
+                            watchedContentVersion = state.watchedContentVersion + 1,
                             watchedStatusMessage = if (effectiveWatched) {
                                 "Отмечено как просмотренное"
                             } else {

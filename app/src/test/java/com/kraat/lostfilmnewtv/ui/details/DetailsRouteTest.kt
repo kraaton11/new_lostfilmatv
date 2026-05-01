@@ -394,6 +394,62 @@ class DetailsRouteTest {
     }
 
     @Test
+    fun route_notifiesHome_afterManualWatchedMutation() {
+        val detailsUrl = "https://www.lostfilm.today/series/manual-mark"
+        val repository = RouteFakeDetailsRepository.success(detailsUrl)
+        val watchedDetailsUrls = CopyOnWriteArrayList<String>()
+        val channelSyncCalls = AtomicInteger(0)
+
+        composeRule.setContent {
+            DetailsRoute(
+                detailsUrl = detailsUrl,
+                viewModel = routeViewModel(detailsUrl, repository),
+                actionHandler = succeedingActionHandler(),
+                linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
+                onMarkedWatched = { watchedDetailsUrls += it },
+                onChannelContentChanged = { channelSyncCalls.incrementAndGet() },
+            )
+        }
+
+        composeRule.waitForNodeWithTag("details-watched-action")
+        composeRule.onNodeWithTag("details-watched-action")
+            .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitUntil(timeoutMillis = 5_000) { watchedDetailsUrls.isNotEmpty() }
+
+        assertEquals(listOf(detailsUrl to "362009013"), repository.markedEpisodes)
+        assertEquals(listOf(detailsUrl), watchedDetailsUrls)
+        assertEquals(1, channelSyncCalls.get())
+    }
+
+    @Test
+    fun route_notifiesHome_afterManualUnwatchedMutation() {
+        val detailsUrl = "https://www.lostfilm.today/series/manual-unmark"
+        val repository = RouteFakeDetailsRepository.success(detailsUrl, watchedStateResult = true)
+        val watchedChanges = CopyOnWriteArrayList<Pair<String, Boolean>>()
+        val channelSyncCalls = AtomicInteger(0)
+
+        composeRule.setContent {
+            DetailsRoute(
+                detailsUrl = detailsUrl,
+                viewModel = routeViewModel(detailsUrl, repository),
+                actionHandler = succeedingActionHandler(),
+                linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
+                onWatchedStateChanged = { url, isWatched -> watchedChanges += url to isWatched },
+                onChannelContentChanged = { channelSyncCalls.incrementAndGet() },
+            )
+        }
+
+        composeRule.waitForNodeWithTag("details-watched-action")
+        composeRule.onNodeWithTag("details-watched-action")
+            .performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitUntil(timeoutMillis = 5_000) { watchedChanges.isNotEmpty() }
+
+        assertEquals(listOf(detailsUrl to "362009013"), repository.markedEpisodes)
+        assertEquals(listOf(detailsUrl to false), watchedChanges)
+        assertEquals(1, channelSyncCalls.get())
+    }
+
+    @Test
     fun route_notifiesFavoriteContentChanged_afterSuccessfulFavoriteMutation() {
         val detailsUrl = "https://www.lostfilm.today/series/favorite"
         val repository = RouteFakeDetailsRepository.success(
@@ -472,7 +528,7 @@ class DetailsRouteTest {
             isAuthenticated = true
         }
 
-        composeRule.waitForNodeWithText("Добавить в избранное")
+        composeRule.waitForNodeWithText("В избранное")
         composeRule.onNodeWithTag("details-favorite-action")
             .performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitUntil(timeoutMillis = 5_000) { repository.favoriteRequests.size == 1 }
@@ -562,6 +618,7 @@ private class ImmediateLauncher(
 
 private class RouteFakeDetailsRepository(
     detailsResults: Map<String, MutableList<DetailsResult>>,
+    private val watchedStateResult: Boolean? = false,
 ) : LostFilmRepository {
     private val scriptedResults = ConcurrentHashMap(detailsResults)
     val loadedDetailsUrls = CopyOnWriteArrayList<String>()
@@ -586,7 +643,7 @@ private class RouteFakeDetailsRepository(
 
     override suspend fun loadWatchedState(detailsUrl: String): Boolean? {
         loadedWatchedUrls += detailsUrl
-        return false
+        return watchedStateResult
     }
 
     override suspend fun setEpisodeWatched(detailsUrl: String, playEpisodeId: String, targetWatched: Boolean): Boolean? {
@@ -611,12 +668,14 @@ private class RouteFakeDetailsRepository(
         fun success(
             detailsUrl: String,
             details: ReleaseDetails = details(detailsUrl),
+            watchedStateResult: Boolean? = false,
         ): RouteFakeDetailsRepository = RouteFakeDetailsRepository(
             detailsResults = mapOf(
                 detailsUrl to mutableListOf(
                     DetailsResult.Success(details, false),
                 ),
             ),
+            watchedStateResult = watchedStateResult,
         )
     }
 }

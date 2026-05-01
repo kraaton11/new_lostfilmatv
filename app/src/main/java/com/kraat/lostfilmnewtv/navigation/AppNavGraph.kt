@@ -28,6 +28,7 @@ import com.kraat.lostfilmnewtv.ui.settings.SettingsRoute
 import com.kraat.lostfilmnewtv.ui.settings.SettingsViewModel
 
 private const val HOME_WATCHED_DETAILS_URL_KEY = "home.watched_details_url"
+private const val HOME_WATCHED_CHANGED_STATE_KEY = "home.watched_changed_state"
 private const val HOME_FAVORITE_CHANGED_DETAILS_URL_KEY = "home.favorite_changed_details_url"
 private const val HOME_FAVORITE_CHANGED_STATE_KEY = "home.favorite_changed_state"
 
@@ -64,6 +65,9 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
             val watchedDetailsUrl by backStackEntry.savedStateHandle
                 .getStateFlow<String?>(HOME_WATCHED_DETAILS_URL_KEY, null)
                 .collectAsStateWithLifecycle()
+            val watchedChangedState by backStackEntry.savedStateHandle
+                .getStateFlow<Boolean?>(HOME_WATCHED_CHANGED_STATE_KEY, null)
+                .collectAsStateWithLifecycle()
             val favoriteChangedDetailsUrl by backStackEntry.savedStateHandle
                 .getStateFlow<String?>(HOME_FAVORITE_CHANGED_DETAILS_URL_KEY, null)
                 .collectAsStateWithLifecycle()
@@ -74,10 +78,13 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
             LaunchedEffect(Unit) { homeViewModel.onStart() }
             LaunchedEffect(isAuthenticated) { homeViewModel.onFavoriteContentInvalidated() }
 
-            LaunchedEffect(watchedDetailsUrl) {
-                watchedDetailsUrl?.let { url ->
-                    homeViewModel.onItemWatched(url)
+            LaunchedEffect(watchedDetailsUrl, watchedChangedState) {
+                val url = watchedDetailsUrl
+                val isWatched = watchedChangedState
+                if (url != null && isWatched != null) {
+                    homeViewModel.onItemWatchedStateChanged(url, isWatched)
                     backStackEntry.savedStateHandle[HOME_WATCHED_DETAILS_URL_KEY] = null
+                    backStackEntry.savedStateHandle[HOME_WATCHED_CHANGED_STATE_KEY] = null
                 }
             }
             LaunchedEffect(favoriteChangedDetailsUrl, favoriteChangedState) {
@@ -128,8 +135,9 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                 watchedMarkingMode = appGraphEntryPoint.playbackPreferencesStore().readWatchedMarkingMode(),
                 actionHandler = appGraphEntryPoint.torrServeActionHandler(),
                 linkBuilder = appGraphEntryPoint.torrServeLinkBuilder(),
-                onMarkedWatched = { url ->
+                onWatchedStateChanged = { url, isWatched ->
                     navController.previousBackStackEntry?.savedStateHandle?.set(HOME_WATCHED_DETAILS_URL_KEY, url)
+                    navController.previousBackStackEntry?.savedStateHandle?.set(HOME_WATCHED_CHANGED_STATE_KEY, isWatched)
                 },
                 onFavoriteContentChanged = { url, isFav ->
                     navController.previousBackStackEntry?.savedStateHandle?.set(HOME_FAVORITE_CHANGED_DETAILS_URL_KEY, url)

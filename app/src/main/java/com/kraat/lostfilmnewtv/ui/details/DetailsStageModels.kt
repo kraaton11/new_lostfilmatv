@@ -67,14 +67,12 @@ fun buildDetailsStageUi(
         DetailsStageActionUiModel(
             actionId = "favorite",
             rowId = null,
-            label = state.favoriteActionLabel.ifBlank {
-                if (details.isFavorite == true) "Убрать из избранного" else "Добавить в избранное"
-            },
+            label = favoriteActionLabel(state.favoriteActionLabel, details.isFavorite),
             subtitle = when {
                 !isAuthenticated -> "Требуется авторизация"
-                state.isFavoriteMutationInFlight -> "Синхронизация с LostFilm"
+                state.isFavoriteMutationInFlight -> "Синхронизация"
                 details.favoriteTargetId == null || details.isFavorite == null -> "Состояние недоступно"
-                else -> "Синхронизация с LostFilm"
+                else -> "Синхронизация"
             },
             qualityLabel = null,
             actionType = DetailsStageActionType.TOGGLE_FAVORITE,
@@ -135,6 +133,16 @@ fun buildDetailsStageUi(
             emptyList()
         },
     )
+}
+
+private fun favoriteActionLabel(label: String, isFavorite: Boolean?): String {
+    return when (label) {
+        "Добавить в избранное" -> "В избранное"
+        "Убрать из избранного" -> "Из избранного"
+        else -> label.ifBlank {
+            if (isFavorite == true) "Из избранного" else "В избранное"
+        }
+    }
 }
 
 private fun buildHeroEpisodeTitle(details: ReleaseDetails?): String {
