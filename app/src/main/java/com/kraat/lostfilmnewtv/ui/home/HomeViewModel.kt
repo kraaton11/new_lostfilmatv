@@ -118,9 +118,13 @@ class HomeViewModel @Inject constructor(
     }
 
     fun onItemWatched(detailsUrl: String) {
+        onItemWatchedStateChanged(detailsUrl, isWatched = true)
+    }
+
+    fun onItemWatchedStateChanged(detailsUrl: String, isWatched: Boolean) {
         _uiState.update { state ->
-            val updatedItems = state.items.map { if (it.detailsUrl == detailsUrl) it.copy(isWatched = true) else it }
-            val updatedFavoriteItems = state.favoriteItems.map { if (it.detailsUrl == detailsUrl) it.copy(isWatched = true) else it }
+            val updatedItems = state.items.map { if (it.detailsUrl == detailsUrl) it.copy(isWatched = isWatched) else it }
+            val updatedFavoriteItems = state.favoriteItems.map { if (it.detailsUrl == detailsUrl) it.copy(isWatched = isWatched) else it }
             state.copy(
                 items = updatedItems,
                 favoriteItems = updatedFavoriteItems,

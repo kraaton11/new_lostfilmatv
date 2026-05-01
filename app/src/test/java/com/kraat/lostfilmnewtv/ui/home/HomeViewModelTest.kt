@@ -230,6 +230,35 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun onItemWatchedStateChanged_unmarksExistingItemAndSelectedCardImmediately() = runTest(dispatcher) {
+        val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(
+                    pageNumber = 1,
+                    items = listOf(summary(detailsUrl = detailsUrl, isWatched = true)),
+                    hasNextPage = true,
+                    isStale = false,
+                ),
+            ),
+        )
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+        viewModel.onItemFocused(detailsUrl)
+
+        viewModel.onItemWatchedStateChanged(detailsUrl, isWatched = false)
+
+        assertFalse(viewModel.uiState.value.items.single().isWatched)
+        assertTrue(viewModel.uiState.value.selectedItem?.isWatched == false)
+    }
+
+    @Test
     fun onStart_whenFavoritesRailVisible_loadsFavoritesRailAfterMainRail() = runTest(dispatcher) {
         val allNewItem = summary(detailsUrl = "https://www.lostfilm.today/series/main/season_1/episode_1/")
         val favoriteItem = summary(
@@ -691,6 +720,7 @@ private class FakeLostFilmRepository(
 private fun summary(
     detailsUrl: String,
     titleRu: String = "9-1-1",
+    isWatched: Boolean = false,
 ): ReleaseSummary = ReleaseSummary(
     id = detailsUrl,
     kind = ReleaseKind.SERIES,
@@ -704,6 +734,7 @@ private fun summary(
     pageNumber = 1,
     positionInPage = 0,
     fetchedAt = 0L,
+    isWatched = isWatched,
 )
 
 private var homePrefsCounter = 0

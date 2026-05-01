@@ -34,6 +34,7 @@ fun DetailsRoute(
     linkBuilder: TorrServeLinkBuilder,
     viewModel: DetailsViewModel? = null,
     onMarkedWatched: (String) -> Unit = {},
+    onWatchedStateChanged: (String, Boolean) -> Unit = { _, _ -> },
     onOpenSeriesOverview: (String) -> Unit = {},
     onOpenSeriesGuide: (String) -> Unit = {},
     onAuthClick: () -> Unit = {},
@@ -67,6 +68,7 @@ fun DetailsRoute(
     var isTorrServeBusy by remember(detailsUrl) { mutableStateOf(false) }
     var requestToken by remember(detailsUrl) { mutableIntStateOf(0) }
     var handledFavoriteContentVersion by remember(detailsUrl) { mutableIntStateOf(0) }
+    var handledWatchedContentVersion by remember(detailsUrl) { mutableIntStateOf(0) }
     var inFlightJob by remember(detailsUrl) { mutableStateOf<Job?>(null) }
 
     LaunchedEffect(isAuthenticated) { detailsViewModel.onAuthenticationChanged(isAuthenticated) }
@@ -79,6 +81,18 @@ fun DetailsRoute(
             val isFavorite = currentDetails?.isFavorite
             if (currentDetails != null && isFavorite != null) {
                 onFavoriteContentChanged(currentDetails.detailsUrl, isFavorite)
+            }
+        }
+    }
+    LaunchedEffect(state.watchedContentVersion) {
+        if (state.watchedContentVersion > handledWatchedContentVersion) {
+            handledWatchedContentVersion = state.watchedContentVersion
+            val currentDetails = state.details
+            val isWatched = state.isWatched
+            if (currentDetails != null && isWatched != null) {
+                if (isWatched) onMarkedWatched(currentDetails.detailsUrl)
+                onWatchedStateChanged(currentDetails.detailsUrl, isWatched)
+                onChannelContentChanged()
             }
         }
     }
@@ -113,6 +127,7 @@ fun DetailsRoute(
                                 )
                                 if (marked) {
                                     onMarkedWatched(currentDetails.detailsUrl)
+                                    onWatchedStateChanged(currentDetails.detailsUrl, true)
                                     onChannelContentChanged()
                                 }
                             }
