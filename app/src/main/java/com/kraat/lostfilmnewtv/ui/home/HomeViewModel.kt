@@ -210,7 +210,10 @@ class HomeViewModel @Inject constructor(
                             allNewModeState = HomeModeContentState.Content(result.items),
                         ).withResolvedHomeSelection()
                     }
-                    homeChannelSyncManager.syncNow()
+                    // Channel rows are based on the first page; avoid expensive background sync on pagination.
+                    if (!isPagingRequest) {
+                        homeChannelSyncManager.syncNow()
+                    }
                 }
                 is PageState.Error -> {
                     _uiState.update { state ->

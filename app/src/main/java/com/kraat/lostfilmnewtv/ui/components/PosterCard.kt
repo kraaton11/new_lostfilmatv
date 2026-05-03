@@ -14,6 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -22,10 +23,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.ui.theme.FocusBorder
@@ -35,6 +39,11 @@ import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGoldGlow
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurface
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
+import kotlin.math.roundToInt
+
+private val POSTER_CARD_WIDTH = 176.dp
+private val POSTER_CARD_HEIGHT = 264.dp
+private const val POSTER_FOCUSED_SCALE = 1.10f
 
 @Composable
 fun PosterCard(
@@ -44,17 +53,18 @@ fun PosterCard(
 ) {
     val shape = RoundedCornerShape(22.dp)
     val scale by animateFloatAsState(
-        targetValue = if (isFocused) 1.10f else 1f,
+        targetValue = if (isFocused) POSTER_FOCUSED_SCALE else 1f,
         animationSpec = tween(durationMillis = 120),
         label = "posterScale",
     )
     val borderColor = if (isFocused) FocusBorder else HomePanelBorder
     val overlayColor = if (isFocused) FocusBackground else HomePanelSurface
     val watchedBadgeColor = if (isFocused) HomeAccentGoldGlow else HomeAccentGold
+    val posterRequest = rememberPosterImageRequest(item.posterUrl)
 
     Box(
         modifier = modifier
-            .size(width = 176.dp, height = 264.dp)
+            .size(width = POSTER_CARD_WIDTH, height = POSTER_CARD_HEIGHT)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -68,7 +78,7 @@ fun PosterCard(
             .border(width = 3.5.dp, color = borderColor, shape = shape),
     ) {
         AsyncImage(
-            model = item.posterUrl,
+            model = posterRequest,
             contentDescription = item.titleRu,
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),
@@ -119,6 +129,22 @@ fun PosterCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun rememberPosterImageRequest(posterUrl: String): ImageRequest {
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    val targetWidthPx = with(density) { (POSTER_CARD_WIDTH.toPx() * POSTER_FOCUSED_SCALE).roundToInt().coerceAtLeast(1) }
+    val targetHeightPx = with(density) { (POSTER_CARD_HEIGHT.toPx() * POSTER_FOCUSED_SCALE).roundToInt().coerceAtLeast(1) }
+
+    return remember(context, posterUrl, targetWidthPx, targetHeightPx) {
+        ImageRequest.Builder(context)
+            .data(posterUrl)
+            // Decode near the rendered card size instead of the full remote poster.
+            .size(targetWidthPx, targetHeightPx)
+            .build()
     }
 }
 

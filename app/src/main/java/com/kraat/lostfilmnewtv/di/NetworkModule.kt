@@ -10,6 +10,7 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import java.util.concurrent.TimeUnit
 import javax.inject.Qualifier
 import javax.inject.Singleton
 import okhttp3.OkHttpClient
@@ -28,20 +29,27 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient = OkHttpClient.Builder().build()
+    fun provideOkHttpClient(): OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(20, TimeUnit.SECONDS)
+        .build()
 
     @Provides
     @Singleton
     @AnonymousHttpClient
-    fun provideAnonymousLostFilmHttpClient(): LostFilmHttpClient =
-        OkHttpLostFilmHttpClient(sessionStore = null)
+    fun provideAnonymousLostFilmHttpClient(okHttpClient: OkHttpClient): LostFilmHttpClient =
+        // Share the app OkHttp connection pool instead of creating a separate LostFilm client.
+        OkHttpLostFilmHttpClient(sessionStore = null, okHttpClient = okHttpClient)
 
     @Provides
     @Singleton
     @AuthenticatedHttpClient
     fun provideAuthenticatedLostFilmHttpClient(
         sessionStore: EncryptedSessionStore,
-    ): LostFilmHttpClient = OkHttpLostFilmHttpClient(sessionStore = sessionStore)
+        okHttpClient: OkHttpClient,
+    ): LostFilmHttpClient =
+        // Authenticated requests use the same pool; cookies are still added per request by the wrapper.
+        OkHttpLostFilmHttpClient(sessionStore = sessionStore, okHttpClient = okHttpClient)
 
     @Provides
     @Singleton

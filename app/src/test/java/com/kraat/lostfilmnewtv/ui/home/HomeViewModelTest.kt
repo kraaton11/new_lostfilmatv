@@ -134,6 +134,46 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun onEndReached_doesNotTriggerChannelSyncForPagination() = runTest(dispatcher) {
+        val firstItem = summary(detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/")
+        val secondItem = summary(
+            detailsUrl = "https://www.lostfilm.today/series/Love_Story/season_1/episode_7/",
+            titleRu = "История любви",
+        )
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(
+                    pageNumber = 1,
+                    items = listOf(firstItem),
+                    hasNextPage = true,
+                    isStale = false,
+                ),
+                2 to PageState.Content(
+                    pageNumber = 2,
+                    items = listOf(firstItem, secondItem),
+                    hasNextPage = true,
+                    isStale = false,
+                ),
+            ),
+        )
+        var syncCalls = 0
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            onChannelContentChanged = { syncCalls += 1 },
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+        viewModel.onEndReached()
+        advanceUntilIdle()
+
+        assertEquals(listOf(1, 2), repository.pageRequests)
+        assertEquals(1, syncCalls)
+    }
+
+    @Test
     fun staleCache_setsStaleBanner() = runTest(dispatcher) {
         val repository = FakeLostFilmRepository(
             pageResults = mapOf(
