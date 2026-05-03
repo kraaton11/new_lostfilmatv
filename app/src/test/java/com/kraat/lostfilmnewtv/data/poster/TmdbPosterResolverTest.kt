@@ -11,6 +11,7 @@ import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -96,8 +97,10 @@ class TmdbPosterResolverTest {
     @Test
     fun resolve_prefersExactEnglishSlugMatch_forGenericRussianTitle() = runTest {
         val dao = FakeTmdbPosterDao()
+        val searchQueries = mutableListOf<String>()
         val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
             override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType): List<TmdbSearchResult> {
+                searchQueries += query
                 return when (query) {
                     "Paradise" -> listOf(
                         TmdbSearchResult(
@@ -159,10 +162,11 @@ class TmdbPosterResolverTest {
         assertNotNull(result)
         assertEquals("https://image.tmdb.org/t/p/w780/correct-paradise-poster.jpg", result?.posterUrl)
         assertEquals(245927, dao.upserted?.tmdbId)
+        assertEquals(listOf("Paradise"), searchQueries)
     }
 
     @Test
-    fun resolve_refreshesCachedMapping_whenExactSlugPointsToDifferentTmdbId() = runTest {
+    fun resolve_reusesFreshCompleteCachedMapping_withoutNetworkValidation() = runTest {
         val dao = FakeTmdbPosterDao(
             cached = TmdbPosterMappingEntity.create(
                 detailsUrl = "https://www.lostfilm.today/series/Paradise/season_2/episode_8/",
@@ -173,48 +177,17 @@ class TmdbPosterResolverTest {
                 fetchedAt = System.currentTimeMillis(),
             ),
         )
+        var searchCalls = 0
+        var imageCalls = 0
         val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
             override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType): List<TmdbSearchResult> {
-                return when (query) {
-                    "Paradise" -> listOf(
-                        TmdbSearchResult(
-                            id = 117465,
-                            name = "Hell's Paradise",
-                            originalName = "Jigokuraku",
-                            popularity = 100.0,
-                        ),
-                        TmdbSearchResult(
-                            id = 245927,
-                            name = "Paradise",
-                            originalName = "Paradise",
-                            popularity = 50.0,
-                        ),
-                    )
-
-                    "Рай" -> listOf(
-                        TmdbSearchResult(
-                            id = 117465,
-                            name = "Адский рай",
-                            originalName = "Hell's Paradise",
-                            popularity = 100.0,
-                        ),
-                        TmdbSearchResult(
-                            id = 245927,
-                            name = "Рай",
-                            originalName = "Paradise",
-                            popularity = 50.0,
-                        ),
-                    )
-
-                    else -> emptyList()
-                }
+                searchCalls += 1
+                return emptyList()
             }
 
             override suspend fun getPosterAndBackdrop(tmdbId: Int, type: TmdbMediaType): TmdbImageUrls {
-                return TmdbImageUrls(
-                    posterUrl = "https://image.tmdb.org/t/p/w780/correct-paradise-poster.jpg",
-                    backdropUrl = "https://image.tmdb.org/t/p/original/correct-paradise-backdrop.jpg",
-                )
+                imageCalls += 1
+                return TmdbImageUrls("", "")
             }
         }
         val resolver = TmdbPosterResolverImpl(client, dao)
@@ -227,8 +200,11 @@ class TmdbPosterResolverTest {
         )
 
         assertNotNull(result)
-        assertEquals("https://image.tmdb.org/t/p/w780/correct-paradise-poster.jpg", result?.posterUrl)
-        assertEquals(245927, dao.upserted?.tmdbId)
+        assertEquals("https://image.tmdb.org/t/p/w780/wrong-poster.jpg", result?.posterUrl)
+        assertEquals("https://image.tmdb.org/t/p/original/wrong-backdrop.jpg", result?.backdropUrl)
+        assertEquals(0, searchCalls)
+        assertEquals(0, imageCalls)
+        assertNull(dao.upserted)
     }
 }
 

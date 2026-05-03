@@ -67,7 +67,9 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // Enable release shrinking to reduce APK size and strip unused bytecode/resources.
+            isMinifyEnabled = true
+            isShrinkResources = true
             if (hasReleaseSigning) {
                 signingConfig = signingConfigs.getByName("release")
             }
