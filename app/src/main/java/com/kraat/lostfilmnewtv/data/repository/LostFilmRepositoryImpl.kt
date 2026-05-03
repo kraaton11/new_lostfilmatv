@@ -40,6 +40,8 @@ import java.time.format.DateTimeParseException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import org.jsoup.Jsoup
 
 private const val FRESH_WINDOW_MS = 6 * 60 * 60 * 1000L
@@ -578,16 +580,20 @@ class LostFilmRepositoryImpl(
             return emptyList()
         }
 
+        // Cap TMDB enrichment fan-out so one page load cannot create dozens of simultaneous HTTP calls.
+        val semaphore = Semaphore(6)
         val enrichedItems = coroutineScope {
             items.map { item ->
                 async {
-                    val tmdbUrls = tmdbResolver.resolve(
-                        detailsUrl = item.detailsUrl,
-                        titleRu = item.titleRu,
-                        releaseDateRu = item.releaseDateRu,
-                        kind = item.kind,
-                    )
-                    TmdbPosterEnricher.enrichSummary(item, tmdbUrls)
+                    semaphore.withPermit {
+                        val tmdbUrls = tmdbResolver.resolve(
+                            detailsUrl = item.detailsUrl,
+                            titleRu = item.titleRu,
+                            releaseDateRu = item.releaseDateRu,
+                            kind = item.kind,
+                        )
+                        TmdbPosterEnricher.enrichSummary(item, tmdbUrls)
+                    }
                 }
             }.awaitAll()
         }

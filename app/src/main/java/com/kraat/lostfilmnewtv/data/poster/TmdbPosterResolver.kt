@@ -42,7 +42,7 @@ class TmdbPosterResolverImpl(
         }
 
         val cached = tmdbDao.getByDetailsUrl(detailsUrl)
-        if (cached != null && !cached.isExpired(clock) && canReuseCachedMapping(cached, detailsUrl, kind)) {
+        if (cached != null && canReuseCachedMapping(cached)) {
             val urls = TmdbImageUrls(
                 posterUrl = cached.posterUrl,
                 backdropUrl = cached.backdropUrl,
@@ -56,7 +56,7 @@ class TmdbPosterResolverImpl(
             inMemoryCache[detailsUrl]?.let { return@withLock it }
 
             val rechecked = tmdbDao.getByDetailsUrl(detailsUrl)
-            if (rechecked != null && !rechecked.isExpired(clock) && canReuseCachedMapping(rechecked, detailsUrl, kind)) {
+            if (rechecked != null && canReuseCachedMapping(rechecked)) {
                 val urls = TmdbImageUrls(
                     posterUrl = rechecked.posterUrl,
                     backdropUrl = rechecked.backdropUrl,
@@ -72,25 +72,19 @@ class TmdbPosterResolverImpl(
         }
     }
 
-    private suspend fun canReuseCachedMapping(
+    private fun canReuseCachedMapping(
         cached: TmdbPosterMappingEntity,
-        detailsUrl: String,
-        kind: ReleaseKind,
     ): Boolean {
+        // Trust complete TMDB mappings for the full TTL to avoid a validation request per cached poster.
+        if (cached.isExpired(clock)) {
+            return false
+        }
+
         if (cached.posterUrl.isBlank() || cached.backdropUrl.isBlank()) {
             return false
         }
 
-        val exactSlugMatch = findExactSlugMatch(detailsUrl, kind) ?: return true
-        if (exactSlugMatch.id == cached.tmdbId) {
-            return true
-        }
-
-        Log.d(
-            TAG,
-            "Refreshing stale TMDB cache for $detailsUrl: cached=${cached.tmdbId}, exact=${exactSlugMatch.id}",
-        )
-        return false
+        return true
     }
 
     private suspend fun performSearch(
@@ -116,14 +110,28 @@ class TmdbPosterResolverImpl(
             emptyList()
         }
 
-        val titleResults = try {
-            tmdbClient.searchByTitle(titleRu, null, tmdbType)
-        } catch (e: Exception) {
-            Log.e(TAG, "TMDB title search failed for $titleRu: ${e.message}")
+        val exactSlugMatch = englishSlug
+            ?.normalizeForTmdbMatch()
+            ?.takeIf { it.isNotBlank() }
+            ?.let { normalizedSlug ->
+                slugResults
+                    .filter { it.matchesSlug(normalizedSlug) }
+                    .maxByOrNull { it.popularity }
+            }
+
+        // Exact English slug matches are good enough to skip the Russian title query.
+        val titleResults = if (exactSlugMatch == null) {
+            try {
+                tmdbClient.searchByTitle(titleRu, null, tmdbType)
+            } catch (e: Exception) {
+                Log.e(TAG, "TMDB title search failed for $titleRu: ${e.message}")
+                emptyList()
+            }
+        } else {
             emptyList()
         }
 
-        val bestMatch = pickBestMatch(englishSlug, slugResults, titleResults)
+        val bestMatch = exactSlugMatch ?: pickBestMatch(englishSlug, slugResults, titleResults)
 
         Log.d(TAG, "TMDB search: slug='$englishSlug'→${slugResults.size} results, title='$titleRu'→${titleResults.size} results, pick=${bestMatch?.name}(id=${bestMatch?.id})")
 
@@ -185,30 +193,6 @@ class TmdbPosterResolverImpl(
         }
 
         return slugResults.first()
-    }
-
-    private suspend fun findExactSlugMatch(
-        detailsUrl: String,
-        kind: ReleaseKind,
-    ): com.kraat.lostfilmnewtv.data.model.TmdbSearchResult? {
-        val englishSlug = extractEnglishSlug(detailsUrl)
-            ?.takeIf { it.isNotBlank() }
-            ?: return null
-        val normalizedSlug = englishSlug.normalizeForTmdbMatch()
-        if (normalizedSlug.isBlank()) return null
-
-        return try {
-            val tmdbType = when (kind) {
-                ReleaseKind.SERIES -> TmdbMediaType.TV
-                ReleaseKind.MOVIE -> TmdbMediaType.MOVIE
-            }
-            tmdbClient.searchByTitle(englishSlug, null, tmdbType)
-                .filter { it.matchesSlug(normalizedSlug) }
-                .maxByOrNull { it.popularity }
-        } catch (e: Exception) {
-            Log.e(TAG, "TMDB cache verification failed for $detailsUrl: ${e.message}")
-            null
-        }
     }
 
     private fun com.kraat.lostfilmnewtv.data.model.TmdbSearchResult.matchesSlug(normalizedSlug: String): Boolean {
