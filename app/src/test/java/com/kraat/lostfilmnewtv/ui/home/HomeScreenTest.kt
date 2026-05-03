@@ -38,12 +38,14 @@ class HomeScreenTest {
 
     @Test
     fun homeScreen_rendersUtilityActionsInTopHeader_withoutDetachedBottomFooter() {
+        var updateClicks = 0
+
         composeRule.setContent {
             LostFilmTheme {
                 HomeScreen(
                     state = seededState(),
                     isAuthenticated = false,
-                    appVersionText = "0.1.0",
+                    onUpdateClick = { updateClicks += 1 },
                     savedAppUpdate = SavedAppUpdate(
                         latestVersion = "0.2.0",
                         apkUrl = "https://example.test/app.apk",
@@ -54,13 +56,80 @@ class HomeScreenTest {
 
         composeRule.onNodeWithTag("home-action-auth").assertDoesNotExist()
         composeRule.onNodeWithTag("home-action-settings").assertExists()
-        composeRule.onNodeWithTag("home-action-update").assertDoesNotExist()
+        composeRule.onNodeWithTag("home-action-update").assertExists()
         composeRule.onNodeWithTag("home-bottom-stage").assertExists()
-        composeRule.onNodeWithText("Можно обновить").assertExists()
+        composeRule.onNodeWithText("Обновить").assertExists()
+        composeRule.onNodeWithText("0.2.0").assertExists()
+        composeRule.onNodeWithText("Сервис").assertDoesNotExist()
+
+        composeRule.onNodeWithTag("home-action-update")
+            .performSemanticsAction(SemanticsActions.OnClick)
+        assertEquals(1, updateClicks)
     }
 
     @Test
-    fun homeScreen_bottomStage_showsSelectedReleaseContext_withoutReleaseDate() {
+    fun homeScreen_hidesUpdateAction_whenNoSavedUpdateExists() {
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(state = seededState())
+            }
+        }
+
+        composeRule.onNodeWithTag("home-action-update").assertDoesNotExist()
+    }
+
+    @Test
+    @Config(qualifiers = "w1366dp-h768dp-land")
+    fun homeScreen_placesUpdateActionBeforeFavoritesAndSearch() {
+        val allNewItems = listOf(
+            release(
+                detailsUrl = firstDetailsUrl,
+                titleRu = "9-1-1",
+                episodeTitleRu = "Маменькин сынок",
+                releaseDateRu = "14.03.2026",
+                seasonNumber = 9,
+                episodeNumber = 13,
+                kind = ReleaseKind.SERIES,
+            ),
+        )
+        val favoriteItems = listOf(
+            release(
+                detailsUrl = "https://www.lostfilm.today/series/Ted/season_2/episode_8/",
+                titleRu = "Третий лишний",
+                episodeTitleRu = "Левые новости",
+                releaseDateRu = "24.03.2026",
+                seasonNumber = 2,
+                episodeNumber = 8,
+                kind = ReleaseKind.SERIES,
+            ),
+        )
+
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(
+                    state = homeStateWithModes(
+                        selectedMode = HomeFeedMode.AllNew,
+                        allNewItems = allNewItems,
+                        favoriteItems = favoriteItems,
+                    ),
+                    savedAppUpdate = SavedAppUpdate(
+                        latestVersion = "0.2.0",
+                        apkUrl = "https://example.test/app.apk",
+                    ),
+                )
+            }
+        }
+
+        val updateBounds = composeRule.onNodeWithTag("home-action-update").fetchSemanticsNode().boundsInRoot
+        val favoritesBounds = composeRule.onNodeWithTag("home-mode-toggle").fetchSemanticsNode().boundsInRoot
+        val searchBounds = composeRule.onNodeWithTag("home-action-search").fetchSemanticsNode().boundsInRoot
+
+        assertTrue("updateBounds=$updateBounds favoritesBounds=$favoritesBounds", updateBounds.left < favoritesBounds.left)
+        assertTrue("favoritesBounds=$favoritesBounds searchBounds=$searchBounds", favoritesBounds.left < searchBounds.left)
+    }
+
+    @Test
+    fun homeScreen_bottomStage_showsSelectedReleaseContext_withReleaseMetadata() {
         composeRule.setContent {
             LostFilmTheme {
                 HomeScreen(state = seededState())
@@ -68,9 +137,10 @@ class HomeScreenTest {
         }
 
         composeRule.onNodeWithTag("home-bottom-stage").assertExists()
+        composeRule.onNodeWithText("S09E13").assertExists()
         composeRule.onNodeWithText("9-1-1").assertExists()
         composeRule.onNodeWithText("Маменькин сынок").assertExists()
-        composeRule.onNodeWithText("14.03.2026").assertDoesNotExist()
+        composeRule.onNodeWithText("14.03.2026").assertExists()
     }
 
     @Test
@@ -246,7 +316,6 @@ class HomeScreenTest {
                 HomeScreen(
                     state = seededState(),
                     isAuthenticated = true,
-                    appVersionText = "v2026.03.23",
                     savedAppUpdate = SavedAppUpdate(
                         latestVersion = "0.2.0",
                         apkUrl = "https://example.test/app.apk",
@@ -266,14 +335,13 @@ class HomeScreenTest {
 
     @Test
     @Config(qualifiers = "w1366dp-h768dp-land")
-    fun homeScreen_longEpisodeTitle_wrapsReadable_andHidesReleaseDate() {
+    fun homeScreen_longEpisodeTitle_staysOnMetadataLine_withReleaseMetadata() {
         val longEpisodeTitle = "Когда слишком много правды, она перестает помещаться в одну строку и начинает бороться за место на экране"
 
         composeRule.setContent {
             LostFilmTheme {
                 HomeScreen(
                     state = seededState(episodeTitleRu = longEpisodeTitle),
-                    appVersionText = "v2026.03.23",
                     savedAppUpdate = SavedAppUpdate(
                         latestVersion = "0.2.0",
                         apkUrl = "https://example.test/app.apk",
@@ -282,16 +350,15 @@ class HomeScreenTest {
             }
         }
 
-        val episodeBounds = composeRule.onNodeWithText(longEpisodeTitle).fetchSemanticsNode().boundsInRoot
         val textLayouts = mutableListOf<TextLayoutResult>()
 
         composeRule.onNodeWithText(longEpisodeTitle).performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action ->
             action(textLayouts)
         }
 
-        composeRule.onNodeWithText("14.03.2026").assertDoesNotExist()
-        assertTrue("episodeBounds=$episodeBounds", episodeBounds.height > 30f)
-        assertFalse("textLayouts=$textLayouts", textLayouts.first().hasVisualOverflow)
+        composeRule.onNodeWithText("S09E13").assertExists()
+        composeRule.onNodeWithText("14.03.2026").assertExists()
+        assertEquals(1, textLayouts.first().lineCount)
     }
 
     @Test
@@ -301,7 +368,6 @@ class HomeScreenTest {
             LostFilmTheme {
                 HomeScreen(
                     state = seededState(episodeTitleRu = "17:00"),
-                    appVersionText = "v2026.03.23",
                     savedAppUpdate = SavedAppUpdate(
                         latestVersion = "0.2.0",
                         apkUrl = "https://example.test/app.apk",
@@ -310,15 +376,15 @@ class HomeScreenTest {
             }
         }
 
+        val rootBounds = composeRule.onRoot().fetchSemanticsNode().boundsInRoot
         val stageBounds = composeRule.onNodeWithTag("home-bottom-stage").fetchSemanticsNode().boundsInRoot
-        val episodeBounds = composeRule.onNodeWithText("17:00").fetchSemanticsNode().boundsInRoot
         val textLayouts = mutableListOf<TextLayoutResult>()
 
         composeRule.onNodeWithText("17:00").performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action ->
             action(textLayouts)
         }
 
-        assertTrue("stageBounds=$stageBounds episodeBounds=$episodeBounds", stageBounds.bottom - episodeBounds.bottom > 56f)
+        assertTrue("rootBounds=$rootBounds stageBounds=$stageBounds", stageBounds.bottom < rootBounds.bottom - 16f)
         assertFalse("textLayouts=$textLayouts", textLayouts.first().toString().contains("includeFontPadding=false"))
     }
 

@@ -20,6 +20,7 @@ class LostFilmFavoriteReleasesParserTest {
             items.map { it.detailsUrl },
         )
         assertEquals(listOf("Пример шоу", "Другой сериал"), items.map { it.titleRu })
+        assertEquals(listOf("Название избранной серии", null), items.map { it.episodeTitleRu })
         assertEquals(listOf("15.03.2026", "14.03.2026"), items.map { it.releaseDateRu })
         assertTrue(items.all { it.posterUrl.isNotBlank() })
     }
