@@ -113,7 +113,7 @@ fun SettingsScreen(
         railRequesters.getValue(selectedSection).requestFocus()
     }
 
-    val qualitySummary = selectedQuality.label()
+    val qualitySummary = selectedQuality.shortLabel()
     val updateSummary = updateSummary(
         selectedUpdateMode = selectedUpdateMode,
         statusText = statusText,
@@ -122,7 +122,7 @@ fun SettingsScreen(
         installUrl = installUrl,
     )
     val channelSummary = selectedChannelMode.label()
-    val homeScreenSummary = if (isHomeFavoritesRailEnabled) "Показывать" else "Скрывать"
+    val homeScreenSummary = if (isHomeFavoritesRailEnabled) "Избранное: показывается" else "Избранное: скрыто"
     val watchedSummary = if (selectedWatchedMarkingMode == WatchedMarkingMode.AUTO) "Автоматически" else "Не отмечать"
     val accountSummary = if (isAuthenticated) "Выполнен вход" else "Не выполнен вход"
     val aboutSummary = BuildConfig.VERSION_NAME
@@ -198,11 +198,11 @@ fun SettingsScreen(
                         SettingsSection.QUALITY -> {
                             SettingsOptionsSection {
                                 SettingsOverviewCard(
-                                    title = "Качество по умолчанию",
-                                    subtitle = "Выбор качества для основного сценария просмотра.",
+                                    title = "Качество видео",
+                                    subtitle = "Применяется при запуске торрента. Если выбранное качество недоступно — используется ближайшее.",
                                     modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(22.dp)),
                                 ) {
-                                    SettingsOverviewValue(text = "Сейчас выбрано: $qualitySummary")
+                                    SettingsOverviewValue(text = "Сейчас выбрано: ${selectedQuality.shortLabel()}")
                                 }
                                 val qualityOptions = PlaybackQualityPreference.entries
                                 Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -266,7 +266,7 @@ fun SettingsScreen(
                             SettingsOptionsSection {
                                 SettingsOverviewCard(
                                     title = "Канал Android TV",
-                                    subtitle = "Что публиковать в системном канале Android TV.",
+                                    subtitle = "Карточки на главном экране Android TV (вне приложения). Можно показывать все новинки или только непросмотренные.",
                                     modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(22.dp)),
                                 ) {
                                     SettingsOverviewValue(text = "Сейчас выбрано: $channelSummary")
@@ -309,21 +309,20 @@ fun SettingsScreen(
                             SettingsOptionsSection {
                                 SettingsOverviewCard(
                                     title = "Главный экран",
-                                    subtitle = "Дополнительные вкладки внутри главного экрана приложения.",
+                                    subtitle = "Вкладка «Избранное» — быстрый доступ к сериалам из вашего списка. Требует входа в аккаунт.",
                                     modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(22.dp)),
                                 ) {
-                                    SettingsOverviewValue(text = "Вкладка Избранное")
                                     SettingsOverviewValue(
                                         text = if (isHomeFavoritesRailEnabled) {
-                                            "Сейчас: показывать"
+                                            "Сейчас: вкладка Избранное показывается"
                                         } else {
-                                            "Сейчас: скрывать"
+                                            "Сейчас: вкладка Избранное скрыта"
                                         },
                                     )
                                 }
                                 Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                                     SettingsTvButton(
-                                        text = "Показывать",
+                                        text = "Показывать вкладку Избранное",
                                         onClick = { onHomeFavoritesRailVisibilitySelected(true) },
                                         isSelected = isHomeFavoritesRailEnabled,
                                         tag = HOME_FAVORITES_SHOW_TAG,
@@ -341,7 +340,7 @@ fun SettingsScreen(
                                             },
                                     )
                                     SettingsTvButton(
-                                        text = "Скрывать",
+                                        text = "Скрывать вкладку Избранное",
                                         onClick = { onHomeFavoritesRailVisibilitySelected(false) },
                                         isSelected = !isHomeFavoritesRailEnabled,
                                         tag = HOME_FAVORITES_HIDE_TAG,
@@ -365,8 +364,8 @@ fun SettingsScreen(
                         SettingsSection.PLAYBACK -> {
                             SettingsOptionsSection {
                                 SettingsOverviewCard(
-                                    title = "Отметка просмотрено",
-                                    subtitle = "Автоматически отмечать эпизод просмотренным при запуске воспроизведения.",
+                                    title = "Отметка просмотренного",
+                                    subtitle = "Эпизод помечается просмотренным сразу при запуске воспроизведения. Синхронизируется с аккаунтом LostFilm.",
                                     modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(22.dp)),
                                 ) {
                                     SettingsOverviewValue(text = "Сейчас: $watchedSummary")
@@ -412,7 +411,7 @@ fun SettingsScreen(
                             SettingsOptionsSection {
                                 SettingsOverviewCard(
                                     title = "Аккаунт LostFilm",
-                                    subtitle = "Вход нужен для Избранного и действий аккаунта.",
+                                    subtitle = "Войдите через браузер по QR-коду. После входа станет доступно Избранное и синхронизация просмотренного.",
                                     modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(22.dp)),
                                 ) {
                                     SettingsOverviewValue(
@@ -449,14 +448,10 @@ fun SettingsScreen(
                             SettingsOptionsSection {
                                 SettingsOverviewCard(
                                     title = "О приложении",
-                                    subtitle = "Информация о версии и сборке.",
+                                    subtitle = "Неофициальный клиент LostFilm для Android TV.",
                                     modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(22.dp)),
                                 ) {
-                                    SettingsOverviewValue(text = "Версия: ${BuildConfig.VERSION_NAME}")
-                                    SettingsOverviewValue(text = "Сборка: ${BuildConfig.VERSION_CODE}")
-                                    SettingsOverviewValue(text = "Package: ${BuildConfig.APPLICATION_ID}")
-                                    SettingsOverviewValue(text = "Min SDK: 26")
-                                    SettingsOverviewValue(text = "Target SDK: 35")
+                                    SettingsOverviewValue(text = "Версия: ${BuildConfig.VERSION_NAME} (сборка ${BuildConfig.VERSION_CODE})")
                                 }
                             }
                         }
@@ -565,7 +560,7 @@ private fun UpdatesSectionContent(
     }
     SettingsOverviewCard(
         title = "Обновления",
-        subtitle = "Проверка и установка обновлений приложения.",
+        subtitle = "Приложение обновляется вручную через GitHub. Выберите режим проверки и при необходимости установите новую версию.",
         modifier = Modifier.background(HomePanelSurface, RoundedCornerShape(22.dp)),
     ) {
         SettingsOverviewValue(text = "Установлена версия: $installedVersionText")
@@ -701,11 +696,19 @@ private fun updateSummary(
     }
 }
 
-private fun PlaybackQualityPreference.label(): String {
+private fun PlaybackQualityPreference.shortLabel(): String {
     return when (this) {
         PlaybackQualityPreference.Q1080 -> "1080p"
         PlaybackQualityPreference.Q720 -> "720p"
-        PlaybackQualityPreference.Q480 -> "480p / SD"
+        PlaybackQualityPreference.Q480 -> "480p"
+    }
+}
+
+private fun PlaybackQualityPreference.label(): String {
+    return when (this) {
+        PlaybackQualityPreference.Q1080 -> "1080p — Максимальное"
+        PlaybackQualityPreference.Q720 -> "720p — Оптимальное (рекомендуется)"
+        PlaybackQualityPreference.Q480 -> "480p — Экономия трафика"
     }
 }
 
@@ -715,22 +718,22 @@ private fun PlaybackQualityPreference.buttonTag(): String {
 
 private fun UpdateCheckMode.label(): String {
     return when (this) {
-        UpdateCheckMode.MANUAL -> "Проверять вручную"
-        UpdateCheckMode.QUIET_CHECK -> "Проверять тихо"
+        UpdateCheckMode.MANUAL -> "Проверять вручную — обновления не ищутся автоматически"
+        UpdateCheckMode.QUIET_CHECK -> "Проверять автоматически — уведомление при наличии новой версии"
     }
 }
 
 private fun UpdateCheckMode.summaryLabel(): String {
     return when (this) {
         UpdateCheckMode.MANUAL -> "Ручная проверка"
-        UpdateCheckMode.QUIET_CHECK -> "Тихая проверка"
+        UpdateCheckMode.QUIET_CHECK -> "Автоматически"
     }
 }
 
 private fun UpdateCheckMode.shortSummary(): String {
     return when (this) {
         UpdateCheckMode.MANUAL -> "Вручную"
-        UpdateCheckMode.QUIET_CHECK -> "Тихо"
+        UpdateCheckMode.QUIET_CHECK -> "Авто"
     }
 }
 
@@ -745,7 +748,7 @@ private fun AndroidTvChannelMode.label(): String {
     return when (this) {
         AndroidTvChannelMode.ALL_NEW -> "Все новые релизы"
         AndroidTvChannelMode.UNWATCHED -> "Только непросмотренные"
-        AndroidTvChannelMode.DISABLED -> "Не показывать"
+        AndroidTvChannelMode.DISABLED -> "Не показывать (убрать с главного экрана TV)"
     }
 }
 

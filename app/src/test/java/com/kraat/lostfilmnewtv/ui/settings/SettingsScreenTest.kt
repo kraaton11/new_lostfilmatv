@@ -53,7 +53,7 @@ class SettingsScreenTest {
         composeRule.onNodeWithTag("settings-section-updates-summary", useUnmergedTree = true).assertTextEquals("Доступно обновление")
         composeRule.onNodeWithTag("settings-section-channel-summary", useUnmergedTree = true).assertTextEquals("Только непросмотренные")
         composeRule.onNodeWithTag("settings-overview-card").assertExists()
-        composeRule.onNodeWithText("Качество по умолчанию").assertExists()
+        composeRule.onNodeWithText("Качество видео").assertExists()
         composeRule.onNodeWithTag("settings-quality-720").assertExists()
         assertEquals(
             0,
@@ -333,12 +333,12 @@ class SettingsScreenTest {
 
         composeRule.onNodeWithTag("settings-section-home-screen").assertExists()
         composeRule.onNodeWithTag("settings-section-home-screen-summary", useUnmergedTree = true)
-            .assertTextEquals("Скрывать")
+            .assertTextEquals("Избранное: скрыто")
 
         composeRule.onNodeWithTag("settings-section-home-screen")
             .performSemanticsAction(SemanticsActions.OnClick)
 
-        composeRule.onNodeWithText("Вкладка Избранное").assertExists()
+        composeRule.onNodeWithText("Сейчас: вкладка Избранное скрыта").assertExists()
         composeRule.onNodeWithTag("settings-home-favorites-hide").assertIsSelected()
         composeRule.onNodeWithTag("settings-home-favorites-show")
             .performSemanticsAction(SemanticsActions.OnClick)
@@ -371,7 +371,7 @@ class SettingsScreenTest {
         }
 
         composeRule.onNodeWithTag("settings-section-home-screen-summary", useUnmergedTree = true)
-            .assertTextEquals("Показывать")
+            .assertTextEquals("Избранное: показывается")
 
         composeRule.onNodeWithTag("settings-section-home-screen")
             .performSemanticsAction(SemanticsActions.OnClick)
@@ -407,8 +407,8 @@ class SettingsScreenTest {
         composeRule.onNodeWithTag("settings-section-about")
             .performSemanticsAction(SemanticsActions.OnClick)
 
-        composeRule.onNodeWithText("Информация о версии и сборке.").assertExists()
-        composeRule.onNodeWithText("Min SDK: 26").assertExists()
+        composeRule.onNodeWithText("Неофициальный клиент LostFilm для Android TV.").assertExists()
+        composeRule.onNodeWithText("Версия: 0.1.0 (сборка 1)").assertExists()
     }
 
     @Test
