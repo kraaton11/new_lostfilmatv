@@ -6,7 +6,6 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -38,7 +37,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
-import com.kraat.lostfilmnewtv.BuildConfig
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
@@ -63,13 +61,12 @@ fun HomeScreen(
     onEndReached: () -> Unit = {},
     onSearchClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
+    onUpdateClick: () -> Unit = {},
     onAuthClick: () -> Unit = {},
     onRetry: () -> Unit = {},
     onPagingRetry: () -> Unit = {},
     isAuthenticated: Boolean = false,
-    appVersionText: String = BuildConfig.VERSION_NAME,
     savedAppUpdate: SavedAppUpdate? = null,
-    appUpdateStatusText: String? = null,
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val activeModeState = when (state.selectedMode) {
@@ -145,7 +142,6 @@ fun HomeScreen(
     val focusedItem = railItems.firstOrNull { it.detailsUrl == focusedItemKey }
         ?: state.selectedItem
         ?: railItems.firstOrNull()
-    val stageStatusText = appUpdateStatusText ?: savedAppUpdate?.let { "Доступно обновление ${it.latestVersion}" }
 
     val startupAuxFocusTarget = when (activeModeState) {
         is HomeModeContentState.Error -> retryActionRequester
@@ -180,13 +176,11 @@ fun HomeScreen(
                 .padding(start = 48.dp, top = 24.dp, end = 48.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            val headerPrimaryRequester = if (state.availableModes.size > 1) {
-                modeToggleRequester
-            } else {
-                searchRequester
+            val headerPrimaryRequester = when {
+                savedAppUpdate != null -> updateRequester
+                state.availableModes.size > 1 -> modeToggleRequester
+                else -> searchRequester
             }
-
-            val displayVersionText = if (savedAppUpdate != null) "Можно обновить" else appVersionText
 
             HomeHeader(
                 selectedMode = state.selectedMode,
@@ -208,8 +202,11 @@ fun HomeScreen(
                 },
                 onSearchClick = onSearchClick,
                 onSettingsClick = onSettingsClick,
+                onUpdateClick = onUpdateClick,
+                updateVersionText = savedAppUpdate?.latestVersion,
                 modeToggleFocusRequester = if (state.availableModes.size > 1) modeToggleRequester else null,
                 searchFocusRequester = searchRequester,
+                updateFocusRequester = updateRequester,
                 settingsFocusRequester = settingsRequester,
                 downTarget = headerDownTarget,
             )
@@ -244,29 +241,12 @@ fun HomeScreen(
                     }
                 }
                 state.items.isEmpty() && state.fullScreenErrorMessage != null -> {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f)
-                            .padding(vertical = 8.dp),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        HomeCenteredPanel {
-                            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                                Text(
-                                    text = state.fullScreenErrorMessage,
-                                    color = TextPrimary,
-                                    fontSize = 18.sp,
-                                )
-                                Button(
-                                    onClick = onRetry,
-                                    colors = ButtonDefaults.buttonColors(containerColor = HomeAccentGold),
-                                ) {
-                                    Text("Повторить", color = Color(0xFF17120D))
-                                }
-                            }
-                        }
-                    }
+                    HomeActionPanel(
+                        message = state.fullScreenErrorMessage,
+                        actionLabel = "Повторить",
+                        onAction = onRetry,
+                        modifier = Modifier.fillMaxWidth().weight(1f).padding(vertical = 8.dp),
+                    )
                 }
                 else -> {
                     Column(
@@ -297,74 +277,30 @@ fun HomeScreen(
                                 )
                             }
                             HomeModeContentState.Empty -> {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .weight(1f),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    HomeCenteredPanel {
-                                        Text(
-                                            text = "Пока нет новых релизов в избранном",
-                                            color = TextPrimary,
-                                            fontSize = 18.sp,
-                                        )
-                                    }
-                                }
+                                HomeActionPanel(
+                                    message = "Пока нет новых релизов в избранном",
+                                    modifier = Modifier.fillMaxWidth().weight(1f),
+                                )
                             }
                             is HomeModeContentState.Error -> {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .weight(1f),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    HomeCenteredPanel {
-                                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                                            Text(
-                                                text = activeModeState.message,
-                                                color = TextPrimary,
-                                                fontSize = 18.sp,
-                                            )
-                                            Button(
-                                                onClick = onRetry,
-                                                modifier = Modifier
-                                                    .focusRequester(retryActionRequester)
-                                                    .testTag("home-mode-retry-action"),
-                                                colors = ButtonDefaults.buttonColors(containerColor = HomeAccentGold),
-                                            ) {
-                                                Text("Повторить", color = Color(0xFF17120D))
-                                            }
-                                        }
-                                    }
-                                }
+                                HomeActionPanel(
+                                    message = activeModeState.message,
+                                    actionLabel = "Повторить",
+                                    actionFocusRequester = retryActionRequester,
+                                    actionTestTag = "home-mode-retry-action",
+                                    onAction = onRetry,
+                                    modifier = Modifier.fillMaxWidth().weight(1f),
+                                )
                             }
                             is HomeModeContentState.LoginRequired -> {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .weight(1f),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    HomeCenteredPanel {
-                                        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                                            Text(
-                                                text = activeModeState.message,
-                                                color = TextPrimary,
-                                                fontSize = 18.sp,
-                                            )
-                                            Button(
-                                                onClick = onAuthClick,
-                                                modifier = Modifier
-                                                    .focusRequester(loginActionRequester)
-                                                    .testTag("home-mode-login-action"),
-                                                colors = ButtonDefaults.buttonColors(containerColor = HomeAccentGold),
-                                            ) {
-                                                Text("Войти", color = Color(0xFF17120D))
-                                            }
-                                        }
-                                    }
-                                }
+                                HomeActionPanel(
+                                    message = activeModeState.message,
+                                    actionLabel = "Войти",
+                                    actionFocusRequester = loginActionRequester,
+                                    actionTestTag = "home-mode-login-action",
+                                    onAction = onAuthClick,
+                                    modifier = Modifier.fillMaxWidth().weight(1f),
+                                )
                             }
                             HomeModeContentState.Loading -> {
                                 Box(
@@ -389,8 +325,6 @@ fun HomeScreen(
                         if (activeModeState is HomeModeContentState.Content) {
                             HomeBottomStage(
                                 item = focusedItem,
-                                appVersionText = displayVersionText,
-                                appUpdateStatusText = stageStatusText,
                             )
                         }
                     }
@@ -450,18 +384,44 @@ private fun HomeStatusPanel(
 }
 
 @Composable
-private fun HomeCenteredPanel(content: @Composable ColumnScope.() -> Unit) {
+private fun HomeActionPanel(
+    message: String,
+    modifier: Modifier = Modifier,
+    actionLabel: String? = null,
+    actionFocusRequester: FocusRequester? = null,
+    actionTestTag: String? = null,
+    onAction: (() -> Unit)? = null,
+) {
     val shape = RoundedCornerShape(28.dp)
-
-    Column(
-        modifier = Modifier
-            .testTag("home-centered-panel")
-            .background(HomePanelSurfaceStrong, shape)
-            .border(BorderStroke(1.dp, HomePanelBorder), shape)
-            .padding(horizontal = 28.dp, vertical = 24.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center,
     ) {
-        content()
+        Column(
+            modifier = Modifier
+                .testTag("home-centered-panel")
+                .background(HomePanelSurfaceStrong, shape)
+                .border(BorderStroke(1.dp, HomePanelBorder), shape)
+                .padding(horizontal = 28.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Text(
+                text = message,
+                color = TextPrimary,
+                fontSize = 18.sp,
+            )
+            if (actionLabel != null && onAction != null) {
+                Button(
+                    onClick = onAction,
+                    modifier = Modifier
+                        .then(if (actionFocusRequester != null) Modifier.focusRequester(actionFocusRequester) else Modifier)
+                        .then(if (actionTestTag != null) Modifier.testTag(actionTestTag) else Modifier),
+                    colors = ButtonDefaults.buttonColors(containerColor = HomeAccentGold),
+                ) {
+                    Text(actionLabel, color = Color(0xFF17120D))
+                }
+            }
+        }
     }
 }
 

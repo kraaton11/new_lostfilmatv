@@ -7,7 +7,5 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 fun BottomInfoPanel(item: ReleaseSummary?) {
     HomeBottomStage(
         item = item,
-        appVersionText = "",
-        appUpdateStatusText = null,
     )
 }

@@ -64,8 +64,11 @@ fun HomeHeader(
     onBackToContent: () -> Boolean,
     onSearchClick: () -> Unit,
     onSettingsClick: () -> Unit,
+    onUpdateClick: () -> Unit,
+    updateVersionText: String?,
     modeToggleFocusRequester: FocusRequester?,
     searchFocusRequester: FocusRequester,
+    updateFocusRequester: FocusRequester,
     settingsFocusRequester: FocusRequester,
     downTarget: FocusRequester?,
     modifier: Modifier = Modifier,
@@ -81,6 +84,7 @@ fun HomeHeader(
     val hasModeToggle = availableModes.size > 1
     val nextMode = selectedMode.toggled(availableModes)
     val modeRequester = if (hasModeToggle) modeToggleFocusRequester else null
+    val hasUpdate = !updateVersionText.isNullOrBlank()
 
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -112,6 +116,25 @@ fun HomeHeader(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (hasUpdate) {
+                HomeHeaderActionButton(
+                    label = "Обновить",
+                    subtitle = updateVersionText.orEmpty(),
+                    onClick = onUpdateClick,
+                    onInteraction = onHeaderInteraction,
+                    onBackClick = onBackToContent,
+                    isPrimary = true,
+                    modifier = Modifier
+                        .testTag("home-action-update")
+                        .focusRequester(updateFocusRequester)
+                        .focusProperties {
+                            right = modeRequester ?: searchFocusRequester
+                            if (downTarget != null) {
+                                down = downTarget
+                            }
+                        },
+                )
+            }
             if (nextMode != null && modeToggleFocusRequester != null) {
                 HomeHeaderModeToggleButton(
                     currentMode = selectedMode,
@@ -126,6 +149,9 @@ fun HomeHeader(
                         .testTag("home-mode-toggle")
                         .focusRequester(modeToggleFocusRequester)
                         .focusProperties {
+                            if (hasUpdate) {
+                                left = updateFocusRequester
+                            }
                             right = searchFocusRequester
                             if (downTarget != null) {
                                 down = downTarget
@@ -146,6 +172,8 @@ fun HomeHeader(
                     .focusProperties {
                         if (modeRequester != null) {
                             left = modeRequester
+                        } else if (hasUpdate) {
+                            left = updateFocusRequester
                         }
                         right = settingsFocusRequester
                         if (downTarget != null) {
@@ -153,12 +181,6 @@ fun HomeHeader(
                         }
                     },
             )
-        }
-
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
             HomeHeaderIconButton(
                 iconResId = R.drawable.ic_settings,
                 contentDescription = "Настройки",

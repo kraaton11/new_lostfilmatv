@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -26,6 +27,7 @@ import com.kraat.lostfilmnewtv.ui.search.SearchRoute
 import com.kraat.lostfilmnewtv.ui.home.HomeViewModel
 import com.kraat.lostfilmnewtv.ui.settings.SettingsRoute
 import com.kraat.lostfilmnewtv.ui.settings.SettingsViewModel
+import kotlinx.coroutines.launch
 
 private const val HOME_WATCHED_DETAILS_URL_KEY = "home.watched_details_url"
 private const val HOME_WATCHED_CHANGED_STATE_KEY = "home.watched_changed_state"
@@ -36,6 +38,7 @@ private const val HOME_FAVORITE_CHANGED_STATE_KEY = "home.favorite_changed_state
 fun AppNavGraph(initialDetailsUrl: String? = null) {
     val context = LocalContext.current
     val navController = rememberNavController()
+    val scope = rememberCoroutineScope()
     val appContext = context.applicationContext
     val appGraphEntryPoint = remember(appContext) {
         EntryPointAccessors.fromApplication(appContext, AppGraphEntryPoint::class.java)
@@ -111,9 +114,16 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                 },
                 onSearchClick = { navController.navigate(AppDestination.Search.route) },
                 onSettingsClick = { navController.navigate(AppDestination.Settings.route) },
+                onUpdateClick = {
+                    val apkUrl = savedAppUpdate?.apkUrl
+                    if (!apkUrl.isNullOrBlank()) {
+                        scope.launch {
+                            appGraphEntryPoint.releaseApkLauncher().launch(context, apkUrl)
+                        }
+                    }
+                },
                 isAuthenticated = isAuthenticated,
                 savedAppUpdate = savedAppUpdate,
-                appUpdateStatusText = null,
             )
         }
 

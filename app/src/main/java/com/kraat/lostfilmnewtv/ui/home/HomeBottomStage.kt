@@ -7,8 +7,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Alignment
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -20,17 +20,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
+import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
+import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGold
 import com.kraat.lostfilmnewtv.ui.theme.HomeTextMuted
-import com.kraat.lostfilmnewtv.ui.theme.HomeTextSecondary
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 
 @Composable
 fun HomeBottomStage(
     item: ReleaseSummary?,
-    appVersionText: String,
-    appUpdateStatusText: String?,
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(28.dp)
@@ -48,6 +47,55 @@ fun HomeBottomStage(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            val episodeLabel = item?.let { r ->
+                when (r.kind) {
+                    ReleaseKind.SERIES -> {
+                        val s = r.seasonNumber?.let { "S${it.toString().padStart(2, '0')}" }
+                        val e = r.episodeNumber?.let { "E${it.toString().padStart(2, '0')}" }
+                        listOfNotNull(s, e).joinToString("").takeIf { it.isNotBlank() }
+                    }
+                    ReleaseKind.MOVIE -> "Фильм"
+                }
+            }
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                episodeLabel?.let {
+                    Text(
+                        text = it,
+                        color = HomeAccentGold,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp,
+                    )
+                }
+                item?.releaseDateRu?.takeIf { it.isNotBlank() }?.let { date ->
+                    Text(
+                        text = date,
+                        color = HomeTextMuted,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
+                item?.episodeTitleRu?.takeIf { it.isNotBlank() }?.let { episodeTitle ->
+                    Text(
+                        text = episodeTitle,
+                        modifier = Modifier.weight(1f, fill = false),
+                        style = TextStyle(
+                            platformStyle = PlatformTextStyle(includeFontPadding = true),
+                        ),
+                        color = TextPrimary.copy(alpha = 0.92f),
+                        fontSize = 13.sp,
+                        lineHeight = 16.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+
             Text(
                 text = item?.titleRu.orEmpty(),
                 color = TextPrimary,
@@ -57,59 +105,6 @@ fun HomeBottomStage(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-
-            item?.episodeTitleRu
-                ?.takeIf { it.isNotBlank() }
-                ?.let { episodeTitle ->
-                    Text(
-                        text = episodeTitle,
-                        modifier = Modifier.fillMaxWidth(),
-                        style = TextStyle(
-                            platformStyle = PlatformTextStyle(includeFontPadding = true),
-                        ),
-                        color = TextPrimary.copy(alpha = 0.92f),
-                        fontSize = 15.sp,
-                        lineHeight = 19.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-        }
-
-        if (appVersionText.isNotBlank() || !appUpdateStatusText.isNullOrBlank()) {
-            Column(
-                modifier = Modifier.widthIn(max = 220.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Text(
-                    text = "Сервис",
-                    color = HomeTextMuted,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                if (appVersionText.isNotBlank()) {
-                    Text(
-                        text = appVersionText,
-                        color = TextPrimary,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Medium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                appUpdateStatusText
-                    ?.takeIf { it.isNotBlank() }
-                    ?.let { status ->
-                        Text(
-                            text = status,
-                            color = HomeTextSecondary,
-                            fontSize = 13.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-            }
         }
     }
 }
