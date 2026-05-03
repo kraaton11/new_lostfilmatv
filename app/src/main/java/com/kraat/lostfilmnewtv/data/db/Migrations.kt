@@ -59,8 +59,18 @@ val MIGRATION_6_7 = object : Migration(6, 7) {
     }
 }
 
+/**
+ * Миграция 7→8: добавлен negative cache для TMDB, чтобы не повторять пустые search-результаты.
+ */
+val MIGRATION_7_8 = object : Migration(7, 8) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `tmdb_poster_mappings` ADD COLUMN `isNegative` INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
 /** Список всех миграций для передачи в Room.databaseBuilder. */
 val ALL_MIGRATIONS = arrayOf(
     MIGRATION_5_6,
     MIGRATION_6_7,
+    MIGRATION_7_8,
 )
