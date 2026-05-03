@@ -316,7 +316,7 @@ class AppNavGraphTorrServeTest {
 
         composeRule.openSettingsSection(
             sectionTag = "settings-section-quality",
-            readyText = "Качество по умолчанию",
+            readyText = "Качество видео",
         )
         composeRule.onNodeWithTag("settings-section-quality").assertIsSelected()
         composeRule.onNodeWithTag("settings-quality-1080").assertIsSelected()
@@ -357,7 +357,7 @@ class AppNavGraphTorrServeTest {
         composeRule.waitForText("Новые релизы")
         composeRule.onNodeWithTag("home-action-settings").performSemanticsAction(SemanticsActions.OnClick)
         composeRule.onNodeWithTag("settings-section-quality").performSemanticsAction(SemanticsActions.OnClick)
-        composeRule.waitForText("Качество по умолчанию")
+        composeRule.waitForText("Качество видео")
         composeRule.onNodeWithTag("settings-quality-720").performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitUntil(timeoutMillis = 5_000) { store.readDefaultQuality() == PlaybackQualityPreference.Q720 }
         assertEquals(PlaybackQualityPreference.Q720, store.readDefaultQuality())
