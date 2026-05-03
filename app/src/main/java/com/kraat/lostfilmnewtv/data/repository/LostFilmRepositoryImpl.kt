@@ -100,15 +100,16 @@ class LostFilmRepositoryImpl(
                 ),
             )
 
-            val allItems = releaseDao.getSummariesUpToPage(pageNumber).toSummaryModels()
-            val enrichedItems = enrichSummaries(
-                items = allItems,
+            // Only enrich the freshly fetched page; previous pages already keep their TMDB posters in Room.
+            enrichSummaries(
+                items = itemsToPersist,
                 persistToCache = true,
             )
+            val allItems = releaseDao.getSummariesUpToPage(pageNumber).toSummaryModels()
 
             PageState.Content(
                 pageNumber = pageNumber,
-                items = enrichedItems,
+                items = allItems,
                 hasNextPage = hasNextPage(html, pageNumber, parsedItems.isNotEmpty()),
                 isStale = false,
             )
@@ -133,6 +134,13 @@ class LostFilmRepositoryImpl(
                     refreshCachedTorrentLinksIfNeeded(cachedDetails.toModel()),
                 ),
             )
+            // Fully enriched cached details already include TMDB artwork, so avoid touching the resolver.
+            if (cachedModel.hasCompleteArtwork()) {
+                return DetailsResult.Success(
+                    details = cachedModel,
+                    isStale = false,
+                )
+            }
             val tmdbUrls = tmdbResolver.resolve(
                 detailsUrl = cachedModel.detailsUrl,
                 titleRu = cachedModel.titleRu,
@@ -615,6 +623,10 @@ class LostFilmRepositoryImpl(
 
     private suspend fun cleanupExpiredData() {
         releaseDao.deleteExpiredData(clock() - RETENTION_WINDOW_MS)
+    }
+
+    private fun ReleaseDetails.hasCompleteArtwork(): Boolean {
+        return posterUrl.isNotBlank() && !backdropUrl.isNullOrBlank()
     }
 
     private suspend fun mergeWatchedState(

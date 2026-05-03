@@ -14,6 +14,7 @@ import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
 import com.kraat.lostfilmnewtv.data.model.FavoriteTargetKind
 import com.kraat.lostfilmnewtv.data.model.FavoriteToggleNetworkResult
 import com.kraat.lostfilmnewtv.data.model.PageState
+import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.SeriesGuide
 import com.kraat.lostfilmnewtv.data.model.TmdbImageUrls
@@ -116,6 +117,42 @@ class LostFilmRepositoryTest {
         assertEquals(firstPage.items.first().detailsUrl, secondPage.items.first().detailsUrl)
         assertTrue(secondPage.items.any { it.pageNumber == 2 })
         assertEquals(secondPage.items.map { it.detailsUrl }.distinct().size, secondPage.items.size)
+    }
+
+    @Test
+    fun loadPage_enrichesOnlyFreshlyFetchedPage_whenAppendingNextPage() = runTest {
+        val tmdbResolvedDetailsUrls = mutableListOf<String>()
+        val repository = createRepository(
+            pageHandler = { pageNumber ->
+                when (pageNumber) {
+                    1 -> fixture("new-page-1.html")
+                    2 -> fixture("new-page-2.html")
+                    else -> error("Unexpected page: $pageNumber")
+                }
+            },
+            tmdbResolver = createCountingTmdbResolver(tmdbResolvedDetailsUrls),
+        )
+
+        val firstPage = repository.loadPage(1) as PageState.Content
+        val secondPage = repository.loadPage(2) as PageState.Content
+
+        val firstPageUrls = firstPage.items.map { it.detailsUrl }.toSet()
+        val secondPageUrls = secondPage.items
+            .filter { it.pageNumber == 2 }
+            .map { it.detailsUrl }
+            .toSet()
+        val resolveCounts = tmdbResolvedDetailsUrls.groupingBy { it }.eachCount()
+
+        // Reusing cached page-one rows avoids repeating TMDB work when page two is appended.
+        assertTrue(firstPageUrls.isNotEmpty())
+        assertTrue(secondPageUrls.isNotEmpty())
+        assertEquals(firstPageUrls.size + secondPageUrls.size, tmdbResolvedDetailsUrls.size)
+        firstPageUrls.forEach { detailsUrl ->
+            assertEquals(1, resolveCounts[detailsUrl])
+        }
+        secondPageUrls.forEach { detailsUrl ->
+            assertEquals(1, resolveCounts[detailsUrl])
+        }
     }
 
     @Test
@@ -385,6 +422,40 @@ class LostFilmRepositoryTest {
         assertEquals(915, result.details.favoriteTargetId)
         assertEquals(true, releaseDao.getReleaseDetails(detailsUrl)?.toModel()?.favoriteTargetId == 915)
         assertEquals(false, result.details.isFavorite)
+    }
+
+    @Test
+    fun loadDetails_reusesFreshCachedArtwork_withoutTmdbResolve() = runTest {
+        val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        releaseDao.upsertDetails(
+            ReleaseDetailsEntity.fromModel(
+                ReleaseDetails(
+                    detailsUrl = detailsUrl,
+                    kind = ReleaseKind.SERIES,
+                    titleRu = "9-1-1",
+                    seasonNumber = 9,
+                    episodeNumber = 13,
+                    releaseDateRu = "14.03.2026",
+                    posterUrl = "https://image.tmdb.org/t/p/w780/cached-poster.jpg",
+                    backdropUrl = "https://image.tmdb.org/t/p/original/cached-backdrop.jpg",
+                    fetchedAt = NOW - 1_000L,
+                    playEpisodeId = null,
+                    seriesStatusRu = "Идет 9 сезон",
+                ),
+            ),
+        )
+        val tmdbResolvedDetailsUrls = mutableListOf<String>()
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            detailsHandler = { error("Fresh cached details should not fetch HTML: $it") },
+            tmdbResolver = createCountingTmdbResolver(tmdbResolvedDetailsUrls),
+        )
+
+        val result = repository.loadDetails(detailsUrl) as DetailsResult.Success
+
+        assertEquals("https://image.tmdb.org/t/p/w780/cached-poster.jpg", result.details.posterUrl)
+        assertEquals("https://image.tmdb.org/t/p/original/cached-backdrop.jpg", result.details.backdropUrl)
+        assertTrue(tmdbResolvedDetailsUrls.isEmpty())
     }
 
     @Test
