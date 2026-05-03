@@ -42,6 +42,9 @@ class TmdbPosterResolverImpl(
         }
 
         val cached = tmdbDao.getByDetailsUrl(detailsUrl)
+        if (cached != null && canReuseNegativeMapping(cached)) {
+            return null
+        }
         if (cached != null && canReuseCachedMapping(cached)) {
             val urls = TmdbImageUrls(
                 posterUrl = cached.posterUrl,
@@ -56,6 +59,9 @@ class TmdbPosterResolverImpl(
             inMemoryCache[detailsUrl]?.let { return@withLock it }
 
             val rechecked = tmdbDao.getByDetailsUrl(detailsUrl)
+            if (rechecked != null && canReuseNegativeMapping(rechecked)) {
+                return@withLock null
+            }
             if (rechecked != null && canReuseCachedMapping(rechecked)) {
                 val urls = TmdbImageUrls(
                     posterUrl = rechecked.posterUrl,
@@ -70,6 +76,13 @@ class TmdbPosterResolverImpl(
             locks.remove(detailsUrl)
             result
         }
+    }
+
+    private fun canReuseNegativeMapping(
+        cached: TmdbPosterMappingEntity,
+    ): Boolean {
+        // Cache TMDB misses briefly so unmatched titles do not search again on every screen load.
+        return cached.isNegative && !cached.isExpired(clock)
     }
 
     private fun canReuseCachedMapping(
@@ -98,11 +111,13 @@ class TmdbPosterResolverImpl(
         }
 
         val englishSlug = extractEnglishSlug(detailsUrl)
+        var searchFailed = false
 
         val slugResults = if (englishSlug != null && englishSlug.isNotBlank()) {
             try {
                 tmdbClient.searchByTitle(englishSlug, null, tmdbType)
             } catch (e: Exception) {
+                searchFailed = true
                 Log.e(TAG, "TMDB slug search failed for $titleRu: ${e.message}")
                 emptyList()
             }
@@ -124,6 +139,7 @@ class TmdbPosterResolverImpl(
             try {
                 tmdbClient.searchByTitle(titleRu, null, tmdbType)
             } catch (e: Exception) {
+                searchFailed = true
                 Log.e(TAG, "TMDB title search failed for $titleRu: ${e.message}")
                 emptyList()
             }
@@ -137,6 +153,15 @@ class TmdbPosterResolverImpl(
 
         if (bestMatch == null) {
             Log.d(TAG, "No TMDB results for $titleRu")
+            if (!searchFailed) {
+                tmdbDao.upsert(
+                    TmdbPosterMappingEntity.negative(
+                        detailsUrl = detailsUrl,
+                        tmdbType = tmdbType.name,
+                        fetchedAt = clock(),
+                    ),
+                )
+            }
             return null
         }
 

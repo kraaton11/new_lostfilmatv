@@ -206,6 +206,84 @@ class TmdbPosterResolverTest {
         assertEquals(0, imageCalls)
         assertNull(dao.upserted)
     }
+
+    @Test
+    fun resolve_persistsNegativeMapping_whenSearchHasNoMatches() = runTest {
+        val dao = FakeTmdbPosterDao()
+        val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType): List<TmdbSearchResult> {
+                return emptyList()
+            }
+
+            override suspend fun getPosterAndBackdrop(tmdbId: Int, type: TmdbMediaType): TmdbImageUrls? {
+                error("Images should not be fetched without a TMDB match")
+            }
+        }
+        val resolver = TmdbPosterResolverImpl(client, dao)
+
+        val result = resolver.resolve(
+            detailsUrl = "https://www.lostfilm.today/series/Unknown_Title/season_1/episode_1/",
+            titleRu = "Неизвестный сериал",
+            releaseDateRu = "05.04.2026",
+            kind = ReleaseKind.SERIES,
+        )
+
+        assertNull(result)
+        assertEquals(true, dao.upserted?.isNegative)
+        assertEquals("", dao.upserted?.posterUrl)
+    }
+
+    @Test
+    fun resolve_reusesFreshNegativeMapping_withoutNetworkRequest() = runTest {
+        val now = System.currentTimeMillis()
+        val dao = FakeTmdbPosterDao(
+            cached = TmdbPosterMappingEntity.negative(
+                detailsUrl = "https://www.lostfilm.today/series/Unknown_Title/season_1/episode_1/",
+                tmdbType = TmdbMediaType.TV.name,
+                fetchedAt = now,
+            ),
+        )
+        var searchCalls = 0
+        val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType): List<TmdbSearchResult> {
+                searchCalls += 1
+                return emptyList()
+            }
+        }
+        val resolver = TmdbPosterResolverImpl(client, dao, clock = { now })
+
+        val result = resolver.resolve(
+            detailsUrl = "https://www.lostfilm.today/series/Unknown_Title/season_1/episode_1/",
+            titleRu = "Неизвестный сериал",
+            releaseDateRu = "05.04.2026",
+            kind = ReleaseKind.SERIES,
+        )
+
+        assertNull(result)
+        assertEquals(0, searchCalls)
+        assertNull(dao.upserted)
+    }
+
+    @Test
+    fun resolve_doesNotPersistNegativeMapping_whenSearchFails() = runTest {
+        val dao = FakeTmdbPosterDao()
+        val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType): List<TmdbSearchResult> {
+                throw java.io.IOException("offline")
+            }
+        }
+        val resolver = TmdbPosterResolverImpl(client, dao)
+
+        val result = resolver.resolve(
+            detailsUrl = "https://www.lostfilm.today/series/Unknown_Title/season_1/episode_1/",
+            titleRu = "Неизвестный сериал",
+            releaseDateRu = "05.04.2026",
+            kind = ReleaseKind.SERIES,
+        )
+
+        assertNull(result)
+        assertNull(dao.upserted)
+    }
 }
 
 private class FakeTmdbPosterDao(
