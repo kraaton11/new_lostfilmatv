@@ -49,6 +49,9 @@ private const val RETENTION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000L
 private const val FAVORITE_RELEASES_MAX_EPISODES_PER_SEASON = Int.MAX_VALUE
 private const val FAVORITE_RELEASES_MAX_ITEMS = 30
 private const val FAVORITE_RELEASES_MAX_SEASONS_PER_SERIES = 1
+private const val FAVORITE_SERIES_LOAD_CONCURRENCY = 6
+private const val FAVORITE_PUBLISH_CHECK_CONCURRENCY = 6
+private const val WATCHED_MARKS_LOAD_CONCURRENCY = 4
 private val paginatorRegex = Regex("""/new/page_(\d+)""")
 private const val favoriteSeriesRoute = "/my/type_1"
 private val seriesFavoritePageRegex = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)/season_\d+/episode_\d+/?""")
@@ -433,9 +436,8 @@ class LostFilmRepositoryImpl(
             val fetchedAt = clock()
             val today = currentFavoriteReleaseDate()
 
-            // Загружаем все сериалы параллельно вместо последовательно.
-            // Каждый сериал требует 2-3 HTTP-запроса; при 10+ сериалах в избранном
-            // последовательная загрузка занимала 10-30 секунд.
+            // Keep favorites parallel, but cap LostFilm request fan-out so big accounts do not flood the site.
+            val favoriteSeriesSemaphore = Semaphore(FAVORITE_SERIES_LOAD_CONCURRENCY)
             data class SeriesLoadResult(
                 val items: List<com.kraat.lostfilmnewtv.data.model.ReleaseSummary>,
                 val loaded: Boolean,
@@ -444,49 +446,51 @@ class LostFilmRepositoryImpl(
             val seriesResults = coroutineScope {
                 favoriteSeries.map { series ->
                     async {
-                        val seasonsUrl = "${series.seriesUrl.trimEnd('/')}/seasons"
-                        val seasonsHtml = try {
-                            httpClient.fetchDetails(seasonsUrl)
-                        } catch (_: IOException) {
-                            return@async SeriesLoadResult(emptyList(), loaded = false)
-                        }
-                        val watchedEpisodeIdsFromMarks = seasonEpisodesParser.parseSerialId(seasonsHtml)
-                            ?.let { serialId ->
+                        favoriteSeriesSemaphore.withPermit {
+                            val seasonsUrl = "${series.seriesUrl.trimEnd('/')}/seasons"
+                            val seasonsHtml = try {
+                                httpClient.fetchDetails(seasonsUrl)
+                            } catch (_: IOException) {
+                                return@withPermit SeriesLoadResult(emptyList(), loaded = false)
+                            }
+                            val watchedEpisodeIdsFromMarks = seasonEpisodesParser.parseSerialId(seasonsHtml)
+                                ?.let { serialId ->
+                                    try {
+                                        seasonEpisodesParser.parseWatchedEpisodeIds(
+                                            httpClient.fetchSeasonWatchedEpisodeMarks(
+                                                refererUrl = seasonsUrl,
+                                                serialId = serialId,
+                                            ),
+                                        )
+                                    } catch (_: IOException) {
+                                        emptySet()
+                                    }
+                                }
+                                .orEmpty()
+                            val watchedEpisodeIdsFromSeriesRoot = if (watchedEpisodeIdsFromMarks.isEmpty()) {
                                 try {
-                                    seasonEpisodesParser.parseWatchedEpisodeIds(
-                                        httpClient.fetchSeasonWatchedEpisodeMarks(
-                                            refererUrl = seasonsUrl,
-                                            serialId = serialId,
-                                        ),
+                                    seasonEpisodesParser.parseWatchedEpisodeIdsFromPage(
+                                        httpClient.fetchDetails(series.seriesUrl),
                                     )
                                 } catch (_: IOException) {
                                     emptySet()
                                 }
-                            }
-                            .orEmpty()
-                        val watchedEpisodeIdsFromSeriesRoot = if (watchedEpisodeIdsFromMarks.isEmpty()) {
-                            try {
-                                seasonEpisodesParser.parseWatchedEpisodeIdsFromPage(
-                                    httpClient.fetchDetails(series.seriesUrl),
-                                )
-                            } catch (_: IOException) {
+                            } else {
                                 emptySet()
                             }
-                        } else {
-                            emptySet()
+                            val watchedEpisodeIds = watchedEpisodeIdsFromSeriesRoot + watchedEpisodeIdsFromMarks
+                            SeriesLoadResult(
+                                items = seasonEpisodesParser.parse(
+                                    html = seasonsHtml,
+                                    series = series,
+                                    fetchedAt = fetchedAt,
+                                    watchedEpisodeIds = watchedEpisodeIds,
+                                    maxEpisodesPerSeason = FAVORITE_RELEASES_MAX_EPISODES_PER_SEASON,
+                                    maxSeasons = FAVORITE_RELEASES_MAX_SEASONS_PER_SERIES,
+                                ),
+                                loaded = true,
+                            )
                         }
-                        val watchedEpisodeIds = watchedEpisodeIdsFromSeriesRoot + watchedEpisodeIdsFromMarks
-                        SeriesLoadResult(
-                            items = seasonEpisodesParser.parse(
-                                html = seasonsHtml,
-                                series = series,
-                                fetchedAt = fetchedAt,
-                                watchedEpisodeIds = watchedEpisodeIds,
-                                maxEpisodesPerSeason = FAVORITE_RELEASES_MAX_EPISODES_PER_SEASON,
-                                maxSeasons = FAVORITE_RELEASES_MAX_SEASONS_PER_SERIES,
-                            ),
-                            loaded = true,
-                        )
                     }
                 }.awaitAll()
             }
@@ -495,15 +499,19 @@ class LostFilmRepositoryImpl(
             val rawItems = seriesResults
                 .flatMap { it.items }
                 .distinctBy { it.detailsUrl }
+            // Today's release checks can hit details pages; keep that network work bounded too.
+            val publishCheckSemaphore = Semaphore(FAVORITE_PUBLISH_CHECK_CONCURRENCY)
             val items = coroutineScope {
                 rawItems.map { item ->
                     async {
-                        val releaseDate = parseFavoriteReleaseDate(item.releaseDateRu) ?: return@async null
-                        when {
-                            releaseDate.isBefore(today) -> item
-                            releaseDate.isAfter(today) -> null
-                            isFavoriteReleasePublishedToday(item.detailsUrl) -> item
-                            else -> null
+                        publishCheckSemaphore.withPermit {
+                            val releaseDate = parseFavoriteReleaseDate(item.releaseDateRu) ?: return@withPermit null
+                            when {
+                                releaseDate.isBefore(today) -> item
+                                releaseDate.isAfter(today) -> null
+                                isFavoriteReleasePublishedToday(item.detailsUrl) -> item
+                                else -> null
+                            }
                         }
                     }
                 }.awaitAll()
@@ -650,21 +658,25 @@ class LostFilmRepositoryImpl(
         } else {
             "$BASE_URL/new/page_$pageNumber"
         }
+        // Watched-marker AJAX calls are per serial id, so cap them independently from TMDB work.
+        val watchedMarksSemaphore = Semaphore(WATCHED_MARKS_LOAD_CONCURRENCY)
         val watchedIdsBySerialId = coroutineScope {
             watchMarkers
                 .map { it.serialId }
                 .distinct()
                 .map { serialId ->
                     async {
-                        serialId to try {
-                            seasonEpisodesParser.parseWatchedEpisodeIds(
-                                httpClient.fetchSeasonWatchedEpisodeMarks(
-                                    refererUrl = refererUrl,
-                                    serialId = serialId,
-                                ),
-                            )
-                        } catch (_: IOException) {
-                            null
+                        watchedMarksSemaphore.withPermit {
+                            serialId to try {
+                                seasonEpisodesParser.parseWatchedEpisodeIds(
+                                    httpClient.fetchSeasonWatchedEpisodeMarks(
+                                        refererUrl = refererUrl,
+                                        serialId = serialId,
+                                    ),
+                                )
+                            } catch (_: IOException) {
+                                null
+                            }
                         }
                     }
                 }

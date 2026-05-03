@@ -9,6 +9,10 @@ import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolver
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+
+private const val HOME_CHANNEL_TMDB_CONCURRENCY = 4
 
 class HomeChannelContentRepository(
     private val reader: HomeChannelSummaryReader,
@@ -52,48 +56,56 @@ class HomeChannelContentRepository(
     }
 
     private suspend fun mapEntityRows(rows: List<ReleaseSummaryEntity>): List<HomeChannelProgram> {
+        // Home channel refresh runs in the background; keep TMDB lookups polite and predictable.
+        val semaphore = Semaphore(HOME_CHANNEL_TMDB_CONCURRENCY)
         return coroutineScope {
             rows.map { row ->
                 async {
-                    val tmdbUrls = tmdbResolver.resolve(
-                        detailsUrl = row.detailsUrl,
-                        titleRu = row.titleRu,
-                        releaseDateRu = row.releaseDateRu,
-                        kind = ReleaseKind.valueOf(row.kind),
-                    )
-                    HomeChannelProgram(
-                        detailsUrl = row.detailsUrl,
-                        title = row.titleRu,
-                        description = row.channelDescription(),
-                        posterUrl = tmdbUrls?.posterUrl?.takeIf { it.isNotBlank() }
-                            ?: row.posterUrl,
-                        backdropUrl = tmdbUrls?.backdropUrl?.takeIf { it.isNotBlank() }.orEmpty(),
-                        internalProviderId = row.detailsUrl,
-                    )
+                    semaphore.withPermit {
+                        val tmdbUrls = tmdbResolver.resolve(
+                            detailsUrl = row.detailsUrl,
+                            titleRu = row.titleRu,
+                            releaseDateRu = row.releaseDateRu,
+                            kind = ReleaseKind.valueOf(row.kind),
+                        )
+                        HomeChannelProgram(
+                            detailsUrl = row.detailsUrl,
+                            title = row.titleRu,
+                            description = row.channelDescription(),
+                            posterUrl = tmdbUrls?.posterUrl?.takeIf { it.isNotBlank() }
+                                ?: row.posterUrl,
+                            backdropUrl = tmdbUrls?.backdropUrl?.takeIf { it.isNotBlank() }.orEmpty(),
+                            internalProviderId = row.detailsUrl,
+                        )
+                    }
                 }
             }.awaitAll()
         }
     }
 
     private suspend fun mapSummaryRows(items: List<ReleaseSummary>): List<HomeChannelProgram> {
+        // Favorite channel rows can trigger fresh TMDB lookups, so use the same background cap.
+        val semaphore = Semaphore(HOME_CHANNEL_TMDB_CONCURRENCY)
         return coroutineScope {
             items.map { item ->
                 async {
-                    val tmdbUrls = tmdbResolver.resolve(
-                        detailsUrl = item.detailsUrl,
-                        titleRu = item.titleRu,
-                        releaseDateRu = item.releaseDateRu,
-                        kind = item.kind,
-                    )
-                    HomeChannelProgram(
-                        detailsUrl = item.detailsUrl,
-                        title = item.titleRu,
-                        description = item.channelDescription(),
-                        posterUrl = tmdbUrls?.posterUrl?.takeIf { it.isNotBlank() }
-                            ?: item.posterUrl,
-                        backdropUrl = tmdbUrls?.backdropUrl?.takeIf { it.isNotBlank() }.orEmpty(),
-                        internalProviderId = item.detailsUrl,
-                    )
+                    semaphore.withPermit {
+                        val tmdbUrls = tmdbResolver.resolve(
+                            detailsUrl = item.detailsUrl,
+                            titleRu = item.titleRu,
+                            releaseDateRu = item.releaseDateRu,
+                            kind = item.kind,
+                        )
+                        HomeChannelProgram(
+                            detailsUrl = item.detailsUrl,
+                            title = item.titleRu,
+                            description = item.channelDescription(),
+                            posterUrl = tmdbUrls?.posterUrl?.takeIf { it.isNotBlank() }
+                                ?: item.posterUrl,
+                            backdropUrl = tmdbUrls?.backdropUrl?.takeIf { it.isNotBlank() }.orEmpty(),
+                            internalProviderId = item.detailsUrl,
+                        )
+                    }
                 }
             }.awaitAll()
         }
