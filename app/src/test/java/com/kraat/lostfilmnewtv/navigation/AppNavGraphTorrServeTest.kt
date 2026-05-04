@@ -290,7 +290,7 @@ class AppNavGraphTorrServeTest {
         composeRule.waitUntil(timeoutMillis = 5_000) {
             syncCalls.get() == 1
         }
-        composeRule.waitForText("Новые релизы")
+        composeRule.waitForHomeScreen()
         assertEquals(1, syncCalls.get())
     }
 
@@ -303,7 +303,7 @@ class AppNavGraphTorrServeTest {
 
         setContentWithNavGraph()
 
-        composeRule.waitForText("Новые релизы")
+        composeRule.waitForHomeScreen()
         assertEquals(
             0,
             mockingDetails(workManager).invocations.count { it.method.name == "enqueueUniquePeriodicWork" },
@@ -333,7 +333,7 @@ class AppNavGraphTorrServeTest {
 
         setContentWithNavGraph()
 
-        composeRule.waitForText("Новые релизы")
+        composeRule.waitForHomeScreen()
         composeRule.waitForText("Можно обновить")
         composeRule.onNodeWithText("Можно обновить").assertExists()
     }
@@ -354,7 +354,7 @@ class AppNavGraphTorrServeTest {
             LostFilmTheme { key(graphInstance) { AppNavGraph() } }
         }
 
-        composeRule.waitForText("Новые релизы")
+        composeRule.waitForHomeScreen()
         composeRule.onNodeWithTag("home-action-settings").performSemanticsAction(SemanticsActions.OnClick)
         composeRule.onNodeWithTag("settings-section-quality").performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitForText("Качество видео")
@@ -428,7 +428,7 @@ class AppNavGraphTorrServeTest {
             LostFilmTheme { key(graphInstance) { AppNavGraph() } }
         }
 
-        composeRule.waitForText("Новые релизы")
+        composeRule.waitForHomeScreen()
         composeRule.onNodeWithTag("home-action-settings").performSemanticsAction(SemanticsActions.OnClick)
         composeRule.onNodeWithTag("settings-section-channel").performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitForText("Канал Android TV")
@@ -438,7 +438,7 @@ class AppNavGraphTorrServeTest {
 
         composeRule.runOnIdle { graphInstance += 1 }
 
-        composeRule.waitForText("Новые релизы")
+        composeRule.waitForHomeScreen()
         composeRule.onNodeWithTag("home-action-settings").performSemanticsAction(SemanticsActions.OnClick)
         composeRule.onNodeWithTag("settings-section-channel").performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitForText("Канал Android TV")
@@ -456,8 +456,12 @@ private fun ComposeContentTestRule.waitForText(text: String) {
     waitUntil(timeoutMillis = 5_000) { onAllNodesWithText(text).fetchSemanticsNodes().isNotEmpty() }
 }
 
+private fun ComposeContentTestRule.waitForHomeScreen() {
+    waitForTag("home-action-settings")
+}
+
 private fun ComposeContentTestRule.openSettingsSection(sectionTag: String, readyText: String) {
-    waitForText("Новые релизы")
+    waitForHomeScreen()
     onNodeWithTag("home-action-settings").performSemanticsAction(SemanticsActions.OnClick)
     onNodeWithTag(sectionTag).performSemanticsAction(SemanticsActions.OnClick)
     waitForText(readyText)

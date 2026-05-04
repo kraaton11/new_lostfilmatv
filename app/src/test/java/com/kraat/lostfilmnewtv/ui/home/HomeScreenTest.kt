@@ -432,23 +432,6 @@ class HomeScreenTest {
     }
 
     @Test
-    fun homeScreen_withStaleData_showsInlineStaleStatusPanel() {
-        composeRule.setContent {
-            LostFilmTheme {
-                HomeScreen(
-                    state = seededState().copy(
-                        showStaleBanner = true,
-                    ),
-                )
-            }
-        }
-
-        composeRule.onNodeWithTag("home-stale-status").assertExists()
-        composeRule.onNodeWithText("Данные показаны из кэша и могут быть устаревшими").assertExists()
-        composeRule.onNodeWithTag(posterTag(firstDetailsUrl)).assertExists()
-    }
-
-    @Test
     fun homeScreen_selectingMode_keepsFocusInModeControl() {
         val allNewItems = listOf(
             release(

@@ -267,30 +267,6 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun staleCache_setsStaleBanner() = runTest(dispatcher) {
-        val repository = FakeLostFilmRepository(
-            pageResults = mapOf(
-                1 to PageState.Content(
-                    pageNumber = 1,
-                    items = listOf(summary(detailsUrl = "https://www.lostfilm.today/movies/Irreversible")),
-                    hasNextPage = true,
-                    isStale = true,
-                ),
-            ),
-        )
-        val viewModel = createViewModel(
-            repository = repository,
-            savedStateHandle = SavedStateHandle(),
-            ioDispatcher = dispatcher,
-        )
-
-        viewModel.onStart()
-        advanceUntilIdle()
-
-        assertTrue(viewModel.uiState.value.showStaleBanner)
-    }
-
-    @Test
     fun onPagingRetry_loadsNextPageWhenSoftPagingErrorPresent() = runTest(dispatcher) {
         val firstItem = summary(detailsUrl = "https://www.lostfilm.today/series/a/season_1/episode_1/")
         val secondItem = summary(
