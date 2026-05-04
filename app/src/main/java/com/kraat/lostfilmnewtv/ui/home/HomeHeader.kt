@@ -77,48 +77,12 @@ fun HomeHeader(
     downTarget: FocusRequester?,
     modifier: Modifier = Modifier,
 ) {
-    val title = when (selectedMode) {
-        HomeFeedMode.AllNew -> "Новые релизы"
-        HomeFeedMode.Favorites -> "Избранное"
-        HomeFeedMode.Movies -> "Фильмы"
-        HomeFeedMode.Series -> "Сериалы"
-    }
-    val subtitle = when (selectedMode) {
-        HomeFeedMode.AllNew -> "Новые серии, фильмы и быстрый переход к поиску"
-        HomeFeedMode.Favorites -> "Свежие релизы по сериалам из избранного LostFilm"
-        HomeFeedMode.Movies -> "Кино LostFilm отдельной витриной"
-        HomeFeedMode.Series -> "Каталог сериалов LostFilm"
-    }
     val hasModeToggle = availableModes.size > 1
     val firstModeRequester = if (hasModeToggle) modeFocusRequesters[availableModes.first()] else null
     val lastModeRequester = if (hasModeToggle) modeFocusRequesters[availableModes.last()] else null
     val hasUpdate = !updateVersionText.isNullOrBlank()
 
     Box(modifier = modifier.fillMaxWidth()) {
-        Box {
-            Text(
-                text = title,
-                color = TextPrimary,
-                fontSize = 1.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .size(1.dp)
-                    .alpha(0f),
-            )
-            Text(
-                text = subtitle,
-                color = HomeTextMuted,
-                fontSize = 1.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .size(1.dp)
-                    .alpha(0f),
-            )
-        }
-
         Row(
             modifier = Modifier.align(Alignment.Center),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
