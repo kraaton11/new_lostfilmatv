@@ -250,7 +250,6 @@ class HomeViewModel @Inject constructor(
                     _uiState.update { state ->
                         state.copy(
                             items = result.items,
-                            showStaleBanner = result.isStale,
                             isInitialLoading = false,
                             isPaging = false,
                             fullScreenErrorMessage = null,
@@ -272,7 +271,6 @@ class HomeViewModel @Inject constructor(
                             isPaging = false,
                             fullScreenErrorMessage = result.message,
                             pagingErrorMessage = null,
-                            showStaleBanner = false,
                             allNewModeState = HomeModeContentState.Error(result.message),
                         ).withResolvedHomeSelection()
                     }

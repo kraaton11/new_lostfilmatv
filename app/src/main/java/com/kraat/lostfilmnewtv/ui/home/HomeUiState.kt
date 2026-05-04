@@ -17,7 +17,6 @@ data class HomeUiState(
     val rememberedItemKeyByMode: Map<HomeFeedMode, String> = emptyMap(),
     val selectedItem: ReleaseSummary? = null,
     val selectedItemKey: String? = null,
-    val showStaleBanner: Boolean = false,
     val isInitialLoading: Boolean = false,
     val isPaging: Boolean = false,
     val isMoviesPaging: Boolean = false,
