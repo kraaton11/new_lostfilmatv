@@ -55,6 +55,7 @@ fun HomeRail(
     entryFocusRequester: FocusRequester,
     cardFocusRequesters: Map<String, FocusRequester>,
     shouldRequestFocus: Boolean,
+    returnFocusRequestVersion: Int,
     upTargetRequester: FocusRequester?,
     downTargetRequester: FocusRequester?,
     isPaging: Boolean,
@@ -74,12 +75,17 @@ fun HomeRail(
     }
     val listState = remember(railId) { LazyListState() }
     var focusedCardKey by remember(railId) { mutableStateOf<String?>(null) }
+    var handledReturnFocusRequestVersion by remember(railId) {
+        mutableStateOf(returnFocusRequestVersion)
+    }
 
-    LaunchedEffect(shouldRequestFocus, targetIndex, targetRequester) {
-        if (!shouldRequestFocus || targetRequester == null || targetIndex < 0) {
+    LaunchedEffect(shouldRequestFocus, returnFocusRequestVersion, targetIndex, targetRequester) {
+        val hasReturnFocusRequest = returnFocusRequestVersion != handledReturnFocusRequestVersion
+        if ((!shouldRequestFocus && !hasReturnFocusRequest) || targetRequester == null || targetIndex < 0) {
             return@LaunchedEffect
         }
 
+        handledReturnFocusRequestVersion = returnFocusRequestVersion
         listState.scrollToItem(targetIndex)
         requestFocusWhenReady(targetRequester)
     }
