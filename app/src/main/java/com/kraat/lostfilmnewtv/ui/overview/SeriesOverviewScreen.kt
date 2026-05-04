@@ -47,11 +47,9 @@ import coil.compose.AsyncImage
 import com.kraat.lostfilmnewtv.data.model.SeriesOverview
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
 import com.kraat.lostfilmnewtv.ui.theme.DetailsAccentGold
-import com.kraat.lostfilmnewtv.ui.theme.DetailsAccentGoldFocus
 import com.kraat.lostfilmnewtv.ui.theme.DetailsBackgroundMid
 import com.kraat.lostfilmnewtv.ui.theme.DetailsBackgroundTop
 import com.kraat.lostfilmnewtv.ui.theme.DetailsBorderDefault
-import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceFocused
 import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceReadable
 import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceSoft
 import com.kraat.lostfilmnewtv.ui.theme.DetailsTextMuted
@@ -246,7 +244,25 @@ private fun OverviewContent(overview: SeriesOverview?) {
         }
     }
     val sectionBlocks = remember(sections) {
-        sections.flatMap { section -> section.toReadableBlocks() }
+        sections.flatMap { section ->
+            val paragraphs = section.body
+                .split(Regex("""\n\s*\n+"""))
+                .map { it.trim() }
+                .filter { it.isNotBlank() }
+            val chunks = if (paragraphs.size > 1) {
+                paragraphs
+            } else {
+                section.body.chunkForTvReading(maxChars = 1200)
+            }
+            chunks.mapIndexed { index, chunk ->
+                OverviewSectionBlock(
+                    key = if (index == 0) section.key else "${section.key}-$index",
+                    title = if (index == 0) section.title else "",
+                    body = chunk,
+                    tag = if (index == 0) section.tag else "${section.tag}-$index",
+                )
+            }
+        }
     }
 
     val heroRequester = remember { FocusRequester() }
@@ -332,8 +348,6 @@ private fun OverviewContent(overview: SeriesOverview?) {
                             color = TextPrimary.copy(alpha = 0.92f),
                             fontSize = 19.sp,
                             lineHeight = 28.sp,
-                            maxLines = 4,
-                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }
@@ -375,38 +389,32 @@ private fun OverviewContent(overview: SeriesOverview?) {
             items = sectionBlocks,
             key = { section -> section.key },
         ) { section ->
-            OverviewSurfaceCard(
+            var isFocused by remember { mutableStateOf(false) }
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .testTag(section.tag),
+                    .onFocusChanged { isFocused = it.isFocused }
+                    .focusable()
+                    .testTag(section.tag)
+                    .padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (section.title.isNotBlank()) {
                     Text(
                         text = section.title,
-                        color = TextPrimary,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    Text(
-                        text = section.body,
-                        color = TextPrimary,
-                        fontSize = 18.sp,
-                        lineHeight = 27.sp,
+                        color = DetailsAccentGold,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
                     )
                 }
+                Text(
+                    text = section.body,
+                    color = TextPrimary.copy(alpha = if (isFocused) 1f else 0.85f),
+                    fontSize = 18.sp,
+                    lineHeight = 27.sp,
+                )
             }
         }
-    }
-}
-
-private fun OverviewSection.toReadableBlocks(): List<OverviewSectionBlock> {
-    return body.chunkForTvReading(maxChars = 760).mapIndexed { index, chunk ->
-        OverviewSectionBlock(
-            key = if (index == 0) key else "$key-$index",
-            title = title,
-            body = chunk,
-            tag = if (index == 0) tag else "$tag-$index",
-        )
     }
 }
 
@@ -524,22 +532,19 @@ private fun OverviewSurfaceCard(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    var isFocused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(18.dp)
 
     Column(
         modifier = modifier
             .background(
-                color = if (isFocused) DetailsSurfaceFocused else DetailsSurfaceReadable,
+                color = DetailsSurfaceReadable,
                 shape = shape,
             )
             .border(
-                width = if (isFocused) 2.dp else 1.dp,
-                color = if (isFocused) DetailsAccentGoldFocus else DetailsBorderDefault,
+                width = 1.dp,
+                color = DetailsBorderDefault,
                 shape = shape,
             )
-            .onFocusChanged { isFocused = it.isFocused }
-            .focusable()
             .padding(horizontal = 22.dp, vertical = 18.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
         content = content,
