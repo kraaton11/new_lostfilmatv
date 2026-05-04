@@ -936,7 +936,7 @@ class HomeScreenTest {
 
     @Test
     @OptIn(ExperimentalTestApi::class)
-    fun homeScreen_moviesModeDownFromHeader_returnsFocusToRememberedMoviePoster() {
+    fun homeScreen_moviesModeDownFromHeader_returnsFocusToNewestMoviePoster() {
         val allNewItems = listOf(
             release(
                 detailsUrl = firstDetailsUrl,
@@ -962,7 +962,7 @@ class HomeScreenTest {
             )
         }
         val rememberedMovie = movieItems[5]
-        val rememberedPosterTag = posterTag(HOME_RAIL_MOVIES, rememberedMovie.detailsUrl)
+        val newestPosterTag = posterTag(HOME_RAIL_MOVIES, movieItems.first().detailsUrl)
 
         composeRule.setContent {
             LostFilmTheme {
@@ -1000,14 +1000,14 @@ class HomeScreenTest {
             .performKeyInput { pressKey(Key.DirectionDown) }
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            val node = composeRule.onAllNodesWithTag(rememberedPosterTag)
+            val node = composeRule.onAllNodesWithTag(newestPosterTag)
                 .fetchSemanticsNodes()
                 .singleOrNull()
                 ?: return@waitUntil false
             SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
         }
 
-        composeRule.onNodeWithTag(rememberedPosterTag).assertIsFocused()
+        composeRule.onNodeWithTag(newestPosterTag).assertIsFocused()
     }
 
     @Test
