@@ -249,14 +249,6 @@ fun HomeScreen(
                 downTarget = headerDownTarget,
             )
 
-            if (state.showStaleBanner) {
-                HomeStatusPanel(
-                    tag = "home-stale-status",
-                    text = "Данные показаны из кэша и могут быть устаревшими",
-                    isError = false,
-                )
-            }
-
             if (isAllNewMode && state.fullScreenErrorMessage != null && state.items.isNotEmpty()) {
                 HomeStatusPanel(
                     tag = "home-error-status",
