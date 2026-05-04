@@ -449,7 +449,7 @@ class HomeScreenTest {
     }
 
     @Test
-    fun homeScreen_toggleFromFavoritesToAllNew_focusesFirstAllNewPoster() {
+    fun homeScreen_selectingMode_keepsFocusInModeControl() {
         val allNewItems = listOf(
             release(
                 detailsUrl = firstDetailsUrl,
@@ -481,7 +481,6 @@ class HomeScreenTest {
                 kind = ReleaseKind.SERIES,
             ),
         )
-        val allNewFirstTag = posterTag(HOME_RAIL_ALL_NEW, allNewItems.first().detailsUrl)
         var state by mutableStateOf(
             homeStateWithModes(
                 selectedMode = HomeFeedMode.Favorites,
@@ -505,23 +504,23 @@ class HomeScreenTest {
             }
         }
 
-        composeRule.onNodeWithTag("home-mode-toggle")
+        composeRule.onNodeWithTag("home-mode-all_new")
             .performSemanticsAction(SemanticsActions.OnClick)
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            val node = composeRule.onAllNodesWithTag(allNewFirstTag)
+            val node = composeRule.onAllNodesWithTag("home-mode-toggle")
                 .fetchSemanticsNodes()
                 .singleOrNull()
                 ?: return@waitUntil false
             SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
         }
 
-        composeRule.onNodeWithTag(allNewFirstTag).assertIsFocused()
+        composeRule.onNodeWithTag("home-mode-toggle").assertIsFocused()
     }
 
     @Test
     @OptIn(ExperimentalTestApi::class)
-    fun homeScreen_toggleFromFocusedHeaderButton_movesFocusToAllNewPoster() {
+    fun homeScreen_selectingModeFromFocusedHeader_keepsFocusInModeControl() {
         val allNewItems = listOf(
             release(
                 detailsUrl = firstDetailsUrl,
@@ -544,7 +543,6 @@ class HomeScreenTest {
                 kind = ReleaseKind.SERIES,
             ),
         )
-        val allNewFirstTag = posterTag(HOME_RAIL_ALL_NEW, allNewItems.first().detailsUrl)
         var state by mutableStateOf(
             homeStateWithModes(
                 selectedMode = HomeFeedMode.Favorites,
@@ -581,23 +579,24 @@ class HomeScreenTest {
 
         composeRule.onNodeWithTag("home-mode-toggle")
             .performKeyInput {
+                pressKey(Key.DirectionLeft)
                 pressKey(Key.DirectionCenter)
             }
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            val node = composeRule.onAllNodesWithTag(allNewFirstTag)
+            val node = composeRule.onAllNodesWithTag("home-mode-toggle")
                 .fetchSemanticsNodes()
                 .singleOrNull()
                 ?: return@waitUntil false
             SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
         }
 
-        composeRule.onNodeWithTag(allNewFirstTag).assertIsFocused()
+        composeRule.onNodeWithTag("home-mode-toggle").assertIsFocused()
     }
 
     @Test
     @OptIn(ExperimentalTestApi::class)
-    fun homeScreen_cardToHeaderThenToggle_movesFocusBackToAllNewPoster() {
+    fun homeScreen_cardToHeaderThenModeSelection_keepsFocusInModeControl() {
         val allNewItems = listOf(
             release(
                 detailsUrl = firstDetailsUrl,
@@ -621,7 +620,6 @@ class HomeScreenTest {
             ),
         )
         val favoritePosterTag = posterTag(HOME_RAIL_FAVORITES, favoriteItems.first().detailsUrl)
-        val allNewFirstTag = posterTag(HOME_RAIL_ALL_NEW, allNewItems.first().detailsUrl)
         var state by mutableStateOf(
             homeStateWithModes(
                 selectedMode = HomeFeedMode.Favorites,
@@ -666,18 +664,19 @@ class HomeScreenTest {
 
         composeRule.onNodeWithTag("home-mode-toggle")
             .performKeyInput {
+                pressKey(Key.DirectionLeft)
                 pressKey(Key.DirectionCenter)
             }
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
-            val node = composeRule.onAllNodesWithTag(allNewFirstTag)
+            val node = composeRule.onAllNodesWithTag("home-mode-toggle")
                 .fetchSemanticsNodes()
                 .singleOrNull()
                 ?: return@waitUntil false
             SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
         }
 
-        composeRule.onNodeWithTag(allNewFirstTag).assertIsFocused()
+        composeRule.onNodeWithTag("home-mode-toggle").assertIsFocused()
     }
 
     @Test
@@ -970,8 +969,20 @@ class HomeScreenTest {
 
         composeRule.onNodeWithTag("home-mode-toggle")
             .performKeyInput {
+                pressKey(Key.DirectionRight)
                 pressKey(Key.DirectionCenter)
             }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag("home-mode-toggle")
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag("home-mode-toggle")
+            .performKeyInput { pressKey(Key.DirectionDown) }
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
             val node = composeRule.onAllNodesWithTag(sharedFavoriteTag)
@@ -994,8 +1005,20 @@ class HomeScreenTest {
 
         composeRule.onNodeWithTag("home-mode-toggle")
             .performKeyInput {
+                pressKey(Key.DirectionLeft)
                 pressKey(Key.DirectionCenter)
             }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag("home-mode-toggle")
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag("home-mode-toggle")
+            .performKeyInput { pressKey(Key.DirectionDown) }
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
             val node = composeRule.onAllNodesWithTag(allNewFirstTag)

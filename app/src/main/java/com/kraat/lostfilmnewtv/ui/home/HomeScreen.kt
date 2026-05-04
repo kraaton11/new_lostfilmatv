@@ -136,7 +136,9 @@ fun HomeScreen(
         }
     }
 
-    val modeToggleRequester = remember { FocusRequester() }
+    val modeFocusRequesters = remember {
+        HomeFeedMode.entries.associateWith { FocusRequester() }
+    }
     val searchRequester = remember { FocusRequester() }
     val settingsRequester = remember { FocusRequester() }
     val updateRequester = remember { FocusRequester() }
@@ -204,7 +206,7 @@ fun HomeScreen(
         ) {
             val headerPrimaryRequester = when {
                 savedAppUpdate != null -> updateRequester
-                state.availableModes.size > 1 -> modeToggleRequester
+                state.availableModes.size > 1 -> modeFocusRequesters.getValue(state.selectedMode)
                 else -> searchRequester
             }
 
@@ -212,8 +214,12 @@ fun HomeScreen(
                 selectedMode = state.selectedMode,
                 availableModes = state.availableModes,
                 onModeActivated = { mode ->
-                    startupContentFocusPending = true
+                    startupContentFocusPending = false
                     onModeSelected(mode)
+                    focusScope.launch {
+                        withFrameNanos { }
+                        requestFocusWhenReady(modeFocusRequesters.getValue(mode))
+                    }
                 },
                 onHeaderInteraction = { startupContentFocusPending = false },
                 onBackToContent = {
@@ -230,7 +236,7 @@ fun HomeScreen(
                 onSettingsClick = onSettingsClick,
                 onUpdateClick = onUpdateClick,
                 updateVersionText = savedAppUpdate?.latestVersion,
-                modeToggleFocusRequester = if (state.availableModes.size > 1) modeToggleRequester else null,
+                modeFocusRequesters = modeFocusRequesters,
                 searchFocusRequester = searchRequester,
                 updateFocusRequester = updateRequester,
                 settingsFocusRequester = settingsRequester,
