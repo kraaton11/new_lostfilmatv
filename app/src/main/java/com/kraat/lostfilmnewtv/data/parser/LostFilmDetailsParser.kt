@@ -42,6 +42,7 @@ class LostFilmDetailsParser {
             favoriteTargetId = favoriteMetadata?.targetId,
             favoriteTargetKind = favoriteMetadata?.targetKind,
             isFavorite = favoriteMetadata?.isFavorite,
+            originalReleaseYear = document.originalReleaseYear(),
         )
     }
 
@@ -66,6 +67,7 @@ class LostFilmDetailsParser {
             favoriteTargetId = favoriteMetadata?.targetId,
             favoriteTargetKind = favoriteMetadata?.targetKind,
             isFavorite = favoriteMetadata?.isFavorite,
+            originalReleaseYear = document.originalReleaseYear(),
         )
     }
 
@@ -233,6 +235,17 @@ private fun Document.releaseDateRu(): String =
         ?.attr("data-released")
         ?.normalizeText()
         .orEmpty()
+
+private fun Document.originalReleaseYear(): Int? =
+    selectFirst(".details-pane .left-box")
+        .textOrEmpty()
+        .substringAfterIgnoreCase("Дата выхода eng:")
+        .extractYear()
+
+private fun String.substringAfterIgnoreCase(delimiter: String): String {
+    val index = indexOf(delimiter, ignoreCase = true)
+    return if (index >= 0) substring(index + delimiter.length) else ""
+}
 
 private fun Document.playEpisodeId(): String? {
     val onClick = selectFirst(".external-btn[onClick]")?.attr("onClick").orEmpty()

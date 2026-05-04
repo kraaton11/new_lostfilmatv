@@ -36,6 +36,7 @@ class LostFilmListParserTest {
         assertNull(movie.seasonNumber)
         assertNull(movie.episodeNumber)
         assertEquals("13.03.2026", movie.releaseDateRu)
+        assertEquals(2002, movie.originalReleaseYear)
     }
 
     @Test

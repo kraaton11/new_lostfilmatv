@@ -15,6 +15,8 @@ import okhttp3.Request
 interface LostFilmHttpClient {
     suspend fun fetchNewPage(pageNumber: Int): String
 
+    suspend fun fetchMoviesPage(pageNumber: Int = 1): String = fetchDetails(moviesPageUrl(pageNumber))
+
     suspend fun fetchDetails(detailsUrl: String): String
 
     suspend fun fetchAccountPage(path: String): String
@@ -59,6 +61,10 @@ class OkHttpLostFilmHttpClient(
     override suspend fun fetchNewPage(pageNumber: Int): String = withContext(Dispatchers.IO) {
         val url = if (pageNumber <= 1) "$BASE_URL/new/" else "$BASE_URL/new/page_$pageNumber"
         execute(url)
+    }
+
+    override suspend fun fetchMoviesPage(pageNumber: Int): String = withContext(Dispatchers.IO) {
+        execute(moviesPageUrl(pageNumber))
     }
 
     override suspend fun fetchDetails(detailsUrl: String): String = withContext(Dispatchers.IO) {
@@ -143,6 +149,15 @@ class OkHttpLostFilmHttpClient(
     companion object {
         const val USER_AGENT_PUBLIC =
             "Mozilla/5.0 (Android TV; LostFilmNewTV) AppleWebKit/537.36 Chrome/132.0.0.0 Safari/537.36"
+    }
+}
+
+private fun moviesPageUrl(pageNumber: Int): String {
+    val offset = ((pageNumber.coerceAtLeast(1) - 1) * 20).coerceAtLeast(0)
+    return if (offset == 0) {
+        "$BASE_URL/movies/?type=search&s=3&t=0"
+    } else {
+        "$BASE_URL/movies/?type=search&s=3&t=0&o=$offset"
     }
 }
 

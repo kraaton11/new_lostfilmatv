@@ -4,7 +4,8 @@ enum class HomeFeedMode(
     val storageValue: String,
 ) {
     AllNew("all_new"),
-    Favorites("favorites");
+    Favorites("favorites"),
+    Movies("movies");
 
     companion object {
         fun fromStorageValue(value: String?): HomeFeedMode {

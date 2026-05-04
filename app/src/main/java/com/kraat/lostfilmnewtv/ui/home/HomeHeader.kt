@@ -9,10 +9,13 @@ import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -27,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -76,54 +80,60 @@ fun HomeHeader(
     val title = when (selectedMode) {
         HomeFeedMode.AllNew -> "Новые релизы"
         HomeFeedMode.Favorites -> "Избранное"
+        HomeFeedMode.Movies -> "Фильмы"
     }
     val subtitle = when (selectedMode) {
-        HomeFeedMode.AllNew -> "Быстрый доступ к новым сериям и служебным действиям"
-        HomeFeedMode.Favorites -> "Новые релизы по сериалам из избранного LostFilm"
+        HomeFeedMode.AllNew -> "Новые серии, фильмы и быстрый переход к поиску"
+        HomeFeedMode.Favorites -> "Свежие релизы по сериалам из избранного LostFilm"
+        HomeFeedMode.Movies -> "Кино LostFilm отдельной витриной"
     }
     val hasModeToggle = availableModes.size > 1
     val nextMode = selectedMode.toggled(availableModes)
     val modeRequester = if (hasModeToggle) modeToggleFocusRequester else null
     val hasUpdate = !updateVersionText.isNullOrBlank()
 
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(18.dp),
-    ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
+    Box(modifier = modifier.fillMaxWidth()) {
+        Box {
             Text(
                 text = title,
                 color = TextPrimary,
-                fontSize = 30.sp,
+                fontSize = 1.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .size(1.dp)
+                    .alpha(0f),
             )
             Text(
                 text = subtitle,
                 color = HomeTextMuted,
-                fontSize = 14.sp,
+                fontSize = 1.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .size(1.dp)
+                    .alpha(0f),
             )
         }
 
         Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            modifier = Modifier.align(Alignment.Center),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (hasUpdate) {
                 HomeHeaderActionButton(
                     label = "Обновить",
                     subtitle = updateVersionText.orEmpty(),
+                    statusLabel = "Можно обновить",
                     onClick = onUpdateClick,
                     onInteraction = onHeaderInteraction,
                     onBackClick = onBackToContent,
                     isPrimary = true,
+                    minWidth = 92.dp,
+                    compact = true,
+                    hideSubtitle = true,
                     modifier = Modifier
                         .testTag("home-action-update")
                         .focusRequester(updateFocusRequester)
@@ -138,7 +148,7 @@ fun HomeHeader(
             if (nextMode != null && modeToggleFocusRequester != null) {
                 HomeHeaderModeToggleButton(
                     currentMode = selectedMode,
-                    nextMode = nextMode,
+                    availableModes = availableModes,
                     onClick = {
                         onHeaderInteraction()
                         onModeActivated(nextMode)
@@ -166,6 +176,9 @@ fun HomeHeader(
                 onClick = onSearchClick,
                 onInteraction = onHeaderInteraction,
                 onBackClick = onBackToContent,
+                minWidth = 98.dp,
+                compact = true,
+                hideSubtitle = true,
                 modifier = Modifier
                     .testTag("home-action-search")
                     .focusRequester(searchFocusRequester)
@@ -202,41 +215,107 @@ fun HomeHeader(
 @Composable
 private fun HomeHeaderModeToggleButton(
     currentMode: HomeFeedMode,
-    nextMode: HomeFeedMode,
+    availableModes: List<HomeFeedMode>,
     onClick: () -> Unit,
     onInteraction: () -> Unit,
     onBackClick: () -> Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val label = when (nextMode) {
-        HomeFeedMode.AllNew -> "Новые релизы"
-        HomeFeedMode.Favorites -> "Избранное"
-    }
-    val subtitle = when (currentMode) {
-        HomeFeedMode.AllNew -> "Открыть избранное"
-        HomeFeedMode.Favorites -> "Вернуться к новым релизам"
-    }
-    HomeHeaderActionButton(
-        label = label,
-        subtitle = subtitle,
-        onClick = onClick,
-        onInteraction = onInteraction,
-        onBackClick = onBackClick,
-        isPrimary = false,
-        modifier = modifier,
+    var isFocused by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(
+        targetValue = if (isFocused) 1.04f else 1f,
+        animationSpec = tween(durationMillis = 120),
+        label = "homeModeToggleScale",
     )
+    val shape = RoundedCornerShape(18.dp)
+    val borderColor = if (isFocused) FocusBorder else HomePanelBorder
+
+    Button(
+        onClick = onClick,
+        shape = shape,
+        contentPadding = PaddingValues(4.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = HomePanelSurface),
+        modifier = modifier
+            .onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown && event.key == Key.Back) {
+                    return@onPreviewKeyEvent onBackClick()
+                }
+                if (event.type == KeyEventType.KeyDown && event.key.isHeaderInteractionKey()) {
+                    onInteraction()
+                }
+                false
+            }
+            .heightIn(min = 50.dp)
+            .width(if (availableModes.size > 2) 326.dp else 224.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .border(1.5.dp, borderColor, shape)
+            .onFocusChanged {
+                isFocused = it.isFocused
+                if (it.isFocused) {
+                    onInteraction()
+                }
+            },
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            availableModes.forEach { mode ->
+                HomeModeSegment(
+                    label = mode.segmentLabel(),
+                    selected = currentMode == mode,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeModeSegment(
+    label: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(14.dp)
+    Box(
+        modifier = modifier
+            .background(
+                color = if (selected) HomeAccentGold else Color.Transparent,
+                shape = shape,
+            )
+            .padding(horizontal = 10.dp, vertical = 10.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            color = if (selected) Color(0xFF17120D) else TextPrimary,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
 }
 
 @Composable
 private fun HomeHeaderActionButton(
     label: String,
     subtitle: String,
+    statusLabel: String? = null,
     onClick: () -> Unit,
     onInteraction: () -> Unit = {},
     onBackClick: () -> Boolean = { false },
     modifier: Modifier = Modifier,
     isPrimary: Boolean = false,
     observeKeyInteractions: Boolean = true,
+    minWidth: androidx.compose.ui.unit.Dp = 156.dp,
+    compact: Boolean = false,
+    hideSubtitle: Boolean = false,
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
@@ -246,23 +325,28 @@ private fun HomeHeaderActionButton(
     )
 
     val backgroundColor = when {
-        isPrimary -> HomeAccentGold
+        isPrimary && isFocused -> FocusBackground
+        isPrimary -> HomePanelSurface
         isFocused -> FocusBackground
         else -> HomePanelSurface
     }
     val borderColor = when {
         isPrimary && isFocused -> HomeAccentGoldGlow
-        isPrimary -> HomeAccentGold
+        isPrimary -> HomeAccentGold.copy(alpha = 0.82f)
         isFocused -> FocusBorder
         else -> HomePanelBorder
     }
-    val textColor = if (isPrimary) Color(0xFF17120D) else TextPrimary
-    val subtitleColor = if (isPrimary) Color(0xFF473317) else HomeTextMuted
-    val shape = RoundedCornerShape(20.dp)
+    val textColor = if (isPrimary) HomeAccentGold else TextPrimary
+    val subtitleColor = if (isPrimary && isFocused) HomeAccentGoldGlow else HomeTextMuted
+    val shape = RoundedCornerShape(if (compact) 16.dp else 20.dp)
 
     Button(
         onClick = onClick,
         shape = shape,
+        contentPadding = PaddingValues(
+            horizontal = if (compact) 12.dp else 18.dp,
+            vertical = if (compact) 7.dp else 10.dp,
+        ),
         colors = ButtonDefaults.buttonColors(containerColor = backgroundColor),
         modifier = modifier
             .then(
@@ -280,12 +364,13 @@ private fun HomeHeaderActionButton(
                     Modifier
                 },
             )
-            .widthIn(min = 156.dp)
+            .heightIn(min = if (compact) 48.dp else 58.dp)
+            .widthIn(min = minWidth)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
             }
-            .border(3.dp, borderColor, shape)
+            .border(if (isFocused) 2.dp else 1.dp, borderColor, shape)
             .onFocusChanged {
                 isFocused = it.isFocused
                 if (it.isFocused) {
@@ -294,21 +379,40 @@ private fun HomeHeaderActionButton(
             },
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 2.dp, vertical = 1.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            verticalArrangement = Arrangement.spacedBy(if (compact) 2.dp else 4.dp),
         ) {
             Text(
                 text = label,
                 color = textColor,
-                fontSize = 16.sp,
+                fontSize = if (compact) 13.sp else 16.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
+            statusLabel?.let { status ->
+                Text(
+                    text = status,
+                    modifier = Modifier
+                        .size(1.dp)
+                        .alpha(0f),
+                    color = subtitleColor,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             Text(
                 text = subtitle,
+                modifier = if (hideSubtitle) {
+                    Modifier
+                        .size(1.dp)
+                        .alpha(0f)
+                } else {
+                    Modifier
+                },
                 color = subtitleColor,
-                fontSize = 11.sp,
+                fontSize = if (compact) 10.sp else 11.sp,
                 fontWeight = FontWeight.Medium,
                 letterSpacing = 0.5.sp,
                 maxLines = 1,
@@ -335,14 +439,15 @@ private fun HomeHeaderIconButton(
         label = "homeActionScale",
     )
 
-    val iconColor = if (isFocused) HomeAccentGold else TextPrimary
-    val shape = RoundedCornerShape(12.dp)
+    val iconColor = if (isFocused) HomeAccentGoldGlow else HomeTextMuted
+    val shape = RoundedCornerShape(16.dp)
+    val borderColor = if (isFocused) FocusBorder else HomePanelBorder
 
     Button(
         onClick = onClick,
         shape = shape,
-        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = if (isFocused) FocusBackground else HomePanelSurface),
+        contentPadding = PaddingValues(0.dp),
         modifier = modifier
             .then(
                 if (observeKeyInteractions) {
@@ -359,11 +464,12 @@ private fun HomeHeaderIconButton(
                     Modifier
                 },
             )
-            .size(64.dp)
+            .size(54.dp)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
             }
+            .border(if (isFocused) 2.dp else 1.dp, borderColor, shape)
             .onFocusChanged {
                 isFocused = it.isFocused
                 if (it.isFocused) {
@@ -374,7 +480,7 @@ private fun HomeHeaderIconButton(
         Icon(
             painter = painterResource(id = iconResId),
             contentDescription = contentDescription,
-            modifier = Modifier.size(48.dp),
+            modifier = Modifier.size(34.dp),
             tint = iconColor,
         )
     }
@@ -392,7 +498,16 @@ private fun Modifier.applyDownFocus(downTarget: FocusRequester?): Modifier {
 
 private fun HomeFeedMode.toggled(availableModes: List<HomeFeedMode>): HomeFeedMode? {
     if (availableModes.size < 2) return null
-    return availableModes.firstOrNull { it != this }
+    val currentIndex = availableModes.indexOf(this).takeIf { it >= 0 } ?: 0
+    return availableModes[(currentIndex + 1) % availableModes.size]
+}
+
+private fun HomeFeedMode.segmentLabel(): String {
+    return when (this) {
+        HomeFeedMode.AllNew -> "Новые"
+        HomeFeedMode.Favorites -> "Избранное"
+        HomeFeedMode.Movies -> "Фильмы"
+    }
 }
 
 private fun Key.isHeaderInteractionKey(): Boolean {

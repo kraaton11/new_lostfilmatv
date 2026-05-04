@@ -2,13 +2,17 @@ package com.kraat.lostfilmnewtv.ui.details
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -19,11 +23,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -42,6 +44,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -145,19 +148,110 @@ fun DetailsScreen(
 
 @Composable
 private fun LoadingState() {
+    val shimmerBrush = rememberDetailsSkeletonBrush()
+
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(detailsBackgroundBrush()),
-        contentAlignment = Alignment.Center,
     ) {
-        DetailsCenteredStatePanel {
-            CircularProgressIndicator(
-                modifier = Modifier.testTag("details-loading"),
-                color = DetailsAccentGold,
-            )
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = 48.dp, top = 24.dp, end = 48.dp, bottom = 24.dp)
+                .testTag("details-loading"),
+            verticalArrangement = Arrangement.spacedBy(22.dp),
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(34.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                DetailsSkeletonBox(
+                    brush = shimmerBrush,
+                    modifier = Modifier.size(width = 264.dp, height = 380.dp),
+                    shape = RoundedCornerShape(24.dp),
+                )
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                ) {
+                    DetailsSkeletonBox(
+                        brush = shimmerBrush,
+                        modifier = Modifier.size(width = 620.dp, height = 52.dp),
+                        shape = RoundedCornerShape(14.dp),
+                    )
+                    DetailsSkeletonBox(
+                        brush = shimmerBrush,
+                        modifier = Modifier.size(width = 500.dp, height = 52.dp),
+                        shape = RoundedCornerShape(14.dp),
+                    )
+                    DetailsSkeletonBox(
+                        brush = shimmerBrush,
+                        modifier = Modifier.size(width = 440.dp, height = 26.dp),
+                        shape = RoundedCornerShape(10.dp),
+                    )
+                    DetailsSkeletonBox(
+                        brush = shimmerBrush,
+                        modifier = Modifier.size(width = 320.dp, height = 20.dp),
+                        shape = RoundedCornerShape(10.dp),
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.weight(1f))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                repeat(5) {
+                    DetailsSkeletonBox(
+                        brush = shimmerBrush,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(76.dp),
+                        shape = RoundedCornerShape(18.dp),
+                    )
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun rememberDetailsSkeletonBrush(): Brush {
+    val transition = rememberInfiniteTransition(label = "detailsSkeleton")
+    val xOffset by transition.animateFloat(
+        initialValue = -520f,
+        targetValue = 1_280f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1_450, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "detailsSkeletonOffset",
+    )
+    return Brush.linearGradient(
+        colors = listOf(
+            DetailsSurfaceSoft.copy(alpha = 0.52f),
+            DetailsBorderDefault.copy(alpha = 0.5f),
+            DetailsSurfaceSoft.copy(alpha = 0.52f),
+        ),
+        start = Offset(xOffset, 0f),
+        end = Offset(xOffset + 520f, 280f),
+    )
+}
+
+@Composable
+private fun DetailsSkeletonBox(
+    brush: Brush,
+    modifier: Modifier = Modifier,
+    shape: RoundedCornerShape,
+) {
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(brush),
+    )
 }
 
 @Composable
@@ -214,12 +308,11 @@ private fun ContentState(
             .background(detailsBackgroundBrush()),
     ) {
         BackgroundPoster(details = details)
-        AmbientGlow()
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 48.dp, top = 24.dp, end = 48.dp, bottom = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+                .padding(start = 48.dp, top = 24.dp, end = 48.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (state.showStaleBanner) {
                 DetailsStatusPanel(
@@ -287,21 +380,6 @@ private fun BackgroundPoster(details: ReleaseDetails?) {
 }
 
 @Composable
-private fun BoxScope.AmbientGlow() {
-    Box(
-        modifier = Modifier
-            .size(760.dp)
-            .align(Alignment.TopCenter)
-            .background(
-                Brush.radialGradient(
-                    colors = listOf(Color(0x33FFFFFF), Color.Transparent),
-                ),
-                CircleShape,
-            ),
-    )
-}
-
-@Composable
 private fun HeroStage(
     details: ReleaseDetails?,
     stageUi: DetailsStageUiModel,
@@ -337,43 +415,51 @@ private fun HeroStage(
 
     Column(
         modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(28.dp),
+        verticalArrangement = Arrangement.spacedBy(22.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(28.dp),
+            horizontalArrangement = Arrangement.spacedBy(34.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             PosterCard(details = details)
             Column(
-                modifier = Modifier.width(520.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier.width(760.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(
                     text = stageUi.title.ifBlank { "Details" },
                     color = TextPrimary,
-                    fontSize = 52.sp,
+                    fontSize = 44.sp,
                     fontWeight = FontWeight.Bold,
-                    lineHeight = 56.sp,
+                    lineHeight = 48.sp,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 if (stageUi.heroEpisodeTitle.isNotBlank()) {
                     Text(
                         text = stageUi.heroEpisodeTitle,
                         color = TextPrimary,
-                        fontSize = 24.sp,
+                        fontSize = 22.sp,
                         fontWeight = FontWeight.Medium,
-                        lineHeight = 28.sp,
+                        lineHeight = 26.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
-                if (stageUi.heroMetaLine.isNotBlank()) {
-                    Text(
-                        text = stageUi.heroMetaLine,
+                val metaChips = remember(details, stageUi.heroMetaLine) {
+                    buildDetailsMetaChips(details = details, heroMetaLine = stageUi.heroMetaLine)
+                }
+                if (metaChips.isNotEmpty()) {
+                    Row(
                         modifier = Modifier.testTag("details-hero-meta"),
-                        color = DetailsTextSecondary,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium,
-                        lineHeight = 20.sp,
-                    )
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        metaChips.forEach { chip ->
+                            DetailsMetaChip(text = chip)
+                        }
+                    }
                 }
                 if (stageUi.heroStatusLine.isNotBlank()) {
                     Text(
@@ -383,6 +469,8 @@ private fun HeroStage(
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Medium,
                         lineHeight = 22.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 }
             }
@@ -463,18 +551,58 @@ private fun RowScope.actionButtonModifier(useFlexibleActionWidth: Boolean): Modi
 }
 
 @Composable
+private fun DetailsMetaChip(text: String) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(DetailsSurfaceSoft.copy(alpha = 0.72f))
+            .border(1.dp, DetailsBorderDefault.copy(alpha = 0.58f), RoundedCornerShape(999.dp))
+            .padding(horizontal = 14.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            color = DetailsTextSecondary,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            lineHeight = 16.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+private fun buildDetailsMetaChips(
+    details: ReleaseDetails?,
+    heroMetaLine: String,
+): List<String> {
+    return buildList {
+        heroMetaLine.takeIf { it.isNotBlank() }?.let(::add)
+        details?.releaseDateRu?.takeIf { it.isNotBlank() }?.let(::add)
+        details?.kind?.let { kind ->
+            add(
+                when (kind) {
+                    com.kraat.lostfilmnewtv.data.model.ReleaseKind.SERIES -> "Сериал"
+                    com.kraat.lostfilmnewtv.data.model.ReleaseKind.MOVIE -> "Фильм"
+                },
+            )
+        }
+    }.distinct()
+}
+
+@Composable
 private fun PosterCard(details: ReleaseDetails?) {
     Box(
         modifier = Modifier
-            .size(width = 260.dp, height = 374.dp)
-            .shadow(28.dp, RoundedCornerShape(28.dp))
-            .clip(RoundedCornerShape(28.dp))
+            .size(width = 264.dp, height = 380.dp)
+            .shadow(34.dp, RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(24.dp))
             .background(
                 Brush.verticalGradient(
                     listOf(Color(0xFF3F586E), Color(0xFF172734), Color(0xFF0A131B)),
                 ),
             )
-            .border(1.dp, DetailsBorderDefault, RoundedCornerShape(28.dp)),
+            .border(1.dp, DetailsBorderDefault.copy(alpha = 0.74f), RoundedCornerShape(24.dp)),
     ) {
         if (details != null) {
             AsyncImage(
@@ -482,7 +610,7 @@ private fun PosterCard(details: ReleaseDetails?) {
                 contentDescription = details.titleRu,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
-                alpha = 0.34f,
+                alpha = 0.92f,
             )
         }
         Box(
@@ -490,9 +618,9 @@ private fun PosterCard(details: ReleaseDetails?) {
                 .fillMaxSize()
                 .background(
                     Brush.verticalGradient(
-                        0f to Color(0x26FFFFFF),
-                        0.4f to Color.Transparent,
-                        1f to Color(0xAA040A10),
+                        0f to Color.Transparent,
+                        0.54f to Color.Transparent,
+                        1f to Color(0xB8040A10),
                     ),
                 ),
         )
@@ -522,7 +650,8 @@ private fun StageButton(
     val background = when {
         !enabled -> DetailsSurfaceSoft.copy(alpha = 0.6f)
         isPrimary -> DetailsAccentGold
-        isHighlighted -> DetailsAccentGold
+        isHighlighted && isFocused -> DetailsSurfaceFocused
+        isHighlighted -> DetailsSurfaceSoft
         isFocused -> DetailsSurfaceFocused
         isSecondary -> DetailsSurfaceSoft
         else -> DetailsSurfaceCard
@@ -535,8 +664,16 @@ private fun StageButton(
         isFocused -> DetailsAccentBlue
         else -> DetailsBorderDefault
     }
-    val textColor = if (isPrimary || isHighlighted) Color(0xFF17120D) else TextPrimary
-    val subtitleColor = if (isPrimary || isHighlighted) Color(0xFF473317) else DetailsTextMuted
+    val textColor = when {
+        isPrimary -> Color(0xFF17120D)
+        isHighlighted -> DetailsAccentGold
+        else -> TextPrimary
+    }
+    val subtitleColor = when {
+        isPrimary -> Color(0xFF473317)
+        isHighlighted -> DetailsAccentGoldFocus
+        else -> DetailsTextMuted
+    }
 
     Button(
         onClick = {
@@ -545,18 +682,18 @@ private fun StageButton(
             }
         },
         enabled = true,
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = background,
             disabledContainerColor = DetailsSurfaceSoft.copy(alpha = 0.55f),
         ),
         modifier = modifier
-            .height(88.dp)
+            .height(76.dp)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = 1f
             }
-            .border(1.5.dp, border, RoundedCornerShape(22.dp))
+            .border(1.25.dp, border, RoundedCornerShape(18.dp))
             .onFocusChanged {
                 isFocused = it.isFocused
                 onFocusedChange(it.isFocused)
@@ -569,9 +706,9 @@ private fun StageButton(
             Text(
                 text = label,
                 color = if (enabled) textColor else DetailsTextMuted,
-                fontSize = 16.sp,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.SemiBold,
-                lineHeight = 20.sp,
+                lineHeight = 18.sp,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -579,7 +716,7 @@ private fun StageButton(
                 Text(
                     text = subtitle,
                     color = if (enabled) subtitleColor else DetailsTextMuted.copy(alpha = 0.8f),
-                    fontSize = 11.sp,
+                    fontSize = 10.sp,
                     fontWeight = FontWeight.Medium,
                     letterSpacing = 0.6.sp,
                     maxLines = 1,

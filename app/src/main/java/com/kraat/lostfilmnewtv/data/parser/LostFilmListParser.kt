@@ -7,6 +7,7 @@ import org.jsoup.nodes.Element
 
 const val BASE_URL = "https://www.lostfilm.today"
 private val seasonEpisodeRegex = Regex("""(\d+)\s+сезон\s+(\d+)\s+серия""")
+private val yearRegex = Regex("""\b(19|20)\d{2}\b""")
 
 data class ReleaseWatchMarker(
     val detailsUrl: String,
@@ -70,11 +71,14 @@ class LostFilmListParser {
             "Missing content link for row"
         }
         val overlayLabel = contentLink.selectFirst(".overlay .left-part").textOrEmpty()
-        val isMovie = overlayLabel.contains("Фильм", ignoreCase = true)
+        val detailsUrl = contentLink.absoluteUrl("href")
+        val isMovie = overlayLabel.contains("Фильм", ignoreCase = true) || detailsUrl.contains("/movies/")
+        val availabilityLabel = contentLink.selectFirst(".picture-box .small-block")
+            .textOrEmpty()
+            .takeIf { it.isNotBlank() }
         val detailsPaneValues = contentLink.select(".details-pane .alpha, .details-pane .beta")
             .map { it.text().normalizeText() }
 
-        val detailsUrl = contentLink.absoluteUrl("href")
         val posterUrl = contentLink.selectFirst(".picture-box img.thumb").absoluteUrl("src")
         val isWatched = row.selectFirst(".haveseen-btn.checked") != null
         val releaseDateRu = detailsPaneValues
@@ -82,6 +86,9 @@ class LostFilmListParser {
             ?.substringAfter(':')
             ?.trim()
             .orEmpty()
+        val originalReleaseYear = detailsPaneValues
+            .firstOrNull { it.startsWith("Дата выхода Eng:", ignoreCase = true) }
+            ?.extractYear()
 
         val (seasonNumber, episodeNumber) = if (isMovie) {
             null to null
@@ -112,9 +119,16 @@ class LostFilmListParser {
             positionInPage = positionInPage,
             fetchedAt = fetchedAt,
             isWatched = isWatched,
+            availabilityLabel = availabilityLabel,
+            originalReleaseYear = originalReleaseYear,
         )
     }
 }
+
+fun String.extractYear(): Int? =
+    yearRegex.find(this)
+        ?.value
+        ?.toIntOrNull()
 
 fun Element?.absoluteUrl(attributeName: String): String {
     val value = this?.attr("abs:$attributeName").orEmpty()

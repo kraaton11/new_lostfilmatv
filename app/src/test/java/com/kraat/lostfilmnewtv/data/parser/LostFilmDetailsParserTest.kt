@@ -32,6 +32,7 @@ class LostFilmDetailsParserTest {
         assertNull(details.seasonNumber)
         assertNull(details.episodeNumber)
         assertEquals("13 марта 2026", details.releaseDateRu)
+        assertEquals(2002, details.originalReleaseYear)
     }
 
     @Test

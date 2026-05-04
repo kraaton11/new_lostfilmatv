@@ -19,6 +19,7 @@ data class ReleaseDetails(
     val favoriteTargetId: Int? = null,
     val favoriteTargetKind: FavoriteTargetKind? = null,
     val isFavorite: Boolean? = null,
+    val originalReleaseYear: Int? = null,
 )
 
 @Serializable

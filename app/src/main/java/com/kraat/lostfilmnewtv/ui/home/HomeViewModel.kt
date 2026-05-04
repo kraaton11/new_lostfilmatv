@@ -67,6 +67,7 @@ class HomeViewModel @Inject constructor(
     private var started = false
     private var favoriteRequestToken = 0L
     private var favoriteLoadJob: Job? = null
+    private var moviesLoadJob: Job? = null
 
     fun onStart() {
         if (started) return
@@ -75,32 +76,59 @@ class HomeViewModel @Inject constructor(
             preferencesStore.writeHomeSelectedFeedMode(HomeFeedMode.AllNew)
         }
         loadPage(pageNumber = 1, isPagingRequest = false)
+        loadMovies(pageNumber = 1, isPagingRequest = false)
         if (_uiState.value.isFavoritesRailVisible) {
             loadFavoriteReleases()
         }
     }
 
     fun onRetry() {
-        if (_uiState.value.selectedMode == HomeFeedMode.Favorites && _uiState.value.isFavoritesRailVisible) {
-            loadFavoriteReleases()
-            return
+        when (_uiState.value.selectedMode) {
+            HomeFeedMode.Favorites -> {
+                if (_uiState.value.isFavoritesRailVisible) {
+                    loadFavoriteReleases()
+                    return
+                }
+            }
+            HomeFeedMode.Movies -> {
+                loadMovies(pageNumber = 1, isPagingRequest = false)
+                return
+            }
+            HomeFeedMode.AllNew -> Unit
         }
         loadPage(pageNumber = 1, isPagingRequest = false)
+        loadMovies(pageNumber = 1, isPagingRequest = false)
         if (_uiState.value.isFavoritesRailVisible) loadFavoriteReleases()
     }
 
     fun onPagingRetry() {
-        if (_uiState.value.selectedMode != HomeFeedMode.AllNew) return
         val state = _uiState.value
-        if (state.pagingErrorMessage == null || state.isPaging || state.isInitialLoading || !state.hasNextPage) return
-        loadPage(pageNumber = state.nextPage, isPagingRequest = true)
+        when (state.selectedMode) {
+            HomeFeedMode.AllNew -> {
+                if (state.pagingErrorMessage == null || state.isPaging || state.isInitialLoading || !state.hasNextPage) return
+                loadPage(pageNumber = state.nextPage, isPagingRequest = true)
+            }
+            HomeFeedMode.Movies -> {
+                if (state.moviesPagingErrorMessage == null || state.isMoviesPaging || !state.moviesHasNextPage) return
+                loadMovies(pageNumber = state.moviesNextPage, isPagingRequest = true)
+            }
+            HomeFeedMode.Favorites -> Unit
+        }
     }
 
     fun onEndReached() {
-        if (_uiState.value.selectedMode != HomeFeedMode.AllNew) return
         val state = _uiState.value
-        if (state.isInitialLoading || state.isPaging || !state.hasNextPage || state.fullScreenErrorMessage != null) return
-        loadPage(pageNumber = state.nextPage, isPagingRequest = true)
+        when (state.selectedMode) {
+            HomeFeedMode.AllNew -> {
+                if (state.isInitialLoading || state.isPaging || !state.hasNextPage || state.fullScreenErrorMessage != null) return
+                loadPage(pageNumber = state.nextPage, isPagingRequest = true)
+            }
+            HomeFeedMode.Movies -> {
+                if (state.isMoviesPaging || !state.moviesHasNextPage || state.moviesModeState !is HomeModeContentState.Content) return
+                loadMovies(pageNumber = state.moviesNextPage, isPagingRequest = true)
+            }
+            HomeFeedMode.Favorites -> Unit
+        }
     }
 
     fun onItemFocused(itemKey: String) {
@@ -125,11 +153,14 @@ class HomeViewModel @Inject constructor(
         _uiState.update { state ->
             val updatedItems = state.items.map { if (it.detailsUrl == detailsUrl) it.copy(isWatched = isWatched) else it }
             val updatedFavoriteItems = state.favoriteItems.map { if (it.detailsUrl == detailsUrl) it.copy(isWatched = isWatched) else it }
+            val updatedMovieItems = state.movieItems.map { if (it.detailsUrl == detailsUrl) it.copy(isWatched = isWatched) else it }
             state.copy(
                 items = updatedItems,
                 favoriteItems = updatedFavoriteItems,
+                movieItems = updatedMovieItems,
                 allNewModeState = state.allNewModeState.updateItems(updatedItems),
                 favoritesModeState = state.favoritesModeState.updateItems(updatedFavoriteItems),
+                moviesModeState = state.moviesModeState.updateItems(updatedMovieItems),
             ).withResolvedHomeSelection()
         }
     }
@@ -258,6 +289,66 @@ class HomeViewModel @Inject constructor(
             }
         }
     }
+
+    private fun loadMovies(pageNumber: Int, isPagingRequest: Boolean) {
+        if (!isPagingRequest) {
+            moviesLoadJob?.cancel()
+        }
+        _uiState.update { state ->
+            state.copy(
+                isMoviesPaging = isPagingRequest,
+                moviesPagingErrorMessage = null,
+                moviesModeState = if (isPagingRequest) state.moviesModeState else HomeModeContentState.Loading,
+            )
+        }
+        moviesLoadJob = viewModelScope.launch(ioDispatcher) {
+            when (val result = repository.loadMovies(pageNumber)) {
+                is PageState.Content -> {
+                    val updatedItems = if (isPagingRequest) {
+                        (_uiState.value.movieItems + result.items).distinctBy { it.detailsUrl }
+                    } else {
+                        result.items
+                    }
+                    val moviesState = if (result.items.isEmpty()) {
+                        if (isPagingRequest && updatedItems.isNotEmpty()) {
+                            HomeModeContentState.Content(updatedItems)
+                        } else {
+                            HomeModeContentState.Empty
+                        }
+                    } else {
+                        HomeModeContentState.Content(updatedItems)
+                    }
+                    _uiState.update { state ->
+                        state.copy(
+                            movieItems = updatedItems,
+                            moviesModeState = moviesState,
+                            isMoviesPaging = false,
+                            moviesPagingErrorMessage = null,
+                            moviesNextPage = result.pageNumber + 1,
+                            moviesHasNextPage = result.hasNextPage,
+                        ).withResolvedHomeSelection()
+                    }
+                }
+                is PageState.Error -> {
+                    _uiState.update { state ->
+                        if (isPagingRequest && state.movieItems.isNotEmpty()) {
+                            state.copy(
+                                isMoviesPaging = false,
+                                moviesPagingErrorMessage = result.message,
+                            ).withResolvedHomeSelection()
+                        } else {
+                            state.copy(
+                                movieItems = emptyList(),
+                                isMoviesPaging = false,
+                                moviesPagingErrorMessage = null,
+                                moviesModeState = HomeModeContentState.Error(result.message),
+                            ).withResolvedHomeSelection()
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 private fun applyOptimisticFavoriteChange(
@@ -280,16 +371,21 @@ private fun applyOptimisticFavoriteChange(
 }
 
 private fun HomeUiState.withResolvedHomeSelection(): HomeUiState {
-    val rails = buildHomeRails(items = items, favoriteItems = favoriteItems, isFavoritesRailVisible = isFavoritesRailVisible)
+    val rails = buildHomeRails(
+        items = items,
+        favoriteItems = favoriteItems,
+        movieItems = movieItems,
+        isFavoritesRailVisible = isFavoritesRailVisible,
+    )
     val normalizedSelectedMode = if (selectedMode in availableModes) selectedMode else HomeFeedMode.AllNew
     val activeItems = itemsForMode(normalizedSelectedMode)
     val preferredKey = rememberedItemKeyByMode[normalizedSelectedMode] ?: preferredDetailsUrl(selectedItemKey)
     val selectedItem = activeItems.firstOrNull { it.detailsUrl == preferredKey } ?: activeItems.firstOrNull()
     return copy(
         selectedMode = normalizedSelectedMode,
-        availableModes = if (isFavoritesRailVisible) availableModes else listOf(HomeFeedMode.AllNew),
+        availableModes = availableModes(isFavoritesRailVisible),
         rails = rails,
-        rememberedItemKeyByMode = rememberedItemKeyByMode.withDefaultRememberedKeys(items, favoriteItems),
+        rememberedItemKeyByMode = rememberedItemKeyByMode.withDefaultRememberedKeys(items, favoriteItems, movieItems),
         selectedItem = selectedItem,
         selectedItemKey = selectedItem?.detailsUrl,
     )
@@ -310,7 +406,11 @@ private fun HomeModeContentState.optimisticallyUpdateFavoriteItems(items: List<R
 }
 
 private fun availableModes(isFavoritesVisible: Boolean) =
-    if (isFavoritesVisible) listOf(HomeFeedMode.AllNew, HomeFeedMode.Favorites) else listOf(HomeFeedMode.AllNew)
+    if (isFavoritesVisible) {
+        listOf(HomeFeedMode.AllNew, HomeFeedMode.Favorites, HomeFeedMode.Movies)
+    } else {
+        listOf(HomeFeedMode.AllNew, HomeFeedMode.Movies)
+    }
 
 private fun resolvedInitialMode(initialSelectedMode: HomeFeedMode, isFavoritesVisible: Boolean) =
     if (initialSelectedMode == HomeFeedMode.Favorites && !isFavoritesVisible) HomeFeedMode.AllNew else initialSelectedMode
@@ -320,6 +420,7 @@ private fun findItemForMode(state: HomeUiState, mode: HomeFeedMode, itemKey: Str
 
 private fun itemMode(state: HomeUiState, itemKey: String): HomeFeedMode = when (railIdFromItemKey(itemKey)) {
     HOME_RAIL_FAVORITES -> HomeFeedMode.Favorites
+    HOME_RAIL_MOVIES -> HomeFeedMode.Movies
     HOME_RAIL_ALL_NEW -> HomeFeedMode.AllNew
     else -> state.selectedMode
 }
@@ -335,10 +436,12 @@ private fun favoriteSeriesSlug(detailsUrl: String): String? =
 private fun Map<HomeFeedMode, String>.withDefaultRememberedKeys(
     items: List<ReleaseSummary>,
     favoriteItems: List<ReleaseSummary>,
+    movieItems: List<ReleaseSummary>,
 ): Map<HomeFeedMode, String> {
     val current = toMutableMap()
     if (HomeFeedMode.AllNew !in current) items.firstOrNull()?.detailsUrl?.let { current[HomeFeedMode.AllNew] = it }
     if (HomeFeedMode.Favorites !in current) favoriteItems.firstOrNull()?.detailsUrl?.let { current[HomeFeedMode.Favorites] = it }
+    if (HomeFeedMode.Movies !in current) movieItems.firstOrNull()?.detailsUrl?.let { current[HomeFeedMode.Movies] = it }
     return current
 }
 

@@ -6,6 +6,7 @@ import com.kraat.lostfilmnewtv.data.db.TmdbPosterMappingEntity
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.TmdbImageUrls
 import com.kraat.lostfilmnewtv.data.model.TmdbMediaType
+import com.kraat.lostfilmnewtv.data.model.TmdbSearchResult
 import com.kraat.lostfilmnewtv.data.network.TmdbPosterClient
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.sync.Mutex
@@ -13,6 +14,8 @@ import kotlinx.coroutines.sync.withLock
 
 private const val TAG = "TmdbPosterResolver"
 private const val TMDB_CACHE_TTL_MS = 7L * 24 * 60 * 60 * 1000
+private const val YEAR_AWARE_MATCHING_CACHE_MIN_FETCHED_AT_MS = 1777852800000L // 2026-05-04
+private const val SERIES_YEAR_HINT_FIX_CACHE_MIN_FETCHED_AT_MS = 1777867930731L // 2026-05-04
 
 interface TmdbPosterResolver {
     suspend fun resolve(
@@ -20,6 +23,7 @@ interface TmdbPosterResolver {
         titleRu: String,
         releaseDateRu: String,
         kind: ReleaseKind,
+        originalReleaseYear: Int? = null,
     ): TmdbImageUrls?
 }
 
@@ -36,44 +40,47 @@ class TmdbPosterResolverImpl(
         titleRu: String,
         releaseDateRu: String,
         kind: ReleaseKind,
+        originalReleaseYear: Int?,
     ): TmdbImageUrls? {
-        inMemoryCache[detailsUrl]?.let {
+        val cacheKey = tmdbCacheKey(detailsUrl, kind)
+
+        inMemoryCache[cacheKey]?.let {
             return it
         }
 
-        val cached = tmdbDao.getByDetailsUrl(detailsUrl)
+        val cached = tmdbDao.getByDetailsUrl(cacheKey)
         if (cached != null && canReuseNegativeMapping(cached)) {
             return null
         }
-        if (cached != null && canReuseCachedMapping(cached)) {
+        if (cached != null && canReuseCachedMapping(cached, originalReleaseYear)) {
             val urls = TmdbImageUrls(
                 posterUrl = cached.posterUrl,
                 backdropUrl = cached.backdropUrl,
             )
-            inMemoryCache[detailsUrl] = urls
+            inMemoryCache[cacheKey] = urls
             return urls
         }
 
-        val mutex = locks.computeIfAbsent(detailsUrl) { Mutex() }
+        val mutex = locks.computeIfAbsent(cacheKey) { Mutex() }
         return mutex.withLock {
-            inMemoryCache[detailsUrl]?.let { return@withLock it }
+            inMemoryCache[cacheKey]?.let { return@withLock it }
 
-            val rechecked = tmdbDao.getByDetailsUrl(detailsUrl)
+            val rechecked = tmdbDao.getByDetailsUrl(cacheKey)
             if (rechecked != null && canReuseNegativeMapping(rechecked)) {
                 return@withLock null
             }
-            if (rechecked != null && canReuseCachedMapping(rechecked)) {
+            if (rechecked != null && canReuseCachedMapping(rechecked, originalReleaseYear)) {
                 val urls = TmdbImageUrls(
                     posterUrl = rechecked.posterUrl,
                     backdropUrl = rechecked.backdropUrl,
                 )
-                inMemoryCache[detailsUrl] = urls
+                inMemoryCache[cacheKey] = urls
                 return@withLock urls
             }
 
-            val result = performSearch(detailsUrl, titleRu, kind)
-            result?.let { inMemoryCache[detailsUrl] = it }
-            locks.remove(detailsUrl)
+            val result = performSearch(cacheKey, detailsUrl, titleRu, kind, originalReleaseYear)
+            result?.let { inMemoryCache[cacheKey] = it }
+            locks.remove(cacheKey)
             result
         }
     }
@@ -82,14 +89,21 @@ class TmdbPosterResolverImpl(
         cached: TmdbPosterMappingEntity,
     ): Boolean {
         // Cache TMDB misses briefly so unmatched titles do not search again on every screen load.
-        return cached.isNegative && !cached.isExpired(clock)
+        return cached.isNegative &&
+            cached.fetchedAt >= SERIES_YEAR_HINT_FIX_CACHE_MIN_FETCHED_AT_MS &&
+            !cached.isExpired(clock)
     }
 
     private fun canReuseCachedMapping(
         cached: TmdbPosterMappingEntity,
+        originalReleaseYear: Int?,
     ): Boolean {
         // Trust complete TMDB mappings for the full TTL to avoid a validation request per cached poster.
         if (cached.isExpired(clock)) {
+            return false
+        }
+
+        if (originalReleaseYear != null && cached.fetchedAt < YEAR_AWARE_MATCHING_CACHE_MIN_FETCHED_AT_MS) {
             return false
         }
 
@@ -101,9 +115,11 @@ class TmdbPosterResolverImpl(
     }
 
     private suspend fun performSearch(
+        cacheKey: String,
         detailsUrl: String,
         titleRu: String,
         kind: ReleaseKind,
+        originalReleaseYear: Int?,
     ): TmdbImageUrls? {
         val tmdbType = when (kind) {
             ReleaseKind.SERIES -> TmdbMediaType.TV
@@ -111,11 +127,15 @@ class TmdbPosterResolverImpl(
         }
 
         val englishSlug = extractEnglishSlug(detailsUrl)
+        val releaseYearHint = when (kind) {
+            ReleaseKind.MOVIE -> originalReleaseYear ?: englishSlug.extractYearFromSlug()
+            ReleaseKind.SERIES -> englishSlug.extractYearFromSlug()
+        }
         var searchFailed = false
 
         val slugResults = if (englishSlug != null && englishSlug.isNotBlank()) {
             try {
-                tmdbClient.searchByTitle(englishSlug, null, tmdbType)
+                tmdbClient.searchByTitle(englishSlug.removeYearSuffix(), releaseYearHint, tmdbType)
             } catch (e: Exception) {
                 searchFailed = true
                 Log.e(TAG, "TMDB slug search failed for $titleRu: ${e.message}")
@@ -126,18 +146,19 @@ class TmdbPosterResolverImpl(
         }
 
         val exactSlugMatch = englishSlug
+            ?.removeYearSuffix()
             ?.normalizeForTmdbMatch()
             ?.takeIf { it.isNotBlank() }
             ?.let { normalizedSlug ->
                 slugResults
                     .filter { it.matchesSlug(normalizedSlug) }
-                    .maxByOrNull { it.popularity }
+                    .bestByYearThenPopularity(releaseYearHint)
             }
 
         // Exact English slug matches are good enough to skip the Russian title query.
         val titleResults = if (exactSlugMatch == null) {
             try {
-                tmdbClient.searchByTitle(titleRu, null, tmdbType)
+                tmdbClient.searchByTitle(titleRu, releaseYearHint, tmdbType)
             } catch (e: Exception) {
                 searchFailed = true
                 Log.e(TAG, "TMDB title search failed for $titleRu: ${e.message}")
@@ -147,7 +168,7 @@ class TmdbPosterResolverImpl(
             emptyList()
         }
 
-        val bestMatch = exactSlugMatch ?: pickBestMatch(englishSlug, slugResults, titleResults)
+        val bestMatch = exactSlugMatch ?: pickBestMatch(englishSlug, releaseYearHint, slugResults, titleResults)
 
         Log.d(TAG, "TMDB search: slug='$englishSlug'→${slugResults.size} results, title='$titleRu'→${titleResults.size} results, pick=${bestMatch?.name}(id=${bestMatch?.id})")
 
@@ -156,7 +177,7 @@ class TmdbPosterResolverImpl(
             if (!searchFailed) {
                 tmdbDao.upsert(
                     TmdbPosterMappingEntity.negative(
-                        detailsUrl = detailsUrl,
+                        detailsUrl = cacheKey,
                         tmdbType = tmdbType.name,
                         fetchedAt = clock(),
                     ),
@@ -180,7 +201,7 @@ class TmdbPosterResolverImpl(
         Log.d(TAG, "TMDB images for ${bestMatch.name}: poster=${images.posterUrl.take(60)}...")
 
         val entity = TmdbPosterMappingEntity.create(
-            detailsUrl = detailsUrl,
+            detailsUrl = cacheKey,
             tmdbId = bestMatch.id,
             tmdbType = tmdbType.name,
             posterUrl = images.posterUrl,
@@ -194,35 +215,49 @@ class TmdbPosterResolverImpl(
 
     private fun pickBestMatch(
         englishSlug: String?,
-        slugResults: List<com.kraat.lostfilmnewtv.data.model.TmdbSearchResult>,
-        titleResults: List<com.kraat.lostfilmnewtv.data.model.TmdbSearchResult>,
-    ): com.kraat.lostfilmnewtv.data.model.TmdbSearchResult? {
+        releaseYearHint: Int?,
+        slugResults: List<TmdbSearchResult>,
+        titleResults: List<TmdbSearchResult>,
+    ): TmdbSearchResult? {
         val normalizedSlug = englishSlug
+            ?.removeYearSuffix()
             ?.normalizeForTmdbMatch()
             ?.takeIf { it.isNotBlank() }
         if (normalizedSlug != null) {
             slugResults
                 .filter { it.matchesSlug(normalizedSlug) }
-                .maxByOrNull { it.popularity }
+                .bestByYearThenPopularity(releaseYearHint)
                 ?.let { return it }
         }
 
-        if (slugResults.isEmpty()) return titleResults.firstOrNull()
-        if (titleResults.isEmpty()) return slugResults.firstOrNull()
+        if (slugResults.isEmpty()) return titleResults.bestByYearThenPopularity(releaseYearHint)
+        if (titleResults.isEmpty()) return slugResults.bestByYearThenPopularity(releaseYearHint)
 
         val slugIdSet = slugResults.map { it.id }.toSet()
         val titleIdSet = titleResults.map { it.id }.toSet()
         val common = slugIdSet.intersect(titleIdSet)
         if (common.isNotEmpty()) {
-            return slugResults.first { it.id in common }
+            return slugResults
+                .filter { it.id in common }
+                .bestByYearThenPopularity(releaseYearHint)
         }
 
-        return slugResults.first()
+        return slugResults.bestByYearThenPopularity(releaseYearHint)
     }
 
-    private fun com.kraat.lostfilmnewtv.data.model.TmdbSearchResult.matchesSlug(normalizedSlug: String): Boolean {
+    private fun TmdbSearchResult.matchesSlug(normalizedSlug: String): Boolean {
         return name.normalizeForTmdbMatch() == normalizedSlug ||
             originalName.normalizeForTmdbMatch() == normalizedSlug
+    }
+
+    private fun List<TmdbSearchResult>.bestByYearThenPopularity(releaseYearHint: Int?): TmdbSearchResult? {
+        if (isEmpty()) return null
+
+        return maxWithOrNull(
+            compareBy<TmdbSearchResult> {
+                if (releaseYearHint != null && it.releaseYear == releaseYearHint) 1 else 0
+            }.thenBy { it.popularity },
+        )
     }
 
     private fun String.normalizeForTmdbMatch(): String {
@@ -232,11 +267,34 @@ class TmdbPosterResolverImpl(
             .replace(Regex("\\s+"), " ")
     }
 
+    private fun String?.extractYearFromSlug(): Int? =
+        this
+            ?.let { Regex("""(?:^|[ _-])((?:19|20)\d{2})(?:$|[ _-])""").find(it) }
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toIntOrNull()
+
+    private fun String.removeYearSuffix(): String =
+        replace(Regex("""[ _-]+(?:19|20)\d{2}$"""), "").trim()
+
     private fun extractEnglishSlug(detailsUrl: String): String? {
-        val match = Regex("""/series/([^/]+)/""").find(detailsUrl)
-            ?: Regex("""/movies/([^/]+)/""").find(detailsUrl)
+        val match = Regex("""/series/([^/?#]+)""").find(detailsUrl)
+            ?: Regex("""/movies/([^/?#]+)""").find(detailsUrl)
         return match?.groupValues?.getOrNull(1)
             ?.replace('_', ' ')
-            ?.replace('-', ' ')
+    }
+
+    private fun tmdbCacheKey(detailsUrl: String, kind: ReleaseKind): String {
+        val seriesMatch = Regex("""^(.*/series/[^/?#]+)""").find(detailsUrl)
+        if (kind == ReleaseKind.SERIES && seriesMatch != null) {
+            return "${seriesMatch.groupValues[1]}/"
+        }
+
+        val movieMatch = Regex("""^(.*/movies/[^/?#]+)""").find(detailsUrl)
+        if (kind == ReleaseKind.MOVIE && movieMatch != null) {
+            return movieMatch.groupValues[1]
+        }
+
+        return detailsUrl
     }
 }

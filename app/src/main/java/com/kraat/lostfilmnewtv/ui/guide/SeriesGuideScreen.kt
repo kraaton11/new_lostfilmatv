@@ -1,6 +1,11 @@
 package com.kraat.lostfilmnewtv.ui.guide
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -10,6 +15,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,7 +23,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -32,6 +37,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -104,17 +110,91 @@ fun SeriesGuideScreen(
 
 @Composable
 private fun GuideLoadingState() {
-    Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center,
+    val shimmerBrush = rememberGuideSkeletonBrush()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(start = 48.dp, top = 24.dp, end = 48.dp, bottom = 20.dp)
+            .testTag("series-guide-loading"),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        GuideCenteredStatePanel {
-            CircularProgressIndicator(
-                modifier = Modifier.testTag("series-guide-loading"),
-                color = DetailsAccentGold,
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(28.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            GuideSkeletonBox(
+                brush = shimmerBrush,
+                modifier = Modifier.size(width = 120.dp, height = 172.dp),
+                shape = RoundedCornerShape(20.dp),
             )
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                GuideSkeletonBox(
+                    brush = shimmerBrush,
+                    modifier = Modifier.size(width = 420.dp, height = 42.dp),
+                    shape = RoundedCornerShape(12.dp),
+                )
+                GuideSkeletonBox(
+                    brush = shimmerBrush,
+                    modifier = Modifier.size(width = 220.dp, height = 20.dp),
+                    shape = RoundedCornerShape(10.dp),
+                )
+            }
+        }
+
+        repeat(2) {
+            GuideSkeletonBox(
+                brush = shimmerBrush,
+                modifier = Modifier.size(width = 160.dp, height = 24.dp),
+                shape = RoundedCornerShape(10.dp),
+            )
+            repeat(4) {
+                GuideSkeletonBox(
+                    brush = shimmerBrush,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(72.dp),
+                    shape = RoundedCornerShape(18.dp),
+                )
+            }
         }
     }
+}
+
+@Composable
+private fun rememberGuideSkeletonBrush(): Brush {
+    val transition = rememberInfiniteTransition(label = "guideSkeleton")
+    val xOffset by transition.animateFloat(
+        initialValue = -520f,
+        targetValue = 1_260f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1_450, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "guideSkeletonOffset",
+    )
+    return Brush.linearGradient(
+        colors = listOf(
+            DetailsSurfaceSoft.copy(alpha = 0.52f),
+            DetailsBorderDefault.copy(alpha = 0.5f),
+            DetailsSurfaceSoft.copy(alpha = 0.52f),
+        ),
+        start = Offset(xOffset, 0f),
+        end = Offset(xOffset + 520f, 220f),
+    )
+}
+
+@Composable
+private fun GuideSkeletonBox(
+    brush: Brush,
+    modifier: Modifier = Modifier,
+    shape: RoundedCornerShape,
+) {
+    Box(
+        modifier = modifier
+            .background(brush, shape),
+    )
 }
 
 @Composable
@@ -205,7 +285,7 @@ private fun GuideContent(
             .padding(start = 48.dp, top = 24.dp, end = 48.dp, bottom = 20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        GuideHeroSection(title = title, posterUrl = posterUrl)
+        GuideHeroSection(title = title, posterUrl = posterUrl, seasons = seasons)
 
         LazyColumn(
             modifier = Modifier
@@ -232,22 +312,25 @@ private fun GuideContent(
 private fun GuideHeroSection(
     title: String,
     posterUrl: String?,
+    seasons: List<SeriesGuideSeason>,
 ) {
+    val episodesCount = remember(seasons) { seasons.sumOf { it.episodes.size } }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(28.dp),
+        horizontalArrangement = Arrangement.spacedBy(24.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Box(
             modifier = Modifier
-                .size(width = 120.dp, height = 172.dp)
+                .size(width = 104.dp, height = 150.dp)
                 .background(
                     Brush.verticalGradient(
                         listOf(Color(0xFF3F586E), Color(0xFF172734), Color(0xFF0A131B)),
                     ),
-                    RoundedCornerShape(20.dp),
+                    RoundedCornerShape(18.dp),
                 )
-                .border(1.dp, DetailsBorderDefault, RoundedCornerShape(20.dp)),
+                .border(1.dp, DetailsBorderDefault.copy(alpha = 0.72f), RoundedCornerShape(18.dp)),
         ) {
             if (!posterUrl.isNullOrBlank()) {
                 AsyncImage(
@@ -255,30 +338,49 @@ private fun GuideHeroSection(
                     contentDescription = title,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
-                    alpha = 0.6f,
+                    alpha = 0.94f,
                 )
             }
         }
 
         Column(
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
                 text = title,
                 color = TextPrimary,
-                fontSize = 38.sp,
+                fontSize = 34.sp,
                 fontWeight = FontWeight.Bold,
-                lineHeight = 42.sp,
+                lineHeight = 38.sp,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                text = "Гид по сериям",
-                color = DetailsTextSecondary,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-            )
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                GuideInfoChip("Гид по сериям")
+                GuideInfoChip("${seasons.size} сезонов")
+                GuideInfoChip("$episodesCount серий")
+            }
         }
+    }
+}
+
+@Composable
+private fun GuideInfoChip(text: String) {
+    Box(
+        modifier = Modifier
+            .background(DetailsSurfaceSoft.copy(alpha = 0.72f), RoundedCornerShape(999.dp))
+            .border(1.dp, DetailsBorderDefault.copy(alpha = 0.54f), RoundedCornerShape(999.dp))
+            .padding(horizontal = 13.dp, vertical = 7.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = text,
+            color = DetailsTextSecondary,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -291,9 +393,9 @@ private fun SeasonSection(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            text = "Сезон ${season.seasonNumber}",
+            text = "Сезон ${season.seasonNumber} · ${season.episodes.size} серий",
             color = TextPrimary,
-            fontSize = 22.sp,
+            fontSize = 20.sp,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(bottom = 2.dp),
         )
@@ -327,13 +429,8 @@ private fun EpisodeRow(
     onClick: () -> Unit,
 ) {
     var isFocused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
-        targetValue = if (isFocused) 1.03f else 1f,
-        animationSpec = tween(durationMillis = 110),
-        label = "episodeRowScale",
-    )
 
-    val shape = RoundedCornerShape(22.dp)
+    val shape = RoundedCornerShape(18.dp)
 
     val background = when {
         isFocused -> DetailsSurfaceFocused
@@ -350,14 +447,11 @@ private fun EpisodeRow(
     Button(
         onClick = onClick,
         shape = shape,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 24.dp, vertical = 10.dp),
         colors = ButtonDefaults.buttonColors(containerColor = background),
         modifier = Modifier
             .fillMaxWidth()
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
-            .border(1.5.dp, borderColor, shape)
+            .border(if (isFocused || isSelected) 1.5.dp else 1.dp, borderColor, shape)
             .onFocusChanged { isFocused = it.isFocused }
             .then(
                 if (focusRequester != null) {
@@ -378,36 +472,69 @@ private fun EpisodeRow(
             .semantics { selected = isSelected }
             .testTag("series-guide-row-${episode.detailsUrl}"),
     ) {
-        Column(
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = "Сезон ${episode.seasonNumber} • Серия ${episode.episodeNumber}",
-                color = if (isSelected) DetailsAccentGold else TextPrimary,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
-            if (!episode.episodeTitleRu.isNullOrBlank()) {
+            Box(
+                modifier = Modifier
+                    .size(width = 82.dp, height = 36.dp)
+                    .background(
+                        if (isSelected) DetailsAccentGold.copy(alpha = 0.16f) else DetailsSurfaceSoft.copy(alpha = 0.64f),
+                        RoundedCornerShape(12.dp),
+                    )
+                    .border(
+                        1.dp,
+                        if (isSelected) DetailsAccentGold.copy(alpha = 0.72f) else DetailsBorderDefault.copy(alpha = 0.52f),
+                        RoundedCornerShape(12.dp),
+                    ),
+                contentAlignment = Alignment.Center,
+            ) {
                 Text(
-                    text = episode.episodeTitleRu,
+                    text = "S${episode.seasonNumber.toString().padStart(2, '0')}E${episode.episodeNumber.toString().padStart(2, '0')}",
+                    color = if (isSelected) DetailsAccentGold else DetailsTextSecondary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Text(
+                    text = episode.episodeTitleRu?.takeIf { it.isNotBlank() }
+                        ?: "Сезон ${episode.seasonNumber} • Серия ${episode.episodeNumber}",
                     color = TextPrimary,
                     fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = episode.releaseDateRu,
+                    color = DetailsTextMuted,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Text(
-                text = buildString {
-                    append(episode.releaseDateRu)
-                    if (episode.isWatched) {
-                        append(" • Просмотрено")
-                    }
-                },
-                color = DetailsTextMuted,
-                fontSize = 12.sp,
-            )
+            if (episode.isWatched) {
+                Box(
+                    modifier = Modifier
+                        .background(DetailsAccentGold.copy(alpha = 0.9f), RoundedCornerShape(999.dp))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "✓",
+                        color = Color(0xFF17120D),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
         }
     }
 }

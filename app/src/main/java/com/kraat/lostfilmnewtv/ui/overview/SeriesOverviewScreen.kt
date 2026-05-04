@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -29,6 +30,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -51,10 +54,18 @@ import com.kraat.lostfilmnewtv.ui.theme.DetailsBorderDefault
 import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceFocused
 import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceReadable
 import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceSoft
+import com.kraat.lostfilmnewtv.ui.theme.DetailsTextMuted
 import com.kraat.lostfilmnewtv.ui.theme.DetailsTextSecondary
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 
 private data class OverviewSection(
+    val key: String,
+    val title: String,
+    val body: String,
+    val tag: String,
+)
+
+private data class OverviewSectionBlock(
     val key: String,
     val title: String,
     val body: String,
@@ -114,14 +125,33 @@ private fun OverviewBackgroundPoster(overview: SeriesOverview?) {
 
 @Composable
 private fun OverviewLoadingState() {
+    val brush = Brush.linearGradient(
+        listOf(
+            DetailsSurfaceSoft.copy(alpha = 0.55f),
+            DetailsBorderDefault.copy(alpha = 0.45f),
+            DetailsSurfaceSoft.copy(alpha = 0.55f),
+        ),
+    )
+
     Box(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(start = 48.dp, top = 28.dp, end = 48.dp, bottom = 28.dp)
+            .testTag("series-overview-loading"),
     ) {
-        CircularProgressIndicator(
-            modifier = Modifier.testTag("series-overview-loading"),
-            color = DetailsAccentGold,
-        )
+        Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+            Box(
+                modifier = Modifier
+                    .size(width = 250.dp, height = 360.dp)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(brush),
+            )
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Box(modifier = Modifier.size(width = 620.dp, height = 52.dp).clip(RoundedCornerShape(12.dp)).background(brush))
+                Box(modifier = Modifier.size(width = 430.dp, height = 28.dp).clip(RoundedCornerShape(10.dp)).background(brush))
+                Box(modifier = Modifier.size(width = 760.dp, height = 126.dp).clip(RoundedCornerShape(18.dp)).background(brush))
+            }
+        }
     }
 }
 
@@ -215,6 +245,9 @@ private fun OverviewContent(overview: SeriesOverview?) {
             }
         }
     }
+    val sectionBlocks = remember(sections) {
+        sections.flatMap { section -> section.toReadableBlocks() }
+    }
 
     val heroRequester = remember { FocusRequester() }
 
@@ -226,72 +259,81 @@ private fun OverviewContent(overview: SeriesOverview?) {
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(start = 48.dp, top = 24.dp, end = 48.dp, bottom = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+            .padding(start = 48.dp, top = 22.dp, end = 48.dp, bottom = 22.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item(key = "hero") {
-            OverviewSurfaceCard(
+            Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .focusRequester(heroRequester)
+                    .focusable()
                     .testTag("series-overview-hero"),
+                horizontalArrangement = Arrangement.spacedBy(32.dp),
+                verticalAlignment = Alignment.Top,
             ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(28.dp),
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(width = 220.dp, height = 316.dp)
-                            .background(DetailsSurfaceSoft, RoundedCornerShape(24.dp))
-                            .border(1.dp, DetailsBorderDefault, RoundedCornerShape(24.dp)),
-                    ) {
-                        if (!safeOverview.posterUrl.isNullOrBlank()) {
-                            AsyncImage(
-                                model = safeOverview.posterUrl,
-                                contentDescription = safeOverview.titleRu,
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize(),
-                            )
-                        }
-                    }
-
-                    Column(
-                        modifier = Modifier.width(980.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Text(
-                            text = safeOverview.titleRu,
-                            color = TextPrimary,
-                            fontSize = 44.sp,
-                            fontWeight = FontWeight.Bold,
-                            lineHeight = 48.sp,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
+                Box(
+                    modifier = Modifier
+                        .size(width = 250.dp, height = 360.dp)
+                        .shadow(
+                            elevation = 34.dp,
+                            spotColor = Color.Black.copy(alpha = 0.55f),
+                            ambientColor = Color.Black.copy(alpha = 0.35f),
+                            shape = RoundedCornerShape(24.dp),
                         )
-                        safeOverview.titleEn?.takeIf { it.isNotBlank() }?.let { titleEn ->
-                            Text(
-                                text = titleEn,
-                                color = DetailsTextSecondary,
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Medium,
-                                lineHeight = 28.sp,
-                            )
-                        }
-                        safeOverview.statusRu?.takeIf { it.isNotBlank() }?.let { status ->
-                            Text(
-                                text = "Статус: $status",
-                                color = TextPrimary,
-                                fontSize = 18.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                lineHeight = 24.sp,
-                            )
-                        }
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(DetailsSurfaceSoft)
+                        .border(1.dp, DetailsBorderDefault, RoundedCornerShape(24.dp)),
+                ) {
+                    if (!safeOverview.posterUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = safeOverview.posterUrl,
+                            contentDescription = safeOverview.titleRu,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                }
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(top = 18.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Text(
+                        text = "Обзор сериала",
+                        color = DetailsAccentGold,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text(
+                        text = safeOverview.titleRu,
+                        color = TextPrimary,
+                        fontSize = 50.sp,
+                        fontWeight = FontWeight.Bold,
+                        lineHeight = 54.sp,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    safeOverview.titleEn?.takeIf { it.isNotBlank() }?.let { titleEn ->
                         Text(
-                            text = "Обзор сериала",
+                            text = titleEn,
                             color = DetailsTextSecondary,
-                            fontSize = 16.sp,
+                            fontSize = 22.sp,
                             fontWeight = FontWeight.Medium,
+                            lineHeight = 28.sp,
+                        )
+                    }
+                    OverviewChipRow(safeOverview)
+                    safeOverview.descriptionRu?.takeIf { it.isNotBlank() }?.let { description ->
+                        Text(
+                            text = description,
+                            color = TextPrimary.copy(alpha = 0.92f),
+                            fontSize = 19.sp,
+                            lineHeight = 28.sp,
+                            maxLines = 4,
+                            overflow = TextOverflow.Ellipsis,
                         )
                     }
                 }
@@ -305,26 +347,22 @@ private fun OverviewContent(overview: SeriesOverview?) {
                         .fillMaxWidth()
                         .testTag("series-overview-meta"),
                 ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(
                             text = "Информация",
                             color = TextPrimary,
-                            fontSize = 24.sp,
+                            fontSize = 20.sp,
                             fontWeight = FontWeight.SemiBold,
                         )
-                        infoRows.forEach { (label, value) ->
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text(
-                                    text = label,
-                                    color = DetailsTextSecondary,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium,
-                                )
-                                Text(
-                                    text = value.orEmpty(),
-                                    color = TextPrimary,
-                                    fontSize = 18.sp,
-                                    lineHeight = 24.sp,
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            infoRows.take(4).forEach { (label, value) ->
+                                OverviewMetaBlock(
+                                    label = label,
+                                    value = value.orEmpty(),
+                                    modifier = Modifier.weight(1f),
                                 )
                             }
                         }
@@ -334,7 +372,7 @@ private fun OverviewContent(overview: SeriesOverview?) {
         }
 
         items(
-            items = sections,
+            items = sectionBlocks,
             key = { section -> section.key },
         ) { section ->
             OverviewSurfaceCard(
@@ -346,18 +384,138 @@ private fun OverviewContent(overview: SeriesOverview?) {
                     Text(
                         text = section.title,
                         color = TextPrimary,
-                        fontSize = 24.sp,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
                         text = section.body,
                         color = TextPrimary,
                         fontSize = 18.sp,
-                        lineHeight = 28.sp,
+                        lineHeight = 27.sp,
                     )
                 }
             }
         }
+    }
+}
+
+private fun OverviewSection.toReadableBlocks(): List<OverviewSectionBlock> {
+    return body.chunkForTvReading(maxChars = 760).mapIndexed { index, chunk ->
+        OverviewSectionBlock(
+            key = if (index == 0) key else "$key-$index",
+            title = title,
+            body = chunk,
+            tag = if (index == 0) tag else "$tag-$index",
+        )
+    }
+}
+
+private fun String.chunkForTvReading(maxChars: Int): List<String> {
+    val normalized = trim()
+    if (normalized.length <= maxChars) return listOf(normalized)
+
+    val chunks = mutableListOf<String>()
+    val sentences = normalized
+        .split(Regex("""(?<=[.!?…])\s+"""))
+        .filter { it.isNotBlank() }
+    var current = StringBuilder()
+
+    fun flushCurrent() {
+        val value = current.toString().trim()
+        if (value.isNotBlank()) chunks += value
+        current = StringBuilder()
+    }
+
+    sentences.forEach { sentence ->
+        val candidateLength = current.length + sentence.length + 1
+        if (candidateLength > maxChars && current.isNotBlank()) {
+            flushCurrent()
+        }
+        if (sentence.length > maxChars) {
+            sentence.splitByWords(maxChars).forEach { part ->
+                if (current.isNotBlank()) flushCurrent()
+                chunks += part
+            }
+        } else {
+            if (current.isNotBlank()) current.append(' ')
+            current.append(sentence)
+        }
+    }
+    flushCurrent()
+
+    return chunks.ifEmpty { listOf(normalized) }
+}
+
+private fun String.splitByWords(maxChars: Int): List<String> {
+    val parts = mutableListOf<String>()
+    var current = StringBuilder()
+    split(Regex("""\s+""")).filter { it.isNotBlank() }.forEach { word ->
+        if (current.length + word.length + 1 > maxChars && current.isNotBlank()) {
+            parts += current.toString().trim()
+            current = StringBuilder()
+        }
+        if (current.isNotBlank()) current.append(' ')
+        current.append(word)
+    }
+    val tail = current.toString().trim()
+    if (tail.isNotBlank()) parts += tail
+    return parts
+}
+
+@Composable
+private fun OverviewChipRow(overview: SeriesOverview) {
+    val chips = listOfNotNull(
+        overview.statusRu?.takeIf { it.isNotBlank() },
+        overview.premiereDateRu?.takeIf { it.isNotBlank() },
+    )
+    if (chips.isEmpty()) return
+
+    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        chips.forEach { chip ->
+            Text(
+                text = chip,
+                color = TextPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .border(1.dp, DetailsBorderDefault, RoundedCornerShape(999.dp))
+                    .background(DetailsSurfaceSoft.copy(alpha = 0.72f), RoundedCornerShape(999.dp))
+                    .padding(horizontal = 14.dp, vertical = 7.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun OverviewMetaBlock(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .height(82.dp)
+            .background(DetailsSurfaceSoft.copy(alpha = 0.58f), RoundedCornerShape(16.dp))
+            .border(1.dp, DetailsBorderDefault.copy(alpha = 0.75f), RoundedCornerShape(16.dp))
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        Text(
+            text = label,
+            color = DetailsTextMuted,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = value,
+            color = TextPrimary,
+            fontSize = 15.sp,
+            lineHeight = 19.sp,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -367,7 +525,7 @@ private fun OverviewSurfaceCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     var isFocused by remember { mutableStateOf(false) }
-    val shape = RoundedCornerShape(28.dp)
+    val shape = RoundedCornerShape(18.dp)
 
     Column(
         modifier = modifier
@@ -382,7 +540,7 @@ private fun OverviewSurfaceCard(
             )
             .onFocusChanged { isFocused = it.isFocused }
             .focusable()
-            .padding(horizontal = 28.dp, vertical = 24.dp),
+            .padding(horizontal = 22.dp, vertical = 18.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
         content = content,
     )

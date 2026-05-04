@@ -68,11 +68,16 @@ open class TmdbPosterClient(
                     TmdbMediaType.TV -> item.optString("original_name", "")
                     TmdbMediaType.MOVIE -> item.optString("original_title", "")
                 }
+                val releaseYear = when (type) {
+                    TmdbMediaType.TV -> item.optString("first_air_date", "")
+                    TmdbMediaType.MOVIE -> item.optString("release_date", "")
+                }.take(4).toIntOrNull()
                 TmdbSearchResult(
                     id = item.getInt("id"),
                     name = name.ifBlank { originalName },
                     popularity = item.optDouble("popularity", 0.0),
                     originalName = originalName.ifBlank { name },
+                    releaseYear = releaseYear,
                 )
             }.sortedByDescending { it.popularity }
         }

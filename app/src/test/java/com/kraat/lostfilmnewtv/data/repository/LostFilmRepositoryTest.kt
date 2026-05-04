@@ -271,6 +271,7 @@ class LostFilmRepositoryTest {
                     titleRu: String,
                     releaseDateRu: String,
                     kind: com.kraat.lostfilmnewtv.data.model.ReleaseKind,
+                    originalReleaseYear: Int?,
                 ): TmdbImageUrls? {
                     return if (detailsUrl == targetDetailsUrl) {
                         TmdbImageUrls(
@@ -456,6 +457,61 @@ class LostFilmRepositoryTest {
         assertEquals("https://image.tmdb.org/t/p/w780/cached-poster.jpg", result.details.posterUrl)
         assertEquals("https://image.tmdb.org/t/p/original/cached-backdrop.jpg", result.details.backdropUrl)
         assertTrue(tmdbResolvedDetailsUrls.isEmpty())
+    }
+
+    @Test
+    fun loadDetails_refreshesOlderCachedMovieArtworkWithOriginalReleaseYear() = runTest {
+        val detailsUrl = "https://www.lostfilm.today/movies/Casino"
+        releaseDao.upsertDetails(
+            ReleaseDetailsEntity.fromModel(
+                ReleaseDetails(
+                    detailsUrl = detailsUrl,
+                    kind = ReleaseKind.MOVIE,
+                    titleRu = "Казино",
+                    seasonNumber = null,
+                    episodeNumber = null,
+                    releaseDateRu = "05.04.2026",
+                    posterUrl = "https://image.tmdb.org/t/p/w780/wrong-casino-poster.jpg",
+                    backdropUrl = "https://image.tmdb.org/t/p/original/wrong-casino-backdrop.jpg",
+                    fetchedAt = NOW - 1_000L,
+                    playEpisodeId = null,
+                ),
+            ),
+        )
+        val detailsRequests = mutableListOf<String>()
+        var resolvedOriginalYear: Int? = null
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            detailsHandler = { requestedUrl ->
+                detailsRequests += requestedUrl
+                casinoDetailsHtml()
+            },
+            tmdbResolver = object : TmdbPosterResolver {
+                override suspend fun resolve(
+                    detailsUrl: String,
+                    titleRu: String,
+                    releaseDateRu: String,
+                    kind: ReleaseKind,
+                    originalReleaseYear: Int?,
+                ): TmdbImageUrls? {
+                    resolvedOriginalYear = originalReleaseYear
+                    return TmdbImageUrls(
+                        posterUrl = "https://image.tmdb.org/t/p/w780/casino-1995-poster.jpg",
+                        backdropUrl = "https://image.tmdb.org/t/p/original/casino-1995-backdrop.jpg",
+                    )
+                }
+            },
+        )
+
+        val result = repository.loadDetails(detailsUrl) as DetailsResult.Success
+
+        assertEquals(listOf(detailsUrl), detailsRequests)
+        assertEquals(1995, resolvedOriginalYear)
+        assertEquals("https://image.tmdb.org/t/p/w780/casino-1995-poster.jpg", result.details.posterUrl)
+        assertEquals(
+            "https://image.tmdb.org/t/p/w780/casino-1995-poster.jpg",
+            releaseDao.getReleaseDetails(detailsUrl)?.posterUrl,
+        )
     }
 
     @Test
@@ -2147,12 +2203,30 @@ private fun createCountingTmdbResolver(
             titleRu: String,
             releaseDateRu: String,
             kind: com.kraat.lostfilmnewtv.data.model.ReleaseKind,
+            originalReleaseYear: Int?,
         ): TmdbImageUrls? {
             resolvedDetailsUrls += detailsUrl
             return null
         }
     }
 }
+
+private fun casinoDetailsHtml(): String = """
+    <html>
+        <body>
+            <h1 class="title-ru">Казино</h1>
+            <div class="main_poster">
+                <img rel="image_src" src="/Static/Images/999/Posters/poster.jpg" />
+            </div>
+            <div class="details-pane">
+                <div class="left-box">
+                    Дата выхода ru: <span data-released="5 апреля 2026">5 апреля 2026</span> г.<br/>
+                    Дата выхода eng: 22 ноября 1995 г.<br/>
+                </div>
+            </div>
+        </body>
+    </html>
+""".trimIndent()
 
 private class FakeTmdbPosterClient : com.kraat.lostfilmnewtv.data.network.TmdbPosterClient(
     okHttpClient = okhttp3.OkHttpClient.Builder().build(),
