@@ -76,6 +76,7 @@ fun HomeScreen(
     onItemFocused: (String) -> Unit = {},
     onModeSelected: (HomeFeedMode) -> Unit = {},
     onOpenDetails: (String) -> Unit = {},
+    onOpenSeriesOverview: (String) -> Unit = onOpenDetails,
     onEndReached: () -> Unit = {},
     onSearchClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
@@ -91,6 +92,7 @@ fun HomeScreen(
         HomeFeedMode.AllNew -> state.allNewModeState
         HomeFeedMode.Favorites -> state.favoritesModeState
         HomeFeedMode.Movies -> state.moviesModeState
+        HomeFeedMode.Series -> state.seriesModeState
     }
     val isAllNewMode = state.selectedMode == HomeFeedMode.AllNew
     val activeItems = state.itemsForMode(state.selectedMode)
@@ -98,6 +100,7 @@ fun HomeScreen(
         HomeFeedMode.AllNew -> HOME_RAIL_ALL_NEW
         HomeFeedMode.Favorites -> HOME_RAIL_FAVORITES
         HomeFeedMode.Movies -> HOME_RAIL_MOVIES
+        HomeFeedMode.Series -> HOME_RAIL_SERIES
     }
     val itemKeys = remember(activeItems) { activeItems.map { it.detailsUrl } }
     var focusedItemKey by rememberSaveable(state.selectedMode, itemKeys) {
@@ -291,14 +294,25 @@ fun HomeScreen(
                                         HomeFeedMode.AllNew -> state.isPaging
                                         HomeFeedMode.Movies -> state.isMoviesPaging
                                         HomeFeedMode.Favorites -> false
+                                        HomeFeedMode.Series -> state.isSeriesPaging
                                     },
                                     onItemFocused = { detailsUrl ->
                                         startupContentFocusPending = false
                                         focusedItemKey = detailsUrl
                                         onItemFocused(detailsUrl)
                                     },
-                                    onOpenDetails = onOpenDetails,
-                                    onEndReached = if (state.selectedMode != HomeFeedMode.Favorites) onEndReached else ({}),
+                                    onOpenDetails = if (state.selectedMode == HomeFeedMode.Series) {
+                                        onOpenSeriesOverview
+                                    } else {
+                                        onOpenDetails
+                                    },
+                                    onEndReached = if (
+                                        state.selectedMode != HomeFeedMode.Favorites
+                                    ) {
+                                        onEndReached
+                                    } else {
+                                        {}
+                                    },
                                 )
                             }
                             HomeModeContentState.Empty -> {
@@ -307,6 +321,7 @@ fun HomeScreen(
                                         HomeFeedMode.Favorites -> "Пока нет новых релизов в избранном"
                                         HomeFeedMode.Movies -> "Пока нет фильмов"
                                         HomeFeedMode.AllNew -> "Пока нет новых релизов"
+                                        HomeFeedMode.Series -> "Пока нет сериалов"
                                     },
                                     modifier = Modifier.fillMaxWidth().weight(1f),
                                 )
@@ -343,6 +358,7 @@ fun HomeScreen(
                             HomeFeedMode.AllNew -> state.pagingErrorMessage
                             HomeFeedMode.Movies -> state.moviesPagingErrorMessage
                             HomeFeedMode.Favorites -> null
+                            HomeFeedMode.Series -> state.seriesPagingErrorMessage
                         }
                         if (activePagingErrorMessage != null) {
                             HomeStatusPanel(
@@ -371,6 +387,7 @@ private fun HomeRailSectionHeader(selectedMode: HomeFeedMode) {
         HomeFeedMode.AllNew -> "Свежие релизы"
         HomeFeedMode.Favorites -> "Избранное"
         HomeFeedMode.Movies -> "Фильмы"
+        HomeFeedMode.Series -> "Сериалы"
     }
 
     Text(

@@ -58,6 +58,9 @@ interface LostFilmRepository {
     suspend fun loadMovies(pageNumber: Int = 1): PageState =
         PageState.Error(pageNumber = pageNumber, message = "Фильмы недоступны")
 
+    suspend fun loadSeriesCatalog(pageNumber: Int = 1): PageState =
+        PageState.Error(pageNumber = pageNumber, message = "Каталог сериалов недоступен")
+
     suspend fun loadDetails(detailsUrl: String): DetailsResult
 
     suspend fun loadSeriesGuide(detailsUrl: String): SeriesGuideResult

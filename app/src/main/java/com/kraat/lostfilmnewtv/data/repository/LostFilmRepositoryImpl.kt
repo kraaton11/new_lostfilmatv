@@ -19,6 +19,7 @@ import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteSeriesParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmListParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSearchParser
+import com.kraat.lostfilmnewtv.data.parser.LostFilmSeriesCatalogParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSeriesOverviewParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSeasonEpisodesParser
 import com.kraat.lostfilmnewtv.data.parser.absoluteUrl
@@ -54,6 +55,7 @@ private const val FAVORITE_SERIES_LOAD_CONCURRENCY = 6
 private const val FAVORITE_PUBLISH_CHECK_CONCURRENCY = 6
 private const val WATCHED_MARKS_LOAD_CONCURRENCY = 4
 private const val MOVIES_PAGE_SIZE = 20
+private const val SERIES_CATALOG_PAGE_SIZE = 20
 private const val YEAR_AWARE_TMDB_MATCHING_MIN_FETCHED_AT_MS = 1777852800000L // 2026-05-04
 private val paginatorRegex = Regex("""/new/page_(\d+)""")
 private const val favoriteSeriesRoute = "/my/type_1"
@@ -69,6 +71,7 @@ class LostFilmRepositoryImpl(
     private val favoriteSeriesParser: LostFilmFavoriteSeriesParser = LostFilmFavoriteSeriesParser(),
     private val seasonEpisodesParser: LostFilmSeasonEpisodesParser = LostFilmSeasonEpisodesParser(),
     private val searchParser: LostFilmSearchParser = LostFilmSearchParser(),
+    private val seriesCatalogParser: LostFilmSeriesCatalogParser = LostFilmSeriesCatalogParser(),
     private val seriesOverviewParser: LostFilmSeriesOverviewParser = LostFilmSeriesOverviewParser(),
     private val tmdbResolver: TmdbPosterResolver,
     private val hasAuthenticatedSession: suspend () -> Boolean,
@@ -152,6 +155,38 @@ class LostFilmRepositoryImpl(
                 PageState.Error(
                     pageNumber = pageNumber,
                     message = exception.message ?: "Unable to load movies",
+                )
+            } else {
+                throw exception
+            }
+        }
+    }
+
+    override suspend fun loadSeriesCatalog(pageNumber: Int): PageState {
+        return try {
+            val fetchedAt = clock()
+            val json = httpClient.fetchSeriesCatalogPage(pageNumber)
+            val parsedItems = seriesCatalogParser.parseSearchJson(
+                json = json,
+                pageNumber = pageNumber,
+                fetchedAt = fetchedAt,
+            )
+            val enrichedItems = enrichSummaries(
+                items = parsedItems,
+                persistToCache = false,
+            )
+
+            PageState.Content(
+                pageNumber = pageNumber,
+                items = enrichedItems,
+                hasNextPage = parsedItems.size >= SERIES_CATALOG_PAGE_SIZE,
+                isStale = false,
+            )
+        } catch (exception: Exception) {
+            if (exception is IOException || exception is IllegalStateException) {
+                PageState.Error(
+                    pageNumber = pageNumber,
+                    message = exception.message ?: "Unable to load series catalog",
                 )
             } else {
                 throw exception

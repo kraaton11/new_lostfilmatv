@@ -17,6 +17,8 @@ interface LostFilmHttpClient {
 
     suspend fun fetchMoviesPage(pageNumber: Int = 1): String = fetchDetails(moviesPageUrl(pageNumber))
 
+    suspend fun fetchSeriesCatalogPage(pageNumber: Int = 1): String = fetchDetails(seriesCatalogPageUrl(pageNumber))
+
     suspend fun fetchDetails(detailsUrl: String): String
 
     suspend fun fetchAccountPage(path: String): String
@@ -65,6 +67,10 @@ class OkHttpLostFilmHttpClient(
 
     override suspend fun fetchMoviesPage(pageNumber: Int): String = withContext(Dispatchers.IO) {
         execute(moviesPageUrl(pageNumber))
+    }
+
+    override suspend fun fetchSeriesCatalogPage(pageNumber: Int): String = withContext(Dispatchers.IO) {
+        executeSeriesCatalogSearch(pageNumber)
     }
 
     override suspend fun fetchDetails(detailsUrl: String): String = withContext(Dispatchers.IO) {
@@ -146,11 +152,42 @@ class OkHttpLostFilmHttpClient(
         }
     }
 
+    private suspend fun executeSeriesCatalogSearch(pageNumber: Int): String {
+        val offset = ((pageNumber.coerceAtLeast(1) - 1) * SERIES_CATALOG_PAGE_SIZE).coerceAtLeast(0)
+        val cookieHeader = sessionStore?.read()?.toCookieString()?.takeIf { it.isNotBlank() }
+        val requestBuilder = Request.Builder()
+            .url("$BASE_URL/ajaxik.php")
+            .header("User-Agent", USER_AGENT_PUBLIC)
+            .header("Accept", "application/json, text/javascript, */*; q=0.01")
+            .header("Referer", "$BASE_URL/series/")
+            .post(
+                FormBody.Builder()
+                    .add("act", "serial")
+                    .add("type", "search")
+                    .add("o", offset.toString())
+                    .add("s", "3")
+                    .add("t", "0")
+                    .build(),
+            )
+
+        cookieHeader?.let { requestBuilder.header("Cookie", it) }
+
+        okHttpClient.newCall(requestBuilder.build()).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw IOException("HTTP ${response.code} for $BASE_URL/ajaxik.php")
+            }
+            return response.body?.string()
+                ?: throw IOException("Empty response body for $BASE_URL/ajaxik.php")
+        }
+    }
+
     companion object {
         const val USER_AGENT_PUBLIC =
             "Mozilla/5.0 (Android TV; LostFilmNewTV) AppleWebKit/537.36 Chrome/132.0.0.0 Safari/537.36"
     }
 }
+
+private const val SERIES_CATALOG_PAGE_SIZE = 20
 
 private fun moviesPageUrl(pageNumber: Int): String {
     val offset = ((pageNumber.coerceAtLeast(1) - 1) * 20).coerceAtLeast(0)
@@ -158,6 +195,15 @@ private fun moviesPageUrl(pageNumber: Int): String {
         "$BASE_URL/movies/?type=search&s=3&t=0"
     } else {
         "$BASE_URL/movies/?type=search&s=3&t=0&o=$offset"
+    }
+}
+
+private fun seriesCatalogPageUrl(pageNumber: Int): String {
+    val offset = ((pageNumber.coerceAtLeast(1) - 1) * SERIES_CATALOG_PAGE_SIZE).coerceAtLeast(0)
+    return if (offset == 0) {
+        "$BASE_URL/series/?type=search&s=3&t=0"
+    } else {
+        "$BASE_URL/series/?type=search&s=3&t=0&o=$offset"
     }
 }
 
