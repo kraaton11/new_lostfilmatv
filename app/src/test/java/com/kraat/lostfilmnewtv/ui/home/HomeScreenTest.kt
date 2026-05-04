@@ -870,6 +870,148 @@ class HomeScreenTest {
 
     @Test
     @OptIn(ExperimentalTestApi::class)
+    fun homeScreen_moviesModeDownFromModeControl_focusesMovieRail() {
+        val allNewItems = listOf(
+            release(
+                detailsUrl = firstDetailsUrl,
+                titleRu = "9-1-1",
+                episodeTitleRu = "Маменькин сынок",
+                releaseDateRu = "14.03.2026",
+                seasonNumber = 9,
+                episodeNumber = 13,
+                kind = ReleaseKind.SERIES,
+            ),
+        )
+        val favoriteItems = allNewItems
+        val movieItems = listOf(
+            release(
+                detailsUrl = secondDetailsUrl,
+                titleRu = "Необратимость",
+                episodeTitleRu = null,
+                releaseDateRu = "13.03.2026",
+                seasonNumber = null,
+                episodeNumber = null,
+                kind = ReleaseKind.MOVIE,
+            ),
+        )
+        val moviePosterTag = posterTag(HOME_RAIL_MOVIES, movieItems.first().detailsUrl)
+
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(
+                    state = homeStateWithModes(
+                        selectedMode = HomeFeedMode.Movies,
+                        allNewItems = allNewItems,
+                        favoriteItems = favoriteItems,
+                        movieItems = movieItems,
+                    ),
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("home-mode-toggle")
+            .performSemanticsAction(SemanticsActions.RequestFocus)
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag("home-mode-toggle")
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag("home-mode-toggle")
+            .performKeyInput { pressKey(Key.DirectionDown) }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag(moviePosterTag)
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag(moviePosterTag).assertIsFocused()
+    }
+
+    @Test
+    @OptIn(ExperimentalTestApi::class)
+    fun homeScreen_moviesModeDownFromHeader_returnsFocusToRememberedMoviePoster() {
+        val allNewItems = listOf(
+            release(
+                detailsUrl = firstDetailsUrl,
+                titleRu = "9-1-1",
+                episodeTitleRu = "Маменькин сынок",
+                releaseDateRu = "14.03.2026",
+                seasonNumber = 9,
+                episodeNumber = 13,
+                kind = ReleaseKind.SERIES,
+            ),
+        )
+        val favoriteItems = allNewItems
+        val movieItems = List(8) { index ->
+            release(
+                detailsUrl = "https://www.lostfilm.today/movies/movie-$index/",
+                titleRu = "Фильм $index",
+                episodeTitleRu = null,
+                releaseDateRu = "13.03.2026",
+                seasonNumber = null,
+                episodeNumber = null,
+                kind = ReleaseKind.MOVIE,
+                positionInPage = index,
+            )
+        }
+        val rememberedMovie = movieItems[5]
+        val rememberedPosterTag = posterTag(HOME_RAIL_MOVIES, rememberedMovie.detailsUrl)
+
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(
+                    state = homeStateWithModes(
+                        selectedMode = HomeFeedMode.Movies,
+                        allNewItems = allNewItems,
+                        favoriteItems = favoriteItems,
+                        movieItems = movieItems,
+                    ).copy(
+                        selectedItem = rememberedMovie,
+                        selectedItemKey = rememberedMovie.detailsUrl,
+                        rememberedItemKeyByMode = mapOf(
+                            HomeFeedMode.AllNew to allNewItems.first().detailsUrl,
+                            HomeFeedMode.Favorites to favoriteItems.first().detailsUrl,
+                            HomeFeedMode.Movies to rememberedMovie.detailsUrl,
+                        ),
+                    ),
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("home-mode-toggle")
+            .performSemanticsAction(SemanticsActions.RequestFocus)
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag("home-mode-toggle")
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag("home-mode-toggle")
+            .performKeyInput { pressKey(Key.DirectionDown) }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag(rememberedPosterTag)
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag(rememberedPosterTag).assertIsFocused()
+    }
+
+    @Test
+    @OptIn(ExperimentalTestApi::class)
     fun homeScreen_sharedReleaseAcrossModes_returnsFocusToRememberedAllNewPoster() {
         val allNewItems = buildList {
             add(

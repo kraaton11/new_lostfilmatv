@@ -110,6 +110,7 @@ fun HomeScreen(
     }
     var lastSyncedKey by remember { mutableStateOf<String?>(null) }
     var startupContentFocusPending by rememberSaveable { mutableStateOf(true) }
+    var contentReturnFocusRequestVersion by remember(activeRailId) { mutableStateOf(0) }
 
     LaunchedEffect(state.selectedItemKey, state.selectedMode, itemKeys) {
         val preferredKey = state.selectedItemKey ?: itemKeys.firstOrNull()
@@ -205,8 +206,8 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             val headerPrimaryRequester = when {
-                savedAppUpdate != null -> updateRequester
                 state.availableModes.size > 1 -> modeFocusRequesters.getValue(state.selectedMode)
+                savedAppUpdate != null -> updateRequester
                 else -> searchRequester
             }
 
@@ -225,6 +226,10 @@ fun HomeScreen(
                 onBackToContent = {
                     if (headerDownTarget == null) {
                         false
+                    } else if (activeModeState is HomeModeContentState.Content) {
+                        startupContentFocusPending = false
+                        contentReturnFocusRequestVersion += 1
+                        true
                     } else {
                         focusScope.launch {
                             requestFocusWhenReady(headerDownTarget)
@@ -294,6 +299,7 @@ fun HomeScreen(
                                     entryFocusRequester = contentEntryRequester,
                                     cardFocusRequesters = cardFocusRequesters,
                                     shouldRequestFocus = startupContentFocusPending,
+                                    returnFocusRequestVersion = contentReturnFocusRequestVersion,
                                     upTargetRequester = headerPrimaryRequester,
                                     downTargetRequester = null,
                                     isPaging = when (state.selectedMode) {

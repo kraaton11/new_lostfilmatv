@@ -306,6 +306,10 @@ private fun HomeModeSegmentButton(
                 if (event.type == KeyEventType.KeyDown && event.key == Key.Back) {
                     return@onPreviewKeyEvent onBackClick()
                 }
+                if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown) {
+                    onInteraction()
+                    return@onPreviewKeyEvent onBackClick()
+                }
                 if (event.type == KeyEventType.KeyDown && event.key.isHeaderInteractionKey()) {
                     onInteraction()
                 }
@@ -396,6 +400,10 @@ private fun HomeHeaderActionButton(
                 if (observeKeyInteractions) {
                     Modifier.onPreviewKeyEvent { event ->
                         if (event.type == KeyEventType.KeyDown && event.key == Key.Back) {
+                            return@onPreviewKeyEvent onBackClick()
+                        }
+                        if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown) {
+                            onInteraction()
                             return@onPreviewKeyEvent onBackClick()
                         }
                         if (event.type == KeyEventType.KeyDown && event.key.isHeaderInteractionKey()) {
@@ -496,6 +504,10 @@ private fun HomeHeaderIconButton(
                 if (observeKeyInteractions) {
                     Modifier.onPreviewKeyEvent { event ->
                         if (event.type == KeyEventType.KeyDown && event.key == Key.Back) {
+                            return@onPreviewKeyEvent onBackClick()
+                        }
+                        if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown) {
+                            onInteraction()
                             return@onPreviewKeyEvent onBackClick()
                         }
                         if (event.type == KeyEventType.KeyDown && event.key.isHeaderInteractionKey()) {
