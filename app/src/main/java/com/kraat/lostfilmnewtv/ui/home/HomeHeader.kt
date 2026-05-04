@@ -70,7 +70,7 @@ fun HomeHeader(
     onSettingsClick: () -> Unit,
     onUpdateClick: () -> Unit,
     updateVersionText: String?,
-    modeToggleFocusRequester: FocusRequester?,
+    modeFocusRequesters: Map<HomeFeedMode, FocusRequester>,
     searchFocusRequester: FocusRequester,
     updateFocusRequester: FocusRequester,
     settingsFocusRequester: FocusRequester,
@@ -90,8 +90,8 @@ fun HomeHeader(
         HomeFeedMode.Series -> "Каталог сериалов LostFilm"
     }
     val hasModeToggle = availableModes.size > 1
-    val nextMode = selectedMode.toggled(availableModes)
-    val modeRequester = if (hasModeToggle) modeToggleFocusRequester else null
+    val firstModeRequester = if (hasModeToggle) modeFocusRequesters[availableModes.first()] else null
+    val lastModeRequester = if (hasModeToggle) modeFocusRequesters[availableModes.last()] else null
     val hasUpdate = !updateVersionText.isNullOrBlank()
 
     Box(modifier = modifier.fillMaxWidth()) {
@@ -140,35 +140,29 @@ fun HomeHeader(
                         .testTag("home-action-update")
                         .focusRequester(updateFocusRequester)
                         .focusProperties {
-                            right = modeRequester ?: searchFocusRequester
+                            right = firstModeRequester ?: searchFocusRequester
                             if (downTarget != null) {
                                 down = downTarget
                             }
                         },
                 )
             }
-            if (nextMode != null && modeToggleFocusRequester != null) {
-                HomeHeaderModeToggleButton(
+            if (hasModeToggle) {
+                HomeHeaderModeSegmentedControl(
                     currentMode = selectedMode,
                     availableModes = availableModes,
-                    onClick = {
+                    modeFocusRequesters = modeFocusRequesters,
+                    leftEdgeRequester = if (hasUpdate) updateFocusRequester else null,
+                    rightEdgeRequester = searchFocusRequester,
+                    downTarget = downTarget,
+                    onModeClick = { mode ->
                         onHeaderInteraction()
-                        onModeActivated(nextMode)
+                        onModeActivated(mode)
                     },
                     onInteraction = onHeaderInteraction,
                     onBackClick = onBackToContent,
                     modifier = Modifier
-                        .testTag("home-mode-toggle")
-                        .focusRequester(modeToggleFocusRequester)
-                        .focusProperties {
-                            if (hasUpdate) {
-                                left = updateFocusRequester
-                            }
-                            right = searchFocusRequester
-                            if (downTarget != null) {
-                                down = downTarget
-                            }
-                        },
+                        .testTag("home-mode-control"),
                 )
             }
 
@@ -185,8 +179,8 @@ fun HomeHeader(
                     .testTag("home-action-search")
                     .focusRequester(searchFocusRequester)
                     .focusProperties {
-                        if (modeRequester != null) {
-                            left = modeRequester
+                        if (lastModeRequester != null) {
+                            left = lastModeRequester
                         } else if (hasUpdate) {
                             left = updateFocusRequester
                         }
@@ -215,9 +209,74 @@ fun HomeHeader(
 }
 
 @Composable
-private fun HomeHeaderModeToggleButton(
+private fun HomeHeaderModeSegmentedControl(
     currentMode: HomeFeedMode,
     availableModes: List<HomeFeedMode>,
+    modeFocusRequesters: Map<HomeFeedMode, FocusRequester>,
+    leftEdgeRequester: FocusRequester?,
+    rightEdgeRequester: FocusRequester,
+    downTarget: FocusRequester?,
+    onModeClick: (HomeFeedMode) -> Unit,
+    onInteraction: () -> Unit,
+    onBackClick: () -> Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(18.dp)
+
+    Row(
+        modifier = modifier
+            .heightIn(min = 50.dp)
+            .width(
+                when {
+                    availableModes.size > 3 -> 430.dp
+                    availableModes.size > 2 -> 326.dp
+                    else -> 224.dp
+                },
+            )
+            .background(HomePanelSurface, shape)
+            .border(1.5.dp, HomePanelBorder, shape)
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        availableModes.forEachIndexed { index, mode ->
+            val requester = modeFocusRequesters.getValue(mode)
+            val leftRequester = if (index == 0) {
+                leftEdgeRequester
+            } else {
+                modeFocusRequesters[availableModes[index - 1]]
+            }
+            val rightRequester = if (index == availableModes.lastIndex) {
+                rightEdgeRequester
+            } else {
+                modeFocusRequesters[availableModes[index + 1]]
+            }
+            HomeModeSegmentButton(
+                mode = mode,
+                label = mode.segmentLabel(),
+                selected = currentMode == mode,
+                focusRequester = requester,
+                leftRequester = leftRequester,
+                rightRequester = rightRequester,
+                downTarget = downTarget,
+                onClick = { onModeClick(mode) },
+                onInteraction = onInteraction,
+                onBackClick = onBackClick,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun HomeModeSegmentButton(
+    mode: HomeFeedMode,
+    label: String,
+    selected: Boolean,
+    focusRequester: FocusRequester,
+    leftRequester: FocusRequester?,
+    rightRequester: FocusRequester?,
+    downTarget: FocusRequester?,
     onClick: () -> Unit,
     onInteraction: () -> Unit,
     onBackClick: () -> Boolean,
@@ -227,17 +286,22 @@ private fun HomeHeaderModeToggleButton(
     val scale by animateFloatAsState(
         targetValue = if (isFocused) 1.04f else 1f,
         animationSpec = tween(durationMillis = 120),
-        label = "homeModeToggleScale",
+        label = "homeModeSegmentScale",
     )
-    val shape = RoundedCornerShape(18.dp)
-    val borderColor = if (isFocused) FocusBorder else HomePanelBorder
-
+    val shape = RoundedCornerShape(14.dp)
     Button(
         onClick = onClick,
         shape = shape,
-        contentPadding = PaddingValues(4.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = HomePanelSurface),
+        contentPadding = PaddingValues(0.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
         modifier = modifier
+            .testTag(if (selected) "home-mode-toggle" else "home-mode-${mode.storageValue}")
+            .focusRequester(focusRequester)
+            .focusProperties {
+                leftRequester?.let { left = it }
+                rightRequester?.let { right = it }
+                downTarget?.let { down = it }
+            }
             .onPreviewKeyEvent { event ->
                 if (event.type == KeyEventType.KeyDown && event.key == Key.Back) {
                     return@onPreviewKeyEvent onBackClick()
@@ -247,57 +311,27 @@ private fun HomeHeaderModeToggleButton(
                 }
                 false
             }
-            .heightIn(min = 50.dp)
-            .width(
-                when {
-                    availableModes.size > 3 -> 430.dp
-                    availableModes.size > 2 -> 326.dp
-                    else -> 224.dp
-                },
-            )
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
             }
-            .border(1.5.dp, borderColor, shape)
-            .onFocusChanged {
-                isFocused = it.isFocused
-                if (it.isFocused) {
-                    onInteraction()
-                }
-            },
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            availableModes.forEach { mode ->
-                HomeModeSegment(
-                    label = mode.segmentLabel(),
-                    selected = currentMode == mode,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun HomeModeSegment(
-    label: String,
-    selected: Boolean,
-    modifier: Modifier = Modifier,
-) {
-    val shape = RoundedCornerShape(14.dp)
-    Box(
-        modifier = modifier
             .background(
-                color = if (selected) HomeAccentGold else Color.Transparent,
+                color = when {
+                    selected -> HomeAccentGold
+                    isFocused -> FocusBackground
+                    else -> Color.Transparent
+                },
                 shape = shape,
             )
-            .padding(horizontal = 10.dp, vertical = 10.dp),
-        contentAlignment = Alignment.Center,
+            .border(
+                width = if (isFocused) 1.5.dp else 0.dp,
+                color = if (isFocused) FocusBorder else Color.Transparent,
+                shape = shape,
+            )
+            .onFocusChanged {
+                isFocused = it.isFocused
+                if (it.isFocused) onInteraction()
+            },
     ) {
         Text(
             text = label,
@@ -306,6 +340,7 @@ private fun HomeModeSegment(
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 10.dp),
         )
     }
 }
@@ -502,12 +537,6 @@ private fun Modifier.applyDownFocus(downTarget: FocusRequester?): Modifier {
             down = downTarget
         }
     }
-}
-
-private fun HomeFeedMode.toggled(availableModes: List<HomeFeedMode>): HomeFeedMode? {
-    if (availableModes.size < 2) return null
-    val currentIndex = availableModes.indexOf(this).takeIf { it >= 0 } ?: 0
-    return availableModes[(currentIndex + 1) % availableModes.size]
 }
 
 private fun HomeFeedMode.segmentLabel(): String {
