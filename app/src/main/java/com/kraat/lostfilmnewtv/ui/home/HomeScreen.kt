@@ -155,12 +155,12 @@ fun HomeScreen(
     activeItemFocusKeys.forEach { itemKey ->
         cardFocusRequesters.getOrPut(itemKey) { FocusRequester() }
     }
-    val activeContentDetailsUrl = focusedItemKey?.takeIf(itemKeys::contains) ?: itemKeys.firstOrNull()
-    val activeContentRequester = activeContentDetailsUrl?.let { detailsUrl ->
+    val newestContentDetailsUrl = itemKeys.firstOrNull()
+    val newestContentRequester = newestContentDetailsUrl?.let { detailsUrl ->
         cardFocusRequesters[homeItemKey(activeRailId, detailsUrl)]
     }
     val headerDownTarget = when (activeModeState) {
-        is HomeModeContentState.Content -> activeContentRequester ?: contentEntryRequester
+        is HomeModeContentState.Content -> newestContentRequester ?: contentEntryRequester
         is HomeModeContentState.Error -> retryActionRequester
         is HomeModeContentState.LoginRequired -> loginActionRequester
         else -> null
@@ -228,6 +228,7 @@ fun HomeScreen(
                         false
                     } else if (activeModeState is HomeModeContentState.Content) {
                         startupContentFocusPending = false
+                        focusedItemKey = newestContentDetailsUrl
                         contentReturnFocusRequestVersion += 1
                         true
                     } else {
