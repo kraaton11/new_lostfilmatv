@@ -2,6 +2,7 @@ package com.kraat.lostfilmnewtv.data.repository
 
 import com.kraat.lostfilmnewtv.data.db.PageCacheMetadataEntity
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
+import com.kraat.lostfilmnewtv.data.db.ReleaseDetailsEntity
 import com.kraat.lostfilmnewtv.data.model.FavoriteMetadata
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
@@ -52,6 +53,8 @@ private const val FAVORITE_RELEASES_MAX_SEASONS_PER_SERIES = 1
 private const val FAVORITE_SERIES_LOAD_CONCURRENCY = 6
 private const val FAVORITE_PUBLISH_CHECK_CONCURRENCY = 6
 private const val WATCHED_MARKS_LOAD_CONCURRENCY = 4
+private const val MOVIES_PAGE_SIZE = 20
+private const val YEAR_AWARE_TMDB_MATCHING_MIN_FETCHED_AT_MS = 1777852800000L // 2026-05-04
 private val paginatorRegex = Regex("""/new/page_(\d+)""")
 private const val favoriteSeriesRoute = "/my/type_1"
 private val seriesFavoritePageRegex = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)/season_\d+/episode_\d+/?""")
@@ -122,6 +125,40 @@ class LostFilmRepositoryImpl(
         }
     }
 
+    override suspend fun loadMovies(pageNumber: Int): PageState {
+        cleanupExpiredData()
+
+        return try {
+            val fetchedAt = clock()
+            val html = httpClient.fetchMoviesPage(pageNumber)
+            val parsedItems = listParser.parse(
+                html = html,
+                pageNumber = pageNumber,
+                fetchedAt = fetchedAt,
+            )
+            val enrichedItems = enrichSummaries(
+                items = parsedItems,
+                persistToCache = false,
+            )
+
+            PageState.Content(
+                pageNumber = pageNumber,
+                items = enrichedItems,
+                hasNextPage = parsedItems.size >= MOVIES_PAGE_SIZE,
+                isStale = false,
+            )
+        } catch (exception: Exception) {
+            if (exception is IOException || exception is IllegalStateException) {
+                PageState.Error(
+                    pageNumber = pageNumber,
+                    message = exception.message ?: "Unable to load movies",
+                )
+            } else {
+                throw exception
+            }
+        }
+    }
+
     override suspend fun loadDetails(detailsUrl: String): DetailsResult {
         val normalizedDetailsUrl = resolveUrl(detailsUrl)
         cleanupExpiredData()
@@ -135,22 +172,27 @@ class LostFilmRepositoryImpl(
                 ),
             )
             // Fully enriched cached details already include TMDB artwork, so avoid touching the resolver.
+            // Movie details cached before year-aware TMDB matching can contain a wrong same-title poster.
             if (cachedModel.hasCompleteArtwork()) {
+                if (!cachedDetails.needsYearAwareMovieArtworkRefresh()) {
+                    return DetailsResult.Success(
+                        details = cachedModel,
+                        isStale = false,
+                    )
+                }
+            } else {
+                val tmdbUrls = tmdbResolver.resolve(
+                    detailsUrl = cachedModel.detailsUrl,
+                    titleRu = cachedModel.titleRu,
+                    releaseDateRu = cachedModel.releaseDateRu,
+                    kind = cachedModel.kind,
+                    originalReleaseYear = cachedModel.originalReleaseYear,
+                )
                 return DetailsResult.Success(
-                    details = cachedModel,
+                    details = TmdbPosterEnricher.enrichDetails(cachedModel, tmdbUrls),
                     isStale = false,
                 )
             }
-            val tmdbUrls = tmdbResolver.resolve(
-                detailsUrl = cachedModel.detailsUrl,
-                titleRu = cachedModel.titleRu,
-                releaseDateRu = cachedModel.releaseDateRu,
-                kind = cachedModel.kind,
-            )
-            return DetailsResult.Success(
-                details = TmdbPosterEnricher.enrichDetails(cachedModel, tmdbUrls),
-                isStale = false,
-            )
         }
 
         return try {
@@ -165,6 +207,7 @@ class LostFilmRepositoryImpl(
                 titleRu = parsed.titleRu,
                 releaseDateRu = parsed.releaseDateRu,
                 kind = parsed.kind,
+                originalReleaseYear = parsed.originalReleaseYear,
             )
             val enriched = TmdbPosterEnricher.enrichDetails(parsed, tmdbUrls)
             releaseDao.upsertDetails(enriched.toEntity())
@@ -607,6 +650,7 @@ class LostFilmRepositoryImpl(
                             titleRu = item.titleRu,
                             releaseDateRu = item.releaseDateRu,
                             kind = item.kind,
+                            originalReleaseYear = item.originalReleaseYear,
                         )
                         TmdbPosterEnricher.enrichSummary(item, tmdbUrls)
                     }
@@ -627,6 +671,10 @@ class LostFilmRepositoryImpl(
 
     private fun ReleaseDetails.hasCompleteArtwork(): Boolean {
         return posterUrl.isNotBlank() && !backdropUrl.isNullOrBlank()
+    }
+
+    private fun ReleaseDetailsEntity.needsYearAwareMovieArtworkRefresh(): Boolean {
+        return kind == ReleaseKind.MOVIE.name && fetchedAt < YEAR_AWARE_TMDB_MATCHING_MIN_FETCHED_AT_MS
     }
 
     private suspend fun mergeWatchedState(

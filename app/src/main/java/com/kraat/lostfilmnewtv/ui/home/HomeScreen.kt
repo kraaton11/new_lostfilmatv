@@ -1,15 +1,26 @@
 package com.kraat.lostfilmnewtv.ui.home
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -26,17 +37,24 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
@@ -72,11 +90,14 @@ fun HomeScreen(
     val activeModeState = when (state.selectedMode) {
         HomeFeedMode.AllNew -> state.allNewModeState
         HomeFeedMode.Favorites -> state.favoritesModeState
+        HomeFeedMode.Movies -> state.moviesModeState
     }
+    val isAllNewMode = state.selectedMode == HomeFeedMode.AllNew
     val activeItems = state.itemsForMode(state.selectedMode)
     val activeRailId = when (state.selectedMode) {
         HomeFeedMode.AllNew -> HOME_RAIL_ALL_NEW
         HomeFeedMode.Favorites -> HOME_RAIL_FAVORITES
+        HomeFeedMode.Movies -> HOME_RAIL_MOVIES
     }
     val itemKeys = remember(activeItems) { activeItems.map { it.detailsUrl } }
     var focusedItemKey by rememberSaveable(state.selectedMode, itemKeys) {
@@ -95,7 +116,7 @@ fun HomeScreen(
         }
     }
 
-    BackHandler(enabled = state.selectedMode == HomeFeedMode.Favorites) {
+    BackHandler(enabled = state.selectedMode != HomeFeedMode.AllNew) {
         startupContentFocusPending = true
         onModeSelected(HomeFeedMode.AllNew)
     }
@@ -170,11 +191,13 @@ fun HomeScreen(
                 ),
             ),
     ) {
+        HomeBackdrop(item = focusedItem)
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 48.dp, top = 24.dp, end = 48.dp, bottom = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+                .padding(start = 48.dp, top = 12.dp, end = 48.dp, bottom = 22.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             val headerPrimaryRequester = when {
                 savedAppUpdate != null -> updateRequester
@@ -219,7 +242,7 @@ fun HomeScreen(
                 )
             }
 
-            if (state.fullScreenErrorMessage != null && state.items.isNotEmpty()) {
+            if (isAllNewMode && state.fullScreenErrorMessage != null && state.items.isNotEmpty()) {
                 HomeStatusPanel(
                     tag = "home-error-status",
                     text = state.fullScreenErrorMessage,
@@ -230,17 +253,14 @@ fun HomeScreen(
             }
 
             when {
-                state.isInitialLoading && state.items.isEmpty() && state.fullScreenErrorMessage == null -> {
-                    Box(
+                isAllNewMode && state.isInitialLoading && state.items.isEmpty() && state.fullScreenErrorMessage == null -> {
+                    HomeLoadingSkeleton(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        CircularProgressIndicator(color = HomeAccentGold)
-                    }
+                    )
                 }
-                state.items.isEmpty() && state.fullScreenErrorMessage != null -> {
+                isAllNewMode && state.items.isEmpty() && state.fullScreenErrorMessage != null -> {
                     HomeActionPanel(
                         message = state.fullScreenErrorMessage,
                         actionLabel = "Повторить",
@@ -252,11 +272,12 @@ fun HomeScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        .weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(7.dp),
                     ) {
                         when (activeModeState) {
                             is HomeModeContentState.Content -> {
+                                HomeRailSectionHeader(selectedMode = state.selectedMode)
                                 HomeRail(
                                     railId = activeRailId,
                                     items = activeModeState.items,
@@ -266,19 +287,27 @@ fun HomeScreen(
                                     shouldRequestFocus = startupContentFocusPending,
                                     upTargetRequester = headerPrimaryRequester,
                                     downTargetRequester = null,
-                                    isPaging = state.isPaging && state.selectedMode == HomeFeedMode.AllNew,
+                                    isPaging = when (state.selectedMode) {
+                                        HomeFeedMode.AllNew -> state.isPaging
+                                        HomeFeedMode.Movies -> state.isMoviesPaging
+                                        HomeFeedMode.Favorites -> false
+                                    },
                                     onItemFocused = { detailsUrl ->
                                         startupContentFocusPending = false
                                         focusedItemKey = detailsUrl
                                         onItemFocused(detailsUrl)
                                     },
                                     onOpenDetails = onOpenDetails,
-                                    onEndReached = if (state.selectedMode == HomeFeedMode.AllNew) onEndReached else ({}),
+                                    onEndReached = if (state.selectedMode != HomeFeedMode.Favorites) onEndReached else ({}),
                                 )
                             }
                             HomeModeContentState.Empty -> {
                                 HomeActionPanel(
-                                    message = "Пока нет новых релизов в избранном",
+                                    message = when (state.selectedMode) {
+                                        HomeFeedMode.Favorites -> "Пока нет новых релизов в избранном"
+                                        HomeFeedMode.Movies -> "Пока нет фильмов"
+                                        HomeFeedMode.AllNew -> "Пока нет новых релизов"
+                                    },
                                     modifier = Modifier.fillMaxWidth().weight(1f),
                                 )
                             }
@@ -303,20 +332,22 @@ fun HomeScreen(
                                 )
                             }
                             HomeModeContentState.Loading -> {
-                                Box(
+                                HomeLoadingSkeleton(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .weight(1f),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    CircularProgressIndicator(color = HomeAccentGold)
-                                }
+                                )
                             }
                         }
-                        if (state.pagingErrorMessage != null) {
+                        val activePagingErrorMessage = when (state.selectedMode) {
+                            HomeFeedMode.AllNew -> state.pagingErrorMessage
+                            HomeFeedMode.Movies -> state.moviesPagingErrorMessage
+                            HomeFeedMode.Favorites -> null
+                        }
+                        if (activePagingErrorMessage != null) {
                             HomeStatusPanel(
                                 tag = "home-paging-status",
-                                text = state.pagingErrorMessage,
+                                text = activePagingErrorMessage,
                                 isError = true,
                                 actionLabel = "Повторить",
                                 onAction = onPagingRetry,
@@ -332,6 +363,188 @@ fun HomeScreen(
             }
         }
     }
+}
+
+@Composable
+private fun HomeRailSectionHeader(selectedMode: HomeFeedMode) {
+    val title = when (selectedMode) {
+        HomeFeedMode.AllNew -> "Свежие релизы"
+        HomeFeedMode.Favorites -> "Избранное"
+        HomeFeedMode.Movies -> "Фильмы"
+    }
+
+    Text(
+        text = title,
+        color = HomeTextSecondary,
+        fontSize = 15.sp,
+        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+        modifier = Modifier.padding(start = 14.dp),
+    )
+}
+
+@Composable
+private fun HomeBackdrop(item: ReleaseSummary?) {
+    val context = LocalContext.current
+    val posterUrl = item?.posterUrl?.takeIf { it.isNotBlank() }
+
+    Crossfade(
+        targetState = posterUrl,
+        label = "homeBackdrop",
+    ) { targetPosterUrl ->
+        if (targetPosterUrl != null) {
+            val request = remember(context, targetPosterUrl) {
+                ImageRequest.Builder(context)
+                    .data(targetPosterUrl)
+                    .crossfade(true)
+                    .build()
+            }
+            Box(modifier = Modifier.fillMaxSize()) {
+                AsyncImage(
+                    model = request,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier
+                        .align(Alignment.CenterEnd)
+                        .fillMaxHeight()
+                        .width(1_120.dp)
+                        .blur(8.dp),
+                )
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0x88101620)),
+    )
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.horizontalGradient(
+                    0f to BackgroundPrimary.copy(alpha = 0.96f),
+                    0.32f to BackgroundPrimary.copy(alpha = 0.82f),
+                    0.6f to BackgroundPrimary.copy(alpha = 0.22f),
+                    1f to BackgroundPrimary.copy(alpha = 0.56f),
+                ),
+            ),
+    )
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    0f to Color(0x4414293B),
+                    0.42f to Color.Transparent,
+                    1f to BackgroundPrimary.copy(alpha = 0.9f),
+                ),
+            ),
+    )
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(
+                Brush.verticalGradient(
+                    0f to BackgroundPrimary.copy(alpha = 0.82f),
+                    0.18f to BackgroundPrimary.copy(alpha = 0.54f),
+                    0.34f to Color.Transparent,
+                ),
+            ),
+    )
+}
+
+@Composable
+private fun HomeLoadingSkeleton(modifier: Modifier = Modifier) {
+    val shimmerBrush = rememberHomeSkeletonBrush()
+
+    Column(
+        modifier = modifier
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(26.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(20.dp),
+        ) {
+            repeat(6) {
+                HomeSkeletonBox(
+                    brush = shimmerBrush,
+                    modifier = Modifier.size(width = 176.dp, height = 264.dp),
+                    shape = RoundedCornerShape(22.dp),
+                )
+            }
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(18.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            HomeSkeletonBox(
+                brush = shimmerBrush,
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(78.dp),
+                shape = RoundedCornerShape(2.dp),
+            )
+            Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                HomeSkeletonBox(
+                    brush = shimmerBrush,
+                    modifier = Modifier.size(width = 190.dp, height = 16.dp),
+                    shape = RoundedCornerShape(8.dp),
+                )
+                HomeSkeletonBox(
+                    brush = shimmerBrush,
+                    modifier = Modifier.size(width = 360.dp, height = 34.dp),
+                    shape = RoundedCornerShape(10.dp),
+                )
+                HomeSkeletonBox(
+                    brush = shimmerBrush,
+                    modifier = Modifier.size(width = 300.dp, height = 18.dp),
+                    shape = RoundedCornerShape(9.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun rememberHomeSkeletonBrush(): Brush {
+    val transition = rememberInfiniteTransition(label = "homeSkeleton")
+    val xOffset by transition.animateFloat(
+        initialValue = -420f,
+        targetValue = 980f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 1_350, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "homeSkeletonOffset",
+    )
+    return Brush.linearGradient(
+        colors = listOf(
+            HomePanelSurfaceStrong.copy(alpha = 0.54f),
+            HomePanelBorder.copy(alpha = 0.46f),
+            HomePanelSurfaceStrong.copy(alpha = 0.54f),
+        ),
+        start = Offset(xOffset, 0f),
+        end = Offset(xOffset + 420f, 260f),
+    )
+}
+
+@Composable
+private fun HomeSkeletonBox(
+    brush: Brush,
+    modifier: Modifier = Modifier,
+    shape: RoundedCornerShape,
+) {
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(brush),
+    )
 }
 
 @Composable

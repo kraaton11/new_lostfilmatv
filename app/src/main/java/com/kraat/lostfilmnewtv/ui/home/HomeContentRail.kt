@@ -4,6 +4,7 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 
 const val HOME_RAIL_ALL_NEW = "all-new"
 const val HOME_RAIL_FAVORITES = "favorites"
+const val HOME_RAIL_MOVIES = "movies"
 
 private const val HOME_ITEM_KEY_SEPARATOR = "::"
 
@@ -37,6 +38,7 @@ internal fun fallbackHomeRails(items: List<ReleaseSummary>): List<HomeContentRai
 internal fun buildHomeRails(
     items: List<ReleaseSummary>,
     favoriteItems: List<ReleaseSummary>,
+    movieItems: List<ReleaseSummary> = emptyList(),
     isFavoritesRailVisible: Boolean,
 ): List<HomeContentRail> {
     val rails = mutableListOf<HomeContentRail>()
@@ -52,6 +54,13 @@ internal fun buildHomeRails(
             id = HOME_RAIL_FAVORITES,
             title = "Избранное",
             items = favoriteItems,
+        )
+    }
+    if (movieItems.isNotEmpty()) {
+        rails += HomeContentRail(
+            id = HOME_RAIL_MOVIES,
+            title = "Фильмы",
+            items = movieItems,
         )
     }
     return rails

@@ -97,9 +97,9 @@ fun HomeRail(
                 }
             }
             .focusable()
-            .height(308.dp),
+            .height(284.dp),
         horizontalArrangement = Arrangement.spacedBy(20.dp),
-        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 10.dp),
+        contentPadding = PaddingValues(horizontal = 28.dp, vertical = 10.dp),
     ) {
         itemsIndexed(items = items, key = { _, item -> item.detailsUrl }) { index, item ->
             val itemKey = homeItemKey(railId, item.detailsUrl)

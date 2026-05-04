@@ -174,6 +174,99 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun onEndReached_inMoviesMode_loadsNextMoviePage() = runTest(dispatcher) {
+        val firstMovie = summary(
+            detailsUrl = "https://www.lostfilm.today/movies/Dune_Part_Three",
+            titleRu = "Дюна: Часть третья",
+        )
+        val secondMovie = summary(
+            detailsUrl = "https://www.lostfilm.today/movies/Frankenstein",
+            titleRu = "Франкенштейн",
+        )
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(
+                    pageNumber = 1,
+                    items = emptyList(),
+                    hasNextPage = false,
+                    isStale = false,
+                ),
+            ),
+            movieResults = mutableMapOf(
+                1 to PageState.Content(
+                    pageNumber = 1,
+                    items = listOf(firstMovie),
+                    hasNextPage = true,
+                    isStale = false,
+                ),
+                2 to PageState.Content(
+                    pageNumber = 2,
+                    items = listOf(secondMovie),
+                    hasNextPage = false,
+                    isStale = false,
+                ),
+            ),
+        )
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            initialSelectedMode = HomeFeedMode.Movies,
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+        viewModel.onEndReached()
+        advanceUntilIdle()
+
+        assertEquals(listOf(1, 2), repository.movieRequests)
+        assertEquals(listOf(firstMovie, secondMovie), viewModel.uiState.value.movieItems)
+        assertFalse(viewModel.uiState.value.moviesHasNextPage)
+    }
+
+    @Test
+    fun onPagingRetry_inMoviesMode_retriesSoftMoviePagingError() = runTest(dispatcher) {
+        val firstMovie = summary(detailsUrl = "https://www.lostfilm.today/movies/Dune_Part_Three")
+        val secondMovie = summary(detailsUrl = "https://www.lostfilm.today/movies/Frankenstein")
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(pageNumber = 1, items = emptyList(), hasNextPage = false, isStale = false),
+            ),
+            movieResults = mutableMapOf(
+                1 to PageState.Content(pageNumber = 1, items = listOf(firstMovie), hasNextPage = true, isStale = false),
+                2 to PageState.Error(pageNumber = 2, message = "Не удалось догрузить фильмы"),
+            ),
+        )
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            initialSelectedMode = HomeFeedMode.Movies,
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+        viewModel.onEndReached()
+        advanceUntilIdle()
+
+        assertEquals("Не удалось догрузить фильмы", viewModel.uiState.value.moviesPagingErrorMessage)
+
+        repository.movieResults[2] = PageState.Content(
+            pageNumber = 2,
+            items = listOf(secondMovie),
+            hasNextPage = false,
+            isStale = false,
+        )
+        repository.movieRequests.clear()
+        viewModel.onPagingRetry()
+        advanceUntilIdle()
+
+        assertEquals(listOf(2), repository.movieRequests)
+        assertEquals(null, viewModel.uiState.value.moviesPagingErrorMessage)
+        assertEquals(listOf(firstMovie, secondMovie), viewModel.uiState.value.movieItems)
+    }
+
+    @Test
     fun staleCache_setsStaleBanner() = runTest(dispatcher) {
         val repository = FakeLostFilmRepository(
             pageResults = mapOf(
@@ -709,17 +802,28 @@ class HomeViewModelTest {
 
 private class FakeLostFilmRepository(
     private val pageResults: Map<Int, PageState>,
+    val movieResults: MutableMap<Int, PageState> = mutableMapOf(
+        1 to PageState.Content(pageNumber = 1, items = emptyList(), hasNextPage = false, isStale = false),
+    ),
     private val favoriteReleaseResults: MutableList<FavoriteReleasesResult> = mutableListOf(
         FavoriteReleasesResult.Unavailable(),
     ),
 ) : LostFilmRepository {
     val pageRequests = mutableListOf<Int>()
+    val movieRequests = mutableListOf<Int>()
     var favoriteReleaseCalls = 0
 
     override suspend fun loadPage(pageNumber: Int): PageState {
         pageRequests += pageNumber
         return checkNotNull(pageResults[pageNumber]) {
             "Missing fake result for page $pageNumber"
+        }
+    }
+
+    override suspend fun loadMovies(pageNumber: Int): PageState {
+        movieRequests += pageNumber
+        return checkNotNull(movieResults[pageNumber]) {
+            "Missing fake movie result for page $pageNumber"
         }
     }
 

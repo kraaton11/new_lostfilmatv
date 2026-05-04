@@ -60,6 +60,7 @@ object UnitTestNetworkModule {
             titleRu: String,
             releaseDateRu: String,
             kind: ReleaseKind,
+            originalReleaseYear: Int?,
         ): TmdbImageUrls? = null
     }
 }

@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -28,6 +27,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
@@ -52,30 +53,36 @@ fun PosterCard(
     modifier: Modifier = Modifier,
 ) {
     val shape = RoundedCornerShape(22.dp)
+    val density = LocalDensity.current
     val scale by animateFloatAsState(
         targetValue = if (isFocused) POSTER_FOCUSED_SCALE else 1f,
         animationSpec = tween(durationMillis = 120),
         label = "posterScale",
     )
-    val borderColor = if (isFocused) FocusBorder else HomePanelBorder
-    val overlayColor = if (isFocused) FocusBackground else HomePanelSurface
-    val watchedBadgeColor = if (isFocused) HomeAccentGoldGlow else HomeAccentGold
+    val liftPx = with(density) { if (isFocused) (-8).dp.toPx() else 0f }
+    val borderColor = if (isFocused) FocusBorder.copy(alpha = 0.92f) else HomePanelBorder.copy(alpha = 0.72f)
+    val overlayColor = if (isFocused) FocusBackground.copy(alpha = 0.88f) else HomePanelSurface.copy(alpha = 0.76f)
+    val watchedBadgeColor = if (isFocused) HomeAccentGoldGlow.copy(alpha = 0.94f) else HomeAccentGold.copy(alpha = 0.9f)
     val posterRequest = rememberPosterImageRequest(item.posterUrl)
 
     Box(
         modifier = modifier
             .size(width = POSTER_CARD_WIDTH, height = POSTER_CARD_HEIGHT)
+            .zIndex(if (isFocused) 1f else 0f)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
+                translationY = liftPx
             }
             .shadow(
-                elevation = if (isFocused) 32.dp else 8.dp,
+                elevation = if (isFocused) 48.dp else 10.dp,
+                spotColor = if (isFocused) HomeAccentGoldGlow.copy(alpha = 0.45f) else Color.Black,
+                ambientColor = if (isFocused) HomeAccentGold.copy(alpha = 0.28f) else Color.Black,
                 shape = shape,
             )
             .clip(shape)
             .background(HomePanelSurfaceStrong)
-            .border(width = 3.5.dp, color = borderColor, shape = shape),
+            .border(width = if (isFocused) 2.dp else 1.dp, color = borderColor, shape = shape),
     ) {
         AsyncImage(
             model = posterRequest,
@@ -90,7 +97,7 @@ fun PosterCard(
                 .background(
                     Brush.verticalGradient(
                         0f to Color.Transparent,
-                        0.52f to Color.Transparent,
+                        0.42f to Color.Transparent,
                         1f to overlayColor,
                     ),
                 ),
@@ -101,31 +108,57 @@ fun PosterCard(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
                     .fillMaxWidth()
-                    .background(overlayColor)
                     .testTag("poster-meta:${item.detailsUrl}")
-                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                    .background(
+                        Brush.verticalGradient(
+                            0f to Color.Transparent,
+                            1f to overlayColor,
+                        ),
+                    )
+                    .padding(horizontal = 13.dp, vertical = 11.dp),
             ) {
                 Text(
                     text = label,
                     color = Color.White,
+                    fontSize = 16.sp,
+                    lineHeight = 18.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
         }
 
-        if (item.isWatched) {
-            Surface(
+        item.availabilityLabel?.takeIf { it.isNotBlank() }?.let { label ->
+            Box(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(10.dp),
-                shape = RoundedCornerShape(10.dp),
-                color = watchedBadgeColor,
+                    .align(Alignment.TopStart)
+                    .padding(10.dp)
+                    .background(HomeAccentGold.copy(alpha = 0.94f), RoundedCornerShape(999.dp)),
+                contentAlignment = Alignment.Center,
             ) {
                 Text(
-                    text = "Просмотрено",
+                    text = label,
                     color = Color(0xFF1B1408),
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    fontSize = 12.sp,
+                    lineHeight = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                )
+            }
+        }
+
+        if (item.isWatched) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(10.dp)
+                    .background(watchedBadgeColor, RoundedCornerShape(999.dp)),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "✓",
+                    color = Color(0xFF1B1408),
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
                 )
             }
         }

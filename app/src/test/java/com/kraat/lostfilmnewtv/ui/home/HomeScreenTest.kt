@@ -1052,26 +1052,36 @@ private fun homeStateWithModes(
     selectedMode: HomeFeedMode,
     allNewItems: List<ReleaseSummary>,
     favoriteItems: List<ReleaseSummary>,
+    movieItems: List<ReleaseSummary> = allNewItems.filter { it.kind == ReleaseKind.MOVIE }.ifEmpty { allNewItems },
 ): HomeUiState {
     val selectedItem = when (selectedMode) {
         HomeFeedMode.AllNew -> allNewItems.first()
         HomeFeedMode.Favorites -> favoriteItems.first()
+        HomeFeedMode.Movies -> movieItems.first()
     }
     return HomeUiState(
         items = allNewItems,
         favoriteItems = favoriteItems,
+        movieItems = movieItems,
         rails = buildHomeRails(
             items = allNewItems,
             favoriteItems = favoriteItems,
+            movieItems = movieItems,
             isFavoritesRailVisible = true,
         ),
         selectedMode = selectedMode,
-        availableModes = listOf(HomeFeedMode.AllNew, HomeFeedMode.Favorites),
+        availableModes = if (selectedMode == HomeFeedMode.Movies) {
+            listOf(HomeFeedMode.AllNew, HomeFeedMode.Favorites, HomeFeedMode.Movies)
+        } else {
+            listOf(HomeFeedMode.AllNew, HomeFeedMode.Favorites)
+        },
         allNewModeState = HomeModeContentState.Content(allNewItems),
         favoritesModeState = HomeModeContentState.Content(favoriteItems),
+        moviesModeState = HomeModeContentState.Content(movieItems),
         rememberedItemKeyByMode = mapOf(
             HomeFeedMode.AllNew to allNewItems.first().detailsUrl,
             HomeFeedMode.Favorites to favoriteItems.first().detailsUrl,
+            HomeFeedMode.Movies to movieItems.first().detailsUrl,
         ),
         selectedItem = selectedItem,
         selectedItemKey = selectedItem.detailsUrl,

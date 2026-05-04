@@ -14,4 +14,6 @@ data class ReleaseSummary(
     val positionInPage: Int,
     val fetchedAt: Long,
     val isWatched: Boolean = false,
+    val availabilityLabel: String? = null,
+    val originalReleaseYear: Int? = null,
 )

@@ -192,6 +192,7 @@ private class FakeTmdbPosterResolver(
         titleRu: String,
         releaseDateRu: String,
         kind: ReleaseKind,
+        originalReleaseYear: Int?,
     ): TmdbImageUrls? {
         val posterUrl = posterOverrides[detailsUrl]
         val backdropUrl = backdropOverrides[detailsUrl]

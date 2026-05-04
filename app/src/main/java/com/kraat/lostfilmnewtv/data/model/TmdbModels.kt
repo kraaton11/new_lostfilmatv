@@ -10,6 +10,7 @@ data class TmdbSearchResult(
     val name: String,
     val popularity: Double,
     val originalName: String = name,
+    val releaseYear: Int? = null,
 )
 
 data class TmdbImageUrls(

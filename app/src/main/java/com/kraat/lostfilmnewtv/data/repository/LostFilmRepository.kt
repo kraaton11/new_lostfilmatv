@@ -55,6 +55,9 @@ sealed interface SearchResultsResult {
 interface LostFilmRepository {
     suspend fun loadPage(pageNumber: Int): PageState
 
+    suspend fun loadMovies(pageNumber: Int = 1): PageState =
+        PageState.Error(pageNumber = pageNumber, message = "Фильмы недоступны")
+
     suspend fun loadDetails(detailsUrl: String): DetailsResult
 
     suspend fun loadSeriesGuide(detailsUrl: String): SeriesGuideResult
