@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -290,7 +292,7 @@ private fun OverviewContent(overview: SeriesOverview?) {
             ) {
                 Box(
                     modifier = Modifier
-                        .size(width = 250.dp, height = 360.dp)
+                        .size(width = 175.dp, height = 252.dp)
                         .shadow(
                             elevation = 34.dp,
                             spotColor = Color.Black.copy(alpha = 0.55f),
@@ -342,14 +344,6 @@ private fun OverviewContent(overview: SeriesOverview?) {
                         )
                     }
                     OverviewChipRow(safeOverview)
-                    safeOverview.descriptionRu?.takeIf { it.isNotBlank() }?.let { description ->
-                        Text(
-                            text = description,
-                            color = TextPrimary.copy(alpha = 0.92f),
-                            fontSize = 19.sp,
-                            lineHeight = 28.sp,
-                        )
-                    }
                 }
             }
         }
@@ -470,6 +464,7 @@ private fun String.splitByWords(maxChars: Int): List<String> {
     return parts
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun OverviewChipRow(overview: SeriesOverview) {
     val chips = listOfNotNull(
@@ -478,13 +473,19 @@ private fun OverviewChipRow(overview: SeriesOverview) {
     )
     if (chips.isEmpty()) return
 
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
         chips.forEach { chip ->
             Text(
                 text = chip,
                 color = TextPrimary,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .border(1.dp, DetailsBorderDefault, RoundedCornerShape(999.dp))
                     .background(DetailsSurfaceSoft.copy(alpha = 0.72f), RoundedCornerShape(999.dp))

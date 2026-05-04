@@ -1053,35 +1053,41 @@ private fun homeStateWithModes(
     allNewItems: List<ReleaseSummary>,
     favoriteItems: List<ReleaseSummary>,
     movieItems: List<ReleaseSummary> = allNewItems.filter { it.kind == ReleaseKind.MOVIE }.ifEmpty { allNewItems },
+    seriesItems: List<ReleaseSummary> = allNewItems.filter { it.kind == ReleaseKind.SERIES }.ifEmpty { allNewItems },
 ): HomeUiState {
     val selectedItem = when (selectedMode) {
         HomeFeedMode.AllNew -> allNewItems.first()
         HomeFeedMode.Favorites -> favoriteItems.first()
         HomeFeedMode.Movies -> movieItems.first()
+        HomeFeedMode.Series -> seriesItems.first()
     }
     return HomeUiState(
         items = allNewItems,
         favoriteItems = favoriteItems,
         movieItems = movieItems,
+        seriesItems = seriesItems,
         rails = buildHomeRails(
             items = allNewItems,
             favoriteItems = favoriteItems,
             movieItems = movieItems,
+            seriesItems = seriesItems,
             isFavoritesRailVisible = true,
         ),
         selectedMode = selectedMode,
-        availableModes = if (selectedMode == HomeFeedMode.Movies) {
-            listOf(HomeFeedMode.AllNew, HomeFeedMode.Favorites, HomeFeedMode.Movies)
-        } else {
-            listOf(HomeFeedMode.AllNew, HomeFeedMode.Favorites)
+        availableModes = when (selectedMode) {
+            HomeFeedMode.Movies -> listOf(HomeFeedMode.AllNew, HomeFeedMode.Favorites, HomeFeedMode.Movies)
+            HomeFeedMode.Series -> listOf(HomeFeedMode.AllNew, HomeFeedMode.Favorites, HomeFeedMode.Movies, HomeFeedMode.Series)
+            else -> listOf(HomeFeedMode.AllNew, HomeFeedMode.Favorites)
         },
         allNewModeState = HomeModeContentState.Content(allNewItems),
         favoritesModeState = HomeModeContentState.Content(favoriteItems),
         moviesModeState = HomeModeContentState.Content(movieItems),
+        seriesModeState = HomeModeContentState.Content(seriesItems),
         rememberedItemKeyByMode = mapOf(
             HomeFeedMode.AllNew to allNewItems.first().detailsUrl,
             HomeFeedMode.Favorites to favoriteItems.first().detailsUrl,
             HomeFeedMode.Movies to movieItems.first().detailsUrl,
+            HomeFeedMode.Series to seriesItems.first().detailsUrl,
         ),
         selectedItem = selectedItem,
         selectedItemKey = selectedItem.detailsUrl,

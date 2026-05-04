@@ -81,11 +81,13 @@ fun HomeHeader(
         HomeFeedMode.AllNew -> "Новые релизы"
         HomeFeedMode.Favorites -> "Избранное"
         HomeFeedMode.Movies -> "Фильмы"
+        HomeFeedMode.Series -> "Сериалы"
     }
     val subtitle = when (selectedMode) {
         HomeFeedMode.AllNew -> "Новые серии, фильмы и быстрый переход к поиску"
         HomeFeedMode.Favorites -> "Свежие релизы по сериалам из избранного LostFilm"
         HomeFeedMode.Movies -> "Кино LostFilm отдельной витриной"
+        HomeFeedMode.Series -> "Каталог сериалов LostFilm"
     }
     val hasModeToggle = availableModes.size > 1
     val nextMode = selectedMode.toggled(availableModes)
@@ -246,7 +248,13 @@ private fun HomeHeaderModeToggleButton(
                 false
             }
             .heightIn(min = 50.dp)
-            .width(if (availableModes.size > 2) 326.dp else 224.dp)
+            .width(
+                when {
+                    availableModes.size > 3 -> 430.dp
+                    availableModes.size > 2 -> 326.dp
+                    else -> 224.dp
+                },
+            )
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -507,6 +515,7 @@ private fun HomeFeedMode.segmentLabel(): String {
         HomeFeedMode.AllNew -> "Новые"
         HomeFeedMode.Favorites -> "Избранное"
         HomeFeedMode.Movies -> "Фильмы"
+        HomeFeedMode.Series -> "Сериалы"
     }
 }
 
