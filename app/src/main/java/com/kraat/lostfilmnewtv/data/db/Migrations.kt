@@ -31,6 +31,7 @@ private const val RELEASE_DETAILS_TABLE_SQL = """
         `favoriteTargetId` INTEGER,
         `favoriteTargetKind` TEXT,
         `isFavorite` INTEGER,
+        `episodeOverviewRu` TEXT,
         PRIMARY KEY(`detailsUrl`)
     )
 """
@@ -68,9 +69,55 @@ val MIGRATION_7_8 = object : Migration(7, 8) {
     }
 }
 
+/**
+ * Миграция 8→9: wide backdrop из TMDB для hero-сцены на главном экране.
+ */
+val MIGRATION_8_9 = object : Migration(8, 9) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `release_summaries` ADD COLUMN `backdropUrl` TEXT")
+    }
+}
+
+/**
+ * Миграция 9→10: русское описание эпизода из TMDB для hero-сцены на главном экране.
+ */
+val MIGRATION_9_10 = object : Migration(9, 10) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `release_summaries` ADD COLUMN `episodeOverviewRu` TEXT")
+        db.execSQL("ALTER TABLE `release_details` ADD COLUMN `episodeOverviewRu` TEXT")
+    }
+}
+
+/**
+ * Миграция 10→11: поле episodeOverviewRu было добавлено и в кэш деталей.
+ * На dev-устройствах могла уже существовать version 10 только с release_summaries.
+ */
+val MIGRATION_10_11 = object : Migration(10, 11) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        if (!db.hasColumn(tableName = "release_details", columnName = "episodeOverviewRu")) {
+            db.execSQL("ALTER TABLE `release_details` ADD COLUMN `episodeOverviewRu` TEXT")
+        }
+    }
+}
+
 /** Список всех миграций для передачи в Room.databaseBuilder. */
 val ALL_MIGRATIONS = arrayOf(
     MIGRATION_5_6,
     MIGRATION_6_7,
     MIGRATION_7_8,
+    MIGRATION_8_9,
+    MIGRATION_9_10,
+    MIGRATION_10_11,
 )
+
+private fun SupportSQLiteDatabase.hasColumn(tableName: String, columnName: String): Boolean {
+    query("PRAGMA table_info(`$tableName`)").use { cursor ->
+        val nameIndex = cursor.getColumnIndex("name")
+        while (cursor.moveToNext()) {
+            if (cursor.getString(nameIndex) == columnName) {
+                return true
+            }
+        }
+    }
+    return false
+}

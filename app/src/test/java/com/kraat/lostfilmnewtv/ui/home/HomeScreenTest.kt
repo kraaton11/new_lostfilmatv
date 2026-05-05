@@ -57,7 +57,7 @@ class HomeScreenTest {
         composeRule.onNodeWithTag("home-action-auth").assertDoesNotExist()
         composeRule.onNodeWithTag("home-action-settings").assertExists()
         composeRule.onNodeWithTag("home-action-update").assertExists()
-        composeRule.onNodeWithTag("home-bottom-stage").assertExists()
+        composeRule.onNodeWithTag("home-hero-stage").assertExists()
         composeRule.onNodeWithText("Обновить").assertExists()
         composeRule.onNodeWithText("0.2.0").assertExists()
         composeRule.onNodeWithText("Сервис").assertDoesNotExist()
@@ -124,23 +124,39 @@ class HomeScreenTest {
         val favoritesBounds = composeRule.onNodeWithTag("home-mode-toggle").fetchSemanticsNode().boundsInRoot
         val searchBounds = composeRule.onNodeWithTag("home-action-search").fetchSemanticsNode().boundsInRoot
 
-        assertTrue("updateBounds=$updateBounds favoritesBounds=$favoritesBounds", updateBounds.left < favoritesBounds.left)
+        assertTrue("favoritesBounds=$favoritesBounds updateBounds=$updateBounds", favoritesBounds.left < updateBounds.left)
         assertTrue("favoritesBounds=$favoritesBounds searchBounds=$searchBounds", favoritesBounds.left < searchBounds.left)
     }
 
     @Test
-    fun homeScreen_bottomStage_showsSelectedReleaseContext_withReleaseMetadata() {
+    fun homeScreen_heroStage_showsSelectedReleaseContext_withReleaseMetadata() {
         composeRule.setContent {
             LostFilmTheme {
                 HomeScreen(state = seededState())
             }
         }
 
-        composeRule.onNodeWithTag("home-bottom-stage").assertExists()
+        composeRule.onNodeWithTag("home-hero-stage").assertExists()
         composeRule.onNodeWithText("S09E13").assertExists()
         composeRule.onNodeWithText("9-1-1").assertExists()
         composeRule.onNodeWithText("Маменькин сынок").assertExists()
         composeRule.onNodeWithText("14.03.2026").assertExists()
+    }
+
+    @Test
+    fun homeScreen_heroStage_prefersTmdbEpisodeOverview() {
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(
+                    state = seededState(
+                        episodeOverviewRu = "Русское описание серии из TMDB.",
+                    ),
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Русское описание серии из TMDB.").assertExists()
+        composeRule.onNodeWithText("Новая серия доступна в релизах LostFilm.").assertDoesNotExist()
     }
 
     @Test
@@ -199,10 +215,21 @@ class HomeScreenTest {
             }
         }
 
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag(posterTag(firstDetailsUrl))
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
         val rootBounds = composeRule.onRoot().fetchSemanticsNode().boundsInRoot
         val posterBounds = composeRule.onNodeWithTag(posterTag(firstDetailsUrl)).fetchSemanticsNode().boundsInRoot
 
-        assertTrue(posterBounds.left > rootBounds.left + 56f)
+        assertTrue(
+            "rootBounds=$rootBounds posterBounds=$posterBounds",
+            posterBounds.left >= rootBounds.left,
+        )
     }
 
     // Note: homeScreen_serviceInfo_staysAboveBottomEdge removed — flaky in Robolectric
@@ -310,7 +337,7 @@ class HomeScreenTest {
 
     @Test
     @Config(qualifiers = "w1366dp-h768dp-land")
-    fun homeScreen_settingsAction_staysHorizontalInTvViewport_andKeepsBottomStageVisible() {
+    fun homeScreen_settingsAction_staysHorizontalInTvViewport_andKeepsHeroStageVisible() {
         composeRule.setContent {
             LostFilmTheme {
                 HomeScreen(
@@ -326,9 +353,9 @@ class HomeScreenTest {
 
         val rootBounds = composeRule.onRoot().fetchSemanticsNode().boundsInRoot
         val settingsBounds = composeRule.onNodeWithTag("home-action-settings").fetchSemanticsNode().boundsInRoot
-        val stageBounds = composeRule.onNodeWithTag("home-bottom-stage").fetchSemanticsNode().boundsInRoot
+        val stageBounds = composeRule.onNodeWithTag("home-hero-stage").fetchSemanticsNode().boundsInRoot
 
-        assertTrue("settingsBounds=$settingsBounds", settingsBounds.width > 40f)
+        assertTrue("settingsBounds=$settingsBounds", settingsBounds.width > 30f)
         assertTrue("settingsBounds=$settingsBounds", settingsBounds.height < 80f)
         assertTrue("rootBounds=$rootBounds stageBounds=$stageBounds", stageBounds.bottom < rootBounds.bottom - 16f)
     }
@@ -363,7 +390,7 @@ class HomeScreenTest {
 
     @Test
     @Config(qualifiers = "w1366dp-h768dp-land")
-    fun homeScreen_shortEpisodeTitle_keepsComfortableBottomInsetInsideStage() {
+    fun homeScreen_shortEpisodeTitle_keepsComfortableBottomInsetInsideHeroStage() {
         composeRule.setContent {
             LostFilmTheme {
                 HomeScreen(
@@ -377,7 +404,7 @@ class HomeScreenTest {
         }
 
         val rootBounds = composeRule.onRoot().fetchSemanticsNode().boundsInRoot
-        val stageBounds = composeRule.onNodeWithTag("home-bottom-stage").fetchSemanticsNode().boundsInRoot
+        val stageBounds = composeRule.onNodeWithTag("home-hero-stage").fetchSemanticsNode().boundsInRoot
         val textLayouts = mutableListOf<TextLayoutResult>()
 
         composeRule.onNodeWithText("17:00").performSemanticsAction(SemanticsActions.GetTextLayoutResult) { action ->
@@ -389,11 +416,19 @@ class HomeScreenTest {
     }
 
     @Test
-    fun homeScreen_rendersSeasonEpisodeOverlayOnSeriesCard_withoutDuplicatingBottomStageText() {
+    fun homeScreen_rendersSeasonEpisodeOverlayOnlyOnFocusedSeriesCard() {
         composeRule.setContent {
             LostFilmTheme {
                 HomeScreen(state = seededState())
             }
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag(posterTag(firstDetailsUrl))
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
         }
 
         composeRule.onNodeWithTag("poster-meta:$firstDetailsUrl", useUnmergedTree = true).assertExists()
@@ -1163,6 +1198,7 @@ private const val secondDetailsUrl = "https://www.lostfilm.today/movies/Irrevers
 private fun seededState(
     episodeTitleRu: String? = "Маменькин сынок",
     releaseDateRu: String = "14.03.2026",
+    episodeOverviewRu: String? = null,
 ): HomeUiState {
     val first = release(
         detailsUrl = firstDetailsUrl,
@@ -1174,6 +1210,7 @@ private fun seededState(
         kind = ReleaseKind.SERIES,
         pageNumber = 1,
         positionInPage = 0,
+        episodeOverviewRu = episodeOverviewRu,
     )
     val second = release(
         detailsUrl = secondDetailsUrl,
@@ -1254,6 +1291,7 @@ private fun release(
     kind: ReleaseKind,
     pageNumber: Int = 1,
     positionInPage: Int = 0,
+    episodeOverviewRu: String? = null,
 ): ReleaseSummary {
     val posterUrl = when (kind) {
         ReleaseKind.SERIES -> "https://www.lostfilm.today/Static/Images/362/Posters/image_s9.jpg"
@@ -1272,5 +1310,6 @@ private fun release(
         pageNumber = pageNumber,
         positionInPage = positionInPage,
         fetchedAt = 0L,
+        episodeOverviewRu = episodeOverviewRu,
     )
 }

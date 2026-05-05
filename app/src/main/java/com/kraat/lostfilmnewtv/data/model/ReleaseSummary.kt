@@ -16,4 +16,6 @@ data class ReleaseSummary(
     val isWatched: Boolean = false,
     val availabilityLabel: String? = null,
     val originalReleaseYear: Int? = null,
+    val backdropUrl: String? = null,
+    val episodeOverviewRu: String? = null,
 )

@@ -49,6 +49,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -65,6 +69,7 @@ import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurface
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 import com.kraat.lostfilmnewtv.ui.theme.HomeStatusError
+import com.kraat.lostfilmnewtv.ui.theme.HomeTextMuted
 import com.kraat.lostfilmnewtv.ui.theme.HomeTextSecondary
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 import kotlinx.coroutines.launch
@@ -202,7 +207,7 @@ fun HomeScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 48.dp, top = 12.dp, end = 48.dp, bottom = 22.dp),
+                .padding(start = 24.dp, top = 12.dp, end = 24.dp, bottom = 22.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             val headerPrimaryRequester = when {
@@ -284,10 +289,16 @@ fun HomeScreen(
                     ) {
                         when (activeModeState) {
                             is HomeModeContentState.Content -> {
+                                HomeHeroStage(
+                                    item = focusedItem,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
                                 HomeRailSectionHeader(selectedMode = state.selectedMode)
                                 HomeRail(
                                     railId = activeRailId,
                                     items = activeModeState.items,
+                                    modifier = Modifier
+                                        .fillMaxWidth(),
                                     focusedItemKey = focusedItemKey,
                                     entryFocusRequester = contentEntryRequester,
                                     cardFocusRequesters = cardFocusRequesters,
@@ -374,15 +385,140 @@ fun HomeScreen(
                                 onAction = onPagingRetry,
                             )
                         }
-                        if (activeModeState is HomeModeContentState.Content) {
-                            HomeBottomStage(
-                                item = focusedItem,
-                            )
-                        }
                     }
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun HomeHeroStage(
+    item: ReleaseSummary?,
+    modifier: Modifier = Modifier,
+) {
+    Crossfade(
+        targetState = item,
+        modifier = modifier
+            .height(246.dp)
+            .testTag("home-hero-stage"),
+        label = "homeHeroStage",
+    ) { targetItem ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = 0.dp, top = 10.dp, end = 360.dp, bottom = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            ReleaseHeroMetaRow(targetItem)
+
+            Text(
+                text = targetItem?.titleRu.orEmpty(),
+                color = TextPrimary,
+                fontSize = 34.sp,
+                lineHeight = 37.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+
+            targetItem?.episodeTitleRu?.takeIf { it.isNotBlank() }?.let { episodeTitle ->
+                Text(
+                    text = episodeTitle,
+                    style = TextStyle(
+                        platformStyle = PlatformTextStyle(includeFontPadding = true),
+                    ),
+                    color = HomeTextSecondary,
+                    fontSize = 18.sp,
+                    lineHeight = 21.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+
+            Text(
+                text = targetItem.heroDescription(),
+                color = HomeTextMuted,
+                fontSize = 15.sp,
+                lineHeight = 19.sp,
+                maxLines = 4,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.width(560.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun ReleaseHeroMetaRow(item: ReleaseSummary?) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        item?.availabilityLabel?.takeIf { it.isNotBlank() }?.let { label ->
+            HeroMetaPill(label = label, highlighted = true)
+        }
+        seasonEpisodeHeroLabel(item)?.let { label ->
+            HeroMetaPill(label = label, highlighted = true)
+        }
+        item?.releaseDateRu?.takeIf { it.isNotBlank() }?.let { date ->
+            HeroMetaPill(label = date)
+        }
+        item?.kind?.let { kind ->
+            HeroMetaPill(
+                label = when (kind) {
+                    ReleaseKind.SERIES -> "Сериал"
+                    ReleaseKind.MOVIE -> "Фильм"
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun HeroMetaPill(
+    label: String,
+    highlighted: Boolean = false,
+) {
+    val shape = RoundedCornerShape(999.dp)
+    Text(
+        text = label,
+        color = HomeTextSecondary,
+        fontSize = 12.sp,
+        lineHeight = 14.sp,
+        fontWeight = FontWeight.Bold,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier
+            .background(
+                color = HomePanelSurface.copy(alpha = 0.30f),
+                shape = shape,
+            )
+            .border(
+                width = 1.dp,
+                color = HomePanelBorder.copy(alpha = 0.84f),
+                shape = shape,
+            )
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+    )
+}
+
+private fun seasonEpisodeHeroLabel(item: ReleaseSummary?): String? {
+    if (item?.kind != ReleaseKind.SERIES) return null
+    val season = item.seasonNumber?.let { "S${it.toString().padStart(2, '0')}" }
+    val episode = item.episodeNumber?.let { "E${it.toString().padStart(2, '0')}" }
+    return listOfNotNull(season, episode).joinToString("").takeIf { it.isNotBlank() }
+}
+
+private fun ReleaseSummary?.heroDescription(): String {
+    val item = this ?: return ""
+    item.episodeOverviewRu?.takeIf { it.isNotBlank() }?.let {
+        return it
+    }
+    return when (item.kind) {
+        ReleaseKind.SERIES -> "Новая серия доступна в релизах LostFilm."
+        ReleaseKind.MOVIE -> "Фильм доступен в релизах LostFilm."
     }
 }
 
@@ -407,16 +543,22 @@ private fun HomeRailSectionHeader(selectedMode: HomeFeedMode) {
 @Composable
 private fun HomeBackdrop(item: ReleaseSummary?) {
     val context = LocalContext.current
+    val backdropUrl = item?.backdropUrl?.takeIf { it.isNotBlank() }
     val posterUrl = item?.posterUrl?.takeIf { it.isNotBlank() }
+    val backdropImage = HomeBackdropImage(
+        url = backdropUrl ?: posterUrl,
+        isWide = backdropUrl != null,
+    )
 
     Crossfade(
-        targetState = posterUrl,
+        targetState = backdropImage,
         label = "homeBackdrop",
-    ) { targetPosterUrl ->
-        if (targetPosterUrl != null) {
-            val request = remember(context, targetPosterUrl) {
+    ) { targetImage ->
+        val targetImageUrl = targetImage.url
+        if (targetImageUrl != null) {
+            val request = remember(context, targetImageUrl) {
                 ImageRequest.Builder(context)
-                    .data(targetPosterUrl)
+                    .data(targetImageUrl)
                     .crossfade(true)
                     .build()
             }
@@ -427,9 +569,16 @@ private fun HomeBackdrop(item: ReleaseSummary?) {
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .align(Alignment.CenterEnd)
-                        .fillMaxHeight()
-                        .width(1_120.dp)
-                        .blur(8.dp),
+                        .then(
+                            if (targetImage.isWide) {
+                                Modifier.fillMaxSize()
+                            } else {
+                                Modifier
+                                    .fillMaxHeight()
+                                    .width(1_120.dp)
+                                    .blur(8.dp)
+                            },
+                        ),
                 )
             }
         }
@@ -438,7 +587,7 @@ private fun HomeBackdrop(item: ReleaseSummary?) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0x88101620)),
+            .background(Color(0x66101620)),
     )
     Box(
         modifier = Modifier
@@ -446,9 +595,9 @@ private fun HomeBackdrop(item: ReleaseSummary?) {
             .background(
                 Brush.horizontalGradient(
                     0f to BackgroundPrimary.copy(alpha = 0.96f),
-                    0.32f to BackgroundPrimary.copy(alpha = 0.82f),
-                    0.6f to BackgroundPrimary.copy(alpha = 0.22f),
-                    1f to BackgroundPrimary.copy(alpha = 0.56f),
+                    0.34f to BackgroundPrimary.copy(alpha = 0.74f),
+                    0.64f to BackgroundPrimary.copy(alpha = 0.12f),
+                    1f to BackgroundPrimary.copy(alpha = 0.26f),
                 ),
             ),
     )
@@ -459,7 +608,7 @@ private fun HomeBackdrop(item: ReleaseSummary?) {
                 Brush.verticalGradient(
                     0f to Color(0x4414293B),
                     0.42f to Color.Transparent,
-                    1f to BackgroundPrimary.copy(alpha = 0.9f),
+                    1f to BackgroundPrimary.copy(alpha = 0.86f),
                 ),
             ),
     )
@@ -468,13 +617,18 @@ private fun HomeBackdrop(item: ReleaseSummary?) {
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    0f to BackgroundPrimary.copy(alpha = 0.82f),
-                    0.18f to BackgroundPrimary.copy(alpha = 0.54f),
+                    0f to BackgroundPrimary.copy(alpha = 0.66f),
+                    0.18f to BackgroundPrimary.copy(alpha = 0.42f),
                     0.34f to Color.Transparent,
                 ),
             ),
     )
 }
+
+private data class HomeBackdropImage(
+    val url: String?,
+    val isWide: Boolean,
+)
 
 @Composable
 private fun HomeLoadingSkeleton(modifier: Modifier = Modifier) {
@@ -492,8 +646,8 @@ private fun HomeLoadingSkeleton(modifier: Modifier = Modifier) {
             repeat(6) {
                 HomeSkeletonBox(
                     brush = shimmerBrush,
-                    modifier = Modifier.size(width = 176.dp, height = 264.dp),
-                    shape = RoundedCornerShape(22.dp),
+                    modifier = Modifier.size(width = 124.dp, height = 186.dp),
+                    shape = RoundedCornerShape(14.dp),
                 )
             }
         }

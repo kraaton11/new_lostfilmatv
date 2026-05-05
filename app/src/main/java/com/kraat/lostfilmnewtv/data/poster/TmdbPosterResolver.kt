@@ -33,6 +33,8 @@ class TmdbPosterResolverImpl(
     private val clock: () -> Long = { System.currentTimeMillis() },
 ) : TmdbPosterResolver {
     private val inMemoryCache = ConcurrentHashMap<String, TmdbImageUrls>()
+    private val inMemoryTmdbIdCache = ConcurrentHashMap<String, Int>()
+    private val episodeOverviewCache = ConcurrentHashMap<String, String>()
     private val locks = ConcurrentHashMap<String, Mutex>()
 
     override suspend fun resolve(
@@ -45,7 +47,11 @@ class TmdbPosterResolverImpl(
         val cacheKey = tmdbCacheKey(detailsUrl, kind)
 
         inMemoryCache[cacheKey]?.let {
-            return it
+            return it.copy(
+                episodeOverviewRu = inMemoryTmdbIdCache[cacheKey]?.let { tmdbId ->
+                    resolveEpisodeOverview(detailsUrl, tmdbId, kind)
+                },
+            )
         }
 
         val cached = tmdbDao.getByDetailsUrl(cacheKey)
@@ -56,14 +62,22 @@ class TmdbPosterResolverImpl(
             val urls = TmdbImageUrls(
                 posterUrl = cached.posterUrl,
                 backdropUrl = cached.backdropUrl,
+                episodeOverviewRu = resolveEpisodeOverview(detailsUrl, cached.tmdbId, kind),
             )
-            inMemoryCache[cacheKey] = urls
+            inMemoryCache[cacheKey] = urls.copy(episodeOverviewRu = null)
+            inMemoryTmdbIdCache[cacheKey] = cached.tmdbId
             return urls
         }
 
         val mutex = locks.computeIfAbsent(cacheKey) { Mutex() }
         return mutex.withLock {
-            inMemoryCache[cacheKey]?.let { return@withLock it }
+            inMemoryCache[cacheKey]?.let {
+                return@withLock it.copy(
+                    episodeOverviewRu = inMemoryTmdbIdCache[cacheKey]?.let { tmdbId ->
+                        resolveEpisodeOverview(detailsUrl, tmdbId, kind)
+                    },
+                )
+            }
 
             val rechecked = tmdbDao.getByDetailsUrl(cacheKey)
             if (rechecked != null && canReuseNegativeMapping(rechecked)) {
@@ -73,13 +87,15 @@ class TmdbPosterResolverImpl(
                 val urls = TmdbImageUrls(
                     posterUrl = rechecked.posterUrl,
                     backdropUrl = rechecked.backdropUrl,
+                    episodeOverviewRu = resolveEpisodeOverview(detailsUrl, rechecked.tmdbId, kind),
                 )
-                inMemoryCache[cacheKey] = urls
+                inMemoryCache[cacheKey] = urls.copy(episodeOverviewRu = null)
+                inMemoryTmdbIdCache[cacheKey] = rechecked.tmdbId
                 return@withLock urls
             }
 
             val result = performSearch(cacheKey, detailsUrl, titleRu, kind, originalReleaseYear)
-            result?.let { inMemoryCache[cacheKey] = it }
+            result?.let { inMemoryCache[cacheKey] = it.copy(episodeOverviewRu = null) }
             locks.remove(cacheKey)
             result
         }
@@ -198,6 +214,8 @@ class TmdbPosterResolverImpl(
             return null
         }
 
+        val episodeOverviewRu = resolveEpisodeOverview(detailsUrl, bestMatch.id, kind)
+
         Log.d(TAG, "TMDB images for ${bestMatch.name}: poster=${images.posterUrl.take(60)}...")
 
         val entity = TmdbPosterMappingEntity.create(
@@ -209,8 +227,41 @@ class TmdbPosterResolverImpl(
             fetchedAt = clock(),
         )
         tmdbDao.upsert(entity)
+        inMemoryTmdbIdCache[cacheKey] = bestMatch.id
 
-        return images
+        return images.copy(episodeOverviewRu = episodeOverviewRu)
+    }
+
+    private suspend fun resolveEpisodeOverview(
+        detailsUrl: String,
+        tmdbId: Int,
+        kind: ReleaseKind,
+    ): String? {
+        if (kind != ReleaseKind.SERIES || tmdbId <= 0) {
+            return null
+        }
+        val seasonNumber = Regex("""/season_(\d+)/""")
+            .find(detailsUrl)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toIntOrNull()
+            ?: return null
+        val episodeNumber = Regex("""/episode_(\d+)/?""")
+            .find(detailsUrl)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toIntOrNull()
+            ?: return null
+        val overviewKey = "$tmdbId:$seasonNumber:$episodeNumber"
+        episodeOverviewCache[overviewKey]?.let { return it }
+
+        return try {
+            tmdbClient.getEpisodeOverviewRu(tmdbId, seasonNumber, episodeNumber)
+                ?.also { episodeOverviewCache[overviewKey] = it }
+        } catch (e: Exception) {
+            Log.e(TAG, "TMDB episode overview failed for $detailsUrl: ${e.message}")
+            null
+        }
     }
 
     private fun pickBestMatch(

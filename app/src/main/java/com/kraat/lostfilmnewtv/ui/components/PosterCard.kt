@@ -42,9 +42,9 @@ import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurface
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 import kotlin.math.roundToInt
 
-private val POSTER_CARD_WIDTH = 176.dp
-private val POSTER_CARD_HEIGHT = 264.dp
-private const val POSTER_FOCUSED_SCALE = 1.10f
+private val POSTER_CARD_WIDTH = 108.dp
+private val POSTER_CARD_HEIGHT = 162.dp
+private const val POSTER_FOCUSED_SCALE = 1.07f
 
 @Composable
 fun PosterCard(
@@ -52,15 +52,15 @@ fun PosterCard(
     isFocused: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    val shape = RoundedCornerShape(22.dp)
+    val shape = RoundedCornerShape(14.dp)
     val density = LocalDensity.current
     val scale by animateFloatAsState(
         targetValue = if (isFocused) POSTER_FOCUSED_SCALE else 1f,
         animationSpec = tween(durationMillis = 120),
         label = "posterScale",
     )
-    val liftPx = with(density) { if (isFocused) (-8).dp.toPx() else 0f }
-    val borderColor = if (isFocused) FocusBorder.copy(alpha = 0.92f) else HomePanelBorder.copy(alpha = 0.72f)
+    val liftPx = with(density) { if (isFocused) (-6).dp.toPx() else 0f }
+    val borderColor = if (isFocused) FocusBorder.copy(alpha = 0.92f) else HomePanelBorder.copy(alpha = 0.28f)
     val overlayColor = if (isFocused) FocusBackground.copy(alpha = 0.88f) else HomePanelSurface.copy(alpha = 0.76f)
     val watchedBadgeColor = if (isFocused) HomeAccentGoldGlow.copy(alpha = 0.94f) else HomeAccentGold.copy(alpha = 0.9f)
     val posterRequest = rememberPosterImageRequest(item.posterUrl)
@@ -75,14 +75,14 @@ fun PosterCard(
                 translationY = liftPx
             }
             .shadow(
-                elevation = if (isFocused) 48.dp else 10.dp,
+                elevation = if (isFocused) 36.dp else 3.dp,
                 spotColor = if (isFocused) HomeAccentGoldGlow.copy(alpha = 0.45f) else Color.Black,
                 ambientColor = if (isFocused) HomeAccentGold.copy(alpha = 0.28f) else Color.Black,
                 shape = shape,
             )
             .clip(shape)
             .background(HomePanelSurfaceStrong)
-            .border(width = if (isFocused) 2.dp else 1.dp, color = borderColor, shape = shape),
+            .border(width = if (isFocused) 2.dp else 0.5.dp, color = borderColor, shape = shape),
     ) {
         AsyncImage(
             model = posterRequest,
@@ -103,7 +103,7 @@ fun PosterCard(
                 ),
         )
 
-        seasonEpisodeLabel(item)?.let { label ->
+        if (isFocused) seasonEpisodeLabel(item)?.let { label ->
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomStart)
@@ -115,13 +115,13 @@ fun PosterCard(
                             1f to overlayColor,
                         ),
                     )
-                    .padding(horizontal = 13.dp, vertical = 11.dp),
+                    .padding(horizontal = 9.dp, vertical = 8.dp),
             ) {
                 Text(
                     text = label,
                     color = Color.White,
-                    fontSize = 16.sp,
-                    lineHeight = 18.sp,
+                    fontSize = 12.sp,
+                    lineHeight = 14.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
             }
@@ -131,17 +131,17 @@ fun PosterCard(
             Box(
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(10.dp)
+                    .padding(7.dp)
                     .background(HomeAccentGold.copy(alpha = 0.94f), RoundedCornerShape(999.dp)),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     text = label,
                     color = Color(0xFF1B1408),
-                    fontSize = 12.sp,
-                    lineHeight = 14.sp,
+                    fontSize = 9.sp,
+                    lineHeight = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
                 )
             }
         }
@@ -150,7 +150,7 @@ fun PosterCard(
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(10.dp)
+                    .padding(7.dp)
                     .background(watchedBadgeColor, RoundedCornerShape(999.dp)),
                 contentAlignment = Alignment.Center,
             ) {
@@ -158,7 +158,7 @@ fun PosterCard(
                     text = "✓",
                     color = Color(0xFF1B1408),
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
                 )
             }
         }

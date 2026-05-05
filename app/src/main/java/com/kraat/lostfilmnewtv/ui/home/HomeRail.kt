@@ -9,9 +9,9 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -65,6 +66,7 @@ fun HomeRail(
     onItemFocused: (String) -> Unit,
     onOpenDetails: (String) -> Unit,
     onEndReached: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val itemKeys = items.map { it.detailsUrl }
     val targetKey = if (focusedItemKey in itemKeys) {
@@ -93,78 +95,80 @@ fun HomeRail(
         requestFocusWhenReady(targetRequester)
     }
 
-    LazyRow(
-        state = listState,
-        modifier = Modifier
-            .fillMaxWidth()
-            .focusRequester(entryFocusRequester)
-            .focusProperties {
-                onEnter = {
-                    if (shouldRequestFocus && targetRequester != null) {
-                        targetRequester.requestFocus()
+    Box(modifier = modifier.fillMaxWidth()) {
+        LazyRow(
+            state = listState,
+            modifier = Modifier
+                .fillMaxWidth()
+                .focusRequester(entryFocusRequester)
+                .focusProperties {
+                    onEnter = {
+                        if (shouldRequestFocus && targetRequester != null) {
+                            targetRequester.requestFocus()
+                        }
                     }
                 }
-            }
-            .focusable()
-            .height(284.dp),
-        horizontalArrangement = Arrangement.spacedBy(20.dp),
-        contentPadding = PaddingValues(horizontal = 28.dp, vertical = 10.dp),
-    ) {
-        itemsIndexed(items = items, key = { _, item -> item.detailsUrl }) { index, item ->
-            val itemKey = homeItemKey(railId, item.detailsUrl)
-            PosterCard(
-                item = item,
-                isFocused = focusedCardKey == item.detailsUrl,
-                modifier = Modifier
-                    .focusRequester(cardFocusRequesters.getValue(itemKey))
-                    .focusProperties {
-                        if (upTargetRequester != null) {
-                            up = upTargetRequester
-                        }
-                        if (downTargetRequester != null) {
-                            down = downTargetRequester
-                        }
-                        if (isPaging && index == items.lastIndex) {
-                            right = FocusRequester.Cancel
-                        }
-                    }
-                    .testTag(posterTag(railId, item.detailsUrl))
-                    .onFocusChanged { focusState ->
-                        if (focusState.isFocused) {
-                            focusedCardKey = item.detailsUrl
-                            onItemFocused(item.detailsUrl)
-                            if (index == items.lastIndex) {
-                                onEndReached()
+                .focusable()
+                .height(178.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(start = 8.dp, top = 8.dp, end = 8.dp, bottom = 8.dp),
+        ) {
+            itemsIndexed(items = items, key = { _, item -> item.detailsUrl }) { index, item ->
+                val itemKey = homeItemKey(railId, item.detailsUrl)
+                PosterCard(
+                    item = item,
+                    isFocused = focusedCardKey == item.detailsUrl,
+                    modifier = Modifier
+                        .focusRequester(cardFocusRequesters.getValue(itemKey))
+                        .focusProperties {
+                            if (upTargetRequester != null) {
+                                up = upTargetRequester
                             }
-                        } else if (focusedCardKey == item.detailsUrl) {
-                            focusedCardKey = null
+                            if (downTargetRequester != null) {
+                                down = downTargetRequester
+                            }
+                            if (isPaging && index == items.lastIndex) {
+                                right = FocusRequester.Cancel
+                            }
                         }
-                    }
-                    .onPreviewKeyEvent { event ->
-                        if (event.type == KeyEventType.KeyDown && event.key.isPosterActivationKey()) {
-                            onOpenDetails(item.detailsUrl)
-                            true
-                        } else {
-                            false
+                        .testTag(posterTag(railId, item.detailsUrl))
+                        .onFocusChanged { focusState ->
+                            if (focusState.isFocused) {
+                                focusedCardKey = item.detailsUrl
+                                onItemFocused(item.detailsUrl)
+                                if (index == items.lastIndex) {
+                                    onEndReached()
+                                }
+                            } else if (focusedCardKey == item.detailsUrl) {
+                                focusedCardKey = null
+                            }
                         }
-                    }
-                    .focusable()
-                    .clickable { onOpenDetails(item.detailsUrl) },
-            )
-        }
+                        .onPreviewKeyEvent { event ->
+                            if (event.type == KeyEventType.KeyDown && event.key.isPosterActivationKey()) {
+                                onOpenDetails(item.detailsUrl)
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                        .focusable()
+                        .clickable { onOpenDetails(item.detailsUrl) },
+                )
+            }
 
-        if (isPaging) {
-            items(2) { skeletonIndex ->
-                AnimatedVisibility(
-                    visible = true,
-                    enter = fadeIn(),
-                    exit = fadeOut(),
-                ) {
-                    HomePagingPosterSkeleton(
-                        modifier = Modifier
-                            .focusable(false)
-                            .testTag("home-paging-skeleton-$skeletonIndex"),
-                    )
+            if (isPaging) {
+                items(2) { skeletonIndex ->
+                    AnimatedVisibility(
+                        visible = true,
+                        enter = fadeIn(),
+                        exit = fadeOut(),
+                    ) {
+                        HomePagingPosterSkeleton(
+                            modifier = Modifier
+                                .focusable(false)
+                                .testTag("home-paging-skeleton-$skeletonIndex"),
+                        )
+                    }
                 }
             }
         }
@@ -177,7 +181,7 @@ internal fun posterTag(railId: String, detailsUrl: String): String = "poster:$ra
 
 @Composable
 private fun HomePagingPosterSkeleton(modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(22.dp)
+    val shape = RoundedCornerShape(14.dp)
     val transition = rememberInfiniteTransition(label = "homePagingSkeleton")
     val xOffset by transition.animateFloat(
         initialValue = -220f,
@@ -200,7 +204,7 @@ private fun HomePagingPosterSkeleton(modifier: Modifier = Modifier) {
 
     Box(
         modifier = modifier
-            .size(width = 176.dp, height = 264.dp)
+            .size(width = 108.dp, height = 162.dp)
             .clip(shape)
             .background(shimmerBrush)
             .background(HomePanelBorder.copy(alpha = 0.18f), shape),

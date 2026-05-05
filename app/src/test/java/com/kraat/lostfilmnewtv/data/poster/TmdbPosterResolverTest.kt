@@ -19,6 +19,44 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class TmdbPosterResolverTest {
     @Test
+    fun resolve_fetchesRussianEpisodeOverview_forSeriesEpisode() = runTest {
+        val dao = FakeTmdbPosterDao()
+        val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType): List<TmdbSearchResult> {
+                return listOf(TmdbSearchResult(id = 777, name = "Example Show", popularity = 10.0))
+            }
+
+            override suspend fun getPosterAndBackdrop(tmdbId: Int, type: TmdbMediaType): TmdbImageUrls {
+                return TmdbImageUrls(
+                    posterUrl = "https://image.tmdb.org/t/p/w780/poster.jpg",
+                    backdropUrl = "https://image.tmdb.org/t/p/original/backdrop.jpg",
+                )
+            }
+
+            override suspend fun getEpisodeOverviewRu(
+                tmdbId: Int,
+                seasonNumber: Int,
+                episodeNumber: Int,
+            ): String? {
+                assertEquals(777, tmdbId)
+                assertEquals(2, seasonNumber)
+                assertEquals(8, episodeNumber)
+                return "Русское описание серии из TMDB."
+            }
+        }
+        val resolver = TmdbPosterResolverImpl(client, dao)
+
+        val result = resolver.resolve(
+            detailsUrl = "https://www.lostfilm.today/series/Example_Show/season_2/episode_8/",
+            titleRu = "Пример шоу",
+            releaseDateRu = "05.05.2026",
+            kind = ReleaseKind.SERIES,
+        )
+
+        assertEquals("Русское описание серии из TMDB.", result?.episodeOverviewRu)
+    }
+
+    @Test
     fun resolve_refetchesCachedMapping_whenBackdropMissing() = runTest {
         val dao = FakeTmdbPosterDao(
             cached = TmdbPosterMappingEntity.create(
