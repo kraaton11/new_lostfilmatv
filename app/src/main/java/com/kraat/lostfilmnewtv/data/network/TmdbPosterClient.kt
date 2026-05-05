@@ -171,5 +171,26 @@ open class TmdbPosterClient(
         )
     }
 
+    open suspend fun getEpisodeOverviewRu(
+        tmdbId: Int,
+        seasonNumber: Int,
+        episodeNumber: Int,
+    ): String? = withContext(Dispatchers.IO) {
+        val url = "$TMDB_BASE_URL/tv/$tmdbId/season/$seasonNumber/episode/$episodeNumber?language=ru-RU"
+        val request = Request.Builder()
+            .url(url)
+            .header("Authorization", "Bearer $apiKey")
+            .header("Accept", "application/json")
+            .build()
+
+        okHttpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) return@withContext null
+            val body = response.body?.string() ?: return@withContext null
+            JSONObject(body).optString("overview", "")
+                .trim()
+                .takeIf { it.isNotBlank() }
+        }
+    }
+
     private fun String.encodeUrl(): String = java.net.URLEncoder.encode(this, "UTF-8")
 }

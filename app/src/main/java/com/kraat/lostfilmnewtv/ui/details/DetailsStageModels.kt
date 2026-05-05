@@ -85,7 +85,11 @@ fun buildDetailsStageUi(
             DetailsStageActionUiModel(
                 actionId = "watched",
                 rowId = null,
-                label = state.watchedActionLabel.ifBlank { "Статус недоступен" },
+                label = when (state.isWatched) {
+                    true -> "Просмотрено"
+                    false -> "Отметить просмотренным"
+                    null -> state.watchedActionLabel.ifBlank { "Статус недоступен" }
+                },
                 subtitle = "",
                 qualityLabel = null,
                 actionType = DetailsStageActionType.TOGGLE_WATCHED,
@@ -99,7 +103,7 @@ fun buildDetailsStageUi(
             DetailsStageActionUiModel(
                 actionId = "series-overview",
                 rowId = null,
-                label = "Обзор",
+                label = "Описание",
                 subtitle = "Описание сериала",
                 qualityLabel = null,
                 actionType = DetailsStageActionType.OPEN_SERIES_OVERVIEW,
@@ -112,7 +116,7 @@ fun buildDetailsStageUi(
             DetailsStageActionUiModel(
                 actionId = "series-guide",
                 rowId = null,
-                label = "Гид по сериям",
+                label = "Серии",
                 subtitle = "Все сезоны и серии",
                 qualityLabel = null,
                 actionType = DetailsStageActionType.OPEN_SERIES_GUIDE,
@@ -128,7 +132,7 @@ fun buildDetailsStageUi(
         heroStatusLine = heroStatusLine,
         primaryAction = primaryAction,
         secondaryActions = if (isAuthenticated) {
-            listOfNotNull(overviewAction, watchedAction, favoriteAction, guideAction)
+            listOfNotNull(overviewAction, guideAction, favoriteAction, watchedAction)
         } else {
             emptyList()
         },

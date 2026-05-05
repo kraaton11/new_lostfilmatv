@@ -14,14 +14,15 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -55,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
+import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
 import com.kraat.lostfilmnewtv.ui.theme.DetailsAccentBlue
 import com.kraat.lostfilmnewtv.ui.theme.DetailsAccentGold
@@ -198,7 +200,7 @@ private fun LoadingState() {
                 }
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(52.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -311,7 +313,7 @@ private fun ContentState(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 48.dp, top = 24.dp, end = 48.dp, bottom = 24.dp),
+                .padding(start = 44.dp, top = 44.dp, end = 48.dp, bottom = 40.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (state.showStaleBanner) {
@@ -413,96 +415,16 @@ private fun HeroStage(
         }
     }
 
-    Column(
+    Row(
         modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(22.dp),
+        horizontalArrangement = Arrangement.spacedBy(26.dp),
+        verticalAlignment = Alignment.Top,
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(34.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        Column(
+            modifier = Modifier.width(242.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             PosterCard(details = details)
-            Column(
-                modifier = Modifier.width(760.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(
-                    text = stageUi.title.ifBlank { "Details" },
-                    color = TextPrimary,
-                    fontSize = 44.sp,
-                    fontWeight = FontWeight.Bold,
-                    lineHeight = 48.sp,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (stageUi.heroEpisodeTitle.isNotBlank()) {
-                    Text(
-                        text = stageUi.heroEpisodeTitle,
-                        color = TextPrimary,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Medium,
-                        lineHeight = 26.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                val metaChips = remember(details, stageUi.heroMetaLine) {
-                    buildDetailsMetaChips(details = details, heroMetaLine = stageUi.heroMetaLine)
-                }
-                if (metaChips.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier.testTag("details-hero-meta"),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        metaChips.forEach { chip ->
-                            DetailsMetaChip(text = chip)
-                        }
-                    }
-                }
-                if (stageUi.heroStatusLine.isNotBlank()) {
-                    Text(
-                        text = stageUi.heroStatusLine,
-                        modifier = Modifier.testTag("details-hero-status"),
-                        color = DetailsTextSecondary,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Medium,
-                        lineHeight = 22.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            leadingAction?.let { action ->
-                StageButton(
-                    label = action.label,
-                    subtitle = action.subtitle,
-                    onClick = secondaryActionClickHandler(
-                        action = action,
-                        onWatchedClick = onWatchedClick,
-                        onFavoriteClick = onFavoriteClick,
-                        onSeriesOverviewClick = onSeriesOverviewClick,
-                        onSeriesGuideClick = onSeriesGuideClick,
-                    ),
-                    modifier = actionButtonModifier(useFlexibleActionWidth)
-                        .focusProperties { canFocus = isLeadingActionFocusable }
-                        .focusRequester(secondaryActionRequesters.getValue(action.actionId))
-                        .testTag(secondaryActionTag(action)),
-                    enabled = action.enabled,
-                    isHighlighted = action.isHighlighted,
-                    isSecondary = true,
-                )
-            }
             StageButton(
                 label = stageUi.primaryAction.label,
                 subtitle = stageUi.primaryAction.subtitle,
@@ -511,43 +433,123 @@ private fun HeroStage(
                     onAuthClick = onAuthClick,
                     onOpenTorrServe = onOpenTorrServe,
                 ),
-                modifier = actionButtonModifier(useFlexibleActionWidth)
+                modifier = Modifier
+                    .fillMaxWidth()
                     .focusRequester(primaryActionRequester)
                     .testTag(primaryActionTag(stageUi.primaryAction)),
                 isPrimary = true,
                 enabled = stageUi.primaryAction.enabled,
                 onFocusedChange = { isPrimaryActionFocused = it },
             )
-            trailingActions.forEach { action ->
-                StageButton(
-                    label = action.label,
-                    subtitle = action.subtitle,
-                    onClick = secondaryActionClickHandler(
-                        action = action,
-                        onWatchedClick = onWatchedClick,
-                        onFavoriteClick = onFavoriteClick,
-                        onSeriesOverviewClick = onSeriesOverviewClick,
-                        onSeriesGuideClick = onSeriesGuideClick,
-                    ),
-                    modifier = actionButtonModifier(useFlexibleActionWidth)
-                        .focusRequester(secondaryActionRequesters.getValue(action.actionId))
-                        .testTag(secondaryActionTag(action)),
-                    enabled = action.enabled,
-                    isHighlighted = action.isHighlighted,
-                    isSecondary = true,
+        }
+
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .padding(top = 46.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            Text(
+                text = stageUi.title.ifBlank { "Details" },
+                color = TextPrimary,
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold,
+                lineHeight = 32.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (stageUi.heroEpisodeTitle.isNotBlank()) {
+                Text(
+                    text = stageUi.heroEpisodeTitle,
+                    color = DetailsAccentGold,
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    lineHeight = 25.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
+            }
+            val metaChips = remember(details, stageUi.heroMetaLine) {
+                buildDetailsMetaChips(details = details, heroMetaLine = stageUi.heroMetaLine)
+            }
+            if (metaChips.isNotEmpty()) {
+                Row(
+                    modifier = Modifier.testTag("details-hero-meta"),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    metaChips.forEach { chip ->
+                        DetailsMetaChip(text = chip)
+                    }
+                }
+            }
+            DetailsInfoRows(
+                details = details,
+                statusLine = stageUi.heroStatusLine,
+            )
+            DetailsDivider()
+            DetailsDescription(details = details)
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                leadingAction?.let { action ->
+                    StageButton(
+                        label = action.label,
+                        subtitle = action.subtitle,
+                        onClick = secondaryActionClickHandler(
+                            action = action,
+                            onWatchedClick = onWatchedClick,
+                            onFavoriteClick = onFavoriteClick,
+                            onSeriesOverviewClick = onSeriesOverviewClick,
+                            onSeriesGuideClick = onSeriesGuideClick,
+                        ),
+                        modifier = detailsSecondaryActionModifier(action)
+                            .focusProperties { canFocus = isLeadingActionFocusable }
+                            .focusRequester(secondaryActionRequesters.getValue(action.actionId))
+                            .testTag(secondaryActionTag(action)),
+                        enabled = action.enabled,
+                        isHighlighted = action.isHighlighted,
+                        isSecondary = true,
+                    )
+                }
+                trailingActions.forEach { action ->
+                    StageButton(
+                        label = action.label,
+                        subtitle = action.subtitle,
+                        onClick = secondaryActionClickHandler(
+                            action = action,
+                            onWatchedClick = onWatchedClick,
+                            onFavoriteClick = onFavoriteClick,
+                            onSeriesOverviewClick = onSeriesOverviewClick,
+                            onSeriesGuideClick = onSeriesGuideClick,
+                        ),
+                        modifier = detailsSecondaryActionModifier(action)
+                            .focusRequester(secondaryActionRequesters.getValue(action.actionId))
+                            .testTag(secondaryActionTag(action)),
+                        enabled = action.enabled,
+                        isHighlighted = action.isHighlighted,
+                        isSecondary = true,
+                    )
+                }
             }
         }
     }
 }
 
-@Composable
-private fun RowScope.actionButtonModifier(useFlexibleActionWidth: Boolean): Modifier {
-    return if (useFlexibleActionWidth) {
-        Modifier.weight(1f)
-    } else {
-        Modifier.width(248.dp)
+private fun detailsSecondaryActionModifier(action: DetailsStageActionUiModel): Modifier {
+    val width = when (action.actionType) {
+        DetailsStageActionType.OPEN_SERIES_OVERVIEW -> 104.dp
+        DetailsStageActionType.OPEN_SERIES_GUIDE -> 104.dp
+        DetailsStageActionType.TOGGLE_FAVORITE -> 116.dp
+        DetailsStageActionType.TOGGLE_WATCHED -> 136.dp
+        else -> 116.dp
     }
+    return Modifier.width(width)
 }
 
 @Composable
@@ -557,15 +559,15 @@ private fun DetailsMetaChip(text: String) {
             .clip(RoundedCornerShape(999.dp))
             .background(DetailsSurfaceSoft.copy(alpha = 0.72f))
             .border(1.dp, DetailsBorderDefault.copy(alpha = 0.58f), RoundedCornerShape(999.dp))
-            .padding(horizontal = 14.dp, vertical = 7.dp),
+            .padding(horizontal = 14.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text = text,
             color = DetailsTextSecondary,
-            fontSize = 14.sp,
+            fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,
-            lineHeight = 16.sp,
+            lineHeight = 15.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
@@ -577,13 +579,18 @@ private fun buildDetailsMetaChips(
     heroMetaLine: String,
 ): List<String> {
     return buildList {
-        heroMetaLine.takeIf { it.isNotBlank() }?.let(::add)
+        if (details?.kind == ReleaseKind.SERIES) {
+            details.seasonNumber?.let { add("Сезон $it") }
+            details.episodeNumber?.let { add("Серия $it") }
+        } else {
+            heroMetaLine.takeIf { it.isNotBlank() }?.let(::add)
+        }
         details?.releaseDateRu?.takeIf { it.isNotBlank() }?.let(::add)
         details?.kind?.let { kind ->
             add(
                 when (kind) {
-                    com.kraat.lostfilmnewtv.data.model.ReleaseKind.SERIES -> "Сериал"
-                    com.kraat.lostfilmnewtv.data.model.ReleaseKind.MOVIE -> "Фильм"
+                    ReleaseKind.SERIES -> "Сериал"
+                    ReleaseKind.MOVIE -> "Фильм"
                 },
             )
         }
@@ -591,18 +598,120 @@ private fun buildDetailsMetaChips(
 }
 
 @Composable
+private fun DetailsInfoRows(
+    details: ReleaseDetails?,
+    statusLine: String,
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(7.dp),
+        modifier = Modifier.testTag("details-info-rows"),
+    ) {
+        statusLine.takeIf { it.isNotBlank() }?.let { status ->
+            DetailsInfoRow(
+                icon = "▣",
+                text = status,
+                modifier = Modifier.testTag("details-hero-status"),
+            )
+        }
+        details?.releaseDateRu?.takeIf { it.isNotBlank() }?.let { date ->
+            DetailsInfoRow(
+                icon = "◷",
+                text = "Дата релиза: $date",
+            )
+        }
+    }
+}
+
+@Composable
+private fun DetailsInfoRow(
+    icon: String,
+    text: String,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            modifier = Modifier
+                .size(22.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(DetailsSurfaceSoft.copy(alpha = 0.72f))
+                .border(1.dp, DetailsBorderDefault.copy(alpha = 0.45f), RoundedCornerShape(8.dp)),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                text = icon,
+                color = DetailsTextSecondary,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        Text(
+            text = text,
+            color = DetailsTextSecondary,
+            fontSize = 13.sp,
+            lineHeight = 16.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+@Composable
+private fun DetailsDivider() {
+    Box(
+        modifier = Modifier
+            .width(640.dp)
+            .height(1.dp)
+            .background(DetailsBorderDefault.copy(alpha = 0.38f)),
+    )
+}
+
+@Composable
+private fun DetailsDescription(details: ReleaseDetails?) {
+    val description = buildDetailsDescription(details)
+    if (description.isBlank()) return
+
+    Text(
+        text = description,
+        color = DetailsTextSecondary,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        maxLines = 4,
+        overflow = TextOverflow.Ellipsis,
+        modifier = Modifier
+            .widthIn(max = 660.dp)
+            .testTag("details-description"),
+    )
+}
+
+private fun buildDetailsDescription(details: ReleaseDetails?): String {
+    if (details == null) return ""
+    return when (details.kind) {
+        ReleaseKind.SERIES -> {
+            details.episodeOverviewRu
+                ?.takeIf { it.isNotBlank() }
+                ?: details.seriesStatusRu.orEmpty()
+        }
+        ReleaseKind.MOVIE -> "Фильм доступен в релизах LostFilm."
+    }
+}
+
+@Composable
 private fun PosterCard(details: ReleaseDetails?) {
     Box(
         modifier = Modifier
-            .size(width = 264.dp, height = 380.dp)
-            .shadow(34.dp, RoundedCornerShape(24.dp))
-            .clip(RoundedCornerShape(24.dp))
+            .size(width = 242.dp, height = 318.dp)
+            .shadow(28.dp, RoundedCornerShape(22.dp))
+            .clip(RoundedCornerShape(22.dp))
             .background(
                 Brush.verticalGradient(
                     listOf(Color(0xFF3F586E), Color(0xFF172734), Color(0xFF0A131B)),
                 ),
             )
-            .border(1.dp, DetailsBorderDefault.copy(alpha = 0.74f), RoundedCornerShape(24.dp)),
+            .border(1.dp, DetailsBorderDefault.copy(alpha = 0.74f), RoundedCornerShape(22.dp)),
     ) {
         if (details != null) {
             AsyncImage(
@@ -682,48 +791,98 @@ private fun StageButton(
             }
         },
         enabled = true,
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(if (isPrimary) 12.dp else 10.dp),
+        contentPadding = PaddingValues(
+            horizontal = if (isPrimary) 16.dp else 12.dp,
+            vertical = 0.dp,
+        ),
         colors = ButtonDefaults.buttonColors(
             containerColor = background,
             disabledContainerColor = DetailsSurfaceSoft.copy(alpha = 0.55f),
         ),
         modifier = modifier
-            .height(76.dp)
+            .height(if (isPrimary) 56.dp else 48.dp)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = 1f
             }
-            .border(1.25.dp, border, RoundedCornerShape(18.dp))
+            .border(1.15.dp, border, RoundedCornerShape(if (isPrimary) 12.dp else 10.dp))
             .onFocusChanged {
                 isFocused = it.isFocused
                 onFocusedChange(it.isFocused)
             },
     ) {
-        Column(
+        Row(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalArrangement = if (isPrimary) Arrangement.spacedBy(12.dp) else Arrangement.spacedBy(9.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = label,
-                color = if (enabled) textColor else DetailsTextMuted,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                lineHeight = 18.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
+            StageButtonIcon(
+                actionLabel = label,
+                isPrimary = isPrimary,
+                tint = if (enabled) textColor else DetailsTextMuted,
             )
-            if (subtitle.isNotBlank()) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(if (isPrimary) 1.dp else 0.dp),
+            ) {
                 Text(
-                    text = subtitle,
-                    color = if (enabled) subtitleColor else DetailsTextMuted.copy(alpha = 0.8f),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Medium,
-                    letterSpacing = 0.6.sp,
-                    maxLines = 1,
+                    text = label,
+                    color = if (enabled) textColor else DetailsTextMuted,
+                    fontSize = if (isPrimary) 14.sp else 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    lineHeight = if (isPrimary) 17.sp else 15.sp,
+                    maxLines = if (isPrimary) 1 else 2,
                     overflow = TextOverflow.Ellipsis,
                 )
+                if (subtitle.isNotBlank()) {
+                    Text(
+                        text = subtitle,
+                        color = if (enabled) subtitleColor else DetailsTextMuted.copy(alpha = 0.8f),
+                        fontSize = if (isPrimary) 10.sp else 9.sp,
+                        fontWeight = FontWeight.Medium,
+                        letterSpacing = 0.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun StageButtonIcon(
+    actionLabel: String,
+    isPrimary: Boolean,
+    tint: Color,
+) {
+    val normalized = actionLabel.lowercase()
+    Box(
+        modifier = Modifier
+            .size(if (isPrimary) 32.dp else 19.dp)
+            .clip(RoundedCornerShape(999.dp))
+            .background(if (isPrimary) Color(0xFF1B1710).copy(alpha = 0.9f) else Color.Transparent)
+            .border(
+                width = if (isPrimary) 0.dp else 1.dp,
+                color = if (isPrimary) Color.Transparent else tint.copy(alpha = 0.8f),
+                shape = RoundedCornerShape(999.dp),
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = when {
+                isPrimary -> "▶"
+                normalized.contains("обзор") -> "i"
+                normalized.contains("сер") || normalized.contains("гид") -> "≡"
+                normalized.contains("избран") -> "♡"
+                normalized.contains("просмотр") -> "✓"
+                else -> "•"
+            },
+            color = if (isPrimary) DetailsAccentGold else tint,
+            fontSize = if (isPrimary) 14.sp else 12.sp,
+            fontWeight = FontWeight.Bold,
+            lineHeight = if (isPrimary) 14.sp else 12.sp,
+        )
     }
 }
 

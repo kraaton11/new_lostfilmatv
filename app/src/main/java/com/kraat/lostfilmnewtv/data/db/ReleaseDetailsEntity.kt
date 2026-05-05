@@ -30,6 +30,7 @@ data class ReleaseDetailsEntity(
     val favoriteTargetId: Int?,
     val favoriteTargetKind: String?,
     val isFavorite: Boolean?,
+    val episodeOverviewRu: String? = null,
 ) {
     fun toModel(): ReleaseDetails = ReleaseDetails(
         detailsUrl = detailsUrl,
@@ -47,6 +48,7 @@ data class ReleaseDetailsEntity(
         favoriteTargetId = favoriteTargetId,
         favoriteTargetKind = favoriteTargetKind?.let(FavoriteTargetKind::valueOf),
         isFavorite = isFavorite,
+        episodeOverviewRu = episodeOverviewRu,
     )
 
     companion object {
@@ -66,6 +68,7 @@ data class ReleaseDetailsEntity(
             favoriteTargetId = model.favoriteTargetId,
             favoriteTargetKind = model.favoriteTargetKind?.name,
             isFavorite = model.isFavorite,
+            episodeOverviewRu = model.episodeOverviewRu,
         )
     }
 }

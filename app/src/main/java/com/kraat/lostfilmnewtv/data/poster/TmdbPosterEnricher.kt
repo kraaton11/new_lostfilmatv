@@ -9,10 +9,14 @@ object TmdbPosterEnricher {
         summary: ReleaseSummary,
         tmdbUrls: TmdbImageUrls?,
     ): ReleaseSummary {
-        if (tmdbUrls == null || tmdbUrls.posterUrl.isBlank()) {
+        if (tmdbUrls == null) {
             return summary
         }
-        return summary.copy(posterUrl = tmdbUrls.posterUrl)
+        return summary.copy(
+            posterUrl = tmdbUrls.posterUrl.ifBlank { summary.posterUrl },
+            backdropUrl = tmdbUrls.backdropUrl.ifBlank { summary.backdropUrl },
+            episodeOverviewRu = tmdbUrls.episodeOverviewRu?.ifBlank { null } ?: summary.episodeOverviewRu,
+        )
     }
 
     fun enrichDetails(
@@ -25,6 +29,7 @@ object TmdbPosterEnricher {
         return details.copy(
             posterUrl = tmdbUrls.posterUrl.ifBlank { details.posterUrl },
             backdropUrl = tmdbUrls.backdropUrl.ifBlank { null },
+            episodeOverviewRu = tmdbUrls.episodeOverviewRu?.ifBlank { null } ?: details.episodeOverviewRu,
         )
     }
 }
