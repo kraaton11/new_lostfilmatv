@@ -47,6 +47,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.kraat.lostfilmnewtv.data.model.SeriesOverview
+import com.kraat.lostfilmnewtv.ui.components.ShimmerSkeletonBox
+import com.kraat.lostfilmnewtv.ui.components.rememberShimmerSkeletonBrush
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
 import com.kraat.lostfilmnewtv.ui.theme.DetailsAccentGold
 import com.kraat.lostfilmnewtv.ui.theme.DetailsBackgroundMid
@@ -125,32 +127,84 @@ private fun OverviewBackgroundPoster(overview: SeriesOverview?) {
 
 @Composable
 private fun OverviewLoadingState() {
-    val brush = Brush.linearGradient(
-        listOf(
-            DetailsSurfaceSoft.copy(alpha = 0.55f),
-            DetailsBorderDefault.copy(alpha = 0.45f),
-            DetailsSurfaceSoft.copy(alpha = 0.55f),
-        ),
+    val brush = rememberShimmerSkeletonBrush(
+        label = "seriesOverviewSkeleton",
+        baseColor = DetailsSurfaceSoft,
+        highlightColor = DetailsBorderDefault,
+        baseAlpha = 0.56f,
+        highlightAlpha = 0.66f,
+        startOffset = -560f,
+        endOffset = 1_360f,
+        shimmerWidth = 520f,
+        durationMillis = 1_400,
     )
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(start = 48.dp, top = 28.dp, end = 48.dp, bottom = 28.dp)
+            .padding(start = 48.dp, top = 22.dp, end = 48.dp, bottom = 22.dp)
             .testTag("series-overview-loading"),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-            Box(
+            ShimmerSkeletonBox(
+                brush = brush,
                 modifier = Modifier
-                    .size(width = 250.dp, height = 360.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(brush),
+                    .size(width = 175.dp, height = 252.dp),
+                shape = RoundedCornerShape(24.dp),
+                borderColor = DetailsBorderDefault.copy(alpha = 0.34f),
             )
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Box(modifier = Modifier.size(width = 620.dp, height = 52.dp).clip(RoundedCornerShape(12.dp)).background(brush))
-                Box(modifier = Modifier.size(width = 430.dp, height = 28.dp).clip(RoundedCornerShape(10.dp)).background(brush))
-                Box(modifier = Modifier.size(width = 760.dp, height = 126.dp).clip(RoundedCornerShape(18.dp)).background(brush))
+            Column(
+                modifier = Modifier.padding(top = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                ShimmerSkeletonBox(
+                    brush = brush,
+                    modifier = Modifier.size(width = 130.dp, height = 18.dp),
+                    shape = RoundedCornerShape(9.dp),
+                )
+                ShimmerSkeletonBox(
+                    brush = brush,
+                    modifier = Modifier.size(width = 620.dp, height = 54.dp),
+                    shape = RoundedCornerShape(14.dp),
+                )
+                ShimmerSkeletonBox(
+                    brush = brush,
+                    modifier = Modifier.size(width = 360.dp, height = 28.dp),
+                    shape = RoundedCornerShape(12.dp),
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    repeat(3) { index ->
+                        ShimmerSkeletonBox(
+                            brush = brush,
+                            modifier = Modifier.size(width = listOf(104.dp, 88.dp, 120.dp)[index], height = 32.dp),
+                            shape = RoundedCornerShape(999.dp),
+                            borderColor = DetailsBorderDefault.copy(alpha = 0.28f),
+                        )
+                    }
+                }
             }
+        }
+
+        ShimmerSkeletonBox(
+            brush = brush,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(82.dp),
+            shape = RoundedCornerShape(18.dp),
+            borderColor = DetailsBorderDefault.copy(alpha = 0.24f),
+        )
+        ShimmerSkeletonBox(
+            brush = brush,
+            modifier = Modifier.size(width = 120.dp, height = 18.dp),
+            shape = RoundedCornerShape(9.dp),
+        )
+        repeat(4) { index ->
+            ShimmerSkeletonBox(
+                brush = brush,
+                modifier = Modifier.size(width = listOf(980.dp, 1_060.dp, 920.dp, 760.dp)[index], height = 18.dp),
+                shape = RoundedCornerShape(9.dp),
+            )
         }
     }
 }
