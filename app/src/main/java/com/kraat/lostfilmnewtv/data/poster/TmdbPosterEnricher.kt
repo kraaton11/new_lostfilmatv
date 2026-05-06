@@ -1,6 +1,7 @@
 package com.kraat.lostfilmnewtv.data.poster
 
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
+import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.model.TmdbImageUrls
 
@@ -32,6 +33,11 @@ object TmdbPosterEnricher {
             posterUrl = tmdbUrls.posterUrl.ifBlank { details.posterUrl },
             backdropUrl = tmdbUrls.backdropUrl.ifBlank { null },
             episodeOverviewRu = tmdbUrls.episodeOverviewRu?.ifBlank { null } ?: details.episodeOverviewRu,
+            movieOverviewRu = if (details.kind == ReleaseKind.MOVIE) {
+                tmdbUrls.movieOverviewRu?.ifBlank { null } ?: details.movieOverviewRu
+            } else {
+                details.movieOverviewRu
+            },
         )
     }
 }

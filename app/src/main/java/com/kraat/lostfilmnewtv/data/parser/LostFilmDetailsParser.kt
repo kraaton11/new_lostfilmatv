@@ -68,6 +68,7 @@ class LostFilmDetailsParser {
             favoriteTargetKind = favoriteMetadata?.targetKind,
             isFavorite = favoriteMetadata?.isFavorite,
             originalReleaseYear = document.originalReleaseYear(),
+            episodeOverviewRu = document.movieDescriptionRu(),
         )
     }
 
@@ -241,6 +242,12 @@ private fun Document.originalReleaseYear(): Int? =
         .textOrEmpty()
         .substringAfterIgnoreCase("Дата выхода eng:")
         .extractYear()
+
+private fun Document.movieDescriptionRu(): String? =
+    select(".text-block.description .body .body")
+        .map { it.text().normalizeText().replace(Regex("""\s+"""), " ") }
+        .maxByOrNull { it.length }
+        ?.takeIf { it.isNotBlank() }
 
 private fun String.substringAfterIgnoreCase(delimiter: String): String {
     val index = indexOf(delimiter, ignoreCase = true)

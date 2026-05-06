@@ -170,6 +170,14 @@ class DetailsStageModelsTest {
         assertEquals("", ui.heroEpisodeTitle)
         assertEquals("Фильм", ui.heroMetaLine)
         assertEquals("", ui.heroStatusLine)
+        assertEquals(
+            true,
+            ui.secondaryActions.any { it.actionType == DetailsStageActionType.OPEN_MOVIE_OVERVIEW },
+        )
+        assertEquals(
+            false,
+            ui.secondaryActions.any { it.actionType == DetailsStageActionType.OPEN_SERIES_OVERVIEW },
+        )
     }
 
     @Test

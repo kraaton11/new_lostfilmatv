@@ -206,11 +206,12 @@ class LostFilmRepositoryImpl(
                     refreshCachedTorrentLinksIfNeeded(cachedDetails.toModel()),
                 ),
             )
-            // Fully enriched cached details already include TMDB artwork and overview, so avoid touching the resolver.
+            // Fully enriched cached details already include TMDB artwork and LostFilm overview, so avoid touching the resolver.
             // Movie details cached before year-aware TMDB matching can contain a wrong same-title poster.
             if (
                 cachedModel.hasCompleteArtwork() &&
-                cachedModel.hasTmdbOverview() &&
+                cachedModel.hasDetailsOverview() &&
+                cachedModel.hasDetailsHeroOverview() &&
                 !cachedDetails.needsYearAwareMovieArtworkRefresh()
             ) {
                 return DetailsResult.Success(
@@ -219,7 +220,7 @@ class LostFilmRepositoryImpl(
                 )
             }
 
-            if (!cachedDetails.needsYearAwareMovieArtworkRefresh()) {
+            if (!cachedDetails.needsYearAwareMovieArtworkRefresh() && cachedModel.hasDetailsOverview()) {
                 val tmdbUrls = tmdbResolver.resolve(
                     detailsUrl = cachedModel.detailsUrl,
                     titleRu = cachedModel.titleRu,
@@ -714,8 +715,16 @@ class LostFilmRepositoryImpl(
         return posterUrl.isNotBlank() && !backdropUrl.isNullOrBlank()
     }
 
-    private fun ReleaseDetails.hasTmdbOverview(): Boolean {
-        return kind != ReleaseKind.SERIES || !episodeOverviewRu.isNullOrBlank()
+    private fun ReleaseDetails.hasDetailsOverview(): Boolean {
+        return when (kind) {
+            ReleaseKind.SERIES,
+            ReleaseKind.MOVIE,
+            -> !episodeOverviewRu.isNullOrBlank()
+        }
+    }
+
+    private fun ReleaseDetails.hasDetailsHeroOverview(): Boolean {
+        return kind != ReleaseKind.MOVIE || !movieOverviewRu.isNullOrBlank()
     }
 
     private fun ReleaseDetailsEntity.needsYearAwareMovieArtworkRefresh(): Boolean {

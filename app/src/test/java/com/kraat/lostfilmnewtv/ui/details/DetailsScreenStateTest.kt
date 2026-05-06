@@ -12,7 +12,6 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.TorrentLink
 import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -232,6 +231,93 @@ class DetailsScreenStateTest {
     }
 
     @Test
+    fun detailsScreen_showsMovieDescriptionAction_forMovieOnly() {
+        composeRule.setContent {
+            LostFilmTheme {
+                DetailsScreen(
+                    state = DetailsUiState(
+                        details = movieDetails(),
+                    ),
+                    isAuthenticated = true,
+                    availableTorrentRowsCount = 1,
+                    playbackRow = DetailsTorrentRowUiModel(
+                        rowId = "row-0",
+                        label = "1080p",
+                        url = "https://example.com/1080",
+                        isTorrServeSupported = true,
+                    ),
+                    torrServeMessage = null,
+                    activeTorrServeRowId = null,
+                    isTorrServeBusy = false,
+                    onRetry = {},
+                    onOpenTorrServe = { _, _ -> },
+                )
+            }
+        }
+
+        assertEquals(1, composeRule.onAllNodesWithTag("details-movie-description-action").fetchSemanticsNodes().size)
+        assertEquals(0, composeRule.onAllNodesWithTag("details-series-overview-action").fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun detailsScreen_hidesMovieDescriptionAction_forSeries() {
+        composeRule.setContent {
+            LostFilmTheme {
+                DetailsScreen(
+                    state = DetailsUiState(
+                        details = seriesDetails(),
+                    ),
+                    isAuthenticated = true,
+                    availableTorrentRowsCount = 1,
+                    playbackRow = DetailsTorrentRowUiModel(
+                        rowId = "row-0",
+                        label = "1080p",
+                        url = "https://example.com/1080",
+                        isTorrServeSupported = true,
+                    ),
+                    torrServeMessage = null,
+                    activeTorrServeRowId = null,
+                    isTorrServeBusy = false,
+                    onRetry = {},
+                    onOpenTorrServe = { _, _ -> },
+                )
+            }
+        }
+
+        assertEquals(0, composeRule.onAllNodesWithTag("details-movie-description-action").fetchSemanticsNodes().size)
+        assertEquals(1, composeRule.onAllNodesWithTag("details-series-overview-action").fetchSemanticsNodes().size)
+    }
+
+    @Test
+    fun detailsScreen_usesTmdbDescription_forMovieInlineDescription() {
+        composeRule.setContent {
+            LostFilmTheme {
+                DetailsScreen(
+                    state = DetailsUiState(
+                        details = movieDetails(),
+                    ),
+                    isAuthenticated = true,
+                    availableTorrentRowsCount = 1,
+                    playbackRow = DetailsTorrentRowUiModel(
+                        rowId = "row-0",
+                        label = "1080p",
+                        url = "https://example.com/1080",
+                        isTorrServeSupported = true,
+                    ),
+                    torrServeMessage = null,
+                    activeTorrServeRowId = null,
+                    isTorrServeBusy = false,
+                    onRetry = {},
+                    onOpenTorrServe = { _, _ -> },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Короткое описание фильма из TMDB").assertExists()
+        assertEquals(0, composeRule.onAllNodesWithText("Полное описание фильма с LostFilm").fetchSemanticsNodes().size)
+    }
+
+    @Test
     fun detailsScreen_errorState_usesRetryPanelAndHidesHeroContent() {
         composeRule.setContent {
             LostFilmTheme {
@@ -269,6 +355,25 @@ private fun seriesDetails(): ReleaseDetails = ReleaseDetails(
     fetchedAt = 0L,
     episodeTitleRu = "Маменькин сынок",
     seriesStatusRu = "Идет 1 сезон. Следующая серия: 12 апреля 2026 года",
+    torrentLinks = listOf(
+        TorrentLink(
+            label = "1080p",
+            url = "https://example.com/1080",
+        ),
+    ),
+)
+
+private fun movieDetails(): ReleaseDetails = ReleaseDetails(
+    detailsUrl = "https://example.com/movie",
+    kind = ReleaseKind.MOVIE,
+    titleRu = "Необратимость",
+    seasonNumber = null,
+    episodeNumber = null,
+    releaseDateRu = "14 марта 2026",
+    posterUrl = "https://example.com/poster.jpg",
+    fetchedAt = 0L,
+    episodeOverviewRu = "Полное описание фильма с LostFilm",
+    movieOverviewRu = "Короткое описание фильма из TMDB",
     torrentLinks = listOf(
         TorrentLink(
             label = "1080p",

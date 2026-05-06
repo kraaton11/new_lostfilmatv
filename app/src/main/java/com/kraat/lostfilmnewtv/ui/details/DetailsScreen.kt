@@ -86,6 +86,7 @@ fun DetailsScreen(
     onRetry: () -> Unit,
     onWatchedClick: () -> Unit = {},
     onFavoriteClick: () -> Unit = {},
+    onMovieOverviewClick: () -> Unit = {},
     onSeriesOverviewClick: () -> Unit = {},
     onSeriesGuideClick: () -> Unit = {},
     onAuthClick: () -> Unit = {},
@@ -104,6 +105,7 @@ fun DetailsScreen(
         onRetry = onRetry,
         onWatchedClick = onWatchedClick,
         onFavoriteClick = onFavoriteClick,
+        onMovieOverviewClick = onMovieOverviewClick,
         onSeriesOverviewClick = onSeriesOverviewClick,
         onSeriesGuideClick = onSeriesGuideClick,
         onAuthClick = onAuthClick,
@@ -129,6 +131,7 @@ fun DetailsScreen(
     onRetry: () -> Unit,
     onWatchedClick: () -> Unit = {},
     onFavoriteClick: () -> Unit = {},
+    onMovieOverviewClick: () -> Unit = {},
     onSeriesOverviewClick: () -> Unit = {},
     onSeriesGuideClick: () -> Unit = {},
     onAuthClick: () -> Unit = {},
@@ -147,6 +150,7 @@ fun DetailsScreen(
             isTorrServeBusy = isTorrServeBusy,
             onWatchedClick = onWatchedClick,
             onFavoriteClick = onFavoriteClick,
+            onMovieOverviewClick = onMovieOverviewClick,
             onSeriesOverviewClick = onSeriesOverviewClick,
             onSeriesGuideClick = onSeriesGuideClick,
             onAuthClick = onAuthClick,
@@ -296,6 +300,7 @@ private fun ContentState(
     isTorrServeBusy: Boolean,
     onWatchedClick: () -> Unit,
     onFavoriteClick: () -> Unit,
+    onMovieOverviewClick: () -> Unit,
     onSeriesOverviewClick: () -> Unit,
     onSeriesGuideClick: () -> Unit,
     onAuthClick: () -> Unit,
@@ -336,6 +341,7 @@ private fun ContentState(
                 stageUi = stageUi,
                 onWatchedClick = onWatchedClick,
                 onFavoriteClick = onFavoriteClick,
+                onMovieOverviewClick = onMovieOverviewClick,
                 onSeriesOverviewClick = onSeriesOverviewClick,
                 onSeriesGuideClick = onSeriesGuideClick,
                 onAuthClick = onAuthClick,
@@ -395,6 +401,7 @@ private fun HeroStage(
     stageUi: DetailsStageUiModel,
     onWatchedClick: () -> Unit,
     onFavoriteClick: () -> Unit,
+    onMovieOverviewClick: () -> Unit,
     onSeriesOverviewClick: () -> Unit,
     onSeriesGuideClick: () -> Unit,
     onAuthClick: () -> Unit,
@@ -520,6 +527,7 @@ private fun HeroStage(
                             action = action,
                             onWatchedClick = onWatchedClick,
                             onFavoriteClick = onFavoriteClick,
+                            onMovieOverviewClick = onMovieOverviewClick,
                             onSeriesOverviewClick = onSeriesOverviewClick,
                             onSeriesGuideClick = onSeriesGuideClick,
                         ),
@@ -541,6 +549,7 @@ private fun HeroStage(
                             action = action,
                             onWatchedClick = onWatchedClick,
                             onFavoriteClick = onFavoriteClick,
+                            onMovieOverviewClick = onMovieOverviewClick,
                             onSeriesOverviewClick = onSeriesOverviewClick,
                             onSeriesGuideClick = onSeriesGuideClick,
                         ),
@@ -785,7 +794,11 @@ private fun buildDetailsDescription(details: ReleaseDetails?): String {
             ?.trim()
             ?.takeIf { it.isNotBlank() }
             .orEmpty()
-        ReleaseKind.MOVIE -> "Фильм доступен в релизах LostFilm."
+        ReleaseKind.MOVIE -> details.movieOverviewRu
+            ?.replace(Regex("""\s+"""), " ")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            ?: "Фильм доступен в релизах LostFilm."
     }
 }
 
@@ -954,6 +967,7 @@ private fun StageButtonIcon(
     } else {
         when (actionType) {
             DetailsStageActionType.OPEN_SERIES_OVERVIEW -> InfoIcon(tint = tint, modifier = modifier)
+            DetailsStageActionType.OPEN_MOVIE_OVERVIEW -> InfoIcon(tint = tint, modifier = modifier)
             DetailsStageActionType.OPEN_SERIES_GUIDE -> EpisodeListIcon(tint = tint, modifier = modifier)
             DetailsStageActionType.TOGGLE_FAVORITE -> HeartIcon(tint = tint, modifier = modifier)
             DetailsStageActionType.TOGGLE_WATCHED -> WatchedIcon(tint = tint, modifier = modifier)
@@ -1087,6 +1101,7 @@ private fun primaryActionTag(action: DetailsStageActionUiModel): String {
         DetailsStageActionType.OPEN_AUTH -> "details-primary-action"
         DetailsStageActionType.TOGGLE_WATCHED -> "details-primary-action"
         DetailsStageActionType.TOGGLE_FAVORITE -> "details-primary-action"
+        DetailsStageActionType.OPEN_MOVIE_OVERVIEW -> "details-primary-action"
         DetailsStageActionType.OPEN_SERIES_OVERVIEW -> "details-primary-action"
         DetailsStageActionType.OPEN_SERIES_GUIDE -> "details-primary-action"
         DetailsStageActionType.NONE -> "details-primary-action"
@@ -1097,6 +1112,7 @@ private fun secondaryActionTag(action: DetailsStageActionUiModel): String {
     return when (action.actionType) {
         DetailsStageActionType.TOGGLE_WATCHED -> "details-watched-action"
         DetailsStageActionType.TOGGLE_FAVORITE -> "details-favorite-action"
+        DetailsStageActionType.OPEN_MOVIE_OVERVIEW -> "details-movie-description-action"
         DetailsStageActionType.OPEN_SERIES_OVERVIEW -> "details-series-overview-action"
         DetailsStageActionType.OPEN_SERIES_GUIDE -> "details-series-guide-action"
         DetailsStageActionType.OPEN_TORRSERVE -> "details-secondary-${action.actionId}"
@@ -1121,12 +1137,14 @@ private fun secondaryActionClickHandler(
     action: DetailsStageActionUiModel,
     onWatchedClick: () -> Unit,
     onFavoriteClick: () -> Unit,
+    onMovieOverviewClick: () -> Unit,
     onSeriesOverviewClick: () -> Unit,
     onSeriesGuideClick: () -> Unit,
 ): () -> Unit {
     return when (action.actionType) {
         DetailsStageActionType.TOGGLE_WATCHED -> onWatchedClick
         DetailsStageActionType.TOGGLE_FAVORITE -> onFavoriteClick
+        DetailsStageActionType.OPEN_MOVIE_OVERVIEW -> onMovieOverviewClick
         DetailsStageActionType.OPEN_SERIES_OVERVIEW -> onSeriesOverviewClick
         DetailsStageActionType.OPEN_SERIES_GUIDE -> onSeriesGuideClick
         DetailsStageActionType.OPEN_TORRSERVE,

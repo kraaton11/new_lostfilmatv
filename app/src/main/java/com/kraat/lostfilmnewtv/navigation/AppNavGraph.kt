@@ -22,6 +22,7 @@ import com.kraat.lostfilmnewtv.ui.auth.AuthViewModel
 import com.kraat.lostfilmnewtv.ui.details.DetailsRoute
 import com.kraat.lostfilmnewtv.ui.guide.SeriesGuideRoute
 import com.kraat.lostfilmnewtv.ui.home.HomeScreen
+import com.kraat.lostfilmnewtv.ui.overview.MovieOverviewRoute
 import com.kraat.lostfilmnewtv.ui.overview.SeriesOverviewRoute
 import com.kraat.lostfilmnewtv.ui.search.SearchRoute
 import com.kraat.lostfilmnewtv.ui.home.HomeViewModel
@@ -154,6 +155,7 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                     navController.previousBackStackEntry?.savedStateHandle?.set(HOME_FAVORITE_CHANGED_DETAILS_URL_KEY, url)
                     navController.previousBackStackEntry?.savedStateHandle?.set(HOME_FAVORITE_CHANGED_STATE_KEY, isFav)
                 },
+                onOpenMovieOverview = { url -> navController.navigate(AppDestination.MovieOverview.createRoute(url)) },
                 onOpenSeriesOverview = { url -> navController.navigate(AppDestination.SeriesOverview.createRoute(url)) },
                 onOpenSeriesGuide = { url -> navController.navigate(AppDestination.SeriesGuide.createRoute(url)) },
                 onAuthClick = { navController.navigate(AppDestination.Auth.createRoute(autoStart = true)) },
@@ -169,6 +171,16 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
             ),
         ) {
             SeriesOverviewRoute()
+        }
+
+        // ── Movie Overview ───────────────────────────────────────────────────
+        composable(
+            route = AppDestination.MovieOverview.route,
+            arguments = listOf(
+                navArgument(AppDestination.MovieOverview.detailsUrlArg) { type = NavType.StringType },
+            ),
+        ) {
+            MovieOverviewRoute()
         }
 
         // ── Series Guide ──────────────────────────────────────────────────────
