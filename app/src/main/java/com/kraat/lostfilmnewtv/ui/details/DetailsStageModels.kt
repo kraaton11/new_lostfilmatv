@@ -177,6 +177,7 @@ private fun buildHeroStatusLine(details: ReleaseDetails?): String {
 
     val status = details.seriesStatusRu
         ?.replace(Regex("""\s+"""), " ")
+        ?.replace(Regex("""\.\s*Следующая серия:.*$""", RegexOption.IGNORE_CASE), "")
         ?.trim()
         .orEmpty()
 

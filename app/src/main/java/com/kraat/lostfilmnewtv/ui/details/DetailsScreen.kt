@@ -9,6 +9,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +25,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.requiredWidthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -46,12 +48,17 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -272,6 +279,7 @@ private fun ErrorState(message: String, onRetry: () -> Unit) {
                 onClick = onRetry,
                 modifier = Modifier,
                 isPrimary = true,
+                actionType = DetailsStageActionType.NONE,
             )
         }
     }
@@ -415,16 +423,73 @@ private fun HeroStage(
         }
     }
 
-    Row(
+    Box(
         modifier = Modifier.fillMaxSize(),
-        horizontalArrangement = Arrangement.spacedBy(26.dp),
-        verticalAlignment = Alignment.Top,
     ) {
-        Column(
-            modifier = Modifier.width(242.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopStart),
+            horizontalArrangement = Arrangement.spacedBy(26.dp),
+            verticalAlignment = Alignment.Top,
         ) {
-            PosterCard(details = details)
+            Box(modifier = Modifier.width(242.dp)) {
+                PosterCard(details = details)
+            }
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(top = 46.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Text(
+                    text = stageUi.title.ifBlank { "Details" },
+                    color = TextPrimary,
+                    fontSize = 28.sp,
+                    fontWeight = FontWeight.Bold,
+                    lineHeight = 32.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (stageUi.heroEpisodeTitle.isNotBlank()) {
+                    Text(
+                        text = stageUi.heroEpisodeTitle,
+                        color = DetailsAccentGold,
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        lineHeight = 25.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                val metaChips = remember(details, stageUi.heroMetaLine) {
+                    buildDetailsMetaChips(details = details, heroMetaLine = stageUi.heroMetaLine)
+                }
+                if (metaChips.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier.testTag("details-hero-meta"),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        metaChips.forEach { chip ->
+                            DetailsMetaChip(text = chip)
+                        }
+                    }
+                }
+                DetailsInfoRows(details = details, statusLine = stageUi.heroStatusLine)
+                DetailsDivider()
+                DetailsDescription(details = details)
+            }
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.BottomStart),
+            horizontalArrangement = Arrangement.spacedBy(26.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             StageButton(
                 label = stageUi.primaryAction.label,
                 subtitle = stageUi.primaryAction.subtitle,
@@ -434,66 +499,16 @@ private fun HeroStage(
                     onOpenTorrServe = onOpenTorrServe,
                 ),
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .width(242.dp)
                     .focusRequester(primaryActionRequester)
                     .testTag(primaryActionTag(stageUi.primaryAction)),
                 isPrimary = true,
+                actionType = stageUi.primaryAction.actionType,
                 enabled = stageUi.primaryAction.enabled,
                 onFocusedChange = { isPrimaryActionFocused = it },
             )
-        }
-
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(top = 46.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            Text(
-                text = stageUi.title.ifBlank { "Details" },
-                color = TextPrimary,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold,
-                lineHeight = 32.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (stageUi.heroEpisodeTitle.isNotBlank()) {
-                Text(
-                    text = stageUi.heroEpisodeTitle,
-                    color = DetailsAccentGold,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    lineHeight = 25.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            val metaChips = remember(details, stageUi.heroMetaLine) {
-                buildDetailsMetaChips(details = details, heroMetaLine = stageUi.heroMetaLine)
-            }
-            if (metaChips.isNotEmpty()) {
-                Row(
-                    modifier = Modifier.testTag("details-hero-meta"),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    metaChips.forEach { chip ->
-                        DetailsMetaChip(text = chip)
-                    }
-                }
-            }
-            DetailsInfoRows(
-                details = details,
-                statusLine = stageUi.heroStatusLine,
-            )
-            DetailsDivider()
-            DetailsDescription(details = details)
-
-            Spacer(modifier = Modifier.height(20.dp))
-
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.weight(1f),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -515,6 +530,7 @@ private fun HeroStage(
                         enabled = action.enabled,
                         isHighlighted = action.isHighlighted,
                         isSecondary = true,
+                        actionType = action.actionType,
                     )
                 }
                 trailingActions.forEach { action ->
@@ -534,6 +550,7 @@ private fun HeroStage(
                         enabled = action.enabled,
                         isHighlighted = action.isHighlighted,
                         isSecondary = true,
+                        actionType = action.actionType,
                     )
                 }
             }
@@ -543,10 +560,10 @@ private fun HeroStage(
 
 private fun detailsSecondaryActionModifier(action: DetailsStageActionUiModel): Modifier {
     val width = when (action.actionType) {
-        DetailsStageActionType.OPEN_SERIES_OVERVIEW -> 104.dp
+        DetailsStageActionType.OPEN_SERIES_OVERVIEW -> 118.dp
         DetailsStageActionType.OPEN_SERIES_GUIDE -> 104.dp
-        DetailsStageActionType.TOGGLE_FAVORITE -> 116.dp
-        DetailsStageActionType.TOGGLE_WATCHED -> 136.dp
+        DetailsStageActionType.TOGGLE_FAVORITE -> 128.dp
+        DetailsStageActionType.TOGGLE_WATCHED -> 152.dp
         else -> 116.dp
     }
     return Modifier.width(width)
@@ -603,20 +620,23 @@ private fun DetailsInfoRows(
     statusLine: String,
 ) {
     Column(
-        verticalArrangement = Arrangement.spacedBy(7.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
         modifier = Modifier.testTag("details-info-rows"),
     ) {
         statusLine.takeIf { it.isNotBlank() }?.let { status ->
             DetailsInfoRow(
-                icon = "▣",
+                iconType = DetailsInfoIconType.Calendar,
                 text = status,
                 modifier = Modifier.testTag("details-hero-status"),
             )
         }
-        details?.releaseDateRu?.takeIf { it.isNotBlank() }?.let { date ->
+        details?.seriesStatusRu
+            ?.let(::extractNextEpisodeLine)
+            ?.takeIf { it.isNotBlank() }
+            ?.let { nextEpisode ->
             DetailsInfoRow(
-                icon = "◷",
-                text = "Дата релиза: $date",
+                iconType = DetailsInfoIconType.Clock,
+                text = nextEpisode,
             )
         }
     }
@@ -624,7 +644,7 @@ private fun DetailsInfoRows(
 
 @Composable
 private fun DetailsInfoRow(
-    icon: String,
+    iconType: DetailsInfoIconType,
     text: String,
     modifier: Modifier = Modifier,
 ) {
@@ -641,12 +661,7 @@ private fun DetailsInfoRow(
                 .border(1.dp, DetailsBorderDefault.copy(alpha = 0.45f), RoundedCornerShape(8.dp)),
             contentAlignment = Alignment.Center,
         ) {
-            Text(
-                text = icon,
-                color = DetailsTextSecondary,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-            )
+            DetailsInfoIcon(type = iconType, tint = DetailsTextSecondary)
         }
         Text(
             text = text,
@@ -657,6 +672,81 @@ private fun DetailsInfoRow(
             overflow = TextOverflow.Ellipsis,
         )
     }
+}
+
+private enum class DetailsInfoIconType {
+    Calendar,
+    Clock,
+}
+
+@Composable
+private fun DetailsInfoIcon(type: DetailsInfoIconType, tint: Color) {
+    Canvas(modifier = Modifier.size(13.dp)) {
+        val strokeWidth = 1.15.dp.toPx()
+        when (type) {
+            DetailsInfoIconType.Calendar -> {
+                drawRoundRect(
+                    color = tint.copy(alpha = 0.92f),
+                    topLeft = Offset(size.width * 0.16f, size.height * 0.22f),
+                    size = androidx.compose.ui.geometry.Size(size.width * 0.68f, size.height * 0.62f),
+                    cornerRadius = CornerRadius(1.5.dp.toPx(), 1.5.dp.toPx()),
+                    style = Stroke(width = strokeWidth),
+                )
+                drawLine(
+                    color = tint.copy(alpha = 0.92f),
+                    start = Offset(size.width * 0.16f, size.height * 0.40f),
+                    end = Offset(size.width * 0.84f, size.height * 0.40f),
+                    strokeWidth = strokeWidth,
+                    cap = StrokeCap.Round,
+                )
+                listOf(0.32f, 0.68f).forEach { xFactor ->
+                    drawLine(
+                        color = tint.copy(alpha = 0.92f),
+                        start = Offset(size.width * xFactor, size.height * 0.14f),
+                        end = Offset(size.width * xFactor, size.height * 0.29f),
+                        strokeWidth = strokeWidth,
+                        cap = StrokeCap.Round,
+                    )
+                }
+                drawLine(
+                    color = tint.copy(alpha = 0.92f),
+                    start = Offset(size.width * 0.37f, size.height * 0.58f),
+                    end = Offset(size.width * 0.63f, size.height * 0.58f),
+                    strokeWidth = strokeWidth,
+                    cap = StrokeCap.Round,
+                )
+            }
+            DetailsInfoIconType.Clock -> {
+                drawCircle(
+                    color = tint.copy(alpha = 0.92f),
+                    radius = size.minDimension * 0.38f,
+                    style = Stroke(width = strokeWidth),
+                )
+                drawLine(
+                    color = tint.copy(alpha = 0.92f),
+                    start = Offset(size.width * 0.50f, size.height * 0.50f),
+                    end = Offset(size.width * 0.50f, size.height * 0.31f),
+                    strokeWidth = strokeWidth,
+                    cap = StrokeCap.Round,
+                )
+                drawLine(
+                    color = tint.copy(alpha = 0.92f),
+                    start = Offset(size.width * 0.50f, size.height * 0.50f),
+                    end = Offset(size.width * 0.64f, size.height * 0.58f),
+                    strokeWidth = strokeWidth,
+                    cap = StrokeCap.Round,
+                )
+            }
+        }
+    }
+}
+
+private fun extractNextEpisodeLine(status: String): String? {
+    val normalized = status.replace(Regex("""\s+"""), " ").trim()
+    val match = Regex("""Следующая серия:\s*(.+)$""", RegexOption.IGNORE_CASE)
+        .find(normalized)
+        ?: return null
+    return "Следующая серия: ${match.groupValues[1].trim()}"
 }
 
 @Composable
@@ -690,11 +780,11 @@ private fun DetailsDescription(details: ReleaseDetails?) {
 private fun buildDetailsDescription(details: ReleaseDetails?): String {
     if (details == null) return ""
     return when (details.kind) {
-        ReleaseKind.SERIES -> {
-            details.episodeOverviewRu
-                ?.takeIf { it.isNotBlank() }
-                ?: details.seriesStatusRu.orEmpty()
-        }
+        ReleaseKind.SERIES -> details.episodeOverviewRu
+            ?.replace(Regex("""\s+"""), " ")
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
+            .orEmpty()
         ReleaseKind.MOVIE -> "Фильм доступен в релизах LostFilm."
     }
 }
@@ -703,7 +793,7 @@ private fun buildDetailsDescription(details: ReleaseDetails?): String {
 private fun PosterCard(details: ReleaseDetails?) {
     Box(
         modifier = Modifier
-            .size(width = 242.dp, height = 318.dp)
+            .size(width = 242.dp, height = 360.dp)
             .shadow(28.dp, RoundedCornerShape(22.dp))
             .clip(RoundedCornerShape(22.dp))
             .background(
@@ -717,7 +807,7 @@ private fun PosterCard(details: ReleaseDetails?) {
             AsyncImage(
                 model = details.posterUrl,
                 contentDescription = details.titleRu,
-                contentScale = ContentScale.Crop,
+                contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize(),
                 alpha = 0.92f,
             )
@@ -746,6 +836,7 @@ private fun StageButton(
     isPrimary: Boolean = false,
     isSecondary: Boolean = false,
     isHighlighted: Boolean = false,
+    actionType: DetailsStageActionType = DetailsStageActionType.NONE,
     onFocusedChange: (Boolean) -> Unit = {},
 ) {
     var isFocused by remember { mutableStateOf(false) }
@@ -818,12 +909,13 @@ private fun StageButton(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             StageButtonIcon(
-                actionLabel = label,
+                actionType = actionType,
                 isPrimary = isPrimary,
                 tint = if (enabled) textColor else DetailsTextMuted,
             )
             Column(
                 verticalArrangement = Arrangement.spacedBy(if (isPrimary) 1.dp else 0.dp),
+                modifier = Modifier.requiredWidthIn(min = 0.dp),
             ) {
                 Text(
                     text = label,
@@ -834,7 +926,7 @@ private fun StageButton(
                     maxLines = if (isPrimary) 1 else 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (subtitle.isNotBlank()) {
+                if (isPrimary && subtitle.isNotBlank()) {
                     Text(
                         text = subtitle,
                         color = if (enabled) subtitleColor else DetailsTextMuted.copy(alpha = 0.8f),
@@ -852,36 +944,130 @@ private fun StageButton(
 
 @Composable
 private fun StageButtonIcon(
-    actionLabel: String,
+    actionType: DetailsStageActionType,
     isPrimary: Boolean,
     tint: Color,
 ) {
-    val normalized = actionLabel.lowercase()
-    Box(
-        modifier = Modifier
-            .size(if (isPrimary) 32.dp else 19.dp)
-            .clip(RoundedCornerShape(999.dp))
-            .background(if (isPrimary) Color(0xFF1B1710).copy(alpha = 0.9f) else Color.Transparent)
-            .border(
-                width = if (isPrimary) 0.dp else 1.dp,
-                color = if (isPrimary) Color.Transparent else tint.copy(alpha = 0.8f),
-                shape = RoundedCornerShape(999.dp),
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = when {
-                isPrimary -> "▶"
-                normalized.contains("обзор") -> "i"
-                normalized.contains("сер") || normalized.contains("гид") -> "≡"
-                normalized.contains("избран") -> "♡"
-                normalized.contains("просмотр") -> "✓"
-                else -> "•"
-            },
-            color = if (isPrimary) DetailsAccentGold else tint,
-            fontSize = if (isPrimary) 14.sp else 12.sp,
-            fontWeight = FontWeight.Bold,
-            lineHeight = if (isPrimary) 14.sp else 12.sp,
+    val modifier = Modifier.size(if (isPrimary) 32.dp else 22.dp)
+    if (isPrimary) {
+        PrimaryPlayIcon(tint = DetailsAccentGold, modifier = modifier)
+    } else {
+        when (actionType) {
+            DetailsStageActionType.OPEN_SERIES_OVERVIEW -> InfoIcon(tint = tint, modifier = modifier)
+            DetailsStageActionType.OPEN_SERIES_GUIDE -> EpisodeListIcon(tint = tint, modifier = modifier)
+            DetailsStageActionType.TOGGLE_FAVORITE -> HeartIcon(tint = tint, modifier = modifier)
+            DetailsStageActionType.TOGGLE_WATCHED -> WatchedIcon(tint = tint, modifier = modifier)
+            else -> InfoIcon(tint = tint, modifier = modifier)
+        }
+    }
+}
+
+@Composable
+private fun PrimaryPlayIcon(tint: Color, modifier: Modifier) {
+    Canvas(modifier = modifier) {
+        val radius = size.minDimension / 2f
+        drawCircle(color = Color(0xFF1B1710).copy(alpha = 0.92f), radius = radius)
+        val triangle = Path().apply {
+            moveTo(size.width * 0.43f, size.height * 0.33f)
+            lineTo(size.width * 0.43f, size.height * 0.67f)
+            lineTo(size.width * 0.68f, size.height * 0.50f)
+            close()
+        }
+        drawPath(path = triangle, color = tint)
+    }
+}
+
+@Composable
+private fun InfoIcon(tint: Color, modifier: Modifier) {
+    Canvas(modifier = modifier) {
+        val strokeWidth = 1.55.dp.toPx()
+        drawCircle(
+            color = tint.copy(alpha = 0.92f),
+            radius = size.minDimension * 0.43f,
+            style = Stroke(width = strokeWidth),
+        )
+        drawCircle(
+            color = tint.copy(alpha = 0.96f),
+            radius = 1.15.dp.toPx(),
+            center = Offset(size.width * 0.50f, size.height * 0.34f),
+        )
+        drawLine(
+            color = tint.copy(alpha = 0.96f),
+            start = Offset(size.width * 0.50f, size.height * 0.45f),
+            end = Offset(size.width * 0.50f, size.height * 0.66f),
+            strokeWidth = strokeWidth,
+            cap = StrokeCap.Round,
+        )
+    }
+}
+
+@Composable
+private fun EpisodeListIcon(tint: Color, modifier: Modifier) {
+    Canvas(modifier = modifier) {
+        val strokeWidth = 1.45.dp.toPx()
+        drawRoundRect(
+            color = tint.copy(alpha = 0.9f),
+            topLeft = Offset(size.width * 0.18f, size.height * 0.18f),
+            size = androidx.compose.ui.geometry.Size(size.width * 0.64f, size.height * 0.64f),
+            cornerRadius = CornerRadius(2.8.dp.toPx(), 2.8.dp.toPx()),
+            style = Stroke(width = strokeWidth),
+        )
+        val rows = listOf(0.38f, 0.50f, 0.62f)
+        rows.forEach { yFactor ->
+            val y = size.height * yFactor
+            drawCircle(
+                color = tint.copy(alpha = 0.95f),
+                radius = 0.85.dp.toPx(),
+                center = Offset(size.width * 0.36f, y),
+            )
+            drawLine(
+                color = tint.copy(alpha = 0.95f),
+                start = Offset(size.width * 0.45f, y),
+                end = Offset(size.width * 0.64f, y),
+                strokeWidth = strokeWidth,
+                cap = StrokeCap.Round,
+            )
+        }
+    }
+}
+
+@Composable
+private fun HeartIcon(tint: Color, modifier: Modifier) {
+    Canvas(modifier = modifier) {
+        val strokeWidth = 1.65.dp.toPx()
+        val path = Path().apply {
+            moveTo(size.width * 0.50f, size.height * 0.76f)
+            cubicTo(size.width * 0.19f, size.height * 0.54f, size.width * 0.15f, size.height * 0.37f, size.width * 0.26f, size.height * 0.27f)
+            cubicTo(size.width * 0.36f, size.height * 0.18f, size.width * 0.47f, size.height * 0.24f, size.width * 0.50f, size.height * 0.34f)
+            cubicTo(size.width * 0.53f, size.height * 0.24f, size.width * 0.64f, size.height * 0.18f, size.width * 0.74f, size.height * 0.27f)
+            cubicTo(size.width * 0.85f, size.height * 0.37f, size.width * 0.81f, size.height * 0.54f, size.width * 0.50f, size.height * 0.76f)
+        }
+        drawPath(
+            path = path,
+            color = tint.copy(alpha = 0.95f),
+            style = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round),
+        )
+    }
+}
+
+@Composable
+private fun WatchedIcon(tint: Color, modifier: Modifier) {
+    Canvas(modifier = modifier) {
+        val strokeWidth = 1.55.dp.toPx()
+        drawCircle(
+            color = tint.copy(alpha = 0.92f),
+            radius = size.minDimension * 0.43f,
+            style = Stroke(width = strokeWidth),
+        )
+        val path = Path().apply {
+            moveTo(size.width * 0.32f, size.height * 0.51f)
+            lineTo(size.width * 0.45f, size.height * 0.64f)
+            lineTo(size.width * 0.70f, size.height * 0.36f)
+        }
+        drawPath(
+            path = path,
+            color = tint.copy(alpha = 0.96f),
+            style = Stroke(width = 1.9.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round),
         )
     }
 }

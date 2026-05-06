@@ -206,16 +206,20 @@ class LostFilmRepositoryImpl(
                     refreshCachedTorrentLinksIfNeeded(cachedDetails.toModel()),
                 ),
             )
-            // Fully enriched cached details already include TMDB artwork, so avoid touching the resolver.
+            // Fully enriched cached details already include TMDB artwork and overview, so avoid touching the resolver.
             // Movie details cached before year-aware TMDB matching can contain a wrong same-title poster.
-            if (cachedModel.hasCompleteArtwork()) {
-                if (!cachedDetails.needsYearAwareMovieArtworkRefresh()) {
-                    return DetailsResult.Success(
-                        details = cachedModel,
-                        isStale = false,
-                    )
-                }
-            } else {
+            if (
+                cachedModel.hasCompleteArtwork() &&
+                cachedModel.hasTmdbOverview() &&
+                !cachedDetails.needsYearAwareMovieArtworkRefresh()
+            ) {
+                return DetailsResult.Success(
+                    details = cachedModel,
+                    isStale = false,
+                )
+            }
+
+            if (!cachedDetails.needsYearAwareMovieArtworkRefresh()) {
                 val tmdbUrls = tmdbResolver.resolve(
                     detailsUrl = cachedModel.detailsUrl,
                     titleRu = cachedModel.titleRu,
@@ -223,8 +227,10 @@ class LostFilmRepositoryImpl(
                     kind = cachedModel.kind,
                     originalReleaseYear = cachedModel.originalReleaseYear,
                 )
+                val enrichedCachedModel = TmdbPosterEnricher.enrichDetails(cachedModel, tmdbUrls)
+                releaseDao.upsertDetails(enrichedCachedModel.toEntity())
                 return DetailsResult.Success(
-                    details = TmdbPosterEnricher.enrichDetails(cachedModel, tmdbUrls),
+                    details = enrichedCachedModel,
                     isStale = false,
                 )
             }
@@ -708,6 +714,10 @@ class LostFilmRepositoryImpl(
         return posterUrl.isNotBlank() && !backdropUrl.isNullOrBlank()
     }
 
+    private fun ReleaseDetails.hasTmdbOverview(): Boolean {
+        return kind != ReleaseKind.SERIES || !episodeOverviewRu.isNullOrBlank()
+    }
+
     private fun ReleaseDetailsEntity.needsYearAwareMovieArtworkRefresh(): Boolean {
         return kind == ReleaseKind.MOVIE.name && fetchedAt < YEAR_AWARE_TMDB_MATCHING_MIN_FETCHED_AT_MS
     }
@@ -873,16 +883,21 @@ class LostFilmRepositoryImpl(
     }
 
     private suspend fun enrichWithSummaryEpisodeTitle(details: ReleaseDetails): ReleaseDetails {
-        if (details.kind != ReleaseKind.SERIES || !details.episodeTitleRu.isNullOrBlank()) {
+        if (
+            details.kind != ReleaseKind.SERIES ||
+            (!details.episodeTitleRu.isNullOrBlank() && !details.episodeOverviewRu.isNullOrBlank())
+        ) {
             return details
         }
 
-        val episodeTitleRu = releaseDao.getSummary(details.detailsUrl)
-            ?.episodeTitleRu
-            ?.takeIf { it.isNotBlank() }
-            ?: return details
+        val summary = releaseDao.getSummary(details.detailsUrl) ?: return details
 
-        return details.copy(episodeTitleRu = episodeTitleRu)
+        return details.copy(
+            episodeTitleRu = details.episodeTitleRu
+                ?: summary.episodeTitleRu?.takeIf { it.isNotBlank() },
+            episodeOverviewRu = details.episodeOverviewRu
+                ?: summary.episodeOverviewRu?.takeIf { it.isNotBlank() },
+        )
     }
 
     private suspend fun refreshFavoriteMetadataIfNeeded(details: ReleaseDetails): ReleaseDetails {

@@ -442,6 +442,7 @@ class LostFilmRepositoryTest {
                     fetchedAt = NOW - 1_000L,
                     playEpisodeId = null,
                     seriesStatusRu = "Идет 9 сезон",
+                    episodeOverviewRu = "Cached TMDB overview.",
                 ),
             ),
         )
