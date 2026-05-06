@@ -146,7 +146,7 @@ class DetailsStageModelsTest {
 
         assertEquals("The Engineer", ui.heroEpisodeTitle)
         assertEquals("Сезон 1 • Серия 5", ui.heroMetaLine)
-        assertEquals("Статус: Идет 1 сезон. Следующая серия: 12 апреля 2026 года", ui.heroStatusLine)
+        assertEquals("Статус: Идет 1 сезон", ui.heroStatusLine)
     }
 
     @Test

@@ -227,7 +227,8 @@ class DetailsScreenStateTest {
         }
 
         composeRule.onNodeWithTag("details-hero-status").assertExists()
-        composeRule.onNodeWithText("Статус: Идет 1 сезон. Следующая серия: 12 апреля 2026 года").assertExists()
+        composeRule.onNodeWithText("Статус: Идет 1 сезон").assertExists()
+        composeRule.onNodeWithText("Следующая серия: 12 апреля 2026 года").assertExists()
     }
 
     @Test
