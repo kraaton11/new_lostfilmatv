@@ -110,6 +110,19 @@ fun buildDetailsStageUi(
                 enabled = true,
             )
         }
+    val movieDescriptionAction = details
+        ?.takeIf { it.kind == ReleaseKind.MOVIE }
+        ?.let {
+            DetailsStageActionUiModel(
+                actionId = "movie-description",
+                rowId = null,
+                label = "Описание",
+                subtitle = "Описание фильма",
+                qualityLabel = null,
+                actionType = DetailsStageActionType.OPEN_MOVIE_OVERVIEW,
+                enabled = true,
+            )
+        }
     val guideAction = details
         ?.takeIf { it.kind == ReleaseKind.SERIES }
         ?.let {
@@ -132,7 +145,7 @@ fun buildDetailsStageUi(
         heroStatusLine = heroStatusLine,
         primaryAction = primaryAction,
         secondaryActions = if (isAuthenticated) {
-            listOfNotNull(overviewAction, guideAction, favoriteAction, watchedAction)
+            listOfNotNull(movieDescriptionAction, overviewAction, guideAction, favoriteAction, watchedAction)
         } else {
             emptyList()
         },
@@ -216,6 +229,7 @@ enum class DetailsStageActionType {
     OPEN_AUTH,
     TOGGLE_WATCHED,
     TOGGLE_FAVORITE,
+    OPEN_MOVIE_OVERVIEW,
     OPEN_SERIES_OVERVIEW,
     OPEN_SERIES_GUIDE,
     NONE,

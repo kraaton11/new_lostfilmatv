@@ -39,6 +39,14 @@ sealed interface AppDestination {
         fun createRoute(detailsUrl: String): String = "series-overview/${Uri.encode(detailsUrl)}"
     }
 
+    data object MovieOverview : AppDestination {
+        const val detailsUrlArg: String = "detailsUrl"
+
+        override val route: String = "movie-overview/{$detailsUrlArg}"
+
+        fun createRoute(detailsUrl: String): String = "movie-overview/${Uri.encode(detailsUrl)}"
+    }
+
     data object Auth : AppDestination {
         const val autoStartArg: String = "autoStart"
         private const val baseRoute: String = "auth"

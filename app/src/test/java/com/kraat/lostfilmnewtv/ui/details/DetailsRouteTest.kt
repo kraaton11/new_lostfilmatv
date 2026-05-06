@@ -237,6 +237,34 @@ class DetailsRouteTest {
     }
 
     @Test
+    fun route_opensMovieOverview_whenMovieDescriptionActionClicked() {
+        val detailsUrl = "https://www.lostfilm.today/movies/Zootopia_2"
+        val overviewClicks = CopyOnWriteArrayList<String>()
+
+        composeRule.setContent {
+            DetailsRoute(
+                detailsUrl = detailsUrl,
+                viewModel = routeViewModel(
+                    detailsUrl = detailsUrl,
+                    repository = RouteFakeDetailsRepository.success(
+                        detailsUrl = detailsUrl,
+                        details = movieDetails(detailsUrl),
+                    ),
+                ),
+                actionHandler = succeedingActionHandler(),
+                linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
+                onOpenMovieOverview = { overviewClicks += it },
+            )
+        }
+
+        composeRule.waitForNodeWithTag("details-movie-description-action")
+        composeRule.onNodeWithTag("details-movie-description-action")
+            .performSemanticsAction(SemanticsActions.OnClick)
+
+        assertEquals(listOf(detailsUrl), overviewClicks.toList())
+    }
+
+    @Test
     fun route_maps_torrserve_errors_clears_message_and_ignores_stale_completion_after_reentry() {
         val detailsUrl = "https://www.lostfilm.today/series/errors"
         val staleCompletion = CompletableDeferred<TorrServeOpenResult>()
@@ -697,4 +725,20 @@ private fun details(
     fetchedAt = 0L,
     playEpisodeId = "362009013",
     torrentLinks = torrentLinks,
+)
+
+private fun movieDetails(detailsUrl: String): ReleaseDetails = ReleaseDetails(
+    detailsUrl = detailsUrl,
+    kind = ReleaseKind.MOVIE,
+    titleRu = "Зверополис 2",
+    seasonNumber = null,
+    episodeNumber = null,
+    releaseDateRu = "27 ноября 2025",
+    posterUrl = "https://example.com/poster.jpg",
+    fetchedAt = 0L,
+    playEpisodeId = "1080001001",
+    torrentLinks = listOf(
+        TorrentLink(label = "1080p", url = "https://example.com/file.torrent"),
+    ),
+    episodeOverviewRu = "Описание фильма с LostFilm",
 )

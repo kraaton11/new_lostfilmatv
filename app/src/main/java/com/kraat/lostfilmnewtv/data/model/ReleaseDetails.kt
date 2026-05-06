@@ -21,6 +21,7 @@ data class ReleaseDetails(
     val isFavorite: Boolean? = null,
     val originalReleaseYear: Int? = null,
     val episodeOverviewRu: String? = null,
+    val movieOverviewRu: String? = null,
 )
 
 @Serializable

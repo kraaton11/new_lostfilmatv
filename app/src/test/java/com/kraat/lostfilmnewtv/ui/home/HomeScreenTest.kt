@@ -144,7 +144,7 @@ class HomeScreenTest {
     }
 
     @Test
-    fun homeScreen_heroStage_usesTmdbSeriesOverviewForSeries() {
+    fun homeScreen_heroStage_usesTmdbEpisodeOverviewForSeries() {
         composeRule.setContent {
             LostFilmTheme {
                 HomeScreen(
@@ -156,8 +156,8 @@ class HomeScreenTest {
             }
         }
 
-        composeRule.onNodeWithText("Русское описание сериала из TMDB.").assertExists()
-        composeRule.onNodeWithText("Русское описание серии из TMDB.").assertDoesNotExist()
+        composeRule.onNodeWithText("Русское описание серии из TMDB.").assertExists()
+        composeRule.onNodeWithText("Русское описание сериала из TMDB.").assertDoesNotExist()
         composeRule.onNodeWithText("Новая серия доступна в релизах LostFilm.").assertDoesNotExist()
     }
 

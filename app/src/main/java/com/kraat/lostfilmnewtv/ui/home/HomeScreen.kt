@@ -514,7 +514,9 @@ private fun seasonEpisodeHeroLabel(item: ReleaseSummary?): String? {
 private fun ReleaseSummary?.heroDescription(): String {
     val item = this ?: return ""
     return when (item.kind) {
-        ReleaseKind.SERIES -> item.seriesOverviewRu
+        ReleaseKind.SERIES -> item.episodeOverviewRu
+            ?.takeIf { it.isNotBlank() }
+            ?: item.seriesOverviewRu
             ?.takeIf { it.isNotBlank() }
             ?: "Новая серия доступна в релизах LostFilm."
         ReleaseKind.MOVIE -> item.movieOverviewRu

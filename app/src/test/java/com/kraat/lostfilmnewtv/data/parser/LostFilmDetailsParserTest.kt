@@ -33,6 +33,10 @@ class LostFilmDetailsParserTest {
         assertNull(details.episodeNumber)
         assertEquals("13 марта 2026", details.releaseDateRu)
         assertEquals(2002, details.originalReleaseYear)
+        val movieDescription = details.episodeOverviewRu.orEmpty()
+        assertTrue(movieDescription, movieDescription.contains("один из самых радикальных"))
+        assertTrue(movieDescription, movieDescription.contains("История разворачивается"))
+        assertFalse(movieDescription, movieDescription.contains("Подробно"))
     }
 
     @Test
