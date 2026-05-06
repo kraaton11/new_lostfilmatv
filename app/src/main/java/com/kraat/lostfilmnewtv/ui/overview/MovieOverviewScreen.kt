@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -42,6 +43,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
+import com.kraat.lostfilmnewtv.ui.components.ShimmerSkeletonBox
+import com.kraat.lostfilmnewtv.ui.components.rememberShimmerSkeletonBrush
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
 import com.kraat.lostfilmnewtv.ui.theme.DetailsAccentGold
 import com.kraat.lostfilmnewtv.ui.theme.DetailsBackgroundMid
@@ -111,12 +114,82 @@ private fun MovieOverviewBackgroundPoster(details: ReleaseDetails?) {
 
 @Composable
 private fun MovieOverviewLoadingState() {
-    MovieOverviewCenteredStatePanel {
-        Text(
-            text = "Загрузка описания",
-            color = TextPrimary,
-            fontSize = 18.sp,
+    val brush = rememberShimmerSkeletonBrush(
+        label = "movieOverviewSkeleton",
+        baseColor = DetailsSurfaceSoft,
+        highlightColor = DetailsBorderDefault,
+        baseAlpha = 0.56f,
+        highlightAlpha = 0.66f,
+        startOffset = -560f,
+        endOffset = 1_360f,
+        shimmerWidth = 520f,
+        durationMillis = 1_400,
+    )
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(start = 48.dp, top = 22.dp, end = 48.dp, bottom = 22.dp)
+            .testTag("movie-overview-loading"),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+            ShimmerSkeletonBox(
+                brush = brush,
+                modifier = Modifier.size(width = 175.dp, height = 252.dp),
+                shape = RoundedCornerShape(24.dp),
+                borderColor = DetailsBorderDefault.copy(alpha = 0.34f),
+            )
+            Column(
+                modifier = Modifier.padding(top = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                ShimmerSkeletonBox(
+                    brush = brush,
+                    modifier = Modifier.size(width = 130.dp, height = 18.dp),
+                    shape = RoundedCornerShape(9.dp),
+                )
+                ShimmerSkeletonBox(
+                    brush = brush,
+                    modifier = Modifier.size(width = 620.dp, height = 54.dp),
+                    shape = RoundedCornerShape(14.dp),
+                )
+                ShimmerSkeletonBox(
+                    brush = brush,
+                    modifier = Modifier.size(width = 280.dp, height = 28.dp),
+                    shape = RoundedCornerShape(12.dp),
+                )
+                ShimmerSkeletonBox(
+                    brush = brush,
+                    modifier = Modifier.size(width = 118.dp, height = 26.dp),
+                    shape = RoundedCornerShape(12.dp),
+                )
+            }
+        }
+
+        ShimmerSkeletonBox(
+            brush = brush,
+            modifier = Modifier.size(width = 120.dp, height = 18.dp),
+            shape = RoundedCornerShape(9.dp),
         )
+        repeat(5) { index ->
+            ShimmerSkeletonBox(
+                brush = brush,
+                modifier = Modifier
+                    .fillMaxWidth(if (index == 4) 0.64f else 1f)
+                    .height(18.dp),
+                shape = RoundedCornerShape(9.dp),
+            )
+        }
+        repeat(3) { index ->
+            ShimmerSkeletonBox(
+                brush = brush,
+                modifier = Modifier
+                    .fillMaxWidth(listOf(0.96f, 0.88f, 0.72f)[index])
+                    .height(18.dp),
+                shape = RoundedCornerShape(9.dp),
+            )
+        }
     }
 }
 

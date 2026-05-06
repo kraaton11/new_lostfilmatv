@@ -2,12 +2,7 @@ package com.kraat.lostfilmnewtv.ui.details
 
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -64,6 +59,8 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
+import com.kraat.lostfilmnewtv.ui.components.ShimmerSkeletonBox
+import com.kraat.lostfilmnewtv.ui.components.rememberShimmerSkeletonBrush
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
 import com.kraat.lostfilmnewtv.ui.theme.DetailsAccentBlue
 import com.kraat.lostfilmnewtv.ui.theme.DetailsAccentGold
@@ -161,7 +158,18 @@ fun DetailsScreen(
 
 @Composable
 private fun LoadingState() {
-    val shimmerBrush = rememberDetailsSkeletonBrush()
+    val shimmerBrush = rememberShimmerSkeletonBrush(
+        label = "detailsSkeleton",
+        baseColor = DetailsSurfaceSoft,
+        highlightColor = DetailsBorderDefault,
+        baseAlpha = 0.56f,
+        highlightAlpha = 0.68f,
+        startOffset = -560f,
+        endOffset = 1_360f,
+        shimmerWidth = 520f,
+        verticalOffset = 280f,
+        durationMillis = 1_400,
+    )
 
     Box(
         modifier = Modifier
@@ -171,100 +179,89 @@ private fun LoadingState() {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 48.dp, top = 24.dp, end = 48.dp, bottom = 24.dp)
+                .padding(start = 44.dp, top = 44.dp, end = 48.dp, bottom = 40.dp)
                 .testTag("details-loading"),
-            verticalArrangement = Arrangement.spacedBy(22.dp),
+            verticalArrangement = Arrangement.SpaceBetween,
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(34.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(26.dp),
+                verticalAlignment = Alignment.Top,
             ) {
-                DetailsSkeletonBox(
+                ShimmerSkeletonBox(
                     brush = shimmerBrush,
-                    modifier = Modifier.size(width = 264.dp, height = 380.dp),
-                    shape = RoundedCornerShape(24.dp),
+                    modifier = Modifier.size(width = 242.dp, height = 360.dp),
+                    shape = RoundedCornerShape(22.dp),
+                    borderColor = DetailsBorderDefault.copy(alpha = 0.48f),
                 )
                 Column(
-                    verticalArrangement = Arrangement.spacedBy(18.dp),
+                    modifier = Modifier.padding(top = 46.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
                 ) {
-                    DetailsSkeletonBox(
+                    ShimmerSkeletonBox(
                         brush = shimmerBrush,
-                        modifier = Modifier.size(width = 620.dp, height = 52.dp),
+                        modifier = Modifier.size(width = 540.dp, height = 34.dp),
                         shape = RoundedCornerShape(14.dp),
                     )
-                    DetailsSkeletonBox(
+                    ShimmerSkeletonBox(
                         brush = shimmerBrush,
-                        modifier = Modifier.size(width = 500.dp, height = 52.dp),
-                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.size(width = 360.dp, height = 26.dp),
+                        shape = RoundedCornerShape(12.dp),
                     )
-                    DetailsSkeletonBox(
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        repeat(4) { index ->
+                            ShimmerSkeletonBox(
+                                brush = shimmerBrush,
+                                modifier = Modifier.size(width = listOf(78.dp, 72.dp, 92.dp, 64.dp)[index], height = 29.dp),
+                                shape = RoundedCornerShape(999.dp),
+                                borderColor = DetailsBorderDefault.copy(alpha = 0.30f),
+                            )
+                        }
+                    }
+                    repeat(2) { index ->
+                        ShimmerSkeletonBox(
+                            brush = shimmerBrush,
+                            modifier = Modifier.size(width = if (index == 0) 390.dp else 330.dp, height = 22.dp),
+                            shape = RoundedCornerShape(10.dp),
+                        )
+                    }
+                    ShimmerSkeletonBox(
                         brush = shimmerBrush,
-                        modifier = Modifier.size(width = 440.dp, height = 26.dp),
-                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.size(width = 640.dp, height = 1.dp),
+                        shape = RoundedCornerShape(1.dp),
                     )
-                    DetailsSkeletonBox(
-                        brush = shimmerBrush,
-                        modifier = Modifier.size(width = 320.dp, height = 20.dp),
-                        shape = RoundedCornerShape(10.dp),
-                    )
+                    repeat(4) { index ->
+                        ShimmerSkeletonBox(
+                            brush = shimmerBrush,
+                            modifier = Modifier.size(width = listOf(660.dp, 620.dp, 590.dp, 420.dp)[index], height = 15.dp),
+                            shape = RoundedCornerShape(8.dp),
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(52.dp))
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                repeat(5) {
-                    DetailsSkeletonBox(
+                ShimmerSkeletonBox(
+                    brush = shimmerBrush,
+                    modifier = Modifier.size(width = 242.dp, height = 56.dp),
+                    shape = RoundedCornerShape(18.dp),
+                    borderColor = DetailsBorderDefault.copy(alpha = 0.34f),
+                )
+                repeat(4) { index ->
+                    ShimmerSkeletonBox(
                         brush = shimmerBrush,
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(76.dp),
-                        shape = RoundedCornerShape(18.dp),
+                        modifier = Modifier.size(width = listOf(118.dp, 104.dp, 128.dp, 152.dp)[index], height = 48.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        borderColor = DetailsBorderDefault.copy(alpha = 0.30f),
                     )
                 }
             }
         }
     }
-}
-
-@Composable
-private fun rememberDetailsSkeletonBrush(): Brush {
-    val transition = rememberInfiniteTransition(label = "detailsSkeleton")
-    val xOffset by transition.animateFloat(
-        initialValue = -520f,
-        targetValue = 1_280f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1_450, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "detailsSkeletonOffset",
-    )
-    return Brush.linearGradient(
-        colors = listOf(
-            DetailsSurfaceSoft.copy(alpha = 0.52f),
-            DetailsBorderDefault.copy(alpha = 0.5f),
-            DetailsSurfaceSoft.copy(alpha = 0.52f),
-        ),
-        start = Offset(xOffset, 0f),
-        end = Offset(xOffset + 520f, 280f),
-    )
-}
-
-@Composable
-private fun DetailsSkeletonBox(
-    brush: Brush,
-    modifier: Modifier = Modifier,
-    shape: RoundedCornerShape,
-) {
-    Box(
-        modifier = modifier
-            .clip(shape)
-            .background(brush),
-    )
 }
 
 @Composable

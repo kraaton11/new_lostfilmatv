@@ -1,15 +1,8 @@
 package com.kraat.lostfilmnewtv.ui.home
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
@@ -36,9 +29,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -47,6 +38,8 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
+import com.kraat.lostfilmnewtv.ui.components.ShimmerSkeletonBox
+import com.kraat.lostfilmnewtv.ui.components.rememberShimmerSkeletonBrush
 import com.kraat.lostfilmnewtv.ui.components.PosterCard
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
@@ -182,32 +175,25 @@ internal fun posterTag(railId: String, detailsUrl: String): String = "poster:$ra
 @Composable
 private fun HomePagingPosterSkeleton(modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(14.dp)
-    val transition = rememberInfiniteTransition(label = "homePagingSkeleton")
-    val xOffset by transition.animateFloat(
-        initialValue = -220f,
-        targetValue = 420f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1_150, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "homePagingSkeletonOffset",
-    )
-    val shimmerBrush = Brush.linearGradient(
-        colors = listOf(
-            HomePanelSurfaceStrong.copy(alpha = 0.72f),
-            Color.White.copy(alpha = 0.10f),
-            HomePanelSurfaceStrong.copy(alpha = 0.72f),
-        ),
-        start = Offset(xOffset, 0f),
-        end = Offset(xOffset + 180f, 264f),
+    val shimmerBrush = rememberShimmerSkeletonBrush(
+        label = "homePagingSkeleton",
+        baseColor = HomePanelSurfaceStrong,
+        highlightColor = Color.White,
+        baseAlpha = 0.72f,
+        highlightAlpha = 0.12f,
+        startOffset = -220f,
+        endOffset = 420f,
+        shimmerWidth = 180f,
+        verticalOffset = 264f,
+        durationMillis = 1_150,
     )
 
-    Box(
+    ShimmerSkeletonBox(
+        brush = shimmerBrush,
         modifier = modifier
-            .size(width = 108.dp, height = 162.dp)
-            .clip(shape)
-            .background(shimmerBrush)
-            .background(HomePanelBorder.copy(alpha = 0.18f), shape),
+            .size(width = 108.dp, height = 162.dp),
+        shape = shape,
+        borderColor = HomePanelBorder.copy(alpha = 0.20f),
     )
 }
 

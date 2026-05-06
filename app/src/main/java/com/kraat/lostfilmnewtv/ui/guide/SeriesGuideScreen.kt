@@ -1,11 +1,6 @@
 package com.kraat.lostfilmnewtv.ui.guide
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -37,7 +32,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -52,6 +46,8 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.kraat.lostfilmnewtv.data.model.SeriesGuideEpisode
 import com.kraat.lostfilmnewtv.data.model.SeriesGuideSeason
+import com.kraat.lostfilmnewtv.ui.components.ShimmerSkeletonBox
+import com.kraat.lostfilmnewtv.ui.components.rememberShimmerSkeletonBrush
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
 import com.kraat.lostfilmnewtv.ui.theme.DetailsAccentBlue
 import com.kraat.lostfilmnewtv.ui.theme.DetailsAccentGold
@@ -110,7 +106,18 @@ fun SeriesGuideScreen(
 
 @Composable
 private fun GuideLoadingState() {
-    val shimmerBrush = rememberGuideSkeletonBrush()
+    val shimmerBrush = rememberShimmerSkeletonBrush(
+        label = "guideSkeleton",
+        baseColor = DetailsSurfaceSoft,
+        highlightColor = DetailsBorderDefault,
+        baseAlpha = 0.56f,
+        highlightAlpha = 0.66f,
+        startOffset = -560f,
+        endOffset = 1_300f,
+        shimmerWidth = 520f,
+        verticalOffset = 240f,
+        durationMillis = 1_400,
+    )
 
     Column(
         modifier = Modifier
@@ -124,77 +131,54 @@ private fun GuideLoadingState() {
             horizontalArrangement = Arrangement.spacedBy(28.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            GuideSkeletonBox(
+            ShimmerSkeletonBox(
                 brush = shimmerBrush,
                 modifier = Modifier.size(width = 120.dp, height = 172.dp),
                 shape = RoundedCornerShape(20.dp),
+                borderColor = DetailsBorderDefault.copy(alpha = 0.34f),
             )
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                GuideSkeletonBox(
+                ShimmerSkeletonBox(
                     brush = shimmerBrush,
                     modifier = Modifier.size(width = 420.dp, height = 42.dp),
                     shape = RoundedCornerShape(12.dp),
                 )
-                GuideSkeletonBox(
+                ShimmerSkeletonBox(
                     brush = shimmerBrush,
                     modifier = Modifier.size(width = 220.dp, height = 20.dp),
                     shape = RoundedCornerShape(10.dp),
                 )
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    repeat(3) { index ->
+                        ShimmerSkeletonBox(
+                            brush = shimmerBrush,
+                            modifier = Modifier.size(width = listOf(74.dp, 82.dp, 68.dp)[index], height = 28.dp),
+                            shape = RoundedCornerShape(999.dp),
+                            borderColor = DetailsBorderDefault.copy(alpha = 0.28f),
+                        )
+                    }
+                }
             }
         }
 
         repeat(2) {
-            GuideSkeletonBox(
+            ShimmerSkeletonBox(
                 brush = shimmerBrush,
                 modifier = Modifier.size(width = 160.dp, height = 24.dp),
                 shape = RoundedCornerShape(10.dp),
             )
             repeat(4) {
-                GuideSkeletonBox(
+                ShimmerSkeletonBox(
                     brush = shimmerBrush,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(72.dp),
                     shape = RoundedCornerShape(18.dp),
+                    borderColor = DetailsBorderDefault.copy(alpha = 0.24f),
                 )
             }
         }
     }
-}
-
-@Composable
-private fun rememberGuideSkeletonBrush(): Brush {
-    val transition = rememberInfiniteTransition(label = "guideSkeleton")
-    val xOffset by transition.animateFloat(
-        initialValue = -520f,
-        targetValue = 1_260f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1_450, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "guideSkeletonOffset",
-    )
-    return Brush.linearGradient(
-        colors = listOf(
-            DetailsSurfaceSoft.copy(alpha = 0.52f),
-            DetailsBorderDefault.copy(alpha = 0.5f),
-            DetailsSurfaceSoft.copy(alpha = 0.52f),
-        ),
-        start = Offset(xOffset, 0f),
-        end = Offset(xOffset + 520f, 220f),
-    )
-}
-
-@Composable
-private fun GuideSkeletonBox(
-    brush: Brush,
-    modifier: Modifier = Modifier,
-    shape: RoundedCornerShape,
-) {
-    Box(
-        modifier = modifier
-            .background(brush, shape),
-    )
 }
 
 @Composable

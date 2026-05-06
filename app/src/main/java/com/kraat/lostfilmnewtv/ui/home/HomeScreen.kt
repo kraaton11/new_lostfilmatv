@@ -1,12 +1,6 @@
 package com.kraat.lostfilmnewtv.ui.home
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -38,13 +32,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.blur
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -62,6 +54,8 @@ import coil.request.ImageRequest
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
+import com.kraat.lostfilmnewtv.ui.components.ShimmerSkeletonBox
+import com.kraat.lostfilmnewtv.ui.components.rememberShimmerSkeletonBrush
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
 import com.kraat.lostfilmnewtv.ui.theme.HomeAccentBlue
 import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGold
@@ -639,95 +633,78 @@ private data class HomeBackdropImage(
 
 @Composable
 private fun HomeLoadingSkeleton(modifier: Modifier = Modifier) {
-    val shimmerBrush = rememberHomeSkeletonBrush()
+    val shimmerBrush = rememberShimmerSkeletonBrush(
+        label = "homeSkeleton",
+        baseColor = HomePanelSurfaceStrong,
+        highlightColor = HomePanelBorder,
+        baseAlpha = 0.58f,
+        highlightAlpha = 0.72f,
+        startOffset = -520f,
+        endOffset = 1_160f,
+        shimmerWidth = 440f,
+        durationMillis = 1_300,
+    )
 
     Column(
         modifier = modifier
             .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(26.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Row(
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            verticalArrangement = Arrangement.spacedBy(11.dp),
         ) {
-            repeat(6) {
-                HomeSkeletonBox(
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                repeat(3) { index ->
+                    ShimmerSkeletonBox(
+                        brush = shimmerBrush,
+                        modifier = Modifier.size(width = if (index == 0) 72.dp else 64.dp, height = 24.dp),
+                        shape = RoundedCornerShape(999.dp),
+                        borderColor = HomePanelBorder.copy(alpha = 0.34f),
+                    )
+                }
+            }
+            ShimmerSkeletonBox(
+                brush = shimmerBrush,
+                modifier = Modifier.size(width = 500.dp, height = 38.dp),
+                shape = RoundedCornerShape(12.dp),
+            )
+            ShimmerSkeletonBox(
+                brush = shimmerBrush,
+                modifier = Modifier.size(width = 360.dp, height = 22.dp),
+                shape = RoundedCornerShape(10.dp),
+            )
+            repeat(3) { index ->
+                ShimmerSkeletonBox(
                     brush = shimmerBrush,
-                    modifier = Modifier.size(width = 124.dp, height = 186.dp),
-                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.size(width = listOf(560.dp, 520.dp, 440.dp)[index], height = 15.dp),
+                    shape = RoundedCornerShape(8.dp),
                 )
             }
         }
 
+        ShimmerSkeletonBox(
+            brush = shimmerBrush,
+            modifier = Modifier
+                .padding(top = 9.dp, start = 0.dp)
+                .size(width = 128.dp, height = 18.dp),
+            shape = RoundedCornerShape(9.dp),
+        )
+
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(18.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            HomeSkeletonBox(
-                brush = shimmerBrush,
-                modifier = Modifier
-                    .width(4.dp)
-                    .height(78.dp),
-                shape = RoundedCornerShape(2.dp),
-            )
-            Column(
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                HomeSkeletonBox(
+            repeat(8) {
+                ShimmerSkeletonBox(
                     brush = shimmerBrush,
-                    modifier = Modifier.size(width = 190.dp, height = 16.dp),
-                    shape = RoundedCornerShape(8.dp),
-                )
-                HomeSkeletonBox(
-                    brush = shimmerBrush,
-                    modifier = Modifier.size(width = 360.dp, height = 34.dp),
-                    shape = RoundedCornerShape(10.dp),
-                )
-                HomeSkeletonBox(
-                    brush = shimmerBrush,
-                    modifier = Modifier.size(width = 300.dp, height = 18.dp),
-                    shape = RoundedCornerShape(9.dp),
+                    modifier = Modifier.size(width = 108.dp, height = 162.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    borderColor = HomePanelBorder.copy(alpha = 0.22f),
                 )
             }
         }
     }
-}
-
-@Composable
-private fun rememberHomeSkeletonBrush(): Brush {
-    val transition = rememberInfiniteTransition(label = "homeSkeleton")
-    val xOffset by transition.animateFloat(
-        initialValue = -420f,
-        targetValue = 980f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1_350, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "homeSkeletonOffset",
-    )
-    return Brush.linearGradient(
-        colors = listOf(
-            HomePanelSurfaceStrong.copy(alpha = 0.54f),
-            HomePanelBorder.copy(alpha = 0.46f),
-            HomePanelSurfaceStrong.copy(alpha = 0.54f),
-        ),
-        start = Offset(xOffset, 0f),
-        end = Offset(xOffset + 420f, 260f),
-    )
-}
-
-@Composable
-private fun HomeSkeletonBox(
-    brush: Brush,
-    modifier: Modifier = Modifier,
-    shape: RoundedCornerShape,
-) {
-    Box(
-        modifier = modifier
-            .clip(shape)
-            .background(brush),
-    )
 }
 
 @Composable
