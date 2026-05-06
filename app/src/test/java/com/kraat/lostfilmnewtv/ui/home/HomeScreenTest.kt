@@ -144,19 +144,65 @@ class HomeScreenTest {
     }
 
     @Test
-    fun homeScreen_heroStage_prefersTmdbEpisodeOverview() {
+    fun homeScreen_heroStage_usesTmdbSeriesOverviewForSeries() {
         composeRule.setContent {
             LostFilmTheme {
                 HomeScreen(
                     state = seededState(
                         episodeOverviewRu = "Русское описание серии из TMDB.",
+                        seriesOverviewRu = "Русское описание сериала из TMDB.",
                     ),
                 )
             }
         }
 
-        composeRule.onNodeWithText("Русское описание серии из TMDB.").assertExists()
+        composeRule.onNodeWithText("Русское описание сериала из TMDB.").assertExists()
+        composeRule.onNodeWithText("Русское описание серии из TMDB.").assertDoesNotExist()
         composeRule.onNodeWithText("Новая серия доступна в релизах LostFilm.").assertDoesNotExist()
+    }
+
+    @Test
+    fun homeScreen_heroStage_usesTmdbMovieOverviewForMovie() {
+        val series = release(
+            detailsUrl = firstDetailsUrl,
+            titleRu = "9-1-1",
+            episodeTitleRu = "Маменькин сынок",
+            releaseDateRu = "14.03.2026",
+            seasonNumber = 9,
+            episodeNumber = 13,
+            kind = ReleaseKind.SERIES,
+            pageNumber = 1,
+            positionInPage = 0,
+        )
+        val movie = release(
+            detailsUrl = secondDetailsUrl,
+            titleRu = "Необратимость",
+            episodeTitleRu = null,
+            releaseDateRu = "13.03.2026",
+            seasonNumber = null,
+            episodeNumber = null,
+            kind = ReleaseKind.MOVIE,
+            pageNumber = 1,
+            positionInPage = 1,
+            movieOverviewRu = "Русское описание фильма из TMDB.",
+        )
+
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(
+                    state = HomeUiState(
+                        items = listOf(series, movie),
+                        allNewModeState = HomeModeContentState.Content(listOf(series, movie)),
+                        selectedItem = movie,
+                        selectedItemKey = movie.detailsUrl,
+                        hasNextPage = true,
+                    ),
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Русское описание фильма из TMDB.").assertExists()
+        composeRule.onNodeWithText("Фильм доступен в релизах LostFilm.").assertDoesNotExist()
     }
 
     @Test
@@ -1199,6 +1245,7 @@ private fun seededState(
     episodeTitleRu: String? = "Маменькин сынок",
     releaseDateRu: String = "14.03.2026",
     episodeOverviewRu: String? = null,
+    seriesOverviewRu: String? = null,
 ): HomeUiState {
     val first = release(
         detailsUrl = firstDetailsUrl,
@@ -1211,6 +1258,7 @@ private fun seededState(
         pageNumber = 1,
         positionInPage = 0,
         episodeOverviewRu = episodeOverviewRu,
+        seriesOverviewRu = seriesOverviewRu,
     )
     val second = release(
         detailsUrl = secondDetailsUrl,
@@ -1292,6 +1340,8 @@ private fun release(
     pageNumber: Int = 1,
     positionInPage: Int = 0,
     episodeOverviewRu: String? = null,
+    seriesOverviewRu: String? = null,
+    movieOverviewRu: String? = null,
 ): ReleaseSummary {
     val posterUrl = when (kind) {
         ReleaseKind.SERIES -> "https://www.lostfilm.today/Static/Images/362/Posters/image_s9.jpg"
@@ -1311,5 +1361,7 @@ private fun release(
         positionInPage = positionInPage,
         fetchedAt = 0L,
         episodeOverviewRu = episodeOverviewRu,
+        seriesOverviewRu = seriesOverviewRu,
+        movieOverviewRu = movieOverviewRu,
     )
 }

@@ -43,6 +43,11 @@ class TmdbPosterResolverTest {
                 assertEquals(8, episodeNumber)
                 return "Русское описание серии из TMDB."
             }
+
+            override suspend fun getSeriesOverviewRu(tmdbId: Int): String? {
+                assertEquals(777, tmdbId)
+                return "Русское описание сериала из TMDB."
+            }
         }
         val resolver = TmdbPosterResolverImpl(client, dao)
 
@@ -54,6 +59,52 @@ class TmdbPosterResolverTest {
         )
 
         assertEquals("Русское описание серии из TMDB.", result?.episodeOverviewRu)
+        assertEquals("Русское описание сериала из TMDB.", result?.seriesOverviewRu)
+    }
+
+    @Test
+    fun resolve_fetchesMovieOverview_forMovieOnly() = runTest {
+        val dao = FakeTmdbPosterDao()
+        var seriesOverviewCalls = 0
+        var movieOverviewCalls = 0
+        val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType): List<TmdbSearchResult> {
+                return listOf(TmdbSearchResult(id = 524, name = "Casino", popularity = 10.0))
+            }
+
+            override suspend fun getPosterAndBackdrop(tmdbId: Int, type: TmdbMediaType): TmdbImageUrls {
+                return TmdbImageUrls(
+                    posterUrl = "https://image.tmdb.org/t/p/w780/poster.jpg",
+                    backdropUrl = "https://image.tmdb.org/t/p/original/backdrop.jpg",
+                )
+            }
+
+            override suspend fun getSeriesOverviewRu(tmdbId: Int): String? {
+                seriesOverviewCalls += 1
+                return "Описание сериала не должно запрашиваться."
+            }
+
+            override suspend fun getMovieOverviewRu(tmdbId: Int): String? {
+                assertEquals(524, tmdbId)
+                movieOverviewCalls += 1
+                return "Русское описание фильма из TMDB."
+            }
+        }
+        val resolver = TmdbPosterResolverImpl(client, dao)
+
+        val result = resolver.resolve(
+            detailsUrl = "https://www.lostfilm.today/movies/Casino",
+            titleRu = "Казино",
+            releaseDateRu = "05.04.2026",
+            kind = ReleaseKind.MOVIE,
+            originalReleaseYear = 1995,
+        )
+
+        assertNotNull(result)
+        assertNull(result?.seriesOverviewRu)
+        assertEquals("Русское описание фильма из TMDB.", result?.movieOverviewRu)
+        assertEquals(0, seriesOverviewCalls)
+        assertEquals(1, movieOverviewCalls)
     }
 
     @Test

@@ -17,4 +17,6 @@ data class TmdbImageUrls(
     val posterUrl: String,
     val backdropUrl: String,
     val episodeOverviewRu: String? = null,
+    val seriesOverviewRu: String? = null,
+    val movieOverviewRu: String? = null,
 )
