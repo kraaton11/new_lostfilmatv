@@ -48,6 +48,7 @@ class TmdbPosterResolverImpl(
         originalReleaseYear: Int?,
     ): TmdbImageUrls? {
         val cacheKey = tmdbCacheKey(detailsUrl, kind)
+        val hasTmdbIdOverride = tmdbIdOverride(extractEnglishSlug(detailsUrl), kind) != null
 
         inMemoryCache[cacheKey]?.let {
             return it.copy(
@@ -65,7 +66,7 @@ class TmdbPosterResolverImpl(
         }
 
         val cached = tmdbDao.getByDetailsUrl(cacheKey)
-        if (cached != null && canReuseNegativeMapping(cached)) {
+        if (cached != null && canReuseNegativeMapping(cached) && !hasTmdbIdOverride) {
             return null
         }
         if (cached != null && canReuseCachedMapping(cached, originalReleaseYear)) {
@@ -100,7 +101,7 @@ class TmdbPosterResolverImpl(
             }
 
             val rechecked = tmdbDao.getByDetailsUrl(cacheKey)
-            if (rechecked != null && canReuseNegativeMapping(rechecked)) {
+            if (rechecked != null && canReuseNegativeMapping(rechecked) && !hasTmdbIdOverride) {
                 return@withLock null
             }
             if (rechecked != null && canReuseCachedMapping(rechecked, originalReleaseYear)) {
@@ -174,13 +175,16 @@ class TmdbPosterResolverImpl(
         }
 
         val englishSlug = extractEnglishSlug(detailsUrl)
+        val tmdbIdOverride = tmdbIdOverride(englishSlug, kind)
         val releaseYearHint = when (kind) {
             ReleaseKind.MOVIE -> originalReleaseYear ?: englishSlug.extractYearFromSlug()
             ReleaseKind.SERIES -> englishSlug.extractYearFromSlug()
         }
         var searchFailed = false
 
-        val slugResults = if (englishSlug != null && englishSlug.isNotBlank()) {
+        val slugResults = if (tmdbIdOverride != null) {
+            emptyList()
+        } else if (englishSlug != null && englishSlug.isNotBlank()) {
             try {
                 tmdbClient.searchByTitle(englishSlug.removeYearSuffix(), releaseYearHint, tmdbType)
             } catch (e: Exception) {
@@ -192,15 +196,23 @@ class TmdbPosterResolverImpl(
             emptyList()
         }
 
-        val exactSlugMatch = englishSlug
-            ?.removeYearSuffix()
-            ?.normalizeForTmdbMatch()
-            ?.takeIf { it.isNotBlank() }
-            ?.let { normalizedSlug ->
-                slugResults
-                    .filter { it.matchesSlug(normalizedSlug) }
-                    .bestByYearThenPopularity(releaseYearHint)
-            }
+        val exactSlugMatch = if (tmdbIdOverride != null) {
+            TmdbSearchResult(
+                id = tmdbIdOverride,
+                name = englishSlug.orEmpty(),
+                popularity = Double.MAX_VALUE,
+            )
+        } else {
+            englishSlug
+                ?.removeYearSuffix()
+                ?.normalizeForTmdbMatch()
+                ?.takeIf { it.isNotBlank() }
+                ?.let { normalizedSlug ->
+                    slugResults
+                        .filter { it.matchesSlug(normalizedSlug) }
+                        .bestByYearThenPopularity(releaseYearHint)
+                }
+        }
 
         // Exact English slug matches are good enough to skip the Russian title query.
         val titleResults = if (exactSlugMatch == null) {
@@ -233,7 +245,7 @@ class TmdbPosterResolverImpl(
             return null
         }
 
-        val rating = bestMatch.rating
+        val rating = bestMatch.rating ?: resolveRating(bestMatch.id, kind)
         val images = try {
             tmdbClient.getPosterAndBackdrop(bestMatch.id, tmdbType)
         } catch (e: Exception) {
@@ -291,6 +303,26 @@ class TmdbPosterResolverImpl(
                 ?.also { movieOverviewCache[tmdbId] = it }
         } catch (e: Exception) {
             Log.e(TAG, "TMDB movie overview failed for id=$tmdbId: ${e.message}")
+            null
+        }
+    }
+
+    private suspend fun resolveRating(
+        tmdbId: Int,
+        kind: ReleaseKind,
+    ): String? {
+        if (tmdbId <= 0) {
+            return null
+        }
+        val tmdbType = when (kind) {
+            ReleaseKind.SERIES -> TmdbMediaType.TV
+            ReleaseKind.MOVIE -> TmdbMediaType.MOVIE
+        }
+
+        return try {
+            tmdbClient.getRating(tmdbId, tmdbType)
+        } catch (e: Exception) {
+            Log.e(TAG, "TMDB rating failed for id=$tmdbId: ${e.message}")
             null
         }
     }
@@ -397,6 +429,19 @@ class TmdbPosterResolverImpl(
             .replace(Regex("[^a-z0-9а-я]+"), " ")
             .trim()
             .replace(Regex("\\s+"), " ")
+            .replace(Regex("""\band\b"""), "")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+    }
+
+    private fun tmdbIdOverride(englishSlug: String?, kind: ReleaseKind): Int? {
+        if (kind != ReleaseKind.SERIES) {
+            return null
+        }
+        return when (englishSlug?.removeYearSuffix()?.normalizeForTmdbMatch()) {
+            "his hers" -> 259731
+            else -> null
+        }
     }
 
     private fun String?.extractYearFromSlug(): Int? =
