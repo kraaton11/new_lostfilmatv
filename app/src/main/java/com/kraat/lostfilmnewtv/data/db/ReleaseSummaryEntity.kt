@@ -30,6 +30,7 @@ data class ReleaseSummaryEntity(
     val episodeOverviewRu: String? = null,
     val seriesOverviewRu: String? = null,
     val movieOverviewRu: String? = null,
+    val tmdbRating: String? = null,
 ) {
     fun toModel(): ReleaseSummary = ReleaseSummary(
         id = detailsUrl,
@@ -49,6 +50,7 @@ data class ReleaseSummaryEntity(
         episodeOverviewRu = episodeOverviewRu,
         seriesOverviewRu = seriesOverviewRu,
         movieOverviewRu = movieOverviewRu,
+        tmdbRating = tmdbRating,
     )
 
     companion object {
@@ -65,6 +67,7 @@ data class ReleaseSummaryEntity(
             episodeOverviewRu = model.episodeOverviewRu,
             seriesOverviewRu = model.seriesOverviewRu,
             movieOverviewRu = model.movieOverviewRu,
+            tmdbRating = model.tmdbRating,
             pageNumber = model.pageNumber,
             positionInPage = model.positionInPage,
             fetchedAt = model.fetchedAt,

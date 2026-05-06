@@ -19,6 +19,7 @@ object TmdbPosterEnricher {
             episodeOverviewRu = tmdbUrls.episodeOverviewRu?.ifBlank { null } ?: summary.episodeOverviewRu,
             seriesOverviewRu = tmdbUrls.seriesOverviewRu?.ifBlank { null } ?: summary.seriesOverviewRu,
             movieOverviewRu = tmdbUrls.movieOverviewRu?.ifBlank { null } ?: summary.movieOverviewRu,
+            tmdbRating = tmdbUrls.rating?.ifBlank { null } ?: summary.tmdbRating,
         )
     }
 
@@ -38,6 +39,7 @@ object TmdbPosterEnricher {
             } else {
                 details.movieOverviewRu
             },
+            tmdbRating = tmdbUrls.rating?.ifBlank { null } ?: details.tmdbRating,
         )
     }
 }

@@ -20,4 +20,5 @@ data class ReleaseSummary(
     val episodeOverviewRu: String? = null,
     val seriesOverviewRu: String? = null,
     val movieOverviewRu: String? = null,
+    val tmdbRating: String? = null,
 )

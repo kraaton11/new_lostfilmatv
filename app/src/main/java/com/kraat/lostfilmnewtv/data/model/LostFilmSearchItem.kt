@@ -7,4 +7,5 @@ data class LostFilmSearchItem(
     val posterUrl: String? = null,
     val targetUrl: String,
     val kind: ReleaseKind,
+    val tmdbRating: String? = null,
 )

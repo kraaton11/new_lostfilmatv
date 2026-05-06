@@ -7,6 +7,7 @@ import com.kraat.lostfilmnewtv.data.model.FavoriteMetadata
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteToggleNetworkResult
+import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
@@ -23,6 +24,7 @@ import com.kraat.lostfilmnewtv.data.parser.LostFilmSeriesCatalogParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSeriesOverviewParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSeasonEpisodesParser
 import com.kraat.lostfilmnewtv.data.parser.absoluteUrl
+import com.kraat.lostfilmnewtv.data.parser.extractYear
 import com.kraat.lostfilmnewtv.data.parser.normalizeText
 import com.kraat.lostfilmnewtv.data.parser.resolveUrl
 import com.kraat.lostfilmnewtv.data.parser.textOrEmpty
@@ -363,6 +365,7 @@ class LostFilmRepositoryImpl(
                         ?.takeIf { it.isNotBlank() }
                         ?: parsedOverview.posterUrl,
                     backdropUrl = tmdbUrls?.backdropUrl?.takeIf { it.isNotBlank() } ?: parsedOverview.backdropUrl,
+                    tmdbRating = tmdbUrls?.rating?.takeIf { it.isNotBlank() } ?: parsedOverview.tmdbRating,
                 ),
             )
         } catch (exception: IOException) {
@@ -383,10 +386,11 @@ class LostFilmRepositoryImpl(
             val encodedQuery = URLEncoder.encode(normalizedQuery, StandardCharsets.UTF_8.toString())
                 .replace("+", "%20")
             val html = httpClient.fetchDetails("$BASE_URL/search/?q=$encodedQuery")
+            val parsedItems = searchParser.parse(html)
 
             SearchResultsResult.Success(
                 query = normalizedQuery,
-                items = searchParser.parse(html),
+                items = enrichSearchItems(parsedItems),
             )
         } catch (exception: Exception) {
             if (exception is IOException || exception is IllegalStateException) {
@@ -418,6 +422,35 @@ class LostFilmRepositoryImpl(
             watchedState
         } catch (_: IOException) {
             null
+        }
+    }
+
+    private suspend fun enrichSearchItems(items: List<LostFilmSearchItem>): List<LostFilmSearchItem> {
+        if (items.isEmpty()) {
+            return emptyList()
+        }
+
+        val semaphore = Semaphore(6)
+        return coroutineScope {
+            items.map { item ->
+                async {
+                    semaphore.withPermit {
+                        val tmdbUrls = tmdbResolver.resolve(
+                            detailsUrl = item.targetUrl,
+                            titleRu = item.titleRu,
+                            releaseDateRu = item.subtitle.orEmpty(),
+                            kind = item.kind,
+                            originalReleaseYear = item.subtitle?.extractYear(),
+                        )
+                        item.copy(
+                            posterUrl = tmdbUrls?.posterUrl?.ifBlank { item.posterUrl.orEmpty() }
+                                ?.takeIf { it.isNotBlank() }
+                                ?: item.posterUrl,
+                            tmdbRating = tmdbUrls?.rating?.takeIf { it.isNotBlank() } ?: item.tmdbRating,
+                        )
+                    }
+                }
+            }.awaitAll()
         }
     }
 
@@ -717,9 +750,8 @@ class LostFilmRepositoryImpl(
 
     private fun ReleaseDetails.hasDetailsOverview(): Boolean {
         return when (kind) {
-            ReleaseKind.SERIES,
-            ReleaseKind.MOVIE,
-            -> !episodeOverviewRu.isNullOrBlank()
+            ReleaseKind.SERIES -> true
+            ReleaseKind.MOVIE -> !episodeOverviewRu.isNullOrBlank()
         }
     }
 

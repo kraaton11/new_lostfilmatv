@@ -78,6 +78,7 @@ open class TmdbPosterClient(
                     popularity = item.optDouble("popularity", 0.0),
                     originalName = originalName.ifBlank { name },
                     releaseYear = releaseYear,
+                    rating = item.optTmdbRating(),
                 )
             }.sortedByDescending { it.popularity }
         }
@@ -227,4 +228,12 @@ open class TmdbPosterClient(
     }
 
     private fun String.encodeUrl(): String = java.net.URLEncoder.encode(this, "UTF-8")
+}
+
+private fun JSONObject.optTmdbRating(): String? {
+    val rating = optDouble("vote_average", Double.NaN)
+    if (rating.isNaN() || rating <= 0.0) {
+        return null
+    }
+    return "%.1f".format(java.util.Locale.US, rating)
 }

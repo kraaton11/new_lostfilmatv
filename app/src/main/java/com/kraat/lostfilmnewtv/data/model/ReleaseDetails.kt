@@ -22,6 +22,7 @@ data class ReleaseDetails(
     val originalReleaseYear: Int? = null,
     val episodeOverviewRu: String? = null,
     val movieOverviewRu: String? = null,
+    val tmdbRating: String? = null,
 )
 
 @Serializable

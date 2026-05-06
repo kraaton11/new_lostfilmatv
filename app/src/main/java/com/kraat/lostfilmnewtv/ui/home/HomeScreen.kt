@@ -462,6 +462,9 @@ private fun ReleaseHeroMetaRow(item: ReleaseSummary?) {
         seasonEpisodeHeroLabel(item)?.let { label ->
             HeroMetaPill(label = label, highlighted = true)
         }
+        item?.tmdbRating?.takeIf { it.isNotBlank() }?.let { rating ->
+            HeroMetaPill(label = "TMDB $rating")
+        }
         item?.releaseDateRu?.takeIf { it.isNotBlank() }?.let { date ->
             HeroMetaPill(label = date)
         }

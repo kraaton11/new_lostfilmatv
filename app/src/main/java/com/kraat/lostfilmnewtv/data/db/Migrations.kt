@@ -32,6 +32,7 @@ private const val RELEASE_DETAILS_TABLE_SQL = """
         `favoriteTargetKind` TEXT,
         `isFavorite` INTEGER,
         `episodeOverviewRu` TEXT,
+        `tmdbRating` TEXT,
         PRIMARY KEY(`detailsUrl`)
     )
 """
@@ -118,6 +119,17 @@ val MIGRATION_12_13 = object : Migration(12, 13) {
     }
 }
 
+/**
+ * Миграция 13→14: рейтинг TMDB для ленты, деталей и TMDB mapping cache.
+ */
+val MIGRATION_13_14 = object : Migration(13, 14) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `release_summaries` ADD COLUMN `tmdbRating` TEXT")
+        db.execSQL("ALTER TABLE `release_details` ADD COLUMN `tmdbRating` TEXT")
+        db.execSQL("ALTER TABLE `tmdb_poster_mappings` ADD COLUMN `rating` TEXT")
+    }
+}
+
 /** Список всех миграций для передачи в Room.databaseBuilder. */
 val ALL_MIGRATIONS = arrayOf(
     MIGRATION_5_6,
@@ -128,6 +140,7 @@ val ALL_MIGRATIONS = arrayOf(
     MIGRATION_10_11,
     MIGRATION_11_12,
     MIGRATION_12_13,
+    MIGRATION_13_14,
 )
 
 private fun SupportSQLiteDatabase.hasColumn(tableName: String, columnName: String): Boolean {

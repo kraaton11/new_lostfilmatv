@@ -19,6 +19,7 @@ data class TmdbPosterMappingEntity(
     val backdropUrl: String,
     val fetchedAt: Long,
     val isNegative: Boolean = false,
+    val rating: String? = null,
 ) {
     fun isExpired(clock: () -> Long = { System.currentTimeMillis() }): Boolean {
         val ttl = if (isNegative) TMDB_NEGATIVE_CACHE_TTL_MS else TMDB_CACHE_TTL_MS
@@ -34,6 +35,7 @@ data class TmdbPosterMappingEntity(
             backdropUrl: String,
             fetchedAt: Long = System.currentTimeMillis(),
             isNegative: Boolean = false,
+            rating: String? = null,
         ) = TmdbPosterMappingEntity(
             detailsUrl = detailsUrl,
             tmdbId = tmdbId,
@@ -42,6 +44,7 @@ data class TmdbPosterMappingEntity(
             backdropUrl = backdropUrl,
             fetchedAt = fetchedAt,
             isNegative = isNegative,
+            rating = rating,
         )
 
         fun negative(

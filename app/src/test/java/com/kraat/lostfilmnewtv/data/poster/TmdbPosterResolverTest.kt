@@ -23,7 +23,7 @@ class TmdbPosterResolverTest {
         val dao = FakeTmdbPosterDao()
         val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
             override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType): List<TmdbSearchResult> {
-                return listOf(TmdbSearchResult(id = 777, name = "Example Show", popularity = 10.0))
+                return listOf(TmdbSearchResult(id = 777, name = "Example Show", popularity = 10.0, rating = "8.4"))
             }
 
             override suspend fun getPosterAndBackdrop(tmdbId: Int, type: TmdbMediaType): TmdbImageUrls {
@@ -60,6 +60,8 @@ class TmdbPosterResolverTest {
 
         assertEquals("Русское описание серии из TMDB.", result?.episodeOverviewRu)
         assertEquals("Русское описание сериала из TMDB.", result?.seriesOverviewRu)
+        assertEquals("8.4", result?.rating)
+        assertEquals("8.4", dao.upserted?.rating)
     }
 
     @Test
@@ -105,6 +107,35 @@ class TmdbPosterResolverTest {
         assertEquals("Русское описание фильма из TMDB.", result?.movieOverviewRu)
         assertEquals(0, seriesOverviewCalls)
         assertEquals(1, movieOverviewCalls)
+    }
+
+    @Test
+    fun resolve_returnsRating_whenTmdbImagesAreMissing() = runTest {
+        val dao = FakeTmdbPosterDao()
+        val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType): List<TmdbSearchResult> {
+                return listOf(TmdbSearchResult(id = 42, name = "Catalog Movie", popularity = 10.0, rating = "7.6"))
+            }
+
+            override suspend fun getPosterAndBackdrop(tmdbId: Int, type: TmdbMediaType): TmdbImageUrls? {
+                return null
+            }
+        }
+        val resolver = TmdbPosterResolverImpl(client, dao)
+
+        val result = resolver.resolve(
+            detailsUrl = "https://www.lostfilm.today/movies/Catalog_Movie",
+            titleRu = "Фильм каталога",
+            releaseDateRu = "2026",
+            kind = ReleaseKind.MOVIE,
+            originalReleaseYear = 2026,
+        )
+
+        assertNotNull(result)
+        assertEquals("7.6", result?.rating)
+        assertEquals("", result?.posterUrl)
+        assertEquals("", result?.backdropUrl)
+        assertEquals("7.6", dao.upserted?.rating)
     }
 
     @Test
