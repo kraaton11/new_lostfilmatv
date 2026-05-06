@@ -11,6 +11,7 @@ data class TmdbSearchResult(
     val popularity: Double,
     val originalName: String = name,
     val releaseYear: Int? = null,
+    val rating: String? = null,
 )
 
 data class TmdbImageUrls(
@@ -19,4 +20,5 @@ data class TmdbImageUrls(
     val episodeOverviewRu: String? = null,
     val seriesOverviewRu: String? = null,
     val movieOverviewRu: String? = null,
+    val rating: String? = null,
 )

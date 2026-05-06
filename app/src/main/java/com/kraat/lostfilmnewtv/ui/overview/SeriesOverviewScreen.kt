@@ -215,7 +215,7 @@ private fun OverviewContent(overview: SeriesOverview?) {
         listOfNotNull(
             "Премьера" to safeOverview.premiereDateRu,
             "Канал, страна" to safeOverview.channelCountryRu,
-            "IMDb" to safeOverview.imdbRating,
+            "TMDB" to safeOverview.tmdbRating,
             "Жанр" to safeOverview.genresRu,
             "Тип" to safeOverview.typesRu,
             "Официальный сайт" to safeOverview.officialSiteUrl,
@@ -469,6 +469,7 @@ private fun String.splitByWords(maxChars: Int): List<String> {
 private fun OverviewChipRow(overview: SeriesOverview) {
     val chips = listOfNotNull(
         overview.statusRu?.takeIf { it.isNotBlank() },
+        overview.tmdbRating?.takeIf { it.isNotBlank() }?.let { "TMDB $it" },
         overview.premiereDateRu?.takeIf { it.isNotBlank() },
     )
     if (chips.isEmpty()) return

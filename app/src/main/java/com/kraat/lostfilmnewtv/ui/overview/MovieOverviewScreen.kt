@@ -270,6 +270,15 @@ private fun MovieOverviewContent(details: ReleaseDetails?) {
                             lineHeight = 28.sp,
                         )
                     }
+                    safeDetails.tmdbRating?.takeIf { it.isNotBlank() }?.let { rating ->
+                        Text(
+                            text = "TMDB $rating",
+                            color = DetailsTextSecondary,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            lineHeight = 26.sp,
+                        )
+                    }
                 }
             }
         }

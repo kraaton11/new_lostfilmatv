@@ -611,6 +611,9 @@ private fun buildDetailsMetaChips(
         } else {
             heroMetaLine.takeIf { it.isNotBlank() }?.let(::add)
         }
+        details?.tmdbRating?.takeIf { it.isNotBlank() }?.let { rating ->
+            add("TMDB $rating")
+        }
         details?.releaseDateRu?.takeIf { it.isNotBlank() }?.let(::add)
         details?.kind?.let { kind ->
             add(

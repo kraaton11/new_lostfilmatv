@@ -10,6 +10,7 @@ data class SeriesOverview(
     val premiereDateRu: String? = null,
     val channelCountryRu: String? = null,
     val imdbRating: String? = null,
+    val tmdbRating: String? = null,
     val genresRu: String? = null,
     val typesRu: String? = null,
     val officialSiteUrl: String? = null,

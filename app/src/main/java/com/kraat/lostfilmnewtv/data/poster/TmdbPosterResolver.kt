@@ -16,6 +16,7 @@ private const val TAG = "TmdbPosterResolver"
 private const val TMDB_CACHE_TTL_MS = 7L * 24 * 60 * 60 * 1000
 private const val YEAR_AWARE_MATCHING_CACHE_MIN_FETCHED_AT_MS = 1777852800000L // 2026-05-04
 private const val SERIES_YEAR_HINT_FIX_CACHE_MIN_FETCHED_AT_MS = 1777867930731L // 2026-05-04
+private const val TMDB_RATING_CACHE_MIN_FETCHED_AT_MS = 1778025600000L // 2026-05-06
 
 interface TmdbPosterResolver {
     suspend fun resolve(
@@ -59,6 +60,7 @@ class TmdbPosterResolverImpl(
                 movieOverviewRu = inMemoryTmdbIdCache[cacheKey]?.let { tmdbId ->
                     resolveMovieOverview(tmdbId, kind)
                 },
+                rating = it.rating,
             )
         }
 
@@ -73,6 +75,7 @@ class TmdbPosterResolverImpl(
                 episodeOverviewRu = resolveEpisodeOverview(detailsUrl, cached.tmdbId, kind),
                 seriesOverviewRu = resolveSeriesOverview(cached.tmdbId, kind),
                 movieOverviewRu = resolveMovieOverview(cached.tmdbId, kind),
+                rating = cached.rating,
             )
             inMemoryCache[cacheKey] = urls.copy(episodeOverviewRu = null)
             inMemoryTmdbIdCache[cacheKey] = cached.tmdbId
@@ -92,6 +95,7 @@ class TmdbPosterResolverImpl(
                     movieOverviewRu = inMemoryTmdbIdCache[cacheKey]?.let { tmdbId ->
                         resolveMovieOverview(tmdbId, kind)
                     },
+                    rating = it.rating,
                 )
             }
 
@@ -106,6 +110,7 @@ class TmdbPosterResolverImpl(
                     episodeOverviewRu = resolveEpisodeOverview(detailsUrl, rechecked.tmdbId, kind),
                     seriesOverviewRu = resolveSeriesOverview(rechecked.tmdbId, kind),
                     movieOverviewRu = resolveMovieOverview(rechecked.tmdbId, kind),
+                    rating = rechecked.rating,
                 )
                 inMemoryCache[cacheKey] = urls.copy(episodeOverviewRu = null)
                 inMemoryTmdbIdCache[cacheKey] = rechecked.tmdbId
@@ -141,7 +146,15 @@ class TmdbPosterResolverImpl(
             return false
         }
 
+        if (cached.posterUrl.isBlank() && cached.backdropUrl.isBlank()) {
+            return !cached.rating.isNullOrBlank()
+        }
+
         if (cached.posterUrl.isBlank() || cached.backdropUrl.isBlank()) {
+            return false
+        }
+
+        if (cached.rating.isNullOrBlank() && cached.fetchedAt < TMDB_RATING_CACHE_MIN_FETCHED_AT_MS) {
             return false
         }
 
@@ -220,6 +233,7 @@ class TmdbPosterResolverImpl(
             return null
         }
 
+        val rating = bestMatch.rating
         val images = try {
             tmdbClient.getPosterAndBackdrop(bestMatch.id, tmdbType)
         } catch (e: Exception) {
@@ -227,32 +241,39 @@ class TmdbPosterResolverImpl(
             null
         }
 
-        if (images == null) {
-            Log.d(TAG, "No images for ${bestMatch.name}")
+        if (images == null && rating.isNullOrBlank()) {
+            Log.d(TAG, "No images or rating for ${bestMatch.name}")
             return null
         }
 
         val episodeOverviewRu = resolveEpisodeOverview(detailsUrl, bestMatch.id, kind)
         val seriesOverviewRu = resolveSeriesOverview(bestMatch.id, kind)
         val movieOverviewRu = resolveMovieOverview(bestMatch.id, kind)
+        val resolvedImages = images ?: TmdbImageUrls(
+            posterUrl = "",
+            backdropUrl = "",
+            rating = rating,
+        )
 
-        Log.d(TAG, "TMDB images for ${bestMatch.name}: poster=${images.posterUrl.take(60)}...")
+        Log.d(TAG, "TMDB match for ${bestMatch.name}: poster=${resolvedImages.posterUrl.take(60)}..., rating=$rating")
 
         val entity = TmdbPosterMappingEntity.create(
             detailsUrl = cacheKey,
             tmdbId = bestMatch.id,
             tmdbType = tmdbType.name,
-            posterUrl = images.posterUrl,
-            backdropUrl = images.backdropUrl,
+            posterUrl = resolvedImages.posterUrl,
+            backdropUrl = resolvedImages.backdropUrl,
             fetchedAt = clock(),
+            rating = rating,
         )
         tmdbDao.upsert(entity)
         inMemoryTmdbIdCache[cacheKey] = bestMatch.id
 
-        return images.copy(
+        return resolvedImages.copy(
             episodeOverviewRu = episodeOverviewRu,
             seriesOverviewRu = seriesOverviewRu,
             movieOverviewRu = movieOverviewRu,
+            rating = rating,
         )
     }
 

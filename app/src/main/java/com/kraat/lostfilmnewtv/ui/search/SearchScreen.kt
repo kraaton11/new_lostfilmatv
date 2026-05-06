@@ -340,6 +340,14 @@ private fun SearchResultCard(
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
+                item.tmdbRating?.takeIf { it.isNotBlank() }?.let { rating ->
+                    Text(
+                        text = "TMDB $rating",
+                        color = DetailsTextSecondary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
                 item.subtitle?.let { subtitle ->
                     Text(
                         text = subtitle,
