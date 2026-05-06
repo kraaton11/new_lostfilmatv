@@ -82,6 +82,7 @@ fun HomeScreen(
     onModeSelected: (HomeFeedMode) -> Unit = {},
     onOpenDetails: (String) -> Unit = {},
     onOpenSeriesOverview: (String) -> Unit = onOpenDetails,
+    onOpenSeriesGuide: (String) -> Unit = onOpenSeriesOverview,
     onEndReached: () -> Unit = {},
     onSearchClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
@@ -318,7 +319,7 @@ fun HomeScreen(
                                         onItemFocused(detailsUrl)
                                     },
                                     onOpenDetails = if (state.selectedMode == HomeFeedMode.Series) {
-                                        onOpenSeriesOverview
+                                        onOpenSeriesGuide
                                     } else {
                                         onOpenDetails
                                     },

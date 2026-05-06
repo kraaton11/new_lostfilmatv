@@ -107,6 +107,7 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                 onModeSelected = homeViewModel::onModeSelected,
                 onOpenDetails = { url -> navController.navigate(AppDestination.Details.createRoute(url, isAuthenticated)) },
                 onOpenSeriesOverview = { url -> navController.navigate(AppDestination.SeriesOverview.createRoute(url)) },
+                onOpenSeriesGuide = { url -> navController.navigate(AppDestination.SeriesGuide.createRoute(url)) },
                 onEndReached = homeViewModel::onEndReached,
                 onRetry = homeViewModel::onRetry,
                 onPagingRetry = homeViewModel::onPagingRetry,
