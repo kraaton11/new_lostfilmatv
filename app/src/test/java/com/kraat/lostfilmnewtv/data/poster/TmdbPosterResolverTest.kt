@@ -139,6 +139,89 @@ class TmdbPosterResolverTest {
     }
 
     @Test
+    fun resolve_matchesAmpersandTitleFromAndSlug() = runTest {
+        val dao = FakeTmdbPosterDao()
+        var searchCalls = 0
+        val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType): List<TmdbSearchResult> {
+                searchCalls += 1
+                assertEquals("Example and Show", query)
+                return listOf(TmdbSearchResult(id = 259731, name = "Example & Show", popularity = 10.0, rating = "6.9"))
+            }
+
+            override suspend fun getPosterAndBackdrop(tmdbId: Int, type: TmdbMediaType): TmdbImageUrls {
+                assertEquals(259731, tmdbId)
+                return TmdbImageUrls(
+                    posterUrl = "https://image.tmdb.org/t/p/w780/his-hers.jpg",
+                    backdropUrl = "https://image.tmdb.org/t/p/original/his-hers-backdrop.jpg",
+                )
+            }
+        }
+        val resolver = TmdbPosterResolverImpl(client, dao)
+
+        val result = resolver.resolve(
+            detailsUrl = "https://www.lostfilm.today/series/Example_and_Show/",
+            titleRu = "Пример",
+            releaseDateRu = "2025",
+            kind = ReleaseKind.SERIES,
+        )
+
+        assertEquals("https://image.tmdb.org/t/p/w780/his-hers.jpg", result?.posterUrl)
+        assertEquals("6.9", result?.rating)
+        assertEquals(1, searchCalls)
+    }
+
+    @Test
+    fun resolve_usesKnownTmdbIdOverrideForHisAndHers_evenWhenNegativeCached() = runTest {
+        val dao = FakeTmdbPosterDao(
+            cached = TmdbPosterMappingEntity.negative(
+                detailsUrl = "https://www.lostfilm.today/series/His_and_Hers/",
+                tmdbType = TmdbMediaType.TV.name,
+                fetchedAt = System.currentTimeMillis(),
+            ),
+        )
+        var searchCalls = 0
+        val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType): List<TmdbSearchResult> {
+                searchCalls += 1
+                return emptyList()
+            }
+
+            override suspend fun getPosterAndBackdrop(tmdbId: Int, type: TmdbMediaType): TmdbImageUrls {
+                assertEquals(259731, tmdbId)
+                return TmdbImageUrls(
+                    posterUrl = "https://image.tmdb.org/t/p/w780/his-hers.jpg",
+                    backdropUrl = "https://image.tmdb.org/t/p/original/his-hers-backdrop.jpg",
+                )
+            }
+
+            override suspend fun getSeriesOverviewRu(tmdbId: Int): String? {
+                assertEquals(259731, tmdbId)
+                return "Описание His & Hers из TMDB."
+            }
+
+            override suspend fun getRating(tmdbId: Int, type: TmdbMediaType): String? {
+                assertEquals(259731, tmdbId)
+                return "6.9"
+            }
+        }
+        val resolver = TmdbPosterResolverImpl(client, dao)
+
+        val result = resolver.resolve(
+            detailsUrl = "https://www.lostfilm.today/series/His_and_Hers/",
+            titleRu = "Его и её",
+            releaseDateRu = "2025",
+            kind = ReleaseKind.SERIES,
+        )
+
+        assertEquals("https://image.tmdb.org/t/p/w780/his-hers.jpg", result?.posterUrl)
+        assertEquals("Описание His & Hers из TMDB.", result?.seriesOverviewRu)
+        assertEquals("6.9", result?.rating)
+        assertEquals(0, searchCalls)
+        assertEquals(259731, dao.upserted?.tmdbId)
+    }
+
+    @Test
     fun resolve_refetchesCachedMapping_whenBackdropMissing() = runTest {
         val dao = FakeTmdbPosterDao(
             cached = TmdbPosterMappingEntity.create(

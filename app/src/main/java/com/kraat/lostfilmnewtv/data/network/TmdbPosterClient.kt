@@ -227,6 +227,28 @@ open class TmdbPosterClient(
         }
     }
 
+    open suspend fun getRating(
+        tmdbId: Int,
+        type: TmdbMediaType,
+    ): String? = withContext(Dispatchers.IO) {
+        val endpoint = when (type) {
+            TmdbMediaType.TV -> "/tv/$tmdbId"
+            TmdbMediaType.MOVIE -> "/movie/$tmdbId"
+        }
+        val url = "$TMDB_BASE_URL$endpoint"
+        val request = Request.Builder()
+            .url(url)
+            .header("Authorization", "Bearer $apiKey")
+            .header("Accept", "application/json")
+            .build()
+
+        okHttpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) return@withContext null
+            val body = response.body?.string() ?: return@withContext null
+            JSONObject(body).optTmdbRating()
+        }
+    }
+
     private fun String.encodeUrl(): String = java.net.URLEncoder.encode(this, "UTF-8")
 }
 
