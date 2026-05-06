@@ -35,6 +35,8 @@ class TmdbPosterResolverImpl(
     private val inMemoryCache = ConcurrentHashMap<String, TmdbImageUrls>()
     private val inMemoryTmdbIdCache = ConcurrentHashMap<String, Int>()
     private val episodeOverviewCache = ConcurrentHashMap<String, String>()
+    private val seriesOverviewCache = ConcurrentHashMap<Int, String>()
+    private val movieOverviewCache = ConcurrentHashMap<Int, String>()
     private val locks = ConcurrentHashMap<String, Mutex>()
 
     override suspend fun resolve(
@@ -51,6 +53,12 @@ class TmdbPosterResolverImpl(
                 episodeOverviewRu = inMemoryTmdbIdCache[cacheKey]?.let { tmdbId ->
                     resolveEpisodeOverview(detailsUrl, tmdbId, kind)
                 },
+                seriesOverviewRu = inMemoryTmdbIdCache[cacheKey]?.let { tmdbId ->
+                    resolveSeriesOverview(tmdbId, kind)
+                },
+                movieOverviewRu = inMemoryTmdbIdCache[cacheKey]?.let { tmdbId ->
+                    resolveMovieOverview(tmdbId, kind)
+                },
             )
         }
 
@@ -63,6 +71,8 @@ class TmdbPosterResolverImpl(
                 posterUrl = cached.posterUrl,
                 backdropUrl = cached.backdropUrl,
                 episodeOverviewRu = resolveEpisodeOverview(detailsUrl, cached.tmdbId, kind),
+                seriesOverviewRu = resolveSeriesOverview(cached.tmdbId, kind),
+                movieOverviewRu = resolveMovieOverview(cached.tmdbId, kind),
             )
             inMemoryCache[cacheKey] = urls.copy(episodeOverviewRu = null)
             inMemoryTmdbIdCache[cacheKey] = cached.tmdbId
@@ -76,6 +86,12 @@ class TmdbPosterResolverImpl(
                     episodeOverviewRu = inMemoryTmdbIdCache[cacheKey]?.let { tmdbId ->
                         resolveEpisodeOverview(detailsUrl, tmdbId, kind)
                     },
+                    seriesOverviewRu = inMemoryTmdbIdCache[cacheKey]?.let { tmdbId ->
+                        resolveSeriesOverview(tmdbId, kind)
+                    },
+                    movieOverviewRu = inMemoryTmdbIdCache[cacheKey]?.let { tmdbId ->
+                        resolveMovieOverview(tmdbId, kind)
+                    },
                 )
             }
 
@@ -88,6 +104,8 @@ class TmdbPosterResolverImpl(
                     posterUrl = rechecked.posterUrl,
                     backdropUrl = rechecked.backdropUrl,
                     episodeOverviewRu = resolveEpisodeOverview(detailsUrl, rechecked.tmdbId, kind),
+                    seriesOverviewRu = resolveSeriesOverview(rechecked.tmdbId, kind),
+                    movieOverviewRu = resolveMovieOverview(rechecked.tmdbId, kind),
                 )
                 inMemoryCache[cacheKey] = urls.copy(episodeOverviewRu = null)
                 inMemoryTmdbIdCache[cacheKey] = rechecked.tmdbId
@@ -215,6 +233,8 @@ class TmdbPosterResolverImpl(
         }
 
         val episodeOverviewRu = resolveEpisodeOverview(detailsUrl, bestMatch.id, kind)
+        val seriesOverviewRu = resolveSeriesOverview(bestMatch.id, kind)
+        val movieOverviewRu = resolveMovieOverview(bestMatch.id, kind)
 
         Log.d(TAG, "TMDB images for ${bestMatch.name}: poster=${images.posterUrl.take(60)}...")
 
@@ -229,7 +249,47 @@ class TmdbPosterResolverImpl(
         tmdbDao.upsert(entity)
         inMemoryTmdbIdCache[cacheKey] = bestMatch.id
 
-        return images.copy(episodeOverviewRu = episodeOverviewRu)
+        return images.copy(
+            episodeOverviewRu = episodeOverviewRu,
+            seriesOverviewRu = seriesOverviewRu,
+            movieOverviewRu = movieOverviewRu,
+        )
+    }
+
+    private suspend fun resolveMovieOverview(
+        tmdbId: Int,
+        kind: ReleaseKind,
+    ): String? {
+        if (kind != ReleaseKind.MOVIE || tmdbId <= 0) {
+            return null
+        }
+        movieOverviewCache[tmdbId]?.let { return it }
+
+        return try {
+            tmdbClient.getMovieOverviewRu(tmdbId)
+                ?.also { movieOverviewCache[tmdbId] = it }
+        } catch (e: Exception) {
+            Log.e(TAG, "TMDB movie overview failed for id=$tmdbId: ${e.message}")
+            null
+        }
+    }
+
+    private suspend fun resolveSeriesOverview(
+        tmdbId: Int,
+        kind: ReleaseKind,
+    ): String? {
+        if (kind != ReleaseKind.SERIES || tmdbId <= 0) {
+            return null
+        }
+        seriesOverviewCache[tmdbId]?.let { return it }
+
+        return try {
+            tmdbClient.getSeriesOverviewRu(tmdbId)
+                ?.also { seriesOverviewCache[tmdbId] = it }
+        } catch (e: Exception) {
+            Log.e(TAG, "TMDB series overview failed for id=$tmdbId: ${e.message}")
+            null
+        }
     }
 
     private suspend fun resolveEpisodeOverview(

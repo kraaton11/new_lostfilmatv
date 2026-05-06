@@ -100,6 +100,24 @@ val MIGRATION_10_11 = object : Migration(10, 11) {
     }
 }
 
+/**
+ * Миграция 11→12: русское описание сериала из TMDB для hero-сцены на главном экране.
+ */
+val MIGRATION_11_12 = object : Migration(11, 12) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `release_summaries` ADD COLUMN `seriesOverviewRu` TEXT")
+    }
+}
+
+/**
+ * Миграция 12→13: русское описание фильма из TMDB для hero-сцены на главном экране.
+ */
+val MIGRATION_12_13 = object : Migration(12, 13) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `release_summaries` ADD COLUMN `movieOverviewRu` TEXT")
+    }
+}
+
 /** Список всех миграций для передачи в Room.databaseBuilder. */
 val ALL_MIGRATIONS = arrayOf(
     MIGRATION_5_6,
@@ -108,6 +126,8 @@ val ALL_MIGRATIONS = arrayOf(
     MIGRATION_8_9,
     MIGRATION_9_10,
     MIGRATION_10_11,
+    MIGRATION_11_12,
+    MIGRATION_12_13,
 )
 
 private fun SupportSQLiteDatabase.hasColumn(tableName: String, columnName: String): Boolean {

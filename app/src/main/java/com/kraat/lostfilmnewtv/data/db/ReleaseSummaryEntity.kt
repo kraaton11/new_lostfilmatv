@@ -28,6 +28,8 @@ data class ReleaseSummaryEntity(
     val isWatched: Boolean,
     val backdropUrl: String? = null,
     val episodeOverviewRu: String? = null,
+    val seriesOverviewRu: String? = null,
+    val movieOverviewRu: String? = null,
 ) {
     fun toModel(): ReleaseSummary = ReleaseSummary(
         id = detailsUrl,
@@ -45,6 +47,8 @@ data class ReleaseSummaryEntity(
         fetchedAt = fetchedAt,
         isWatched = isWatched,
         episodeOverviewRu = episodeOverviewRu,
+        seriesOverviewRu = seriesOverviewRu,
+        movieOverviewRu = movieOverviewRu,
     )
 
     companion object {
@@ -59,6 +63,8 @@ data class ReleaseSummaryEntity(
             posterUrl = model.posterUrl,
             backdropUrl = model.backdropUrl,
             episodeOverviewRu = model.episodeOverviewRu,
+            seriesOverviewRu = model.seriesOverviewRu,
+            movieOverviewRu = model.movieOverviewRu,
             pageNumber = model.pageNumber,
             positionInPage = model.positionInPage,
             fetchedAt = model.fetchedAt,

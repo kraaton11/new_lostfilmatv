@@ -16,6 +16,8 @@ object TmdbPosterEnricher {
             posterUrl = tmdbUrls.posterUrl.ifBlank { summary.posterUrl },
             backdropUrl = tmdbUrls.backdropUrl.ifBlank { summary.backdropUrl },
             episodeOverviewRu = tmdbUrls.episodeOverviewRu?.ifBlank { null } ?: summary.episodeOverviewRu,
+            seriesOverviewRu = tmdbUrls.seriesOverviewRu?.ifBlank { null } ?: summary.seriesOverviewRu,
+            movieOverviewRu = tmdbUrls.movieOverviewRu?.ifBlank { null } ?: summary.movieOverviewRu,
         )
     }
 

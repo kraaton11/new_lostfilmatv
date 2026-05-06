@@ -262,7 +262,10 @@ class LostFilmRepositoryTest {
     @Test
     fun loadPage_persistsTmdbEnrichedPosterIntoSummaryCache() = runTest {
         val targetDetailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        val targetMovieDetailsUrl = "https://www.lostfilm.today/movies/Irreversible"
         val tmdbPosterUrl = "https://image.tmdb.org/t/p/w780/tmdb-poster.jpg"
+        val tmdbSeriesOverview = "Описание сериала 9-1-1 из TMDB."
+        val tmdbMovieOverview = "Описание фильма Необратимость из TMDB."
         val repository = createRepository(
             pageHandler = { fixture("new-page-1.html") },
             tmdbResolver = object : TmdbPosterResolver {
@@ -277,6 +280,13 @@ class LostFilmRepositoryTest {
                         TmdbImageUrls(
                             posterUrl = tmdbPosterUrl,
                             backdropUrl = "https://image.tmdb.org/t/p/original/tmdb-backdrop.jpg",
+                            seriesOverviewRu = tmdbSeriesOverview,
+                        )
+                    } else if (detailsUrl == targetMovieDetailsUrl) {
+                        TmdbImageUrls(
+                            posterUrl = tmdbPosterUrl,
+                            backdropUrl = "https://image.tmdb.org/t/p/original/tmdb-backdrop.jpg",
+                            movieOverviewRu = tmdbMovieOverview,
                         )
                     } else {
                         null
@@ -288,7 +298,11 @@ class LostFilmRepositoryTest {
         val result = repository.loadPage(1) as PageState.Content
 
         assertEquals(tmdbPosterUrl, result.items.first { it.detailsUrl == targetDetailsUrl }.posterUrl)
+        assertEquals(tmdbSeriesOverview, result.items.first { it.detailsUrl == targetDetailsUrl }.seriesOverviewRu)
+        assertEquals(tmdbMovieOverview, result.items.first { it.detailsUrl == targetMovieDetailsUrl }.movieOverviewRu)
         assertEquals(tmdbPosterUrl, releaseDao.getSummary(targetDetailsUrl)?.posterUrl)
+        assertEquals(tmdbSeriesOverview, releaseDao.getSummary(targetDetailsUrl)?.seriesOverviewRu)
+        assertEquals(tmdbMovieOverview, releaseDao.getSummary(targetMovieDetailsUrl)?.movieOverviewRu)
     }
 
     @Test

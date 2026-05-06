@@ -2,7 +2,7 @@ package com.kraat.lostfilmnewtv.data.db
 
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
-import org.junit.Assert.assertFalse
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -24,10 +24,14 @@ class ReleaseSummaryEntityTest {
             positionInPage = 0,
             fetchedAt = 1L,
             isWatched = true,
+            seriesOverviewRu = "Описание сериала.",
+            movieOverviewRu = "Описание фильма.",
         )
 
         val restored = ReleaseSummaryEntity.fromModel(model).toModel()
 
         assertTrue(restored.isWatched)
+        assertEquals("Описание сериала.", restored.seriesOverviewRu)
+        assertEquals("Описание фильма.", restored.movieOverviewRu)
     }
 }
