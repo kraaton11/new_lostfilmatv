@@ -13,90 +13,121 @@ import okhttp3.Protocol
 import okhttp3.Request
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
-import okhttp3.mockwebserver.MockResponse
-import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.fail
 import org.junit.Test
+import java.io.IOException
 
 class AuthenticatedLostFilmHttpClientTest {
 
     @Test
     fun fetchDetails_addsCookieHeader_whenSessionExists() = runTest {
-        val server = MockWebServer()
-        server.enqueue(MockResponse().setResponseCode(200).setBody("ok"))
-        server.start()
-        try {
-            val client = AuthenticatedLostFilmHttpClient(
-                sessionStore = FakeSessionStore(
-                    LostFilmSession(
-                        cookies = listOf(
-                            LostFilmCookie("lf_session", "cookie-value", ".lostfilm.today"),
-                            LostFilmCookie("uid", "42", ".lostfilm.today"),
-                        ),
+        var capturedRequest: Request? = null
+        val client = AuthenticatedLostFilmHttpClient(
+            sessionStore = FakeSessionStore(
+                LostFilmSession(
+                    cookies = listOf(
+                        LostFilmCookie("lf_session", "cookie-value", ".lostfilm.today"),
+                        LostFilmCookie("uid", "42", ".lostfilm.today"),
                     ),
                 ),
-                okHttpClient = OkHttpClient(),
-            )
+            ),
+            okHttpClient = recordingClient { request ->
+                capturedRequest = request
+                "ok"
+            },
+        )
 
-            client.fetchDetails(server.url("/series/test").toString())
+        client.fetchDetails("https://www.lostfilm.today/series/test")
 
-            val request = server.takeRequest()
-            assertEquals("lf_session=cookie-value; uid=42", request.getHeader("Cookie"))
-        } finally {
-            server.shutdown()
-        }
+        val request = requireNotNull(capturedRequest)
+        assertEquals("lf_session=cookie-value; uid=42", request.header("Cookie"))
     }
 
     @Test
     fun fetchDetails_skipsCookieHeader_whenSessionMissing() = runTest {
-        val server = MockWebServer()
-        server.enqueue(MockResponse().setResponseCode(200).setBody("ok"))
-        server.start()
-        try {
-            val client = AuthenticatedLostFilmHttpClient(
-                sessionStore = FakeSessionStore(null),
-                okHttpClient = OkHttpClient(),
-            )
+        var capturedRequest: Request? = null
+        val client = AuthenticatedLostFilmHttpClient(
+            sessionStore = FakeSessionStore(null),
+            okHttpClient = recordingClient { request ->
+                capturedRequest = request
+                "ok"
+            },
+        )
 
-            client.fetchDetails(server.url("/series/test").toString())
+        client.fetchDetails("https://www.lostfilm.today/series/test")
 
-            val request = server.takeRequest()
-            assertEquals(null, request.getHeader("Cookie"))
-        } finally {
-            server.shutdown()
-        }
+        val request = requireNotNull(capturedRequest)
+        assertEquals(null, request.header("Cookie"))
     }
 
     @Test
     fun fetchDetails_marksSessionExpired_whenCookieBackedRequestLooksAnonymous() = runTest {
-        val server = MockWebServer()
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setBody("""<html><body><form id="lf-login-form"></form></body></html>"""),
+        val sessionStore = FakeSessionStore(
+            LostFilmSession(
+                cookies = listOf(
+                    LostFilmCookie("lf_session", "cookie-value", ".lostfilm.today"),
+                ),
+            ),
         )
-        server.start()
-        try {
-            val sessionStore = FakeSessionStore(
+        val client = AuthenticatedLostFilmHttpClient(
+            sessionStore = sessionStore,
+            okHttpClient = recordingClient { """<html><body><form id="lf-login-form"></form></body></html>""" },
+        )
+
+        client.fetchDetails("https://www.lostfilm.today/series/test")
+
+        assertTrue(sessionStore.expired)
+    }
+
+    @Test
+    fun fetchDetails_rejectsThirdPartyUrlBeforeSendingCookies() = runTest {
+        var capturedRequest: Request? = null
+        val client = AuthenticatedLostFilmHttpClient(
+            sessionStore = FakeSessionStore(
                 LostFilmSession(
                     cookies = listOf(
                         LostFilmCookie("lf_session", "cookie-value", ".lostfilm.today"),
                     ),
                 ),
-            )
-            val client = AuthenticatedLostFilmHttpClient(
-                sessionStore = sessionStore,
-                okHttpClient = OkHttpClient(),
-            )
+            ),
+            okHttpClient = recordingClient { request ->
+                capturedRequest = request
+                "ok"
+            },
+        )
 
-            client.fetchDetails(server.url("/series/test").toString())
-
-            assertTrue(sessionStore.expired)
-        } finally {
-            server.shutdown()
+        try {
+            client.fetchDetails("https://evil.example/steal")
+            fail("Expected third-party URL rejection")
+        } catch (_: IOException) {
+            assertEquals(null, capturedRequest)
         }
+    }
+
+    @Test
+    fun fetchTorrentPage_doesNotSendSessionCookieToAllowedTorrentHost() = runTest {
+        var capturedRequest: Request? = null
+        val client = AuthenticatedLostFilmHttpClient(
+            sessionStore = FakeSessionStore(
+                LostFilmSession(
+                    cookies = listOf(
+                        LostFilmCookie("lf_session", "cookie-value", ".lostfilm.today"),
+                    ),
+                ),
+            ),
+            okHttpClient = recordingClient { request ->
+                capturedRequest = request
+                "torrent page"
+            },
+        )
+
+        client.fetchTorrentPage("https://n.tracktor.site/td.php?s=token")
+
+        val request = requireNotNull(capturedRequest)
+        assertEquals(null, request.header("Cookie"))
     }
 
     @Test
@@ -271,4 +302,17 @@ class AuthenticatedLostFilmHttpClientTest {
         override suspend fun isExpired(): Boolean = expired
         override fun changes(): Flow<Unit> = changesFlow
     }
+
+    private fun recordingClient(body: (Request) -> String): OkHttpClient =
+        OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                Response.Builder()
+                    .request(chain.request())
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .body(body(chain.request()).toResponseBody())
+                    .build()
+            }
+            .build()
 }

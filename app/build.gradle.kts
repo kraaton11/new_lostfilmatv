@@ -1,4 +1,5 @@
 import java.util.Base64
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -16,6 +17,16 @@ val releaseKeystoreBase64Provider = providers.environmentVariable("ANDROID_KEYST
 val releaseKeystorePasswordProvider = providers.environmentVariable("ANDROID_KEYSTORE_PASSWORD")
 val releaseKeyAliasProvider = providers.environmentVariable("ANDROID_KEY_ALIAS")
 val releaseKeyPasswordProvider = providers.environmentVariable("ANDROID_KEY_PASSWORD")
+val localProperties = Properties().apply {
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localPropertiesFile.inputStream().use(::load)
+    }
+}
+val tmdbApiKeyProvider = providers
+    .gradleProperty("tmdbApiKey")
+    .orElse(providers.environmentVariable("TMDB_API_KEY"))
+    .orElse(localProperties.getProperty("tmdbApiKey") ?: "")
 
 fun decodeReleaseKeystore(): File? {
     val explicitPath = releaseKeystorePathProvider.orNull
@@ -51,7 +62,7 @@ android {
         versionCode = releaseVersionCodeProvider.get().toInt()
         versionName = releaseVersionNameProvider.get()
         testInstrumentationRunner = "com.kraat.lostfilmnewtv.HiltTestRunner"
-        buildConfigField("String", "TMDB_API_KEY", "\"eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI0YzFlMmNlZDkxZGQxOTAwMTg0MTZiNzQwNzgzMDgwNCIsIm5iZiI6MTcwNDEwODE4My4wODgsInN1YiI6IjY1OTJhMDk3NTcxNzZmNmJjYjdmOTk2YSIsInNjb3BlcyI6WyJhcGlfcmVhZCJdLCJ2ZXJzaW9uIjoxfQ.vsBAhcyuC-XB5b1Um8B8Ro2Fcg58QQV6YBRd4XdZyOs\"")
+        buildConfigField("String", "TMDB_API_KEY", "\"${tmdbApiKeyProvider.get()}\"")
     }
 
     signingConfigs {

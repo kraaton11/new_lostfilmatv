@@ -10,6 +10,7 @@ import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import okhttp3.OkHttpClient
+import okhttp3.HttpUrl
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
@@ -94,6 +95,22 @@ class ReleaseApkLauncherTest {
     }
 
     @Test
+    fun launch_returnsFalse_whenHttpsUrlIsNotExpectedGitHubDownload() = runBlocking {
+        val base = ApplicationProvider.getApplicationContext<Context>()
+        val context = RecordingContext(base)
+        val launcher = ReleaseApkLauncher(
+            httpClient = OkHttpClient(),
+            ioDispatcher = Dispatchers.Unconfined,
+            mainDispatcher = Dispatchers.Unconfined,
+        )
+
+        val result = launcher.launch(context, "https://evil.example/app.apk")
+
+        assertFalse(result)
+        assertEquals(null, context.startedIntent)
+    }
+
+    @Test
     fun launch_returnsFalse_whenDiskSpaceInsufficient() = runBlocking {
         val server = MockWebServer()
         server.enqueue(MockResponse().setBody("fake-apk-payload"))
@@ -123,6 +140,8 @@ private class TestReleaseApkLauncher(
     httpClient: OkHttpClient,
 ) : ReleaseApkLauncher(httpClient, Dispatchers.Unconfined, Dispatchers.Unconfined) {
     override fun hasEnoughDiskSpace(context: Context): Boolean = true
+
+    override fun isAllowedDirectDownloadUrl(url: HttpUrl): Boolean = true
 
     override fun startPackageInstaller(context: Context, apkFile: File): Boolean {
         val intent = Intent(Intent.ACTION_VIEW).apply {

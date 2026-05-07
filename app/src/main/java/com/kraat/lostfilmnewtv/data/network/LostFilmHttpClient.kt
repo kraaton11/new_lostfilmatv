@@ -8,6 +8,8 @@ import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
@@ -58,11 +60,11 @@ class OkHttpLostFilmHttpClient(
 
     override suspend fun fetchNewPage(pageNumber: Int): String = withContext(Dispatchers.IO) {
         val url = if (pageNumber <= 1) "$BASE_URL/new/" else "$BASE_URL/new/page_$pageNumber"
-        execute(url)
+        executeLostFilm(url)
     }
 
     override suspend fun fetchMoviesPage(pageNumber: Int): String = withContext(Dispatchers.IO) {
-        execute(moviesPageUrl(pageNumber))
+        executeLostFilm(moviesPageUrl(pageNumber))
     }
 
     override suspend fun fetchSeriesCatalogPage(pageNumber: Int): String = withContext(Dispatchers.IO) {
@@ -70,11 +72,11 @@ class OkHttpLostFilmHttpClient(
     }
 
     override suspend fun fetchDetails(detailsUrl: String): String = withContext(Dispatchers.IO) {
-        execute(resolveUrl(detailsUrl))
+        executeLostFilm(resolveUrl(detailsUrl))
     }
 
     override suspend fun fetchAccountPage(path: String): String = withContext(Dispatchers.IO) {
-        execute(resolveUrl(path))
+        executeLostFilm(resolveUrl(path))
     }
 
     override suspend fun fetchSeasonWatchedEpisodeMarks(
@@ -90,11 +92,11 @@ class OkHttpLostFilmHttpClient(
     }
 
     override suspend fun fetchTorrentRedirect(playEpisodeId: String): String = withContext(Dispatchers.IO) {
-        execute("$BASE_URL/v_search.php?a=$playEpisodeId")
+        executeLostFilm("$BASE_URL/v_search.php?a=$playEpisodeId")
     }
 
     override suspend fun fetchTorrentPage(url: String): String = withContext(Dispatchers.IO) {
-        execute(url)
+        executePublicTorrentPage(url)
     }
 
     override suspend fun setEpisodeWatched(
@@ -127,20 +129,21 @@ class OkHttpLostFilmHttpClient(
         )
     }
 
-    private suspend fun execute(url: String): String {
+    private suspend fun executeLostFilm(url: String): String {
+        val parsedUrl = requireLostFilmUrl(url)
         val cookieHeader = sessionStore?.read()?.toCookieString()?.takeIf { it.isNotBlank() }
         val requestBuilder = Request.Builder()
-            .url(url)
+            .url(parsedUrl)
             .header("User-Agent", USER_AGENT_PUBLIC)
 
         cookieHeader?.let { requestBuilder.header("Cookie", it) }
 
         okHttpClient.newCall(requestBuilder.build()).execute().use { response ->
             if (!response.isSuccessful) {
-                throw IOException("HTTP ${response.code} for $url")
+                throw IOException("HTTP ${response.code} for ${parsedUrl.redactedForError()}")
             }
             val body = response.body?.string()
-                ?: throw IOException("Empty response body for $url")
+                ?: throw IOException("Empty response body for ${parsedUrl.redactedForError()}")
             if (cookieHeader != null && lostFilmResponseLooksAnonymous(body)) {
                 sessionStore?.markExpired()
             }
@@ -148,11 +151,28 @@ class OkHttpLostFilmHttpClient(
         }
     }
 
+    private fun executePublicTorrentPage(url: String): String {
+        val parsedUrl = requireTorrentPageUrl(url)
+        val request = Request.Builder()
+            .url(parsedUrl)
+            .header("User-Agent", USER_AGENT_PUBLIC)
+            .build()
+
+        okHttpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw IOException("HTTP ${response.code} for ${parsedUrl.redactedForError()}")
+            }
+            return response.body?.string()
+                ?: throw IOException("Empty response body for ${parsedUrl.redactedForError()}")
+        }
+    }
+
     private suspend fun executeSeriesCatalogSearch(pageNumber: Int): String {
         val offset = ((pageNumber.coerceAtLeast(1) - 1) * SERIES_CATALOG_PAGE_SIZE).coerceAtLeast(0)
+        val ajaxUrl = requireLostFilmUrl("$BASE_URL/ajaxik.php")
         val cookieHeader = sessionStore?.read()?.toCookieString()?.takeIf { it.isNotBlank() }
         val requestBuilder = Request.Builder()
-            .url("$BASE_URL/ajaxik.php")
+            .url(ajaxUrl)
             .header("User-Agent", USER_AGENT_PUBLIC)
             .header("Accept", "application/json, text/javascript, */*; q=0.01")
             .header("Referer", "$BASE_URL/series/")
@@ -170,10 +190,10 @@ class OkHttpLostFilmHttpClient(
 
         okHttpClient.newCall(requestBuilder.build()).execute().use { response ->
             if (!response.isSuccessful) {
-                throw IOException("HTTP ${response.code} for $BASE_URL/ajaxik.php")
+                throw IOException("HTTP ${response.code} for ${ajaxUrl.redactedForError()}")
             }
             return response.body?.string()
-                ?: throw IOException("Empty response body for $BASE_URL/ajaxik.php")
+                ?: throw IOException("Empty response body for ${ajaxUrl.redactedForError()}")
         }
     }
 
@@ -216,12 +236,14 @@ private fun executeFetchSeasonWatchedEpisodeMarks(
     serialId: String,
     cookieHeader: String?,
 ): String {
+    val ajaxUrl = requireLostFilmUrl("$BASE_URL/ajaxik.php")
+    val safeRefererUrl = requireLostFilmUrl(refererUrl).toString()
     val requestBuilder = Request.Builder()
-        .url("$BASE_URL/ajaxik.php")
+        .url(ajaxUrl)
         .header("User-Agent", OkHttpLostFilmHttpClient.USER_AGENT_PUBLIC)
         .header("Accept", "application/json, text/javascript, */*; q=0.01")
         .header("Origin", BASE_URL)
-        .header("Referer", refererUrl)
+        .header("Referer", safeRefererUrl)
         .header("X-Requested-With", "XMLHttpRequest")
         .post(
             FormBody.Builder()
@@ -236,10 +258,10 @@ private fun executeFetchSeasonWatchedEpisodeMarks(
     okHttpClient.newCall(requestBuilder.build()).execute().use { response ->
         if (!response.isSuccessful) {
             val errorBody = response.body?.string().orEmpty()
-            throw IOException("HTTP ${response.code} for $BASE_URL/ajaxik.php body=$errorBody")
+            throw IOException("HTTP ${response.code} for ${ajaxUrl.redactedForError()} body=$errorBody")
         }
         return response.body?.string()
-            ?: throw IOException("Empty response body for $BASE_URL/ajaxik.php")
+            ?: throw IOException("Empty response body for ${ajaxUrl.redactedForError()}")
     }
 }
 
@@ -251,12 +273,14 @@ private fun executeSetEpisodeWatched(
     targetWatched: Boolean,
     cookieHeader: String?,
 ): Boolean {
+    val ajaxUrl = requireLostFilmUrl("$BASE_URL/ajaxik.php")
+    val safeRefererUrl = requireLostFilmUrl(refererUrl).toString()
     val requestBuilder = Request.Builder()
-        .url("$BASE_URL/ajaxik.php")
+        .url(ajaxUrl)
         .header("User-Agent", OkHttpLostFilmHttpClient.USER_AGENT_PUBLIC)
         .header("Accept", "application/json, text/javascript, */*; q=0.01")
         .header("Origin", BASE_URL)
-        .header("Referer", refererUrl)
+        .header("Referer", safeRefererUrl)
         .header("X-Requested-With", "XMLHttpRequest")
         .post(
             FormBody.Builder()
@@ -274,10 +298,10 @@ private fun executeSetEpisodeWatched(
     okHttpClient.newCall(requestBuilder.build()).execute().use { response ->
         if (!response.isSuccessful) {
             val errorBody = response.body?.string().orEmpty()
-            throw IOException("HTTP ${response.code} for $BASE_URL/ajaxik.php body=$errorBody")
+            throw IOException("HTTP ${response.code} for ${ajaxUrl.redactedForError()} body=$errorBody")
         }
         val body = response.body?.string()
-            ?: throw IOException("Empty response body for $BASE_URL/ajaxik.php")
+            ?: throw IOException("Empty response body for ${ajaxUrl.redactedForError()}")
         return markEpisodeSuccessRegex.containsMatchIn(body)
     }
 }
@@ -289,12 +313,14 @@ private fun executeToggleFavorite(
     ajaxSessionToken: String,
     cookieHeader: String?,
 ): FavoriteToggleNetworkResult {
+    val ajaxUrl = requireLostFilmUrl("$BASE_URL/ajaxik.php")
+    val safeRefererUrl = requireLostFilmUrl(resolveUrl(refererUrl)).toString()
     val requestBuilder = Request.Builder()
-        .url("$BASE_URL/ajaxik.php")
+        .url(ajaxUrl)
         .header("User-Agent", OkHttpLostFilmHttpClient.USER_AGENT_PUBLIC)
         .header("Accept", "application/json, text/javascript, */*; q=0.01")
         .header("Origin", BASE_URL)
-        .header("Referer", refererUrl)
+        .header("Referer", safeRefererUrl)
         .header("X-Requested-With", "XMLHttpRequest")
         .post(
             FormBody.Builder()
@@ -310,10 +336,10 @@ private fun executeToggleFavorite(
     okHttpClient.newCall(requestBuilder.build()).execute().use { response ->
         if (!response.isSuccessful) {
             val errorBody = response.body?.string().orEmpty()
-            throw IOException("HTTP ${response.code} for $BASE_URL/ajaxik.php body=$errorBody")
+            throw IOException("HTTP ${response.code} for ${ajaxUrl.redactedForError()} body=$errorBody")
         }
         val body = response.body?.string()
-            ?: throw IOException("Empty response body for $BASE_URL/ajaxik.php")
+            ?: throw IOException("Empty response body for ${ajaxUrl.redactedForError()}")
         return when (favoriteToggleResultRegex.find(body)?.groupValues?.getOrNull(1)) {
             "on" -> FavoriteToggleNetworkResult.ToggledOn
             "off" -> FavoriteToggleNetworkResult.ToggledOff
@@ -321,3 +347,28 @@ private fun executeToggleFavorite(
         }
     }
 }
+
+private fun requireLostFilmUrl(url: String): HttpUrl {
+    val parsed = url.toHttpUrlOrNull() ?: throw IOException("Invalid LostFilm URL")
+    if (parsed.scheme != "https" || parsed.host !in LOSTFILM_COOKIE_HOSTS) {
+        throw IOException("Rejected non-LostFilm URL: ${parsed.redactedForError()}")
+    }
+    return parsed
+}
+
+private fun requireTorrentPageUrl(url: String): HttpUrl {
+    val parsed = url.toHttpUrlOrNull() ?: throw IOException("Invalid torrent URL")
+    if (parsed.scheme != "https" || parsed.host !in TORRENT_PAGE_HOSTS) {
+        throw IOException("Rejected torrent URL: ${parsed.redactedForError()}")
+    }
+    return parsed
+}
+
+private fun HttpUrl.redactedForError(): String = newBuilder()
+    .query(null)
+    .fragment(null)
+    .build()
+    .toString()
+
+private val LOSTFILM_COOKIE_HOSTS = setOf("www.lostfilm.today", "lostfilm.today")
+private val TORRENT_PAGE_HOSTS = LOSTFILM_COOKIE_HOSTS + setOf("n.tracktor.site")

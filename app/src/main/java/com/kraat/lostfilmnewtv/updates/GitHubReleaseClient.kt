@@ -8,6 +8,7 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 class RateLimitException(val statusCode: Int, message: String) : IOException(message)
 
@@ -42,7 +43,7 @@ open class GitHubReleaseClient(
             val release = json.decodeFromString(GitHubLatestReleaseDto.serializer(), body)
             GitHubRelease(
                 version = release.tagName,
-                apkUrl = release.assets.firstOrNull { it.isApk() }?.browserDownloadUrl,
+                apkUrl = release.assets.firstOrNull { it.isAllowedApk() }?.browserDownloadUrl,
             )
         }
     }
@@ -63,11 +64,13 @@ open class GitHubReleaseClient(
         @SerialName("browser_download_url")
         val browserDownloadUrl: String,
     ) {
-        fun isApk(): Boolean {
+        fun isAllowedApk(): Boolean {
             val normalizedName = name.lowercase()
             val normalizedContentType = contentType.orEmpty().lowercase()
-            return normalizedName.endsWith(".apk") ||
+            val looksLikeApk = normalizedName.endsWith(".apk") ||
                 "android.package-archive" in normalizedContentType
+            val parsedUrl = browserDownloadUrl.toHttpUrlOrNull() ?: return false
+            return looksLikeApk && AppUpdateUrlPolicy.isAllowedReleaseApkUrl(parsedUrl)
         }
     }
 
