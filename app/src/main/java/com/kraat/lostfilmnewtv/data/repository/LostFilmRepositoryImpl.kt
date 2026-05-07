@@ -204,7 +204,11 @@ class LostFilmRepositoryImpl(
                     message = exception.message ?: "Unable to load series catalog",
                 )
             } else {
-                throw exception
+                PageState.Error(
+                    pageNumber = pageNumber,
+                    message = exception.message ?: "Unable to parse series catalog",
+                    retryable = false,
+                )
             }
         }
     }
@@ -351,7 +355,9 @@ class LostFilmRepositoryImpl(
                     ),
                 ),
             )
-        } catch (exception: IOException) {
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (exception: Exception) {
             SeriesGuideResult.Error(exception.message ?: "Не удалось загрузить гид по сериям")
         }
     }
@@ -383,7 +389,9 @@ class LostFilmRepositoryImpl(
                     tmdbRating = tmdbUrls?.rating?.takeIf { it.isNotBlank() } ?: parsedOverview.tmdbRating,
                 ),
             )
-        } catch (exception: IOException) {
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (exception: Exception) {
             SeriesOverviewResult.Error(exception.message ?: "Не удалось загрузить обзор")
         }
     }

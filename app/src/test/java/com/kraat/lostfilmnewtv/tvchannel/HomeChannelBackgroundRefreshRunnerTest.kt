@@ -260,6 +260,37 @@ class HomeChannelBackgroundRefreshRunnerTest {
         assertEquals(1, calls.refreshFirstPageCalls)
         assertEquals(0, calls.syncChannelCalls)
     }
+
+    @Test
+    fun permanentErrorResult_returnsPermanentFailureWithoutSyncing() = runTest {
+        val calls = RefreshRunnerCalls()
+        val runner = HomeChannelBackgroundRefreshRunner(
+            readMode = { AndroidTvChannelMode.UNWATCHED },
+            readSession = {
+                calls.readSessionCalls += 1
+                testSession()
+            },
+            isSessionExpired = {
+                calls.isSessionExpiredCalls += 1
+                false
+            },
+            refreshFirstPage = {
+                calls.refreshFirstPageCalls += 1
+                PageState.Error(pageNumber = 1, message = "malformed data", retryable = false)
+            },
+            syncChannel = {
+                calls.syncChannelCalls += 1
+            },
+        )
+
+        val outcome = runner.run()
+
+        assertEquals(HomeChannelBackgroundRefreshOutcome.FAILED_PERMANENT, outcome)
+        assertEquals(1, calls.readSessionCalls)
+        assertEquals(1, calls.isSessionExpiredCalls)
+        assertEquals(1, calls.refreshFirstPageCalls)
+        assertEquals(0, calls.syncChannelCalls)
+    }
 }
 
 private data class RefreshRunnerCalls(

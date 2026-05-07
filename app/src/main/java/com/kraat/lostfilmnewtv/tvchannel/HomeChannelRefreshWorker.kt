@@ -7,6 +7,8 @@ import androidx.work.ListenableWorker
 import androidx.work.WorkerParameters
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import java.io.IOException
+import kotlinx.coroutines.CancellationException
 
 @HiltWorker
 class HomeChannelRefreshWorker @AssistedInject constructor(
@@ -16,7 +18,15 @@ class HomeChannelRefreshWorker @AssistedInject constructor(
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result =
-        runner.run().toWorkerResult()
+        try {
+            runner.run().toWorkerResult()
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (_: IOException) {
+            Result.retry()
+        } catch (_: Exception) {
+            Result.success()
+        }
 }
 
 interface HomeChannelBackgroundRefreshRunnerProvider {
@@ -31,4 +41,5 @@ internal fun HomeChannelBackgroundRefreshOutcome.toWorkerResult(): ListenableWor
         HomeChannelBackgroundRefreshOutcome.REFRESHED,
         -> ListenableWorker.Result.success()
         HomeChannelBackgroundRefreshOutcome.FAILED_RETRYABLE -> ListenableWorker.Result.retry()
+        HomeChannelBackgroundRefreshOutcome.FAILED_PERMANENT -> ListenableWorker.Result.success()
     }

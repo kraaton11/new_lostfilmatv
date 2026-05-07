@@ -33,8 +33,10 @@ class LostFilmDetailsParser {
             detailsUrl = absoluteDetailsUrl,
             kind = ReleaseKind.SERIES,
             titleRu = document.selectFirst(".breadcrumbs-pane a[href^=/series/]").textOrEmpty(),
-            seasonNumber = match.groupValues[1].toInt(),
-            episodeNumber = match.groupValues[2].toInt(),
+            seasonNumber = match.groupValues[1].toIntOrNull()
+                ?: throw IllegalStateException("Cannot parse season from '$detailsUrl'"),
+            episodeNumber = match.groupValues[2].toIntOrNull()
+                ?: throw IllegalStateException("Cannot parse episode from '$detailsUrl'"),
             releaseDateRu = document.releaseDateRu(),
             posterUrl = document.posterUrl(),
             fetchedAt = fetchedAt,

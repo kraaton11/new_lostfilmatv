@@ -35,7 +35,7 @@ data class ReleaseDetailsEntity(
 ) {
     fun toModel(): ReleaseDetails = ReleaseDetails(
         detailsUrl = detailsUrl,
-        kind = ReleaseKind.valueOf(kind),
+        kind = runCatching { ReleaseKind.valueOf(kind) }.getOrDefault(ReleaseKind.SERIES),
         titleRu = titleRu,
         seasonNumber = seasonNumber,
         episodeNumber = episodeNumber,
@@ -47,7 +47,9 @@ data class ReleaseDetailsEntity(
         torrentLinks = torrentLinksJson.decodeTorrentLinks(),
         seriesStatusRu = seriesStatusRu,
         favoriteTargetId = favoriteTargetId,
-        favoriteTargetKind = favoriteTargetKind?.let(FavoriteTargetKind::valueOf),
+        favoriteTargetKind = favoriteTargetKind?.let { value ->
+            runCatching { FavoriteTargetKind.valueOf(value) }.getOrNull()
+        },
         isFavorite = isFavorite,
         episodeOverviewRu = episodeOverviewRu,
         tmdbRating = tmdbRating,
@@ -80,7 +82,9 @@ private fun String?.decodeTorrentLinks(): List<TorrentLink> {
     if (this.isNullOrBlank()) {
         return emptyList()
     }
-    return Json.decodeFromString<List<TorrentLink>>(this)
+    return runCatching {
+        Json.decodeFromString<List<TorrentLink>>(this)
+    }.getOrDefault(emptyList())
 }
 
 private fun List<TorrentLink>.encodeTorrentLinks(): String? {

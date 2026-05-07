@@ -44,4 +44,12 @@ class HomeChannelRefreshWorkerTest {
             HomeChannelBackgroundRefreshOutcome.FAILED_RETRYABLE.toWorkerResult(),
         )
     }
+
+    @Test
+    fun permanentFailure_mapsToSuccess() {
+        assertEquals(
+            ListenableWorker.Result.success(),
+            HomeChannelBackgroundRefreshOutcome.FAILED_PERMANENT.toWorkerResult(),
+        )
+    }
 }
