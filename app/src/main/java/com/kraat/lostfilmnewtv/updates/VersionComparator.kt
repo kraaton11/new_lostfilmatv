@@ -14,12 +14,15 @@ object VersionComparator {
         val b = numericParts(other)
         val len = maxOf(a.size, b.size)
         for (i in 0 until len) {
-            val diff = a.getOrElse(i) { 0 } - b.getOrElse(i) { 0 }
-            if (diff != 0) return diff > 0
+            val left = a.getOrElse(i) { 0L }
+            val right = b.getOrElse(i) { 0L }
+            if (left != right) return left > right
         }
         return false
     }
 
-    private fun numericParts(version: String): List<Int> =
-        Regex("""\d+""").findAll(version).map { it.value.toInt() }.toList()
+    private fun numericParts(version: String): List<Long> =
+        Regex("""\d+""").findAll(version).map { match ->
+            match.value.toLongOrNull() ?: Long.MAX_VALUE
+        }.toList()
 }

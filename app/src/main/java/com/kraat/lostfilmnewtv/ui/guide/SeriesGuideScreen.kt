@@ -88,7 +88,7 @@ fun SeriesGuideScreen(
             }
 
             state.seasons.isEmpty() -> {
-                GuideEmptyState()
+                GuideEmptyState(onRetry = onRetry)
             }
 
             else -> {
@@ -186,6 +186,13 @@ private fun GuideErrorState(
     message: String,
     onRetry: () -> Unit,
 ) {
+    val retryRequester = remember { FocusRequester() }
+
+    LaunchedEffect(message) {
+        withFrameNanos { }
+        runCatching { retryRequester.requestFocus() }
+    }
+
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
@@ -200,6 +207,7 @@ private fun GuideErrorState(
                 label = "Повторить",
                 subtitle = "Повторить загрузку",
                 onClick = onRetry,
+                modifier = Modifier.focusRequester(retryRequester),
                 isPrimary = true,
             )
         }
@@ -207,7 +215,14 @@ private fun GuideErrorState(
 }
 
 @Composable
-private fun GuideEmptyState() {
+private fun GuideEmptyState(onRetry: () -> Unit) {
+    val retryRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        withFrameNanos { }
+        runCatching { retryRequester.requestFocus() }
+    }
+
     Box(
         modifier = Modifier.fillMaxSize(),
         contentAlignment = Alignment.Center,
@@ -217,6 +232,13 @@ private fun GuideEmptyState() {
                 text = "Список серий пока недоступен",
                 color = TextPrimary,
                 fontSize = 18.sp,
+            )
+            GuideActionButton(
+                label = "Повторить",
+                subtitle = "Повторить загрузку",
+                onClick = onRetry,
+                modifier = Modifier.focusRequester(retryRequester),
+                isPrimary = true,
             )
         }
     }

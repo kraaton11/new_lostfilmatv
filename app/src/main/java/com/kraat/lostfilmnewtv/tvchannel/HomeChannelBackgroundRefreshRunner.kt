@@ -34,13 +34,17 @@ class HomeChannelBackgroundRefreshRunner(
             return HomeChannelBackgroundRefreshOutcome.SKIPPED_RECENTLY_REFRESHED
         }
 
-        return when (refreshFirstPage()) {
+        return when (val result = refreshFirstPage()) {
             is PageState.Content -> {
                 syncChannel()
                 HomeChannelBackgroundRefreshOutcome.REFRESHED
             }
 
-            is PageState.Error -> HomeChannelBackgroundRefreshOutcome.FAILED_RETRYABLE
+            is PageState.Error -> if (result.retryable) {
+                HomeChannelBackgroundRefreshOutcome.FAILED_RETRYABLE
+            } else {
+                HomeChannelBackgroundRefreshOutcome.FAILED_PERMANENT
+            }
         }
     }
 
@@ -55,4 +59,5 @@ enum class HomeChannelBackgroundRefreshOutcome {
     SKIPPED_RECENTLY_REFRESHED,
     REFRESHED,
     FAILED_RETRYABLE,
+    FAILED_PERMANENT,
 }

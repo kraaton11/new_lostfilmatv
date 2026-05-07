@@ -266,6 +266,13 @@ private fun LoadingState() {
 
 @Composable
 private fun ErrorState(message: String, onRetry: () -> Unit) {
+    val retryRequester = remember { FocusRequester() }
+
+    LaunchedEffect(message) {
+        withFrameNanos { }
+        runCatching { retryRequester.requestFocus() }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -278,7 +285,7 @@ private fun ErrorState(message: String, onRetry: () -> Unit) {
                 label = "Повторить",
                 subtitle = "Повторить загрузку",
                 onClick = onRetry,
-                modifier = Modifier,
+                modifier = Modifier.focusRequester(retryRequester),
                 isPrimary = true,
                 actionType = DetailsStageActionType.NONE,
             )

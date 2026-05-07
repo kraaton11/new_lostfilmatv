@@ -45,4 +45,10 @@ class VersionComparatorTest {
     fun isNewerThan_handlesNonNumericParts() {
         assertTrue(VersionComparator.isNewerThan("v1.2.3-beta", "v1.2.2"))
     }
+
+    @Test
+    fun isNewerThan_handlesOversizedNumericParts() {
+        assertTrue(VersionComparator.isNewerThan("v999999999999999999999", "v1"))
+        assertFalse(VersionComparator.isNewerThan("v1", "v999999999999999999999"))
+    }
 }
