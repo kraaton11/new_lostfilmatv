@@ -3,6 +3,7 @@ package com.kraat.lostfilmnewtv.data.repository
 import com.kraat.lostfilmnewtv.data.db.PageCacheMetadataEntity
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
 import com.kraat.lostfilmnewtv.data.db.ReleaseDetailsEntity
+import com.kraat.lostfilmnewtv.data.db.ReleaseSummaryEntity
 import com.kraat.lostfilmnewtv.data.model.FavoriteMetadata
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
@@ -67,6 +68,7 @@ private val paginatorRegex = Regex("""/new/page_(\d+)""")
 private const val favoriteSeriesRoute = "/my/type_1"
 private val seriesFavoritePageRegex = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)/season_\d+/episode_\d+/?""")
 private val seriesRootUrlRegex = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)(?:/.*)?/?""")
+private val searchWhitespaceRegex = Regex("""\s+""")
 private val favoriteReleaseDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy")
 
 class LostFilmRepositoryImpl(
@@ -239,7 +241,7 @@ class LostFilmRepositoryImpl(
                 )
             }
 
-            if (!cachedDetails.needsYearAwareMovieArtworkRefresh() && cachedModel.hasDetailsOverview()) {
+            if (!cachedDetails.needsYearAwareMovieArtworkRefresh()) {
                 val tmdbUrls = tmdbResolver.resolve(
                     detailsUrl = cachedModel.detailsUrl,
                     titleRu = cachedModel.titleRu,
@@ -551,15 +553,17 @@ class LostFilmRepositoryImpl(
                 favoriteTargetId = favoriteMetadata.targetId,
                 ajaxSessionToken = ajaxSessionToken,
             )
-            val refreshedHtml = httpClient.fetchDetails(favoritePageUrl)
-            val refreshedFavoriteMetadata = detailsParser.parseFavoriteMetadata(refreshedHtml)
-            val refreshedFavoriteState = refreshedFavoriteMetadata?.isFavorite
-            persistFavoriteMetadata(normalizedDetailsUrl, refreshedFavoriteMetadata ?: favoriteMetadata)
 
             val effectiveFavoriteState = when (toggleResult) {
-                FavoriteToggleNetworkResult.ToggledOn -> refreshedFavoriteState ?: true
-                FavoriteToggleNetworkResult.ToggledOff -> refreshedFavoriteState ?: false
-                FavoriteToggleNetworkResult.Unknown -> refreshedFavoriteState
+                FavoriteToggleNetworkResult.ToggledOn -> true
+                FavoriteToggleNetworkResult.ToggledOff -> false
+                FavoriteToggleNetworkResult.Unknown -> {
+                    val refreshedHtml = httpClient.fetchDetails(favoritePageUrl)
+                    detailsParser.parseFavoriteMetadata(refreshedHtml)?.isFavorite
+                }
+            }
+            effectiveFavoriteState?.let { state ->
+                persistFavoriteMetadata(normalizedDetailsUrl, favoriteMetadata.copy(isFavorite = state))
             }
 
             if (effectiveFavoriteState == targetFavorite) {
@@ -759,10 +763,22 @@ class LostFilmRepositoryImpl(
         }
 
         if (persistToCache) {
-            releaseDao.upsertSummaries(enrichedItems.toSummaryEntities())
+            upsertChangedSummaries(enrichedItems.toSummaryEntities())
         }
 
         return enrichedItems
+    }
+
+    private suspend fun upsertChangedSummaries(entities: List<ReleaseSummaryEntity>) {
+        if (entities.isEmpty()) return
+        val existingByUrl = releaseDao.getSummaries(entities.map { it.detailsUrl })
+            .associateBy { it.detailsUrl }
+        val changedEntities = entities.filter { entity ->
+            existingByUrl[entity.detailsUrl] != entity
+        }
+        if (changedEntities.isNotEmpty()) {
+            releaseDao.upsertSummaries(changedEntities)
+        }
     }
 
     private suspend fun cleanupExpiredDataIfNeeded() {
@@ -787,7 +803,7 @@ class LostFilmRepositoryImpl(
 
     private fun ReleaseDetails.hasDetailsOverview(): Boolean {
         return when (kind) {
-            ReleaseKind.SERIES -> true
+            ReleaseKind.SERIES -> !episodeOverviewRu.isNullOrBlank()
             ReleaseKind.MOVIE -> !episodeOverviewRu.isNullOrBlank()
         }
     }
@@ -1131,4 +1147,4 @@ class LostFilmRepositoryImpl(
     }
 }
 
-private fun String.normalizeSearchQuery(): String = normalizeText().replace(Regex("""\s+"""), " ")
+private fun String.normalizeSearchQuery(): String = normalizeText().replace(searchWhitespaceRegex, " ")

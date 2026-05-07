@@ -50,6 +50,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -57,6 +58,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.ui.components.ShimmerSkeletonBox
@@ -75,6 +77,10 @@ import com.kraat.lostfilmnewtv.ui.theme.DetailsTextMuted
 import com.kraat.lostfilmnewtv.ui.theme.DetailsTextSecondary
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.roundToInt
+
+private val detailsWhitespaceRegex = Regex("""\s+""")
+private val detailsNextEpisodeRegex = Regex("""Следующая серия:\s*(.+)$""", RegexOption.IGNORE_CASE)
 
 @Composable
 fun DetailsScreen(
@@ -360,12 +366,19 @@ private fun ContentState(
 
 @Composable
 private fun BackgroundPoster(details: ReleaseDetails?) {
+    val context = LocalContext.current
     Box(modifier = Modifier.fillMaxSize()) {
         if (details != null) {
             val backgroundImage = details.backdropUrl?.takeIf { it.isNotBlank() }
                 ?: details.posterUrl
+            val request = remember(context, backgroundImage) {
+                ImageRequest.Builder(context)
+                    .data(backgroundImage)
+                    .size(1280, 720)
+                    .build()
+            }
             AsyncImage(
-                model = backgroundImage,
+                model = request,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
@@ -758,9 +771,8 @@ private fun DetailsInfoIcon(type: DetailsInfoIconType, tint: Color) {
 }
 
 private fun extractNextEpisodeLine(status: String): String? {
-    val normalized = status.replace(Regex("""\s+"""), " ").trim()
-    val match = Regex("""Следующая серия:\s*(.+)$""", RegexOption.IGNORE_CASE)
-        .find(normalized)
+    val normalized = status.replace(detailsWhitespaceRegex, " ").trim()
+    val match = detailsNextEpisodeRegex.find(normalized)
         ?: return null
     return "Следующая серия: ${match.groupValues[1].trim()}"
 }
@@ -797,12 +809,12 @@ private fun buildDetailsDescription(details: ReleaseDetails?): String {
     if (details == null) return ""
     return when (details.kind) {
         ReleaseKind.SERIES -> details.episodeOverviewRu
-            ?.replace(Regex("""\s+"""), " ")
+            ?.replace(detailsWhitespaceRegex, " ")
             ?.trim()
             ?.takeIf { it.isNotBlank() }
             .orEmpty()
         ReleaseKind.MOVIE -> details.movieOverviewRu
-            ?.replace(Regex("""\s+"""), " ")
+            ?.replace(detailsWhitespaceRegex, " ")
             ?.trim()
             ?.takeIf { it.isNotBlank() }
             ?: "Фильм доступен в релизах LostFilm."
@@ -811,6 +823,10 @@ private fun buildDetailsDescription(details: ReleaseDetails?): String {
 
 @Composable
 private fun PosterCard(details: ReleaseDetails?) {
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    val posterWidthPx = with(density) { 242.dp.toPx().roundToInt().coerceAtLeast(1) }
+    val posterHeightPx = with(density) { 360.dp.toPx().roundToInt().coerceAtLeast(1) }
     Box(
         modifier = Modifier
             .size(width = 242.dp, height = 360.dp)
@@ -824,8 +840,14 @@ private fun PosterCard(details: ReleaseDetails?) {
             .border(1.dp, DetailsBorderDefault.copy(alpha = 0.74f), RoundedCornerShape(22.dp)),
     ) {
         if (details != null) {
+            val request = remember(context, details.posterUrl, posterWidthPx, posterHeightPx) {
+                ImageRequest.Builder(context)
+                    .data(details.posterUrl)
+                    .size(posterWidthPx, posterHeightPx)
+                    .build()
+            }
             AsyncImage(
-                model = details.posterUrl,
+                model = request,
                 contentDescription = details.titleRu,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize(),

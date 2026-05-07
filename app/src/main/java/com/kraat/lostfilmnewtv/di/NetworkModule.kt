@@ -59,7 +59,11 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideTmdbPosterClient(okHttpClient: OkHttpClient): TmdbPosterClient =
-        TmdbPosterClient(okHttpClient, BuildConfig.TMDB_API_KEY)
+        TmdbPosterClient(
+            okHttpClient = okHttpClient,
+            apiKey = BuildConfig.TMDB_API_KEY,
+            bearerToken = BuildConfig.TMDB_BEARER_TOKEN,
+        )
 
     private const val AUTH_BRIDGE_BASE_URL = "https://auth.bazuka.pp.ua"
 }

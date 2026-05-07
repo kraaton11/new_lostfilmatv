@@ -40,12 +40,15 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.kraat.lostfilmnewtv.data.model.SeriesOverview
 import com.kraat.lostfilmnewtv.ui.components.ShimmerSkeletonBox
 import com.kraat.lostfilmnewtv.ui.components.rememberShimmerSkeletonBrush
@@ -59,6 +62,11 @@ import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceSoft
 import com.kraat.lostfilmnewtv.ui.theme.DetailsTextMuted
 import com.kraat.lostfilmnewtv.ui.theme.DetailsTextSecondary
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
+import kotlin.math.roundToInt
+
+private val overviewParagraphSplitRegex = Regex("""\n\s*\n+""")
+private val overviewSentenceSplitRegex = Regex("""(?<=[.!?…])\s+""")
+private val overviewWhitespaceRegex = Regex("""\s+""")
 
 private data class OverviewSection(
     val key: String,
@@ -100,12 +108,19 @@ fun SeriesOverviewScreen(
 
 @Composable
 private fun OverviewBackgroundPoster(overview: SeriesOverview?) {
+    val context = LocalContext.current
     val imageUrl = overview?.backdropUrl?.takeIf { !it.isNullOrBlank() }
         ?: overview?.posterUrl
         ?: return
+    val request = remember(context, imageUrl) {
+        ImageRequest.Builder(context)
+            .data(imageUrl)
+            .size(1280, 720)
+            .build()
+    }
 
     AsyncImage(
-        model = imageUrl,
+        model = request,
         contentDescription = null,
         contentScale = ContentScale.Crop,
         modifier = Modifier.fillMaxSize(),
@@ -265,6 +280,10 @@ private fun OverviewCenteredStatePanel(
 @Composable
 private fun OverviewContent(overview: SeriesOverview?) {
     val safeOverview = overview ?: return
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    val posterWidthPx = with(density) { 175.dp.toPx().roundToInt().coerceAtLeast(1) }
+    val posterHeightPx = with(density) { 252.dp.toPx().roundToInt().coerceAtLeast(1) }
     val infoRows = remember(safeOverview) {
         listOfNotNull(
             "Премьера" to safeOverview.premiereDateRu,
@@ -302,7 +321,7 @@ private fun OverviewContent(overview: SeriesOverview?) {
     val sectionBlocks = remember(sections) {
         sections.flatMap { section ->
             val paragraphs = section.body
-                .split(Regex("""\n\s*\n+"""))
+                .split(overviewParagraphSplitRegex)
                 .map { it.trim() }
                 .filter { it.isNotBlank() }
             val chunks = if (paragraphs.size > 1) {
@@ -358,8 +377,14 @@ private fun OverviewContent(overview: SeriesOverview?) {
                         .border(1.dp, DetailsBorderDefault, RoundedCornerShape(24.dp)),
                 ) {
                     if (!safeOverview.posterUrl.isNullOrBlank()) {
+                        val request = remember(context, safeOverview.posterUrl, posterWidthPx, posterHeightPx) {
+                            ImageRequest.Builder(context)
+                                .data(safeOverview.posterUrl)
+                                .size(posterWidthPx, posterHeightPx)
+                                .build()
+                        }
                         AsyncImage(
-                            model = safeOverview.posterUrl,
+                            model = request,
                             contentDescription = safeOverview.titleRu,
                             contentScale = ContentScale.Crop,
                             modifier = Modifier.fillMaxSize(),
@@ -472,7 +497,7 @@ private fun String.chunkForTvReading(maxChars: Int): List<String> {
 
     val chunks = mutableListOf<String>()
     val sentences = normalized
-        .split(Regex("""(?<=[.!?…])\s+"""))
+        .split(overviewSentenceSplitRegex)
         .filter { it.isNotBlank() }
     var current = StringBuilder()
 
@@ -505,7 +530,7 @@ private fun String.chunkForTvReading(maxChars: Int): List<String> {
 private fun String.splitByWords(maxChars: Int): List<String> {
     val parts = mutableListOf<String>()
     var current = StringBuilder()
-    split(Regex("""\s+""")).filter { it.isNotBlank() }.forEach { word ->
+    split(overviewWhitespaceRegex).filter { it.isNotBlank() }.forEach { word ->
         if (current.length + word.length + 1 > maxChars && current.isNotBlank()) {
             parts += current.toString().trim()
             current = StringBuilder()

@@ -27,6 +27,10 @@ val tmdbApiKeyProvider = providers
     .gradleProperty("tmdbApiKey")
     .orElse(providers.environmentVariable("TMDB_API_KEY"))
     .orElse(localProperties.getProperty("tmdbApiKey") ?: "")
+val tmdbBearerTokenProvider = providers
+    .gradleProperty("tmdbBearerToken")
+    .orElse(providers.environmentVariable("TMDB_BEARER_TOKEN"))
+    .orElse(localProperties.getProperty("tmdbBearerToken") ?: "")
 
 fun decodeReleaseKeystore(): File? {
     val explicitPath = releaseKeystorePathProvider.orNull
@@ -63,6 +67,7 @@ android {
         versionName = releaseVersionNameProvider.get()
         testInstrumentationRunner = "com.kraat.lostfilmnewtv.HiltTestRunner"
         buildConfigField("String", "TMDB_API_KEY", "\"${tmdbApiKeyProvider.get()}\"")
+        buildConfigField("String", "TMDB_BEARER_TOKEN", "\"${tmdbBearerTokenProvider.get()}\"")
     }
 
     signingConfigs {

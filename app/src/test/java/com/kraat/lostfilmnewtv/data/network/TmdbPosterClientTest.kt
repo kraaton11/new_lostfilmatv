@@ -16,6 +16,58 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class TmdbPosterClientTest {
     @Test
+    fun searchByTitle_usesApiKeyAsQueryParameter_notBearerHeader() = runTest {
+        var requestedUrl = ""
+        var authorizationHeader: String? = "unexpected"
+        val client = TmdbPosterClient(
+            okHttpClient = OkHttpClient.Builder()
+                .addInterceptor(Interceptor { chain ->
+                    requestedUrl = chain.request().url.toString()
+                    authorizationHeader = chain.request().header("Authorization")
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body("""{"results": [], "total_results": 0}""".toResponseBody())
+                        .build()
+                })
+                .build(),
+            apiKey = "v3-key",
+        )
+
+        client.searchByTitle("Новобранец", year = 2026, type = TmdbMediaType.TV)
+
+        assertTrue(requestedUrl.contains("api_key=v3-key"))
+        assertEquals(null, authorizationHeader)
+    }
+
+    @Test
+    fun searchByTitle_usesBearerTokenWhenProvided() = runTest {
+        var authorizationHeader: String? = null
+        val client = TmdbPosterClient(
+            okHttpClient = OkHttpClient.Builder()
+                .addInterceptor(Interceptor { chain ->
+                    authorizationHeader = chain.request().header("Authorization")
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body("""{"results": [], "total_results": 0}""".toResponseBody())
+                        .build()
+                })
+                .build(),
+            apiKey = "",
+            bearerToken = "v4-token",
+        )
+
+        client.searchByTitle("Новобранец", year = 2026, type = TmdbMediaType.TV)
+
+        assertEquals("Bearer v4-token", authorizationHeader)
+    }
+
+    @Test
     fun getPosterAndBackdrop_usesEnglishBackdrop_whenRussianBackdropMissing() = runTest {
         val requestedUrls = mutableListOf<String>()
         val client = TmdbPosterClient(
@@ -61,7 +113,7 @@ class TmdbPosterClientTest {
 
         requireNotNull(result)
         assertEquals("https://image.tmdb.org/t/p/w780/ru-poster.jpg", result.posterUrl)
-        assertEquals("https://image.tmdb.org/t/p/original/en-backdrop.jpg", result.backdropUrl)
+        assertEquals("https://image.tmdb.org/t/p/w1280/en-backdrop.jpg", result.backdropUrl)
         assertTrue(requestedUrls.any { it.contains("language=ru") && it.contains("include_image_language=ru,null") })
         assertTrue(requestedUrls.any { it.contains("language=en") && it.contains("include_image_language=en,null") })
     }
@@ -112,7 +164,7 @@ class TmdbPosterClientTest {
 
         requireNotNull(result)
         assertEquals("https://image.tmdb.org/t/p/w780/en-poster.jpg", result.posterUrl)
-        assertEquals("https://image.tmdb.org/t/p/original/ru-backdrop.jpg", result.backdropUrl)
+        assertEquals("https://image.tmdb.org/t/p/w1280/ru-backdrop.jpg", result.backdropUrl)
         assertTrue(requestedUrls.any { it.contains("language=en") && it.contains("include_image_language=en,null") })
     }
 
@@ -147,7 +199,7 @@ class TmdbPosterClientTest {
 
         requireNotNull(result)
         assertEquals("https://image.tmdb.org/t/p/w780/ru-poster.jpg", result.posterUrl)
-        assertEquals("https://image.tmdb.org/t/p/original/ru-backdrop.jpg", result.backdropUrl)
+        assertEquals("https://image.tmdb.org/t/p/w1280/ru-backdrop.jpg", result.backdropUrl)
         assertEquals(1, requestedUrls.count { it.contains("/tv/123/images") })
     }
 }

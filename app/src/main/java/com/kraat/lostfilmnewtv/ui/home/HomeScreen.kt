@@ -39,7 +39,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
@@ -49,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
@@ -72,6 +72,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 @Composable
 fun HomeScreen(
     state: HomeUiState = demoHomeUiState(),
+    externalSelectedItemKey: String? = null,
     onItemFocused: (String) -> Unit = {},
     onModeSelected: (HomeFeedMode) -> Unit = {},
     onOpenDetails: (String) -> Unit = {},
@@ -105,15 +106,15 @@ fun HomeScreen(
     val itemKeys = remember(activeItems) { activeItems.map { it.detailsUrl } }
     var focusedItemKey by rememberSaveable(state.selectedMode, itemKeys) {
         mutableStateOf(
-            state.selectedItemKey ?: itemKeys.firstOrNull(),
+            externalSelectedItemKey ?: state.selectedItemKey ?: itemKeys.firstOrNull(),
         )
     }
     var lastSyncedKey by remember { mutableStateOf<String?>(null) }
     var startupContentFocusPending by rememberSaveable { mutableStateOf(true) }
     var contentReturnFocusRequestVersion by remember(activeRailId) { mutableStateOf(0) }
 
-    LaunchedEffect(state.selectedItemKey, state.selectedMode, itemKeys) {
-        val preferredKey = state.selectedItemKey ?: itemKeys.firstOrNull()
+    LaunchedEffect(externalSelectedItemKey, state.selectedItemKey, state.selectedMode, itemKeys) {
+        val preferredKey = externalSelectedItemKey ?: state.selectedItemKey ?: itemKeys.firstOrNull()
         if (preferredKey != null && preferredKey != lastSyncedKey) {
             focusedItemKey = preferredKey
             lastSyncedKey = preferredKey
@@ -150,8 +151,11 @@ fun HomeScreen(
         linkedMapOf<String, FocusRequester>()
     }
     val focusScope = rememberCoroutineScope()
-    val activeItemFocusKeys = itemKeys.map { detailsUrl -> homeItemKey(activeRailId, detailsUrl) }
-    cardFocusRequesters.keys.retainAll(activeItemFocusKeys.toSet())
+    val activeItemFocusKeys = remember(activeRailId, itemKeys) {
+        itemKeys.map { detailsUrl -> homeItemKey(activeRailId, detailsUrl) }
+    }
+    val activeItemFocusKeySet = remember(activeItemFocusKeys) { activeItemFocusKeys.toSet() }
+    cardFocusRequesters.keys.retainAll(activeItemFocusKeySet)
     activeItemFocusKeys.forEach { itemKey ->
         cardFocusRequesters.getOrPut(itemKey) { FocusRequester() }
     }
@@ -560,6 +564,7 @@ private fun HomeBackdrop(item: ReleaseSummary?) {
             val request = remember(context, targetImageUrl) {
                 ImageRequest.Builder(context)
                     .data(targetImageUrl)
+                    .size(1280, 720)
                     .crossfade(true)
                     .build()
             }
