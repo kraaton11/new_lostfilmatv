@@ -26,17 +26,17 @@ class GitHubReleaseClientTest {
                         {
                           "name": "notes.txt",
                           "content_type": "text/plain",
-                          "browser_download_url": "https://example.test/notes.txt"
+                          "browser_download_url": "https://github.com/kraaton11/new_lostfilmatv/releases/download/v1.2.3/notes.txt"
                         },
                         {
                           "name": "lostfilm-tv-1.2.3.apk",
                           "content_type": "application/vnd.android.package-archive",
-                          "browser_download_url": "https://example.test/lostfilm-tv-1.2.3.apk"
+                          "browser_download_url": "https://github.com/kraaton11/new_lostfilmatv/releases/download/v1.2.3/lostfilm-tv-1.2.3.apk"
                         },
                         {
                           "name": "lostfilm-tv-1.2.3-universal.apk",
                           "content_type": "application/octet-stream",
-                          "browser_download_url": "https://example.test/lostfilm-tv-1.2.3-universal.apk"
+                          "browser_download_url": "https://github.com/kraaton11/new_lostfilmatv/releases/download/v1.2.3/lostfilm-tv-1.2.3-universal.apk"
                         }
                       ]
                     }
@@ -53,7 +53,48 @@ class GitHubReleaseClientTest {
             val release = client.fetchLatestRelease()
 
             assertEquals("v1.2.3", release.version)
-            assertEquals("https://example.test/lostfilm-tv-1.2.3.apk", release.apkUrl)
+            assertEquals(
+                "https://github.com/kraaton11/new_lostfilmatv/releases/download/v1.2.3/lostfilm-tv-1.2.3.apk",
+                release.apkUrl,
+            )
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun fetchLatestRelease_ignoresApkAssetFromUnexpectedDomain() = runTest {
+        val server = MockWebServer()
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody(
+                    """
+                    {
+                      "tag_name": "v1.2.3",
+                      "name": "Release 1.2.3",
+                      "assets": [
+                        {
+                          "name": "lostfilm-tv-1.2.3.apk",
+                          "content_type": "application/vnd.android.package-archive",
+                          "browser_download_url": "https://evil.example/lostfilm-tv-1.2.3.apk"
+                        }
+                      ]
+                    }
+                    """.trimIndent(),
+                ),
+        )
+        server.start()
+        try {
+            val client = GitHubReleaseClient(
+                httpClient = OkHttpClient(),
+                baseUrl = server.url("/").toString().removeSuffix("/"),
+            )
+
+            val release = client.fetchLatestRelease()
+
+            assertEquals("v1.2.3", release.version)
+            assertEquals(null, release.apkUrl)
         } finally {
             server.shutdown()
         }

@@ -121,12 +121,8 @@ open class ReleaseApkLauncher(
         return target
     }
 
-    internal fun isAllowedDirectDownloadUrl(url: HttpUrl): Boolean {
-        return when (url.scheme) {
-            "https" -> true
-            "http" -> url.host == "127.0.0.1" || url.host.equals("localhost", ignoreCase = true)
-            else -> false
-        }
+    protected open fun isAllowedDirectDownloadUrl(url: HttpUrl): Boolean {
+        return AppUpdateUrlPolicy.isAllowedReleaseApkUrl(url)
     }
 
     protected open fun startPackageInstaller(context: Context, apkFile: File): Boolean {
