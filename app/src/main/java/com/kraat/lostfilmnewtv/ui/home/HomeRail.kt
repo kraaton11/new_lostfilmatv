@@ -44,6 +44,8 @@ import com.kraat.lostfilmnewtv.ui.components.PosterCard
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 
+private const val HOME_PAGING_SKELETON_COUNT = 4
+
 @Composable
 fun HomeRail(
     railId: String,
@@ -150,7 +152,7 @@ fun HomeRail(
             }
 
             if (isPaging) {
-                items(2) { skeletonIndex ->
+                items(HOME_PAGING_SKELETON_COUNT) { skeletonIndex ->
                     AnimatedVisibility(
                         visible = true,
                         enter = fadeIn(),
