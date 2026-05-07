@@ -30,7 +30,13 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import javax.inject.Qualifier
 import javax.inject.Singleton
+import okhttp3.OkHttpClient
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class UpdateOkHttpClient
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -153,9 +159,16 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideAppUpdateRepository(): AppUpdateRepository = AppUpdateRepository(
+    @UpdateOkHttpClient
+    fun provideUpdateOkHttpClient(): OkHttpClient = UpdateHttpClientFactory.create()
+
+    @Provides
+    @Singleton
+    fun provideAppUpdateRepository(
+        @UpdateOkHttpClient okHttpClient: OkHttpClient,
+    ): AppUpdateRepository = AppUpdateRepository(
         installedVersion = BuildConfig.VERSION_NAME,
-        releaseClient = GitHubReleaseClient(UpdateHttpClientFactory.create()),
+        releaseClient = GitHubReleaseClient(okHttpClient),
     )
 
     @Provides
@@ -181,8 +194,10 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideReleaseApkLauncher(): ReleaseApkLauncher =
-        ReleaseApkLauncher(UpdateHttpClientFactory.create())
+    fun provideReleaseApkLauncher(
+        @UpdateOkHttpClient okHttpClient: OkHttpClient,
+    ): ReleaseApkLauncher =
+        ReleaseApkLauncher(okHttpClient)
 
     // endregion
 }

@@ -67,6 +67,7 @@ class HomeViewModel @Inject constructor(
 
     private var started = false
     private var favoriteRequestToken = 0L
+    private var allNewLoadJob: Job? = null
     private var favoriteLoadJob: Job? = null
     private var moviesLoadJob: Job? = null
     private var seriesLoadJob: Job? = null
@@ -235,6 +236,9 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun loadPage(pageNumber: Int, isPagingRequest: Boolean) {
+        if (!isPagingRequest) {
+            allNewLoadJob?.cancel()
+        }
         _uiState.update { state ->
             state.copy(
                 isInitialLoading = !isPagingRequest,
@@ -244,7 +248,7 @@ class HomeViewModel @Inject constructor(
                 allNewModeState = if (isPagingRequest) state.allNewModeState else HomeModeContentState.Loading,
             )
         }
-        viewModelScope.launch(ioDispatcher) {
+        allNewLoadJob = viewModelScope.launch(ioDispatcher) {
             when (val result = repository.loadPage(pageNumber)) {
                 is PageState.Content -> {
                     _uiState.update { state ->

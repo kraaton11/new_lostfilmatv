@@ -8,6 +8,7 @@ import com.kraat.lostfilmnewtv.data.network.AuthBridgeHttpException
 import com.kraat.lostfilmnewtv.data.network.AuthBridgeClient
 import com.kraat.lostfilmnewtv.data.network.LostFilmSessionVerifier
 import java.io.IOException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -17,7 +18,7 @@ import kotlinx.coroutines.flow.onStart
 class AuthRepository(
     private val authBridgeClient: AuthBridgeClient,
     private val sessionStore: SessionStore,
-    private val sessionVerifier: LostFilmSessionVerifier = LostFilmSessionVerifier(),
+    private val sessionVerifier: LostFilmSessionVerifier,
     private val verificationMaxAttempts: Int = 3,
     private val verificationRetryDelayMillis: Long = 250L,
 ) : AuthRepositoryContract {
@@ -103,6 +104,8 @@ class AuthRepository(
             }
         } catch (_: IOException) {
             return AuthCompletionResult.NetworkError
+        } catch (e: CancellationException) {
+            throw e
         } catch (_: Exception) {
             return AuthCompletionResult.RecoverableFailure()
         }
@@ -174,6 +177,8 @@ class AuthRepository(
                     return AuthCompletionResult.NetworkError
                 }
                 delay(verificationRetryDelayMillis)
+            } catch (e: CancellationException) {
+                throw e
             } catch (_: Exception) {
                 return AuthCompletionResult.RecoverableFailure()
             }
@@ -185,6 +190,8 @@ class AuthRepository(
     private suspend fun releaseClaimBestEffort(pairing: PairingSession) {
         try {
             authBridgeClient.releaseClaim(pairing)
+        } catch (e: CancellationException) {
+            throw e
         } catch (_: Exception) {
             // Release is best-effort after a failed local handoff.
         }

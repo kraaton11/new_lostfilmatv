@@ -5,7 +5,6 @@ import com.kraat.lostfilmnewtv.data.parser.resolveUrl
 import com.kraat.lostfilmnewtv.data.auth.SessionStore
 import com.kraat.lostfilmnewtv.data.model.FavoriteToggleNetworkResult
 import java.io.IOException
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.FormBody
@@ -54,10 +53,7 @@ interface LostFilmHttpClient {
  */
 class OkHttpLostFilmHttpClient(
     private val sessionStore: SessionStore? = null,
-    private val okHttpClient: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
-        .build(),
+    private val okHttpClient: OkHttpClient,
 ) : LostFilmHttpClient {
 
     override suspend fun fetchNewPage(pageNumber: Int): String = withContext(Dispatchers.IO) {

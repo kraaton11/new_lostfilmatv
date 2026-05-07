@@ -2,18 +2,14 @@ package com.kraat.lostfilmnewtv.data.network
 
 import com.kraat.lostfilmnewtv.data.model.LostFilmSession
 import java.io.IOException
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
 class LostFilmSessionVerifier(
+    private val okHttpClient: OkHttpClient,
     private val probeUrl: String = DEFAULT_PROBE_URL,
-    private val okHttpClient: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
-        .build(),
 ) {
     suspend fun verify(session: LostFilmSession): Boolean = withContext(Dispatchers.IO) {
         val request = Request.Builder()
