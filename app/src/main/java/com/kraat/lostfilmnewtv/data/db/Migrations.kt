@@ -130,6 +130,20 @@ val MIGRATION_13_14 = object : Migration(13, 14) {
     }
 }
 
+/**
+ * Миграция 14→15: индекс для Android TV channel query по непросмотренным релизам.
+ */
+val MIGRATION_14_15 = object : Migration(14, 15) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE INDEX IF NOT EXISTS `index_release_summaries_isWatched_pageNumber_positionInPage`
+            ON `release_summaries` (`isWatched`, `pageNumber`, `positionInPage`)
+            """.trimIndent(),
+        )
+    }
+}
+
 /** Список всех миграций для передачи в Room.databaseBuilder. */
 val ALL_MIGRATIONS = arrayOf(
     MIGRATION_5_6,
@@ -141,6 +155,7 @@ val ALL_MIGRATIONS = arrayOf(
     MIGRATION_11_12,
     MIGRATION_12_13,
     MIGRATION_13_14,
+    MIGRATION_14_15,
 )
 
 private fun SupportSQLiteDatabase.hasColumn(tableName: String, columnName: String): Boolean {

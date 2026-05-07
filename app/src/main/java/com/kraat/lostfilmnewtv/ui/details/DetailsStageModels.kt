@@ -3,6 +3,9 @@ package com.kraat.lostfilmnewtv.ui.details
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 
+private val stageWhitespaceRegex = Regex("""\s+""")
+private val stageNextEpisodeRegex = Regex("""\.\s*Следующая серия:.*$""", RegexOption.IGNORE_CASE)
+
 data class DetailsStageUiModel(
     val activeRowId: String?,
     val title: String,
@@ -189,8 +192,8 @@ private fun buildHeroStatusLine(details: ReleaseDetails?): String {
     }
 
     val status = details.seriesStatusRu
-        ?.replace(Regex("""\s+"""), " ")
-        ?.replace(Regex("""\.\s*Следующая серия:.*$""", RegexOption.IGNORE_CASE), "")
+        ?.replace(stageWhitespaceRegex, " ")
+        ?.replace(stageNextEpisodeRegex, "")
         ?.trim()
         .orEmpty()
 

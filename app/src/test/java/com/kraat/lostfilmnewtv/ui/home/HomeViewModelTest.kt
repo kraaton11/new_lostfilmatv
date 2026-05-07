@@ -24,6 +24,8 @@ import com.kraat.lostfilmnewtv.updates.AppUpdateCoordinator
 import com.kraat.lostfilmnewtv.updates.AppUpdateInfo
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -735,6 +737,45 @@ class HomeViewModelTest {
 
         assertEquals(HomeFeedMode.AllNew, viewModel.uiState.value.selectedMode)
         assertEquals(allNewSecond.detailsUrl, viewModel.uiState.value.selectedItemKey)
+    }
+
+    @Test
+    fun onItemFocused_updatesFocusStateWithoutEmittingUiState() = runTest(dispatcher) {
+        val first = summary(detailsUrl = "https://www.lostfilm.today/series/main/season_1/episode_1/")
+        val second = summary(
+            detailsUrl = "https://www.lostfilm.today/series/main/season_1/episode_2/",
+            titleRu = "Второй релиз",
+        )
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(
+                    pageNumber = 1,
+                    items = listOf(first, second),
+                    hasNextPage = false,
+                    isStale = false,
+                ),
+            ),
+        )
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+
+        var uiStateEmissions = 0
+        val uiStateJob = launch {
+            viewModel.uiState.drop(1).collect { uiStateEmissions += 1 }
+        }
+
+        viewModel.onItemFocused(second.detailsUrl)
+        advanceUntilIdle()
+
+        assertEquals(0, uiStateEmissions)
+        assertEquals(second.detailsUrl, viewModel.focusState.value.selectedItemKey)
+        uiStateJob.cancel()
     }
 
     @Test

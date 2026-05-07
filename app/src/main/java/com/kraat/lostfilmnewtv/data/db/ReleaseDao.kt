@@ -53,6 +53,9 @@ interface ReleaseDao {
     @Query("SELECT * FROM release_summaries WHERE detailsUrl = :detailsUrl LIMIT 1")
     suspend fun getSummary(detailsUrl: String): ReleaseSummaryEntity?
 
+    @Query("SELECT * FROM release_summaries WHERE detailsUrl IN (:detailsUrls)")
+    suspend fun getSummaries(detailsUrls: List<String>): List<ReleaseSummaryEntity>
+
     @Query("UPDATE release_summaries SET isWatched = :isWatched WHERE detailsUrl = :detailsUrl")
     suspend fun updateSummaryWatched(detailsUrl: String, isWatched: Boolean)
 

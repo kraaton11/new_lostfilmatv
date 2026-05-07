@@ -10,6 +10,7 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
     tableName = "release_summaries",
     indices = [
         Index(value = ["pageNumber"]),
+        Index(value = ["isWatched", "pageNumber", "positionInPage"]),
         Index(value = ["fetchedAt"]),
     ],
 )

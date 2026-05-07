@@ -61,7 +61,7 @@ fun HomeRail(
     onEndReached: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val itemKeys = items.map { it.detailsUrl }
+    val itemKeys = remember(items) { items.map { it.detailsUrl } }
     val targetKey = if (focusedItemKey in itemKeys) {
         focusedItemKey
     } else {

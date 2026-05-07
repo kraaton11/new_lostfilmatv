@@ -20,6 +20,7 @@ import kotlinx.coroutines.launch
 private const val QUERY_KEY = "search.query"
 private const val MIN_QUERY_LENGTH = 2
 private const val SEARCH_DEBOUNCE_MS = 350L
+private val searchWhitespaceRegex = Regex("""\s+""")
 
 @HiltViewModel
 class SearchViewModel @Inject constructor(
@@ -144,4 +145,4 @@ class SearchViewModel @Inject constructor(
     }
 }
 
-private fun String.normalizeSearchQuery(): String = trim().replace(Regex("""\s+"""), " ")
+private fun String.normalizeSearchQuery(): String = trim().replace(searchWhitespaceRegex, " ")

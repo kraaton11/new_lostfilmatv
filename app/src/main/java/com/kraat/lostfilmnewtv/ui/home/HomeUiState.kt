@@ -34,6 +34,20 @@ data class HomeUiState(
     val isFavoritesRailVisible: Boolean = false,
 )
 
+data class HomeFocusState(
+    val rememberedItemKeyByMode: Map<HomeFeedMode, String> = emptyMap(),
+    val selectedItemKey: String? = null,
+) {
+    companion object {
+        fun from(uiState: HomeUiState): HomeFocusState {
+            return HomeFocusState(
+                rememberedItemKeyByMode = uiState.rememberedItemKeyByMode,
+                selectedItemKey = uiState.selectedItemKey,
+            )
+        }
+    }
+}
+
 internal fun HomeUiState.itemsForMode(mode: HomeFeedMode): List<ReleaseSummary> {
     return when (mode) {
         HomeFeedMode.AllNew -> items

@@ -21,6 +21,17 @@ private const val YEAR_AWARE_MATCHING_CACHE_MIN_FETCHED_AT_MS = 1777852800000L /
 private const val SERIES_YEAR_HINT_FIX_CACHE_MIN_FETCHED_AT_MS = 1777867930731L // 2026-05-04
 private const val TMDB_RATING_CACHE_MIN_FETCHED_AT_MS = 1778025600000L // 2026-05-06
 private const val MEMORY_CACHE_MAX_SIZE = 500
+private val seasonNumberRegex = Regex("""/season_(\d+)/""")
+private val episodeNumberRegex = Regex("""/episode_(\d+)/?""")
+private val tmdbMatchSeparatorsRegex = Regex("[^a-z0-9а-я]+")
+private val tmdbMatchWhitespaceRegex = Regex("\\s+")
+private val tmdbMatchAndRegex = Regex("""\band\b""")
+private val slugYearRegex = Regex("""(?:^|[ _-])((?:19|20)\d{2})(?:$|[ _-])""")
+private val slugYearSuffixRegex = Regex("""[ _-]+(?:19|20)\d{2}$""")
+private val seriesSlugRegex = Regex("""/series/([^/?#]+)""")
+private val movieSlugRegex = Regex("""/movies/([^/?#]+)""")
+private val seriesCacheKeyRegex = Regex("""^(.*/series/[^/?#]+)""")
+private val movieCacheKeyRegex = Regex("""^(.*/movies/[^/?#]+)""")
 
 interface TmdbPosterResolver {
     suspend fun resolve(
@@ -383,13 +394,13 @@ class TmdbPosterResolverImpl(
         if (kind != ReleaseKind.SERIES || tmdbId <= 0) {
             return null
         }
-        val seasonNumber = Regex("""/season_(\d+)/""")
+        val seasonNumber = seasonNumberRegex
             .find(detailsUrl)
             ?.groupValues
             ?.getOrNull(1)
             ?.toIntOrNull()
             ?: return null
-        val episodeNumber = Regex("""/episode_(\d+)/?""")
+        val episodeNumber = episodeNumberRegex
             .find(detailsUrl)
             ?.groupValues
             ?.getOrNull(1)
@@ -458,11 +469,11 @@ class TmdbPosterResolverImpl(
 
     private fun String.normalizeForTmdbMatch(): String {
         return lowercase()
-            .replace(Regex("[^a-z0-9а-я]+"), " ")
+            .replace(tmdbMatchSeparatorsRegex, " ")
             .trim()
-            .replace(Regex("\\s+"), " ")
-            .replace(Regex("""\band\b"""), "")
-            .replace(Regex("\\s+"), " ")
+            .replace(tmdbMatchWhitespaceRegex, " ")
+            .replace(tmdbMatchAndRegex, "")
+            .replace(tmdbMatchWhitespaceRegex, " ")
             .trim()
     }
 
@@ -478,28 +489,28 @@ class TmdbPosterResolverImpl(
 
     private fun String?.extractYearFromSlug(): Int? =
         this
-            ?.let { Regex("""(?:^|[ _-])((?:19|20)\d{2})(?:$|[ _-])""").find(it) }
+            ?.let { slugYearRegex.find(it) }
             ?.groupValues
             ?.getOrNull(1)
             ?.toIntOrNull()
 
     private fun String.removeYearSuffix(): String =
-        replace(Regex("""[ _-]+(?:19|20)\d{2}$"""), "").trim()
+        replace(slugYearSuffixRegex, "").trim()
 
     private fun extractEnglishSlug(detailsUrl: String): String? {
-        val match = Regex("""/series/([^/?#]+)""").find(detailsUrl)
-            ?: Regex("""/movies/([^/?#]+)""").find(detailsUrl)
+        val match = seriesSlugRegex.find(detailsUrl)
+            ?: movieSlugRegex.find(detailsUrl)
         return match?.groupValues?.getOrNull(1)
             ?.replace('_', ' ')
     }
 
     private fun tmdbCacheKey(detailsUrl: String, kind: ReleaseKind): String {
-        val seriesMatch = Regex("""^(.*/series/[^/?#]+)""").find(detailsUrl)
+        val seriesMatch = seriesCacheKeyRegex.find(detailsUrl)
         if (kind == ReleaseKind.SERIES && seriesMatch != null) {
             return "${seriesMatch.groupValues[1]}/"
         }
 
-        val movieMatch = Regex("""^(.*/movies/[^/?#]+)""").find(detailsUrl)
+        val movieMatch = movieCacheKeyRegex.find(detailsUrl)
         if (kind == ReleaseKind.MOVIE && movieMatch != null) {
             return movieMatch.groupValues[1]
         }

@@ -475,6 +475,56 @@ class LostFilmRepositoryTest {
     }
 
     @Test
+    fun loadDetails_refreshesFreshCachedSeriesEpisodeOverviewFromTmdb() = runTest {
+        val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        val tmdbOverview = "Описание эпизода из TMDB."
+        releaseDao.upsertDetails(
+            ReleaseDetailsEntity.fromModel(
+                ReleaseDetails(
+                    detailsUrl = detailsUrl,
+                    kind = ReleaseKind.SERIES,
+                    titleRu = "9-1-1",
+                    seasonNumber = 9,
+                    episodeNumber = 13,
+                    releaseDateRu = "14.03.2026",
+                    posterUrl = "https://image.tmdb.org/t/p/w780/cached-poster.jpg",
+                    backdropUrl = "https://image.tmdb.org/t/p/original/cached-backdrop.jpg",
+                    fetchedAt = NOW - 1_000L,
+                    seriesStatusRu = "Идет 9 сезон",
+                    episodeOverviewRu = null,
+                ),
+            ),
+        )
+        val tmdbResolvedDetailsUrls = mutableListOf<String>()
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            detailsHandler = { error("Fresh cached details should not fetch HTML: $it") },
+            tmdbResolver = object : TmdbPosterResolver {
+                override suspend fun resolve(
+                    detailsUrl: String,
+                    titleRu: String,
+                    releaseDateRu: String,
+                    kind: ReleaseKind,
+                    originalReleaseYear: Int?,
+                ): TmdbImageUrls {
+                    tmdbResolvedDetailsUrls += detailsUrl
+                    return TmdbImageUrls(
+                        posterUrl = "https://image.tmdb.org/t/p/w780/cached-poster.jpg",
+                        backdropUrl = "https://image.tmdb.org/t/p/original/cached-backdrop.jpg",
+                        episodeOverviewRu = tmdbOverview,
+                    )
+                }
+            },
+        )
+
+        val result = repository.loadDetails(detailsUrl) as DetailsResult.Success
+
+        assertEquals(listOf(detailsUrl), tmdbResolvedDetailsUrls)
+        assertEquals(tmdbOverview, result.details.episodeOverviewRu)
+        assertEquals(tmdbOverview, releaseDao.getReleaseDetails(detailsUrl)?.episodeOverviewRu)
+    }
+
+    @Test
     fun loadDetails_refreshesOlderCachedMovieArtworkWithOriginalReleaseYear() = runTest {
         val detailsUrl = "https://www.lostfilm.today/movies/Casino"
         releaseDao.upsertDetails(
@@ -924,11 +974,7 @@ class LostFilmRepositoryTest {
             detailsHandler = { requestedUrl ->
                 assertEquals(favoritePageUrl, requestedUrl)
                 detailsRequestCount += 1
-                when (detailsRequestCount) {
-                    1 -> seriesFavoritePageHtml(isFavorite = false, includeSessionToken = true)
-                    2 -> seriesFavoritePageHtml(isFavorite = true, includeSessionToken = true)
-                    else -> error("Unexpected details request #$detailsRequestCount")
-                }
+                seriesFavoritePageHtml(isFavorite = false, includeSessionToken = true)
             },
             favoriteToggleHandler = { refererUrl, favoriteTargetId, ajaxSessionToken ->
                 assertEquals(favoritePageUrl, refererUrl)
@@ -958,11 +1004,7 @@ class LostFilmRepositoryTest {
                 detailsRequests += requestedUrl
                 assertEquals(favoritePageUrl, requestedUrl)
                 detailsRequestCount += 1
-                when (detailsRequestCount) {
-                    1 -> seriesFavoritePageHtml(isFavorite = false, includeSessionToken = true)
-                    2 -> seriesFavoritePageHtml(isFavorite = true, includeSessionToken = true)
-                    else -> error("Unexpected details request #$detailsRequestCount")
-                }
+                seriesFavoritePageHtml(isFavorite = false, includeSessionToken = true)
             },
             favoriteToggleHandler = { refererUrl, favoriteTargetId, ajaxSessionToken ->
                 assertEquals(favoritePageUrl, refererUrl)
@@ -976,7 +1018,7 @@ class LostFilmRepositoryTest {
         val result = repository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
 
         assertEquals(FavoriteMutationResult.Updated, result)
-        assertEquals(listOf(favoritePageUrl, favoritePageUrl), detailsRequests)
+        assertEquals(listOf(favoritePageUrl), detailsRequests)
         assertTrue(releaseDao.getReleaseDetails(detailsUrl)?.toModel()?.isFavorite == true)
         assertTrue(releaseDao.getReleaseDetails(detailsUrl)?.toModel()?.favoriteTargetId == 915)
     }

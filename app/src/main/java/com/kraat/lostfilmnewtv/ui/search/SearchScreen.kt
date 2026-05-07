@@ -40,6 +40,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -48,6 +50,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
@@ -62,6 +65,7 @@ import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceSoft
 import com.kraat.lostfilmnewtv.ui.theme.DetailsTextSecondary
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
+import kotlin.math.roundToInt
 
 @Composable
 fun SearchScreen(
@@ -266,6 +270,10 @@ private fun SearchResultCard(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    val posterWidthPx = with(density) { 86.dp.toPx().roundToInt().coerceAtLeast(1) }
+    val posterHeightPx = with(density) { 124.dp.toPx().roundToInt().coerceAtLeast(1) }
     var isFocused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
         targetValue = if (isFocused) 1.02f else 1f,
@@ -304,8 +312,14 @@ private fun SearchResultCard(
                     .border(1.dp, DetailsBorderDefault, RoundedCornerShape(16.dp)),
             ) {
                 if (!item.posterUrl.isNullOrBlank()) {
+                    val request = remember(context, item.posterUrl, posterWidthPx, posterHeightPx) {
+                        ImageRequest.Builder(context)
+                            .data(item.posterUrl)
+                            .size(posterWidthPx, posterHeightPx)
+                            .build()
+                    }
                     AsyncImage(
-                        model = item.posterUrl,
+                        model = request,
                         contentDescription = item.titleRu,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize(),

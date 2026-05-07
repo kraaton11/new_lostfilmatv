@@ -36,6 +36,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -44,6 +46,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.kraat.lostfilmnewtv.data.model.SeriesGuideEpisode
 import com.kraat.lostfilmnewtv.data.model.SeriesGuideSeason
 import com.kraat.lostfilmnewtv.ui.components.ShimmerSkeletonBox
@@ -63,6 +66,7 @@ import com.kraat.lostfilmnewtv.ui.theme.DetailsTextSecondary
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurface
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
+import kotlin.math.roundToInt
 
 @Composable
 fun SeriesGuideScreen(
@@ -320,6 +324,10 @@ private fun GuideHeroSection(
     posterUrl: String?,
     seasons: List<SeriesGuideSeason>,
 ) {
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    val posterWidthPx = with(density) { 104.dp.toPx().roundToInt().coerceAtLeast(1) }
+    val posterHeightPx = with(density) { 150.dp.toPx().roundToInt().coerceAtLeast(1) }
     val episodesCount = remember(seasons) { seasons.sumOf { it.episodes.size } }
 
     Row(
@@ -339,8 +347,14 @@ private fun GuideHeroSection(
                 .border(1.dp, DetailsBorderDefault.copy(alpha = 0.72f), RoundedCornerShape(18.dp)),
         ) {
             if (!posterUrl.isNullOrBlank()) {
+                val request = remember(context, posterUrl, posterWidthPx, posterHeightPx) {
+                    ImageRequest.Builder(context)
+                        .data(posterUrl)
+                        .size(posterWidthPx, posterHeightPx)
+                        .build()
+                }
                 AsyncImage(
-                    model = posterUrl,
+                    model = request,
                     contentDescription = title,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),

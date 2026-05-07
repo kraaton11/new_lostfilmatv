@@ -43,27 +43,38 @@ class HomeViewModel @Inject constructor(
     private val initialFavoritesRailVisible: Boolean
         get() = preferencesStore.readHomeFavoritesRailEnabled()
 
-    private val _uiState = MutableStateFlow(
-        HomeUiState(
-            selectedItemKey = savedStateHandle[FOCUS_KEY],
-            isInitialLoading = true,
-            selectedMode = resolvedInitialMode(
-                initialSelectedMode = initialSelectedMode,
-                isFavoritesVisible = initialFavoritesRailVisible,
-            ),
-            availableModes = availableModes(initialFavoritesRailVisible),
-            allNewModeState = HomeModeContentState.Loading,
-            favoritesModeState = if (initialFavoritesRailVisible) {
-                HomeModeContentState.Loading
-            } else {
-                HomeModeContentState.Empty
-            },
-            seriesModeState = HomeModeContentState.Loading,
-            isFavoritesRailVisible = initialFavoritesRailVisible,
-        ).withResolvedHomeSelection(),
-    )
+    private val initialUiState = HomeUiState(
+        selectedItemKey = savedStateHandle[FOCUS_KEY],
+        isInitialLoading = true,
+        selectedMode = resolvedInitialMode(
+            initialSelectedMode = initialSelectedMode,
+            isFavoritesVisible = initialFavoritesRailVisible,
+        ),
+        availableModes = availableModes(initialFavoritesRailVisible),
+        allNewModeState = HomeModeContentState.Loading,
+        favoritesModeState = if (initialFavoritesRailVisible) {
+            HomeModeContentState.Loading
+        } else {
+            HomeModeContentState.Empty
+        },
+        seriesModeState = HomeModeContentState.Loading,
+        isFavoritesRailVisible = initialFavoritesRailVisible,
+    ).withResolvedHomeSelection()
+
+    private val _uiState = MutableStateFlow(initialUiState)
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
+
+    private val _focusState = MutableStateFlow(HomeFocusState.from(initialUiState))
+    val focusState: StateFlow<HomeFocusState> = _focusState.asStateFlow()
+
     val savedAppUpdate: StateFlow<SavedAppUpdate?> = appUpdateCoordinator.savedUpdateState
+
+    private fun HomeUiState.resolveSelection(): HomeUiState =
+        withResolvedHomeSelection(_focusState.value)
+
+    private fun updateFocusFromResolvedState(state: HomeUiState) {
+        _focusState.value = HomeFocusState.from(state)
+    }
 
     private var started = false
     private var favoriteRequestToken = 0L
@@ -149,15 +160,14 @@ class HomeViewModel @Inject constructor(
     }
 
     fun onItemFocused(itemKey: String) {
-        _uiState.update { state ->
-            val mode = itemMode(state, itemKey)
-            val normalizedKey = preferredDetailsUrl(itemKey) ?: itemKey
-            savedStateHandle[FOCUS_KEY] = normalizedKey
-            val selectedMatch = findItemForMode(state, mode, normalizedKey)
-            state.copy(
-                rememberedItemKeyByMode = state.rememberedItemKeyByMode + (mode to normalizedKey),
-                selectedItemKey = if (mode == state.selectedMode) normalizedKey else state.selectedItemKey,
-                selectedItem = selectedMatch?.item ?: state.selectedItem,
+        val state = _uiState.value
+        val mode = itemMode(state, itemKey)
+        val normalizedKey = preferredDetailsUrl(itemKey) ?: itemKey
+        savedStateHandle[FOCUS_KEY] = normalizedKey
+        _focusState.update { focus ->
+            focus.copy(
+                rememberedItemKeyByMode = focus.rememberedItemKeyByMode + (mode to normalizedKey),
+                selectedItemKey = if (mode == state.selectedMode) normalizedKey else focus.selectedItemKey,
             )
         }
     }
@@ -181,7 +191,7 @@ class HomeViewModel @Inject constructor(
                 favoritesModeState = state.favoritesModeState.updateItems(updatedFavoriteItems),
                 moviesModeState = state.moviesModeState.updateItems(updatedMovieItems),
                 seriesModeState = state.seriesModeState.updateItems(updatedSeriesItems),
-            ).withResolvedHomeSelection()
+            ).resolveSelection()
         }
     }
 
@@ -197,7 +207,7 @@ class HomeViewModel @Inject constructor(
                 isFavoritesRailVisible = isVisible,
                 favoriteItems = if (isVisible) state.favoriteItems else emptyList(),
                 favoritesModeState = if (isVisible) state.favoritesModeState else HomeModeContentState.Empty,
-            ).withResolvedHomeSelection()
+            ).resolveSelection()
         }
         if (shouldPersistFallback) preferencesStore.writeHomeSelectedFeedMode(HomeFeedMode.AllNew)
         if (started && isVisible) loadFavoriteReleases()
@@ -220,7 +230,7 @@ class HomeViewModel @Inject constructor(
             state.copy(
                 favoriteItems = updatedFavoriteItems,
                 favoritesModeState = state.favoritesModeState.optimisticallyUpdateFavoriteItems(updatedFavoriteItems),
-            ).withResolvedHomeSelection()
+            ).resolveSelection()
         }
         loadFavoriteReleases(retainVisibleItemsOnFailure = true)
     }
@@ -230,7 +240,9 @@ class HomeViewModel @Inject constructor(
             if (mode == state.selectedMode || mode !in state.availableModes) state
             else {
                 preferencesStore.writeHomeSelectedFeedMode(mode)
-                state.copy(selectedMode = mode).withResolvedHomeSelection()
+                val resolved = state.copy(selectedMode = mode).resolveSelection()
+                updateFocusFromResolvedState(resolved)
+                resolved
             }
         }
     }
@@ -261,7 +273,7 @@ class HomeViewModel @Inject constructor(
                             nextPage = result.pageNumber + 1,
                             hasNextPage = result.hasNextPage,
                             allNewModeState = HomeModeContentState.Content(result.items),
-                        ).withResolvedHomeSelection()
+                        ).resolveSelection()
                     }
                     // Channel rows are based on the first page; avoid expensive background sync on pagination.
                     if (!isPagingRequest) {
@@ -276,7 +288,7 @@ class HomeViewModel @Inject constructor(
                             fullScreenErrorMessage = result.message,
                             pagingErrorMessage = null,
                             allNewModeState = HomeModeContentState.Error(result.message),
-                        ).withResolvedHomeSelection()
+                        ).resolveSelection()
                     }
                 }
             }
@@ -295,16 +307,16 @@ class HomeViewModel @Inject constructor(
                     is FavoriteReleasesResult.Success -> {
                         val favoriteState = if (result.items.isEmpty()) HomeModeContentState.Empty
                         else HomeModeContentState.Content(result.items)
-                        state.copy(favoriteItems = result.items, favoritesModeState = favoriteState).withResolvedHomeSelection()
+                        state.copy(favoriteItems = result.items, favoritesModeState = favoriteState).resolveSelection()
                     }
                     is FavoriteReleasesResult.Unavailable -> {
-                        if (retainVisibleItemsOnFailure) return@update state.withResolvedHomeSelection()
+                        if (retainVisibleItemsOnFailure) return@update state.resolveSelection()
                         val favoriteState = when {
                             result.message.isNullOrBlank() -> HomeModeContentState.Error("Не удалось загрузить избранное")
                             result.message.contains("Войдите", ignoreCase = true) -> HomeModeContentState.LoginRequired(result.message)
                             else -> HomeModeContentState.Error(result.message)
                         }
-                        state.copy(favoriteItems = emptyList(), favoritesModeState = favoriteState).withResolvedHomeSelection()
+                        state.copy(favoriteItems = emptyList(), favoritesModeState = favoriteState).resolveSelection()
                     }
                 }
             }
@@ -347,7 +359,7 @@ class HomeViewModel @Inject constructor(
                             moviesPagingErrorMessage = null,
                             moviesNextPage = result.pageNumber + 1,
                             moviesHasNextPage = result.hasNextPage,
-                        ).withResolvedHomeSelection()
+                        ).resolveSelection()
                     }
                 }
                 is PageState.Error -> {
@@ -356,14 +368,14 @@ class HomeViewModel @Inject constructor(
                             state.copy(
                                 isMoviesPaging = false,
                                 moviesPagingErrorMessage = result.message,
-                            ).withResolvedHomeSelection()
+                            ).resolveSelection()
                         } else {
                             state.copy(
                                 movieItems = emptyList(),
                                 isMoviesPaging = false,
                                 moviesPagingErrorMessage = null,
                                 moviesModeState = HomeModeContentState.Error(result.message),
-                            ).withResolvedHomeSelection()
+                            ).resolveSelection()
                         }
                     }
                 }
@@ -407,7 +419,7 @@ class HomeViewModel @Inject constructor(
                             seriesPagingErrorMessage = null,
                             seriesNextPage = result.pageNumber + 1,
                             seriesHasNextPage = result.hasNextPage,
-                        ).withResolvedHomeSelection()
+                        ).resolveSelection()
                     }
                 }
                 is PageState.Error -> {
@@ -416,14 +428,14 @@ class HomeViewModel @Inject constructor(
                             state.copy(
                                 isSeriesPaging = false,
                                 seriesPagingErrorMessage = result.message,
-                            ).withResolvedHomeSelection()
+                            ).resolveSelection()
                         } else {
                             state.copy(
                                 seriesItems = emptyList(),
                                 isSeriesPaging = false,
                                 seriesPagingErrorMessage = null,
                                 seriesModeState = HomeModeContentState.Error(result.message),
-                            ).withResolvedHomeSelection()
+                            ).resolveSelection()
                         }
                     }
                 }
@@ -451,7 +463,12 @@ private fun applyOptimisticFavoriteChange(
     return favoriteItemsWithoutSeries.toMutableList().apply { add(insertIndex, matchingAllNewItem) }
 }
 
-private fun HomeUiState.withResolvedHomeSelection(): HomeUiState {
+private fun HomeUiState.withResolvedHomeSelection(
+    focusState: HomeFocusState = HomeFocusState(
+        rememberedItemKeyByMode = rememberedItemKeyByMode,
+        selectedItemKey = selectedItemKey,
+    ),
+): HomeUiState {
     val rails = buildHomeRails(
         items = items,
         favoriteItems = favoriteItems,
@@ -461,13 +478,17 @@ private fun HomeUiState.withResolvedHomeSelection(): HomeUiState {
     )
     val normalizedSelectedMode = if (selectedMode in availableModes) selectedMode else HomeFeedMode.AllNew
     val activeItems = itemsForMode(normalizedSelectedMode)
-    val preferredKey = rememberedItemKeyByMode[normalizedSelectedMode] ?: preferredDetailsUrl(selectedItemKey)
+    val preferredKey = focusState.rememberedItemKeyByMode[normalizedSelectedMode]
+        ?: preferredDetailsUrl(focusState.selectedItemKey)
+        ?: rememberedItemKeyByMode[normalizedSelectedMode]
+        ?: preferredDetailsUrl(selectedItemKey)
     val selectedItem = activeItems.firstOrNull { it.detailsUrl == preferredKey } ?: activeItems.firstOrNull()
     return copy(
         selectedMode = normalizedSelectedMode,
         availableModes = availableModes(isFavoritesRailVisible),
         rails = rails,
-        rememberedItemKeyByMode = rememberedItemKeyByMode.withDefaultRememberedKeys(items, favoriteItems, movieItems, seriesItems),
+        rememberedItemKeyByMode = focusState.rememberedItemKeyByMode
+            .withDefaultRememberedKeys(items, favoriteItems, movieItems, seriesItems),
         selectedItem = selectedItem,
         selectedItemKey = selectedItem?.detailsUrl,
     )

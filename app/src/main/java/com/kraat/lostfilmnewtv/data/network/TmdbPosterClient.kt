@@ -7,6 +7,7 @@ import android.util.Log
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
@@ -15,11 +16,12 @@ import org.json.JSONObject
 private const val TMDB_BASE_URL = "https://api.themoviedb.org/3"
 private const val TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/"
 private const val POSTER_SIZE = "w780"
-private const val BACKDROP_SIZE = "original"
+private const val BACKDROP_SIZE = "w1280"
 
 open class TmdbPosterClient(
     private val okHttpClient: OkHttpClient,
     private val apiKey: String,
+    private val bearerToken: String = "",
 ) {
     open suspend fun searchByTitle(
         query: String,
@@ -35,11 +37,11 @@ open class TmdbPosterClient(
             TmdbMediaType.MOVIE -> year?.let { "&release_year=$it" }.orEmpty()
         }
         val url = "$TMDB_BASE_URL$endpoint?query=${query.encodeUrl()}&include_adult=true$yearParam"
+            .withTmdbApiKey()
 
         val request = Request.Builder()
             .url(url)
-            .header("Authorization", "Bearer $apiKey")
-            .header("Accept", "application/json")
+            .tmdbHeaders()
             .build()
 
         okHttpClient.newCall(request).execute().use { response ->
@@ -117,9 +119,8 @@ open class TmdbPosterClient(
         }
 
         val request = Request.Builder()
-            .url(url)
-            .header("Authorization", "Bearer $apiKey")
-            .header("Accept", "application/json")
+            .url(url.withTmdbApiKey())
+            .tmdbHeaders()
             .build()
 
         okHttpClient.newCall(request).execute().use { response ->
@@ -178,10 +179,10 @@ open class TmdbPosterClient(
         episodeNumber: Int,
     ): String? = withContext(Dispatchers.IO) {
         val url = "$TMDB_BASE_URL/tv/$tmdbId/season/$seasonNumber/episode/$episodeNumber?language=ru-RU"
+            .withTmdbApiKey()
         val request = Request.Builder()
             .url(url)
-            .header("Authorization", "Bearer $apiKey")
-            .header("Accept", "application/json")
+            .tmdbHeaders()
             .build()
 
         okHttpClient.newCall(request).execute().use { response ->
@@ -194,11 +195,10 @@ open class TmdbPosterClient(
     }
 
     open suspend fun getSeriesOverviewRu(tmdbId: Int): String? = withContext(Dispatchers.IO) {
-        val url = "$TMDB_BASE_URL/tv/$tmdbId?language=ru-RU"
+        val url = "$TMDB_BASE_URL/tv/$tmdbId?language=ru-RU".withTmdbApiKey()
         val request = Request.Builder()
             .url(url)
-            .header("Authorization", "Bearer $apiKey")
-            .header("Accept", "application/json")
+            .tmdbHeaders()
             .build()
 
         okHttpClient.newCall(request).execute().use { response ->
@@ -211,11 +211,10 @@ open class TmdbPosterClient(
     }
 
     open suspend fun getMovieOverviewRu(tmdbId: Int): String? = withContext(Dispatchers.IO) {
-        val url = "$TMDB_BASE_URL/movie/$tmdbId?language=ru-RU"
+        val url = "$TMDB_BASE_URL/movie/$tmdbId?language=ru-RU".withTmdbApiKey()
         val request = Request.Builder()
             .url(url)
-            .header("Authorization", "Bearer $apiKey")
-            .header("Accept", "application/json")
+            .tmdbHeaders()
             .build()
 
         okHttpClient.newCall(request).execute().use { response ->
@@ -235,11 +234,10 @@ open class TmdbPosterClient(
             TmdbMediaType.TV -> "/tv/$tmdbId"
             TmdbMediaType.MOVIE -> "/movie/$tmdbId"
         }
-        val url = "$TMDB_BASE_URL$endpoint"
+        val url = "$TMDB_BASE_URL$endpoint".withTmdbApiKey()
         val request = Request.Builder()
             .url(url)
-            .header("Authorization", "Bearer $apiKey")
-            .header("Accept", "application/json")
+            .tmdbHeaders()
             .build()
 
         okHttpClient.newCall(request).execute().use { response ->
@@ -250,6 +248,23 @@ open class TmdbPosterClient(
     }
 
     private fun String.encodeUrl(): String = java.net.URLEncoder.encode(this, "UTF-8")
+
+    private fun String.withTmdbApiKey(): String {
+        if (apiKey.isBlank()) return this
+        return toHttpUrl()
+            .newBuilder()
+            .addQueryParameter("api_key", apiKey)
+            .build()
+            .toString()
+    }
+
+    private fun Request.Builder.tmdbHeaders(): Request.Builder {
+        header("Accept", "application/json")
+        if (bearerToken.isNotBlank()) {
+            header("Authorization", "Bearer $bearerToken")
+        }
+        return this
+    }
 }
 
 private fun JSONObject.optTmdbRating(): String? {
