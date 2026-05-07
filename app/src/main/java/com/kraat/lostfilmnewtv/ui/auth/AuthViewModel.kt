@@ -7,8 +7,11 @@ import com.kraat.lostfilmnewtv.data.auth.AuthRepositoryContract
 import com.kraat.lostfilmnewtv.data.model.PairingStatus
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +27,7 @@ class AuthViewModel @Inject constructor(
 
     private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
+    private var authJob: Job? = null
 
     init {
         observeAuthState()
@@ -43,20 +47,29 @@ class AuthViewModel @Inject constructor(
     }
 
     fun startAuth() {
-        viewModelScope.launch(ioDispatcher) {
+        authJob?.cancel()
+        authJob = viewModelScope.launch(ioDispatcher) {
             _uiState.value = AuthUiState.CreatingCode
             try {
                 val pairing = authRepository.startPairing()
                 _uiState.value = pairing.toWaitingState()
                 try {
                     startPollingLoop()
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (_: Exception) {
                     _uiState.value = AuthUiState.RecoverableError("Не удалось завершить вход. Получите новый код.")
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.value = AuthUiState.RecoverableError(
                     message = e.message ?: "Не удалось начать вход. Получите новый код.",
                 )
+            } finally {
+                if (authJob == currentCoroutineContext()[Job]) {
+                    authJob = null
+                }
             }
         }
     }
@@ -110,6 +123,7 @@ class AuthViewModel @Inject constructor(
     }
 
     fun logout() {
+        authJob?.cancel()
         viewModelScope.launch(ioDispatcher) {
             authRepository.logout()
             _uiState.value = AuthUiState.Idle

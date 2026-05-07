@@ -6,6 +6,7 @@ import com.kraat.lostfilmnewtv.data.auth.EncryptedSessionStore
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
 import com.kraat.lostfilmnewtv.data.db.TmdbPosterDao
 import com.kraat.lostfilmnewtv.data.network.AuthBridgeClient
+import com.kraat.lostfilmnewtv.data.network.LostFilmSessionVerifier
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.network.TmdbPosterClient
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
@@ -22,6 +23,7 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
+import okhttp3.OkHttpClient
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -32,7 +34,13 @@ object DataModule {
     fun provideAuthRepository(
         authBridgeClient: AuthBridgeClient,
         sessionStore: EncryptedSessionStore,
-    ): AuthRepositoryContract = AuthRepository(authBridgeClient, sessionStore)
+        sessionVerifier: LostFilmSessionVerifier,
+    ): AuthRepositoryContract = AuthRepository(authBridgeClient, sessionStore, sessionVerifier)
+
+    @Provides
+    @Singleton
+    fun provideLostFilmSessionVerifier(okHttpClient: OkHttpClient): LostFilmSessionVerifier =
+        LostFilmSessionVerifier(okHttpClient)
 
     @Provides
     @Singleton

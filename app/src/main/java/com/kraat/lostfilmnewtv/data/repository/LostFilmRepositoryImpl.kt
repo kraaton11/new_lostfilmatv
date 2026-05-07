@@ -41,10 +41,13 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import org.jsoup.Jsoup
 
@@ -58,6 +61,7 @@ private const val FAVORITE_PUBLISH_CHECK_CONCURRENCY = 6
 private const val WATCHED_MARKS_LOAD_CONCURRENCY = 4
 private const val MOVIES_PAGE_SIZE = 20
 private const val SERIES_CATALOG_PAGE_SIZE = 20
+private const val CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000L
 private const val YEAR_AWARE_TMDB_MATCHING_MIN_FETCHED_AT_MS = 1777852800000L // 2026-05-04
 private val paginatorRegex = Regex("""/new/page_(\d+)""")
 private const val favoriteSeriesRoute = "/my/type_1"
@@ -79,8 +83,11 @@ class LostFilmRepositoryImpl(
     private val hasAuthenticatedSession: suspend () -> Boolean,
     private val clock: () -> Long = { System.currentTimeMillis() },
 ) : LostFilmRepository {
+    private val cleanupMutex = Mutex()
+    private var lastCleanupAt = 0L
+
     override suspend fun loadPage(pageNumber: Int): PageState {
-        cleanupExpiredData()
+        cleanupExpiredDataIfNeeded()
 
         return try {
             val fetchedAt = clock()
@@ -121,6 +128,8 @@ class LostFilmRepositoryImpl(
                 hasNextPage = hasNextPage(html, pageNumber, parsedItems.isNotEmpty()),
                 isStale = false,
             )
+        } catch (exception: CancellationException) {
+            throw exception
         } catch (exception: Exception) {
             if (exception is IOException || exception is IllegalStateException) {
                 fallbackPageState(pageNumber, exception)
@@ -131,7 +140,7 @@ class LostFilmRepositoryImpl(
     }
 
     override suspend fun loadMovies(pageNumber: Int): PageState {
-        cleanupExpiredData()
+        cleanupExpiredDataIfNeeded()
 
         return try {
             val fetchedAt = clock()
@@ -152,6 +161,8 @@ class LostFilmRepositoryImpl(
                 hasNextPage = parsedItems.size >= MOVIES_PAGE_SIZE,
                 isStale = false,
             )
+        } catch (exception: CancellationException) {
+            throw exception
         } catch (exception: Exception) {
             if (exception is IOException || exception is IllegalStateException) {
                 PageState.Error(
@@ -184,6 +195,8 @@ class LostFilmRepositoryImpl(
                 hasNextPage = parsedItems.size >= SERIES_CATALOG_PAGE_SIZE,
                 isStale = false,
             )
+        } catch (exception: CancellationException) {
+            throw exception
         } catch (exception: Exception) {
             if (exception is IOException || exception is IllegalStateException) {
                 PageState.Error(
@@ -198,7 +211,7 @@ class LostFilmRepositoryImpl(
 
     override suspend fun loadDetails(detailsUrl: String): DetailsResult {
         val normalizedDetailsUrl = resolveUrl(detailsUrl)
-        cleanupExpiredData()
+        cleanupExpiredDataIfNeeded()
         val cachedDetails = releaseDao.getReleaseDetails(normalizedDetailsUrl)
         val now = clock()
 
@@ -260,6 +273,8 @@ class LostFilmRepositoryImpl(
                 details = enriched,
                 isStale = false,
             )
+        } catch (exception: CancellationException) {
+            throw exception
         } catch (exception: Exception) {
             if (exception is IOException || exception is IllegalStateException) {
                 if (cachedDetails != null && now - cachedDetails.fetchedAt < RETENTION_WINDOW_MS) {
@@ -392,6 +407,8 @@ class LostFilmRepositoryImpl(
                 query = normalizedQuery,
                 items = enrichSearchItems(parsedItems),
             )
+        } catch (exception: CancellationException) {
+            throw exception
         } catch (exception: Exception) {
             if (exception is IOException || exception is IllegalStateException) {
                 SearchResultsResult.Error(
@@ -740,8 +757,20 @@ class LostFilmRepositoryImpl(
         return enrichedItems
     }
 
-    private suspend fun cleanupExpiredData() {
-        releaseDao.deleteExpiredData(clock() - RETENTION_WINDOW_MS)
+    private suspend fun cleanupExpiredDataIfNeeded() {
+        val now = clock()
+        if (now - lastCleanupAt < CLEANUP_INTERVAL_MS) {
+            return
+        }
+
+        cleanupMutex.withLock {
+            val lockedNow = clock()
+            if (lockedNow - lastCleanupAt < CLEANUP_INTERVAL_MS) {
+                return
+            }
+            releaseDao.deleteExpiredData(lockedNow - RETENTION_WINDOW_MS)
+            lastCleanupAt = lockedNow
+        }
     }
 
     private fun ReleaseDetails.hasCompleteArtwork(): Boolean {

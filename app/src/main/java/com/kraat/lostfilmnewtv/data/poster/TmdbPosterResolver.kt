@@ -8,7 +8,10 @@ import com.kraat.lostfilmnewtv.data.model.TmdbImageUrls
 import com.kraat.lostfilmnewtv.data.model.TmdbMediaType
 import com.kraat.lostfilmnewtv.data.model.TmdbSearchResult
 import com.kraat.lostfilmnewtv.data.network.TmdbPosterClient
+import java.util.LinkedHashMap
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -17,6 +20,7 @@ private const val TMDB_CACHE_TTL_MS = 7L * 24 * 60 * 60 * 1000
 private const val YEAR_AWARE_MATCHING_CACHE_MIN_FETCHED_AT_MS = 1777852800000L // 2026-05-04
 private const val SERIES_YEAR_HINT_FIX_CACHE_MIN_FETCHED_AT_MS = 1777867930731L // 2026-05-04
 private const val TMDB_RATING_CACHE_MIN_FETCHED_AT_MS = 1778025600000L // 2026-05-06
+private const val MEMORY_CACHE_MAX_SIZE = 500
 
 interface TmdbPosterResolver {
     suspend fun resolve(
@@ -33,12 +37,12 @@ class TmdbPosterResolverImpl(
     private val tmdbDao: TmdbPosterDao,
     private val clock: () -> Long = { System.currentTimeMillis() },
 ) : TmdbPosterResolver {
-    private val inMemoryCache = ConcurrentHashMap<String, TmdbImageUrls>()
-    private val inMemoryTmdbIdCache = ConcurrentHashMap<String, Int>()
-    private val episodeOverviewCache = ConcurrentHashMap<String, String>()
-    private val seriesOverviewCache = ConcurrentHashMap<Int, String>()
-    private val movieOverviewCache = ConcurrentHashMap<Int, String>()
-    private val locks = ConcurrentHashMap<String, Mutex>()
+    private val inMemoryCache = LruMemoryCache<String, TmdbImageUrls>(MEMORY_CACHE_MAX_SIZE)
+    private val inMemoryTmdbIdCache = LruMemoryCache<String, Int>(MEMORY_CACHE_MAX_SIZE)
+    private val episodeOverviewCache = LruMemoryCache<String, String>(MEMORY_CACHE_MAX_SIZE)
+    private val seriesOverviewCache = LruMemoryCache<Int, String>(MEMORY_CACHE_MAX_SIZE)
+    private val movieOverviewCache = LruMemoryCache<Int, String>(MEMORY_CACHE_MAX_SIZE)
+    private val locks = ConcurrentHashMap<String, LockEntry>()
 
     override suspend fun resolve(
         detailsUrl: String,
@@ -83,10 +87,9 @@ class TmdbPosterResolverImpl(
             return urls
         }
 
-        val mutex = locks.computeIfAbsent(cacheKey) { Mutex() }
-        return mutex.withLock {
+        return withKeyLock(cacheKey) {
             inMemoryCache[cacheKey]?.let {
-                return@withLock it.copy(
+                return@withKeyLock it.copy(
                     episodeOverviewRu = inMemoryTmdbIdCache[cacheKey]?.let { tmdbId ->
                         resolveEpisodeOverview(detailsUrl, tmdbId, kind)
                     },
@@ -102,7 +105,7 @@ class TmdbPosterResolverImpl(
 
             val rechecked = tmdbDao.getByDetailsUrl(cacheKey)
             if (rechecked != null && canReuseNegativeMapping(rechecked) && !hasTmdbIdOverride) {
-                return@withLock null
+                return@withKeyLock null
             }
             if (rechecked != null && canReuseCachedMapping(rechecked, originalReleaseYear)) {
                 val urls = TmdbImageUrls(
@@ -115,13 +118,28 @@ class TmdbPosterResolverImpl(
                 )
                 inMemoryCache[cacheKey] = urls.copy(episodeOverviewRu = null)
                 inMemoryTmdbIdCache[cacheKey] = rechecked.tmdbId
-                return@withLock urls
+                return@withKeyLock urls
             }
 
             val result = performSearch(cacheKey, detailsUrl, titleRu, kind, originalReleaseYear)
             result?.let { inMemoryCache[cacheKey] = it.copy(episodeOverviewRu = null) }
-            locks.remove(cacheKey)
             result
+        }
+    }
+
+    private suspend fun <T> withKeyLock(key: String, block: suspend () -> T): T {
+        val entry = locks.compute(key) { _, existing ->
+            (existing ?: LockEntry()).also { it.refs.incrementAndGet() }
+        } ?: error("Unable to create TMDB lock for $key")
+
+        return try {
+            entry.mutex.withLock {
+                block()
+            }
+        } finally {
+            if (entry.refs.decrementAndGet() == 0) {
+                locks.remove(key, entry)
+            }
         }
     }
 
@@ -187,6 +205,8 @@ class TmdbPosterResolverImpl(
         } else if (englishSlug != null && englishSlug.isNotBlank()) {
             try {
                 tmdbClient.searchByTitle(englishSlug.removeYearSuffix(), releaseYearHint, tmdbType)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 searchFailed = true
                 Log.e(TAG, "TMDB slug search failed for $titleRu: ${e.message}")
@@ -218,6 +238,8 @@ class TmdbPosterResolverImpl(
         val titleResults = if (exactSlugMatch == null) {
             try {
                 tmdbClient.searchByTitle(titleRu, releaseYearHint, tmdbType)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 searchFailed = true
                 Log.e(TAG, "TMDB title search failed for $titleRu: ${e.message}")
@@ -248,6 +270,8 @@ class TmdbPosterResolverImpl(
         val rating = bestMatch.rating ?: resolveRating(bestMatch.id, kind)
         val images = try {
             tmdbClient.getPosterAndBackdrop(bestMatch.id, tmdbType)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "TMDB images failed for ${bestMatch.name}: ${e.message}")
             null
@@ -301,6 +325,8 @@ class TmdbPosterResolverImpl(
         return try {
             tmdbClient.getMovieOverviewRu(tmdbId)
                 ?.also { movieOverviewCache[tmdbId] = it }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "TMDB movie overview failed for id=$tmdbId: ${e.message}")
             null
@@ -321,6 +347,8 @@ class TmdbPosterResolverImpl(
 
         return try {
             tmdbClient.getRating(tmdbId, tmdbType)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "TMDB rating failed for id=$tmdbId: ${e.message}")
             null
@@ -339,6 +367,8 @@ class TmdbPosterResolverImpl(
         return try {
             tmdbClient.getSeriesOverviewRu(tmdbId)
                 ?.also { seriesOverviewCache[tmdbId] = it }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "TMDB series overview failed for id=$tmdbId: ${e.message}")
             null
@@ -371,6 +401,8 @@ class TmdbPosterResolverImpl(
         return try {
             tmdbClient.getEpisodeOverviewRu(tmdbId, seasonNumber, episodeNumber)
                 ?.also { episodeOverviewCache[overviewKey] = it }
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             Log.e(TAG, "TMDB episode overview failed for $detailsUrl: ${e.message}")
             null
@@ -473,5 +505,31 @@ class TmdbPosterResolverImpl(
         }
 
         return detailsUrl
+    }
+}
+
+private class LockEntry {
+    val mutex = Mutex()
+    val refs = AtomicInteger(0)
+}
+
+private class LruMemoryCache<K, V>(
+    private val maxSize: Int,
+) {
+    private val lock = Any()
+    private val values = object : LinkedHashMap<K, V>(maxSize, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<K, V>): Boolean {
+            return size > maxSize
+        }
+    }
+
+    operator fun get(key: K): V? = synchronized(lock) {
+        values[key]
+    }
+
+    operator fun set(key: K, value: V) {
+        synchronized(lock) {
+            values[key] = value
+        }
     }
 }

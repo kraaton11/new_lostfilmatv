@@ -47,6 +47,7 @@ class SettingsViewModel @Inject constructor(
     private val savedUpdateState: StateFlow<SavedAppUpdate?> = appUpdateCoordinator.savedUpdateState
 
     private var activeRefreshJob: Job? = null
+    private var installJob: Job? = null
     private var refreshRequestToken: Long = 0
     private var lastCheckTimestamp = 0L
 
@@ -130,14 +131,20 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun installUpdate(context: android.content.Context, apkUrl: String) {
-        viewModelScope.launch(ioDispatcher) {
-            onInstallDownloadProgress(true)
-            val launched = releaseApkLauncher.launch(
-                context = context,
-                apkUrl = apkUrl,
-                onDownloadingChange = { onInstallDownloadProgress(it) },
-            )
-            if (!launched) onInstallUpdateFailed()
+        if (installJob?.isActive == true) return
+        val appContext = context.applicationContext
+        installJob = viewModelScope.launch(ioDispatcher) {
+            try {
+                onInstallDownloadProgress(true)
+                val launched = releaseApkLauncher.launch(
+                    context = appContext,
+                    apkUrl = apkUrl,
+                    onDownloadingChange = { onInstallDownloadProgress(it) },
+                )
+                if (!launched) onInstallUpdateFailed()
+            } finally {
+                installJob = null
+            }
         }
     }
 

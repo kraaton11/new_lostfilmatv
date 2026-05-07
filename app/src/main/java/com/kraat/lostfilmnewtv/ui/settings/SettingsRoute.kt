@@ -1,13 +1,10 @@
 package com.kraat.lostfilmnewtv.ui.settings
 
-import android.content.Context
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import kotlinx.coroutines.launch
 
 @Composable
 fun SettingsRoute(
@@ -17,7 +14,6 @@ fun SettingsRoute(
 ) {
     val state = viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) { viewModel.onScreenShown() }
 
@@ -43,7 +39,7 @@ fun SettingsRoute(
         onCheckForUpdatesClick = viewModel::onCheckForUpdatesClick,
         onInstallUpdateClick = {
             state.value.installUrl?.let { url ->
-                scope.launch { viewModel.installUpdate(context, url) }
+                viewModel.installUpdate(context, url)
             }
         },
     )
