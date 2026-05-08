@@ -128,7 +128,7 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                     if (!apkUrl.isNullOrBlank() && updateInstallJob?.isActive != true) {
                         updateInstallJob = scope.launch {
                             try {
-                                appGraphEntryPoint.releaseApkLauncher().launch(context, apkUrl)
+                                appGraphEntryPoint.releaseApkLauncher().launch(apkUrl)
                             } finally {
                                 updateInstallJob = null
                             }
@@ -229,8 +229,12 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
             }
             val homeViewModel: HomeViewModel = hiltViewModel(homeBackStack)
             val settingsViewModel: SettingsViewModel = hiltViewModel()
-            // Передаём колбэк обратно в HomeViewModel через проп SettingsViewModel
-            settingsViewModel.onHomeFavoritesRailVisibilityChanged = homeViewModel::onFavoritesRailVisibilityChanged
+
+            LaunchedEffect(settingsViewModel, homeViewModel) {
+                settingsViewModel.railVisibilityEvents.collect { isVisible ->
+                    homeViewModel.onFavoritesRailVisibilityChanged(isVisible)
+                }
+            }
 
             SettingsRoute(
                 viewModel = settingsViewModel,

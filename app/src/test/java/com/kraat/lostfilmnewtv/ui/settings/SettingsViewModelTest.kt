@@ -24,7 +24,10 @@ import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -265,25 +268,22 @@ class SettingsViewModelTest {
 
     @Test
     fun onHomeFavoritesRailVisibilitySelected_persistsState_andNotifiesCaller() = runTest(dispatcher) {
-        val persistedValues = mutableListOf<Boolean>()
-        val notifiedValues = mutableListOf<Boolean>()
         val viewModel = createViewModel(
             installedVersion = "1.0.0",
             initialPlaybackQuality = PlaybackQualityPreference.Q1080,
             initialUpdateMode = UpdateCheckMode.MANUAL,
             initialHomeFavoritesRailEnabled = false,
-            persistHomeFavoritesRailEnabled = { persistedValues += it },
-            onHomeFavoritesRailVisibilityChanged = { notifiedValues += it },
             savedUpdateState = MutableStateFlow(null),
             refreshSavedUpdateState = FakeUpdateRefresher()::invoke,
             ioDispatcher = dispatcher,
         )
+        val event = async(start = CoroutineStart.UNDISPATCHED) { viewModel.railVisibilityEvents.first() }
 
         viewModel.onHomeFavoritesRailVisibilitySelected(true)
         advanceUntilIdle()
 
         assertEquals(true, checkNotNull(lastSettingsPreferencesStore).readHomeFavoritesRailEnabled())
-        assertEquals(listOf(true), notifiedValues)
+        assertEquals(true, event.await())
         assertEquals(true, viewModel.uiState.value.isHomeFavoritesRailEnabled)
     }
 
@@ -455,8 +455,6 @@ class SettingsViewModelTest {
         initialChannelMode: AndroidTvChannelMode = AndroidTvChannelMode.ALL_NEW,
         initialHomeFavoritesRailEnabled: Boolean = false,
         persistUpdateMode: (UpdateCheckMode) -> Unit = {},
-        persistHomeFavoritesRailEnabled: (Boolean) -> Unit = {},
-        onHomeFavoritesRailVisibilityChanged: (Boolean) -> Unit = {},
         persistChannelMode: (AndroidTvChannelMode) -> Unit = {},
         persistPlaybackQuality: (PlaybackQualityPreference) -> Unit = {},
         savedUpdateState: MutableStateFlow<SavedAppUpdate?> = MutableStateFlow(null),
@@ -570,9 +568,8 @@ class SettingsViewModelTest {
             },
         )
 
-        val releaseApkLauncher = object : ReleaseApkLauncher(OkHttpClient()) {
+        val releaseApkLauncher = object : ReleaseApkLauncher(context, OkHttpClient()) {
             override suspend fun launch(
-                context: Context,
                 apkUrl: String,
                 onDownloadingChange: (Boolean) -> Unit,
                 onDownloadProgress: (Int) -> Unit,
@@ -588,12 +585,7 @@ class SettingsViewModelTest {
             releaseApkLauncher = releaseApkLauncher,
             ioDispatcher = ioDispatcher,
             debounceIntervalMs = debounceIntervalMs,
-        ).also { viewModel ->
-            viewModel.onHomeFavoritesRailVisibilityChanged = { enabled ->
-                persistHomeFavoritesRailEnabled(enabled)
-                onHomeFavoritesRailVisibilityChanged(enabled)
-            }
-        }
+        )
     }
 
     private class FakeUpdateRefresher {

@@ -33,10 +33,10 @@ class ReleaseApkLauncherTest {
         if (updatesDir.exists()) {
             updatesDir.deleteRecursively()
         }
-        val launcher = DiskSpaceCheckReleaseApkLauncher()
+        val launcher = DiskSpaceCheckReleaseApkLauncher(base)
 
         assertTrue(base.cacheDir.freeSpace > 0)
-        assertTrue(launcher.canDownload(base))
+        assertTrue(launcher.canDownload())
     }
 
     @Test
@@ -47,10 +47,11 @@ class ReleaseApkLauncherTest {
         val base = ApplicationProvider.getApplicationContext<Context>()
         val context = RecordingContext(base)
         val launcher = TestReleaseApkLauncher(
+            context = context,
             httpClient = OkHttpClient(),
         )
 
-        val result = launcher.launch(context, server.url("/app.apk").toString())
+        val result = launcher.launch(server.url("/app.apk").toString())
 
         assertTrue(result)
         assertEquals(Intent.ACTION_VIEW, context.startedIntent?.action)
@@ -67,12 +68,13 @@ class ReleaseApkLauncherTest {
         val base = ApplicationProvider.getApplicationContext<Context>()
         val context = RecordingContext(base)
         val launcher = ReleaseApkLauncher(
+            appContext = context,
             httpClient = OkHttpClient(),
             ioDispatcher = Dispatchers.Unconfined,
             mainDispatcher = Dispatchers.Unconfined,
         )
 
-        val result = launcher.launch(context, server.url("/missing.apk").toString())
+        val result = launcher.launch(server.url("/missing.apk").toString())
 
         assertFalse(result)
         server.shutdown()
@@ -83,12 +85,13 @@ class ReleaseApkLauncherTest {
         val base = ApplicationProvider.getApplicationContext<Context>()
         val context = RecordingContext(base)
         val launcher = ReleaseApkLauncher(
+            appContext = context,
             httpClient = OkHttpClient(),
             ioDispatcher = Dispatchers.Unconfined,
             mainDispatcher = Dispatchers.Unconfined,
         )
 
-        val result = launcher.launch(context, "http://example.test/app.apk")
+        val result = launcher.launch("http://example.test/app.apk")
 
         assertFalse(result)
         assertEquals(null, context.startedIntent)
@@ -99,12 +102,13 @@ class ReleaseApkLauncherTest {
         val base = ApplicationProvider.getApplicationContext<Context>()
         val context = RecordingContext(base)
         val launcher = ReleaseApkLauncher(
+            appContext = context,
             httpClient = OkHttpClient(),
             ioDispatcher = Dispatchers.Unconfined,
             mainDispatcher = Dispatchers.Unconfined,
         )
 
-        val result = launcher.launch(context, "https://evil.example/app.apk")
+        val result = launcher.launch("https://evil.example/app.apk")
 
         assertFalse(result)
         assertEquals(null, context.startedIntent)
@@ -118,14 +122,15 @@ class ReleaseApkLauncherTest {
         val base = ApplicationProvider.getApplicationContext<Context>()
         val context = RecordingContext(base)
         val launcher = object : ReleaseApkLauncher(
+            appContext = context,
             httpClient = OkHttpClient(),
             ioDispatcher = Dispatchers.Unconfined,
             mainDispatcher = Dispatchers.Unconfined,
         ) {
-            override fun hasEnoughDiskSpace(context: Context): Boolean = false
+            override fun hasEnoughDiskSpace(): Boolean = false
         }
 
-        val result = launcher.launch(context, server.url("/app.apk").toString())
+        val result = launcher.launch(server.url("/app.apk").toString())
 
         assertFalse(result)
         assertEquals(null, context.startedIntent)
@@ -137,13 +142,14 @@ class ReleaseApkLauncherTest {
  * Robolectric не подставляет meta-data FileProvider; проверяем скачивание и intent без реального FileProvider.
  */
 private class TestReleaseApkLauncher(
+    private val context: Context,
     httpClient: OkHttpClient,
-) : ReleaseApkLauncher(httpClient, Dispatchers.Unconfined, Dispatchers.Unconfined) {
-    override fun hasEnoughDiskSpace(context: Context): Boolean = true
+) : ReleaseApkLauncher(context, httpClient, Dispatchers.Unconfined, Dispatchers.Unconfined) {
+    override fun hasEnoughDiskSpace(): Boolean = true
 
     override fun isAllowedDirectDownloadUrl(url: HttpUrl): Boolean = true
 
-    override fun startPackageInstaller(context: Context, apkFile: File): Boolean {
+    override fun startPackageInstaller(apkFile: File): Boolean {
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(
                 Uri.parse("content://${context.packageName}.fileprovider/updates/app-update.apk"),
@@ -170,10 +176,13 @@ private class RecordingContext(base: Context) : ContextWrapper(base) {
     }
 }
 
-private class DiskSpaceCheckReleaseApkLauncher : ReleaseApkLauncher(
+private class DiskSpaceCheckReleaseApkLauncher(
+    context: Context,
+) : ReleaseApkLauncher(
+    appContext = context,
     httpClient = OkHttpClient(),
     ioDispatcher = Dispatchers.Unconfined,
     mainDispatcher = Dispatchers.Unconfined,
 ) {
-    fun canDownload(context: Context): Boolean = hasEnoughDiskSpace(context)
+    fun canDownload(): Boolean = hasEnoughDiskSpace()
 }

@@ -285,9 +285,11 @@ object MainActivityTestAppModule {
     @Provides
     @Singleton
     fun provideReleaseApkLauncher(): ReleaseApkLauncher =
-        UnitTestAppOverrides.releaseApkLauncher ?: object : ReleaseApkLauncher(OkHttpClient()) {
+        UnitTestAppOverrides.releaseApkLauncher ?: object : ReleaseApkLauncher(
+            ApplicationProvider.getApplicationContext(),
+            OkHttpClient(),
+        ) {
             override suspend fun launch(
-                context: Context,
                 apkUrl: String,
                 onDownloadingChange: (Boolean) -> Unit,
                 onDownloadProgress: (Int) -> Unit,
