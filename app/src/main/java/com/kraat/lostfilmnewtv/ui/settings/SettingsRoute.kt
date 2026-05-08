@@ -2,7 +2,6 @@ package com.kraat.lostfilmnewtv.ui.settings
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
@@ -13,7 +12,6 @@ fun SettingsRoute(
     onAuthClick: () -> Unit = {},
 ) {
     val state = viewModel.uiState.collectAsStateWithLifecycle()
-    val context = LocalContext.current
 
     LaunchedEffect(Unit) { viewModel.onScreenShown() }
 
@@ -39,7 +37,7 @@ fun SettingsRoute(
         onCheckForUpdatesClick = viewModel::onCheckForUpdatesClick,
         onInstallUpdateClick = {
             state.value.installUrl?.let { url ->
-                viewModel.installUpdate(context, url)
+                viewModel.installUpdate(url)
             }
         },
     )

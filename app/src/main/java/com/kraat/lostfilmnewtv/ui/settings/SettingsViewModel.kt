@@ -20,8 +20,11 @@ import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.drop
@@ -38,9 +41,6 @@ class SettingsViewModel @Inject constructor(
     private val releaseApkLauncher: ReleaseApkLauncher,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
-
-    // Колбэк уведомляет HomeViewModel об изменении видимости рельса — прокидывается снаружи при навигации
-    var onHomeFavoritesRailVisibilityChanged: (Boolean) -> Unit = {}
 
     private var debounceIntervalMs: Long = DEFAULT_DEBOUNCE_INTERVAL_MS
 
@@ -66,6 +66,9 @@ class SettingsViewModel @Inject constructor(
         ),
     )
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
+
+    private val _railVisibilityEvents = MutableSharedFlow<Boolean>(extraBufferCapacity = 1)
+    val railVisibilityEvents: SharedFlow<Boolean> = _railVisibilityEvents.asSharedFlow()
 
     init {
         viewModelScope.launch(ioDispatcher) {
@@ -105,7 +108,7 @@ class SettingsViewModel @Inject constructor(
     fun onHomeFavoritesRailVisibilitySelected(enabled: Boolean) {
         if (enabled == _uiState.value.isHomeFavoritesRailEnabled) return
         preferencesStore.writeHomeFavoritesRailEnabled(enabled)
-        onHomeFavoritesRailVisibilityChanged(enabled)
+        _railVisibilityEvents.tryEmit(enabled)
         _uiState.update { it.copy(isHomeFavoritesRailEnabled = enabled) }
     }
 
@@ -130,14 +133,12 @@ class SettingsViewModel @Inject constructor(
         _uiState.update { it.copy(isDownloadingUpdate = isDownloading) }
     }
 
-    fun installUpdate(context: android.content.Context, apkUrl: String) {
+    fun installUpdate(apkUrl: String) {
         if (installJob?.isActive == true) return
-        val appContext = context.applicationContext
         installJob = viewModelScope.launch(ioDispatcher) {
             try {
                 onInstallDownloadProgress(true)
                 val launched = releaseApkLauncher.launch(
-                    context = appContext,
                     apkUrl = apkUrl,
                     onDownloadingChange = { onInstallDownloadProgress(it) },
                 )

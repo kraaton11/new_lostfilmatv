@@ -495,11 +495,11 @@ private class FakeAuthRepository : AuthRepositoryContract {
 }
 
 private class RecordingReleaseApkLauncher(private val launchResult: Boolean = true) : ReleaseApkLauncher(
+    appContext = ApplicationProvider.getApplicationContext(),
     httpClient = OkHttpClient(),
 ) {
     val launchedUrls = CopyOnWriteArrayList<String>()
     override suspend fun launch(
-        context: Context,
         apkUrl: String,
         onDownloadingChange: (Boolean) -> Unit,
         onDownloadProgress: (Int) -> Unit,

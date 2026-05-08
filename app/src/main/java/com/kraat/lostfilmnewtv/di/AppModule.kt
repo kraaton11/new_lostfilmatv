@@ -195,9 +195,10 @@ object AppModule {
     @Provides
     @Singleton
     fun provideReleaseApkLauncher(
+        @ApplicationContext context: Context,
         @UpdateOkHttpClient okHttpClient: OkHttpClient,
     ): ReleaseApkLauncher =
-        ReleaseApkLauncher(okHttpClient)
+        ReleaseApkLauncher(context, okHttpClient)
 
     // endregion
 }
