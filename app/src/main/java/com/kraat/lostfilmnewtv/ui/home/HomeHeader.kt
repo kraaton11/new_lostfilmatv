@@ -131,9 +131,9 @@ fun HomeHeader(
             )
             .background(
                 brush = Brush.verticalGradient(
-                    0f to Color(0xDD0B0E10),
-                    0.48f to Color(0xEE090D10),
-                    1f to Color(0xF2070A0D),
+                    0f to FocusBackground.copy(alpha = 0.82f),
+                    0.46f to HomePanelSurfaceStrong.copy(alpha = 0.94f),
+                    1f to HomePanelSurface.copy(alpha = 0.96f),
                 ),
                 shape = MenuShape,
             )
@@ -428,7 +428,7 @@ private fun HomeModeSegmentButton(
         label = "homeModeSegmentScale",
     )
     val shape = MenuButtonShape
-    val selectedTextColor = Color(0xFF201404)
+    val contentColor = if (selected || isFocused) HomeAccentGoldGlow else TextPrimary
     Box(
         modifier = modifier
             .height(MenuButtonHeight)
@@ -441,9 +441,6 @@ private fun HomeModeSegmentButton(
                 downTarget?.let { down = it }
             }
             .onPreviewKeyEvent { event ->
-                if (event.type == KeyEventType.KeyDown && event.key == Key.Back) {
-                    return@onPreviewKeyEvent onBackClick()
-                }
                 if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight) {
                     onInteraction()
                     return@onPreviewKeyEvent onBackClick()
@@ -473,17 +470,10 @@ private fun HomeModeSegmentButton(
                 scaleY = scale
             }
             .background(
-                brush = when {
-                    selected || isFocused -> Brush.verticalGradient(
-                        0f to HomeAccentGoldGlow,
-                        0.42f to HomeAccentGold,
-                        1f to Color(0xFF9C661B),
-                    )
-                    else -> Brush.verticalGradient(
-                        0f to Color(0xA9151718),
-                        1f to Color(0xB8070B0F),
-                    )
-                },
+                brush = Brush.verticalGradient(
+                    0f to FocusBackground.copy(alpha = if (selected || isFocused) 0.58f else 0.34f),
+                    1f to HomePanelSurfaceStrong.copy(alpha = if (selected || isFocused) 0.86f else 0.62f),
+                ),
                 shape = shape,
             )
             .border(
@@ -510,11 +500,11 @@ private fun HomeModeSegmentButton(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            HeaderModeIcon(mode = mode, color = if (selected || isFocused) selectedTextColor else HomeAccentGoldGlow)
+            HeaderModeIcon(mode = mode, color = contentColor)
             if (showLabel) {
                 Text(
                     text = label,
-                    color = if (selected || isFocused) selectedTextColor else TextPrimary,
+                    color = contentColor,
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
@@ -566,8 +556,8 @@ private fun HomeHeaderActionButton(
         isPrimary || isFocused -> HomeAccentGoldGlow
         else -> HomeAccentGold.copy(alpha = 0.40f)
     }
-    val textColor = if (isPrimary || isFocused) Color(0xFF201404) else TextPrimary
-    val subtitleColor = if (isPrimary && isFocused) HomeAccentGoldGlow else HomeTextMuted
+    val textColor = if (isPrimary || isFocused) HomeAccentGoldGlow else TextPrimary
+    val subtitleColor = if (isPrimary || isFocused) HomeAccentGold.copy(alpha = 0.80f) else HomeTextMuted
     val shape = MenuButtonShape
 
     Box(
@@ -575,9 +565,6 @@ private fun HomeHeaderActionButton(
             .then(
                 if (observeKeyInteractions) {
                     Modifier.onPreviewKeyEvent { event ->
-                        if (event.type == KeyEventType.KeyDown && event.key == Key.Back) {
-                            return@onPreviewKeyEvent onBackClick()
-                        }
                         if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight) {
                             onInteraction()
                             return@onPreviewKeyEvent onBackClick()
@@ -603,18 +590,10 @@ private fun HomeHeaderActionButton(
                 scaleY = scale
             }
             .background(
-                brush = if (isPrimary || isFocused) {
-                    Brush.verticalGradient(
-                        0f to HomeAccentGoldGlow,
-                        0.42f to HomeAccentGold,
-                        1f to Color(0xFF9C661B),
-                    )
-                } else {
-                    Brush.verticalGradient(
-                        0f to Color(0xA9151718),
-                        1f to Color(0xB8070B0F),
-                    )
-                },
+                brush = Brush.verticalGradient(
+                    0f to FocusBackground.copy(alpha = if (isPrimary || isFocused) 0.58f else 0.34f),
+                    1f to HomePanelSurfaceStrong.copy(alpha = if (isPrimary || isFocused) 0.86f else 0.62f),
+                ),
                 shape = shape,
             )
             .border(1.dp, borderColor, shape)
@@ -719,9 +698,6 @@ private fun HomeHeaderIconButton(
             .then(
                 if (observeKeyInteractions) {
                     Modifier.onPreviewKeyEvent { event ->
-                        if (event.type == KeyEventType.KeyDown && event.key == Key.Back) {
-                            return@onPreviewKeyEvent onBackClick()
-                        }
                         if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight) {
                             onInteraction()
                             return@onPreviewKeyEvent onBackClick()
