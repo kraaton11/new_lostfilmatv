@@ -137,7 +137,9 @@ fun HomeHeader(
                 .focusRequester(menuLabelsFocusRequester)
                 .focusProperties {
                     down = firstModeRequester ?: scheduleFocusRequester
-                    right = firstModeRequester ?: scheduleFocusRequester
+                    up = settingsFocusRequester
+                    right = downTarget ?: FocusRequester.Default
+                    left = FocusRequester.Cancel
                 },
         )
         if (hasModeToggle) {
@@ -146,9 +148,9 @@ fun HomeHeader(
                 availableModes = visibleModes,
                 modeFocusRequesters = modeFocusRequesters,
                 leftEdgeRequester = null,
-                rightEdgeRequester = searchFocusRequester,
+                rightEdgeRequester = downTarget,
+                nextDownRequester = scheduleFocusRequester,
                 upEdgeRequester = menuLabelsFocusRequester,
-                downTarget = downTarget,
                 onModeClick = { mode ->
                     onHeaderInteraction()
                     onNavItemSelected(NavItem.HOME)
@@ -186,7 +188,8 @@ fun HomeHeader(
                 .focusProperties {
                     up = lastModeRequester ?: searchFocusRequester
                     down = searchFocusRequester
-                    right = searchFocusRequester
+                    right = downTarget ?: FocusRequester.Default
+                    left = FocusRequester.Cancel
                 },
         )
         HomeHeaderActionButton(
@@ -211,8 +214,8 @@ fun HomeHeader(
                 .focusProperties {
                     up = scheduleFocusRequester
                     down = if (hasUpdate) updateFocusRequester else settingsFocusRequester
-                    left = scheduleFocusRequester
-                    right = if (hasUpdate) updateFocusRequester else settingsFocusRequester
+                    left = FocusRequester.Cancel
+                    right = downTarget ?: FocusRequester.Default
                 },
         )
         if (hasUpdate) {
@@ -239,8 +242,8 @@ fun HomeHeader(
                     .focusProperties {
                         up = searchFocusRequester
                         down = settingsFocusRequester
-                        left = searchFocusRequester
-                        right = settingsFocusRequester
+                        left = FocusRequester.Cancel
+                        right = downTarget ?: FocusRequester.Default
                     },
             )
         }
@@ -265,8 +268,9 @@ fun HomeHeader(
                 .focusRequester(settingsFocusRequester)
                 .focusProperties {
                     up = if (hasUpdate) updateFocusRequester else searchFocusRequester
-                    left = if (hasUpdate) updateFocusRequester else searchFocusRequester
-                    right = FocusRequester.Cancel
+                    down = menuLabelsFocusRequester
+                    left = FocusRequester.Cancel
+                    right = downTarget ?: FocusRequester.Default
                 },
         )
     }
@@ -278,9 +282,9 @@ private fun HomeHeaderModeSegmentedControl(
     availableModes: List<HomeFeedMode>,
     modeFocusRequesters: Map<HomeFeedMode, FocusRequester>,
     leftEdgeRequester: FocusRequester?,
-    rightEdgeRequester: FocusRequester,
+    rightEdgeRequester: FocusRequester?,
+    nextDownRequester: FocusRequester,
     upEdgeRequester: FocusRequester?,
-    downTarget: FocusRequester?,
     onModeClick: (HomeFeedMode) -> Unit,
     onModeLongClick: (HomeFeedMode) -> Unit,
     onInteraction: () -> Unit,
@@ -298,18 +302,9 @@ private fun HomeHeaderModeSegmentedControl(
     ) {
         availableModes.forEachIndexed { index, mode ->
             val requester = modeFocusRequesters.getValue(mode)
-            val leftRequester = if (index == 0) {
-                leftEdgeRequester
-            } else {
-                modeFocusRequesters[availableModes[index - 1]]
-            }
-            val rightRequester = if (index == 0 && availableModes.size > 1) {
-                modeFocusRequesters[availableModes[index + 1]]
-            } else {
-                rightEdgeRequester
-            }
+            val leftRequester = leftEdgeRequester
             val downRequester = if (index == availableModes.lastIndex) {
-                rightEdgeRequester
+                nextDownRequester
             } else {
                 modeFocusRequesters[availableModes[index + 1]]
             }
@@ -319,10 +314,9 @@ private fun HomeHeaderModeSegmentedControl(
                 selected = currentMode == mode,
                 focusRequester = requester,
                 leftRequester = leftRequester,
-                rightRequester = rightRequester,
+                rightRequester = rightEdgeRequester,
                 downTarget = downRequester,
                 upTarget = if (index == 0) upEdgeRequester else modeFocusRequesters[availableModes[index - 1]],
-                contentRightTarget = downTarget,
                 onClick = { onModeClick(mode) },
                 onLongClick = { onModeLongClick(mode) },
                 onInteraction = onInteraction,
@@ -344,7 +338,6 @@ private fun HomeModeSegmentButton(
     rightRequester: FocusRequester?,
     downTarget: FocusRequester?,
     upTarget: FocusRequester?,
-    contentRightTarget: FocusRequester?,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onInteraction: () -> Unit,
@@ -368,7 +361,7 @@ private fun HomeModeSegmentButton(
             .testTag(if (selected) "home-mode-toggle" else "home-mode-${mode.storageValue}")
             .focusRequester(focusRequester)
             .focusProperties {
-                leftRequester?.let { left = it }
+                left = leftRequester ?: FocusRequester.Cancel
                 rightRequester?.let { right = it }
                 upTarget?.let { up = it }
                 downTarget?.let { down = it }
@@ -377,7 +370,7 @@ private fun HomeModeSegmentButton(
                 if (event.type == KeyEventType.KeyDown && event.key == Key.Back) {
                     return@onPreviewKeyEvent onBackClick()
                 }
-                if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown) {
+                if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight) {
                     onInteraction()
                     return@onPreviewKeyEvent onBackClick()
                 }
@@ -503,7 +496,7 @@ private fun HomeHeaderActionButton(
                         if (event.type == KeyEventType.KeyDown && event.key == Key.Back) {
                             return@onPreviewKeyEvent onBackClick()
                         }
-                        if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown) {
+                        if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight) {
                             onInteraction()
                             return@onPreviewKeyEvent onBackClick()
                         }
@@ -633,7 +626,7 @@ private fun HomeHeaderIconButton(
                         if (event.type == KeyEventType.KeyDown && event.key == Key.Back) {
                             return@onPreviewKeyEvent onBackClick()
                         }
-                        if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown) {
+                        if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight) {
                             onInteraction()
                             return@onPreviewKeyEvent onBackClick()
                         }

@@ -325,7 +325,7 @@ class HomeScreenTest {
     }
 
     @Test
-    fun movingRightFromModeToggle_focusesSettingsAction_withoutSnappingBackToCard() {
+    fun movingRightFromModeToggle_returnsToContent_withoutSnappingToMenuAction() {
         composeRule.setContent {
             LostFilmTheme {
                 HomeScreen(
@@ -363,7 +363,7 @@ class HomeScreenTest {
         }
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithTag("home-action-settings").assertIsFocused()
+        composeRule.onNodeWithTag(posterTag(HOME_RAIL_FAVORITES, favoriteDetailsUrl)).assertIsFocused()
     }
 
     @Test
@@ -393,8 +393,10 @@ class HomeScreenTest {
         composeRule.onNodeWithTag("home-mode-toggle").assertIsFocused()
 
         composeRule.onNodeWithTag("home-mode-toggle").performKeyInput {
-            keyDown(Key.DirectionRight)
-            keyUp(Key.DirectionRight)
+            repeat(5) {
+                keyDown(Key.DirectionDown)
+                keyUp(Key.DirectionDown)
+            }
         }
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("home-action-settings").assertIsFocused()

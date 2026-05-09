@@ -333,12 +333,11 @@ class SettingsScreenTest {
 
         composeRule.onNodeWithTag("settings-section-home-screen").assertExists()
         composeRule.onNodeWithTag("settings-section-home-screen-summary", useUnmergedTree = true)
-            .assertTextEquals("Избранное: скрыто")
+            .assertTextEquals("Избранное: скрыто · Меню: иконки с надписями")
 
         composeRule.onNodeWithTag("settings-section-home-screen")
             .performSemanticsAction(SemanticsActions.OnClick)
 
-        composeRule.onNodeWithText("Сейчас: вкладка Избранное скрыта").assertExists()
         composeRule.onNodeWithTag("settings-home-favorites-hide").assertIsSelected()
         composeRule.onNodeWithTag("settings-home-favorites-show")
             .performSemanticsAction(SemanticsActions.OnClick)
@@ -371,7 +370,7 @@ class SettingsScreenTest {
         }
 
         composeRule.onNodeWithTag("settings-section-home-screen-summary", useUnmergedTree = true)
-            .assertTextEquals("Избранное: показывается")
+            .assertTextEquals("Избранное: показывается · Меню: иконки с надписями")
 
         composeRule.onNodeWithTag("settings-section-home-screen")
             .performSemanticsAction(SemanticsActions.OnClick)
