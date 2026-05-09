@@ -1,7 +1,8 @@
 package com.kraat.lostfilmnewtv.ui.settings
 
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -18,6 +19,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.testTag
@@ -54,9 +57,12 @@ fun SettingsTvButton(
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
-        targetValue = if (isFocused) 1.06f else 1f,
-        animationSpec = tween(durationMillis = 120),
-        label = "settingsTvButtonScale",
+        targetValue = if (isFocused && enabled) 1.06f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "buttonScale",
     )
 
     val backgroundColor = when {
@@ -89,12 +95,18 @@ fun SettingsTvButton(
         enabled = enabled,
         shape = shape,
         colors = ButtonDefaults.buttonColors(
-            containerColor = backgroundColor,
-            disabledContainerColor = backgroundColor,
+            containerColor = Color.Transparent,
+            disabledContainerColor = Color.Transparent,
             disabledContentColor = textColor,
         ),
         modifier = modifier
             .fillMaxWidth()
+            .drawBehind {
+                drawRoundRect(
+                    color = backgroundColor,
+                    cornerRadius = CornerRadius(20.dp.toPx()),
+                )
+            }
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale

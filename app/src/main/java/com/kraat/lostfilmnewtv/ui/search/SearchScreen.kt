@@ -1,7 +1,8 @@
 package com.kraat.lostfilmnewtv.ui.search
 
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -277,8 +278,11 @@ private fun SearchResultCard(
     var isFocused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
         targetValue = if (isFocused) 1.02f else 1f,
-        animationSpec = tween(durationMillis = 120),
-        label = "searchResultScale",
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "buttonScale",
     )
     val background = if (isFocused) DetailsSurfaceFocused else DetailsSurfaceReadable
     val border = if (isFocused) DetailsAccentGoldFocus else HomePanelBorder

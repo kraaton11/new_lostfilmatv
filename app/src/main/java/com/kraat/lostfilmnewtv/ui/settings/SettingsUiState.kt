@@ -7,6 +7,7 @@ import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 
 data class SettingsUiState(
+    val currentSection: SettingsSection = SettingsSection.QUALITY,
     val playbackQuality: PlaybackQualityPreference,
     val updateMode: UpdateCheckMode,
     val channelMode: AndroidTvChannelMode,

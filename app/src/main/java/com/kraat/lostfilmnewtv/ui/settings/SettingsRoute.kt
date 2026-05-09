@@ -8,14 +8,21 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 @Composable
 fun SettingsRoute(
     viewModel: SettingsViewModel = hiltViewModel(),
+    initialSection: String? = null,
     isAuthenticated: Boolean = false,
     onAuthClick: () -> Unit = {},
 ) {
     val state = viewModel.uiState.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) { viewModel.onScreenShown() }
+    LaunchedEffect(initialSection) {
+        if (initialSection != null) viewModel.onDeepLinkSection(initialSection)
+    }
 
     SettingsScreen(
+        currentSection = state.value.currentSection,
+        onSectionSelected = viewModel::onSectionSelected,
+        onSectionBack = viewModel::onSectionBack,
         selectedQuality = state.value.playbackQuality,
         onQualitySelected = viewModel::onPlaybackQualitySelected,
         selectedUpdateMode = state.value.updateMode,

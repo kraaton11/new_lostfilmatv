@@ -152,7 +152,10 @@ fun HomeRail(
             }
 
             if (isPaging) {
-                items(HOME_PAGING_SKELETON_COUNT) { skeletonIndex ->
+                items(
+                    count = HOME_PAGING_SKELETON_COUNT,
+                    key = { skeletonIndex -> "paging-skeleton-$skeletonIndex" },
+                ) { skeletonIndex ->
                     AnimatedVisibility(
                         visible = true,
                         enter = fadeIn(),
