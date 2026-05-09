@@ -70,4 +70,34 @@ class LostFilmSeriesOverviewParserTest {
         assertEquals("Сериал «Пацаны» выбивается из супергеройской волны.", overview.descriptionRu)
         assertEquals("Билли Мясник собирает команду против «Семерки».", overview.plotRu)
     }
+
+    @Test
+    fun parsesOverviewSections_fromOpenGraphDescriptionFallback() {
+        val html = """
+            <html>
+                <head>
+                    <meta property="og:description" content="Описание сериала из meta.
+&amp;nbsp;
+Сюжет
+Сюжет сериала из meta." />
+                </head>
+                <body>
+                    <div class="title-block">
+                        <div class="header">
+                            <h1 class="title-ru">Пацаны</h1>
+                            <h2 class="title-en">The Boys</h2>
+                        </div>
+                    </div>
+                </body>
+            </html>
+        """.trimIndent()
+
+        val overview = LostFilmSeriesOverviewParser().parse(
+            html = html,
+            seriesUrl = "/series/The_Boys/",
+        )
+
+        assertEquals("Описание сериала из meta.", overview.descriptionRu)
+        assertEquals("Сюжет сериала из meta.", overview.plotRu)
+    }
 }

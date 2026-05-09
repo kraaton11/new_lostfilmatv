@@ -306,6 +306,51 @@ class LostFilmRepositoryTest {
     }
 
     @Test
+    fun loadSeriesOverview_usesTmdbDescriptionWhenLostFilmDescriptionIsMissing() = runTest {
+        val tmdbSeriesOverview = "Описание сериала из TMDB."
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            detailsHandler = {
+                """
+                <html>
+                    <body>
+                        <div class="title-block">
+                            <div class="header">
+                                <h1 class="title-ru">9-1-1</h1>
+                                <h2 class="title-en">9-1-1</h2>
+                            </div>
+                        </div>
+                    </body>
+                </html>
+                """.trimIndent()
+            },
+            tmdbResolver = object : TmdbPosterResolver {
+                override suspend fun resolve(
+                    detailsUrl: String,
+                    titleRu: String,
+                    releaseDateRu: String,
+                    kind: ReleaseKind,
+                    originalReleaseYear: Int?,
+                ): TmdbImageUrls? {
+                    return TmdbImageUrls(
+                        posterUrl = "",
+                        backdropUrl = "",
+                        seriesOverviewRu = tmdbSeriesOverview,
+                    )
+                }
+            },
+        )
+
+        val result = repository.loadSeriesOverview(
+            "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/",
+        )
+
+        assertTrue(result is SeriesOverviewResult.Success)
+        result as SeriesOverviewResult.Success
+        assertEquals(tmdbSeriesOverview, result.overview.descriptionRu)
+    }
+
+    @Test
     fun loadDetails_enrichesSeriesWithTorrentLinkFromRedirectPage() = runTest {
         val repository = createRepository(
             pageHandler = { fixture("new-page-1.html") },

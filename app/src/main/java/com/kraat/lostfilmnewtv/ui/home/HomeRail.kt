@@ -62,6 +62,8 @@ fun HomeRail(
     onItemFocused: (String) -> Unit,
     onRailFocusChanged: (Boolean) -> Unit,
     onOpenDetails: (String) -> Unit,
+    onMoveToPreviousMode: (() -> Unit)? = null,
+    onMoveToNextMode: (() -> Unit)? = null,
     onEndReached: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -153,6 +155,14 @@ fun HomeRail(
                                 }
                                 event.key == Key.Back && leftTargetRequester != null -> {
                                     leftTargetRequester.requestFocus()
+                                    true
+                                }
+                                event.key == Key.DirectionUp && onMoveToPreviousMode != null -> {
+                                    onMoveToPreviousMode()
+                                    true
+                                }
+                                event.key == Key.DirectionDown && onMoveToNextMode != null -> {
+                                    onMoveToNextMode()
                                     true
                                 }
                                 event.key == Key.DirectionUp || event.key == Key.DirectionDown -> true

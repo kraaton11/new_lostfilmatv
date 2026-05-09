@@ -162,6 +162,17 @@ class HomeScreenTest {
     }
 
     @Test
+    fun homeScreen_heroStage_doesNotShowSeriesDescriptionPlaceholder() {
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(state = seededState())
+            }
+        }
+
+        composeRule.onNodeWithText("Новая серия доступна в релизах LostFilm.").assertDoesNotExist()
+    }
+
+    @Test
     fun homeScreen_heroStage_usesTmdbMovieOverviewForMovie() {
         val series = release(
             detailsUrl = firstDetailsUrl,
@@ -356,6 +367,166 @@ class HomeScreenTest {
         }
 
         composeRule.onNodeWithTag(posterTag(firstDetailsUrl)).assertIsFocused()
+    }
+
+    @Test
+    @OptIn(ExperimentalTestApi::class)
+    fun homeScreen_modeToggle_downMovesFocusWithoutSwitchingMode() {
+        var modeSelections = 0
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(
+                    state = seededState().copy(
+                        availableModes = listOf(
+                            HomeFeedMode.AllNew,
+                            HomeFeedMode.Favorites,
+                            HomeFeedMode.Movies,
+                            HomeFeedMode.Series,
+                        ),
+                    ),
+                    onModeSelected = { modeSelections += 1 },
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("home-mode-toggle")
+            .performSemanticsAction(SemanticsActions.RequestFocus)
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("home-mode-toggle")
+            .performKeyInput { pressKey(Key.DirectionDown) }
+        composeRule.waitForIdle()
+
+        assertEquals(0, modeSelections)
+        composeRule.onNodeWithTag("home-mode-favorites").assertIsFocused()
+        composeRule.onNodeWithText("9-1-1").assertExists()
+    }
+
+    @Test
+    @OptIn(ExperimentalTestApi::class)
+    fun homeScreen_settingsAction_downMovesFocusToMenuLabelsAction() {
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(state = seededState())
+            }
+        }
+
+        composeRule.onNodeWithTag("home-action-settings")
+            .performSemanticsAction(SemanticsActions.RequestFocus)
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("home-action-settings")
+            .performKeyInput { pressKey(Key.DirectionDown) }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("home-action-menu-labels").assertIsFocused()
+    }
+
+    @Test
+    @OptIn(ExperimentalTestApi::class)
+    fun homeScreen_railUpDownSwitchesModesAndKeepsFocusInRail() {
+        val allModes = listOf(
+            HomeFeedMode.AllNew,
+            HomeFeedMode.Favorites,
+            HomeFeedMode.Movies,
+            HomeFeedMode.Series,
+        )
+        val allNewItems = listOf(
+            release(
+                detailsUrl = firstDetailsUrl,
+                titleRu = "9-1-1",
+                episodeTitleRu = "Маменькин сынок",
+                releaseDateRu = "14.03.2026",
+                seasonNumber = 9,
+                episodeNumber = 13,
+                kind = ReleaseKind.SERIES,
+            ),
+        )
+        val favoriteItems = listOf(
+            release(
+                detailsUrl = "https://www.lostfilm.today/series/Ted/season_2/episode_8/",
+                titleRu = "Третий лишний",
+                episodeTitleRu = "Левые новости",
+                releaseDateRu = "24.03.2026",
+                seasonNumber = 2,
+                episodeNumber = 8,
+                kind = ReleaseKind.SERIES,
+            ),
+        )
+        val movieItems = listOf(
+            release(
+                detailsUrl = secondDetailsUrl,
+                titleRu = "Необратимость",
+                episodeTitleRu = null,
+                releaseDateRu = "13.03.2026",
+                seasonNumber = null,
+                episodeNumber = null,
+                kind = ReleaseKind.MOVIE,
+            ),
+        )
+        val seriesItems = listOf(
+            release(
+                detailsUrl = "https://www.lostfilm.today/series/series-only/season_1/episode_1/",
+                titleRu = "Сериал",
+                episodeTitleRu = "Пилот",
+                releaseDateRu = "12.03.2026",
+                seasonNumber = 1,
+                episodeNumber = 1,
+                kind = ReleaseKind.SERIES,
+            ),
+        )
+        fun stateFor(mode: HomeFeedMode): HomeUiState = homeStateWithModes(
+            selectedMode = mode,
+            allNewItems = allNewItems,
+            favoriteItems = favoriteItems,
+            movieItems = movieItems,
+            seriesItems = seriesItems,
+        ).copy(availableModes = allModes)
+
+        var state by mutableStateOf(stateFor(HomeFeedMode.AllNew))
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(
+                    state = state,
+                    onModeSelected = { mode -> state = stateFor(mode) },
+                )
+            }
+        }
+
+        val allNewPosterTag = posterTag(HOME_RAIL_ALL_NEW, allNewItems.first().detailsUrl)
+        val favoritePosterTag = posterTag(HOME_RAIL_FAVORITES, favoriteItems.first().detailsUrl)
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag(allNewPosterTag)
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag(allNewPosterTag)
+            .performKeyInput { pressKey(Key.DirectionDown) }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag(favoritePosterTag)
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+        composeRule.onNodeWithText("Третий лишний").assertExists()
+
+        composeRule.onNodeWithTag(favoritePosterTag)
+            .performKeyInput { pressKey(Key.DirectionUp) }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag(allNewPosterTag)
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+        composeRule.onNodeWithText("9-1-1").assertExists()
     }
 
     // Note: homeScreen_serviceInfo_staysAboveBottomEdge removed — flaky in Robolectric
@@ -975,7 +1146,7 @@ class HomeScreenTest {
 
         composeRule.onNodeWithTag("home-mode-toggle")
             .performKeyInput {
-                repeat(4) {
+                repeat(3) {
                     pressKey(Key.DirectionDown)
                 }
             }
