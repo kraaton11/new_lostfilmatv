@@ -44,8 +44,8 @@ import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 import kotlin.math.roundToInt
 
 private val POSTER_CARD_WIDTH = 112.dp
-private val POSTER_CARD_HEIGHT = 168.dp
-private const val POSTER_FOCUSED_SCALE = 1.06f
+private val POSTER_CARD_HEIGHT = 172.dp
+private const val POSTER_FOCUSED_SCALE = 1.045f
 
 @Composable
 fun PosterCard(
@@ -64,7 +64,7 @@ fun PosterCard(
         label = "buttonScale",
     )
     val liftPx = with(density) { if (isFocused) (-6).dp.toPx() else 0f }
-    val borderColor = if (isFocused) FocusBorder.copy(alpha = 0.92f) else HomePanelBorder.copy(alpha = 0.28f)
+    val borderColor = if (isFocused) FocusBorder.copy(alpha = 0.96f) else HomePanelBorder.copy(alpha = 0.30f)
     val overlayColor = if (isFocused) FocusBackground.copy(alpha = 0.88f) else HomePanelSurface.copy(alpha = 0.76f)
     val watchedBadgeColor = if (isFocused) HomeAccentGoldGlow.copy(alpha = 0.94f) else HomeAccentGold.copy(alpha = 0.9f)
     val posterRequest = rememberPosterImageRequest(item.posterUrl)
@@ -79,14 +79,14 @@ fun PosterCard(
                 translationY = liftPx
             }
             .shadow(
-                elevation = if (isFocused) 30.dp else 2.dp,
-                spotColor = if (isFocused) HomeAccentGoldGlow.copy(alpha = 0.45f) else Color.Black,
+                elevation = if (isFocused) 34.dp else 2.dp,
+                spotColor = if (isFocused) HomeAccentGoldGlow.copy(alpha = 0.52f) else Color.Black,
                 ambientColor = if (isFocused) HomeAccentGold.copy(alpha = 0.28f) else Color.Black,
                 shape = shape,
             )
             .clip(shape)
             .background(HomePanelSurfaceStrong)
-            .border(width = if (isFocused) 1.5.dp else 0.5.dp, color = borderColor, shape = shape),
+            .border(width = if (isFocused) 1.4.dp else 0.5.dp, color = borderColor, shape = shape),
     ) {
         AsyncImage(
             model = posterRequest,
@@ -142,10 +142,10 @@ fun PosterCard(
                 Text(
                     text = label,
                     color = Color(0xFF1B1408),
-                    fontSize = 9.sp,
-                    lineHeight = 11.sp,
+                    fontSize = 12.sp,
+                    lineHeight = 14.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                 )
             }
         }

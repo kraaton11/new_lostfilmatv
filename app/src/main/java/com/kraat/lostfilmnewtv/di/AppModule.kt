@@ -111,7 +111,7 @@ object AppModule {
     ): HomeChannelContentRepository = HomeChannelContentRepository(
         releaseDao = releaseDao,
         tmdbResolver = tmdbResolver,
-        loadFavoriteReleases = repository::loadFavoriteReleases,
+        loadFavoriteReleases = { repository.loadFavoriteReleases() },
     )
 
     @Provides

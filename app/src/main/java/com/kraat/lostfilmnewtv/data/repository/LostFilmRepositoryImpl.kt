@@ -56,7 +56,7 @@ import org.jsoup.Jsoup
 private const val FRESH_WINDOW_MS = 6 * 60 * 60 * 1000L
 private const val RETENTION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000L
 private const val FAVORITE_RELEASES_MAX_EPISODES_PER_SEASON = Int.MAX_VALUE
-private const val FAVORITE_RELEASES_MAX_ITEMS = 30
+private const val FAVORITE_RELEASES_PAGE_SIZE = 30
 private const val FAVORITE_RELEASES_MAX_SEASONS_PER_SERIES = 1
 private const val FAVORITE_SERIES_LOAD_CONCURRENCY = 6
 private const val FAVORITE_PUBLISH_CHECK_CONCURRENCY = 6
@@ -593,16 +593,21 @@ class LostFilmRepositoryImpl(
         }
     }
 
-    override suspend fun loadFavoriteReleases(): FavoriteReleasesResult {
+    override suspend fun loadFavoriteReleases(pageNumber: Int): FavoriteReleasesResult {
         if (!hasAuthenticatedSession()) {
             return FavoriteReleasesResult.Unavailable("Войдите в LostFilm")
         }
 
         return try {
+            val normalizedPageNumber = pageNumber.coerceAtLeast(1)
             val favoritesHtml = httpClient.fetchAccountPage(favoriteSeriesRoute)
             val favoriteSeries = favoriteSeriesParser.parse(favoritesHtml)
             if (favoriteSeries.isEmpty()) {
-                return FavoriteReleasesResult.Success(emptyList())
+                return FavoriteReleasesResult.Success(
+                    items = emptyList(),
+                    pageNumber = normalizedPageNumber,
+                    hasNextPage = false,
+                )
             }
 
             val fetchedAt = clock()
@@ -673,7 +678,7 @@ class LostFilmRepositoryImpl(
                 .distinctBy { it.detailsUrl }
             // Today's release checks can hit details pages; keep that network work bounded too.
             val publishCheckSemaphore = Semaphore(FAVORITE_PUBLISH_CHECK_CONCURRENCY)
-            val items = coroutineScope {
+            val allItems = coroutineScope {
                 rawItems.map { item ->
                     async {
                         publishCheckSemaphore.withPermit {
@@ -690,16 +695,25 @@ class LostFilmRepositoryImpl(
             }
                 .filterNotNull()
                 .sortedByDescending { parseFavoriteReleaseDate(it.releaseDateRu) ?: LocalDate.MIN }
-                .take(FAVORITE_RELEASES_MAX_ITEMS)
                 .mapIndexed { index, item -> item.copy(positionInPage = index) }
 
+            val pageOffset = (normalizedPageNumber - 1) * FAVORITE_RELEASES_PAGE_SIZE
+            val items = allItems
+                .drop(pageOffset)
+                .take(FAVORITE_RELEASES_PAGE_SIZE)
+                .mapIndexed { index, item -> item.copy(positionInPage = pageOffset + index) }
+
             val enrichedItems = enrichSummaries(items)
-                .mapIndexed { index, item -> item.copy(positionInPage = index) }
+                .mapIndexed { index, item -> item.copy(positionInPage = pageOffset + index) }
 
             if (enrichedItems.isEmpty() && !loadedAnySeasonPage) {
                 FavoriteReleasesResult.Unavailable()
             } else {
-                FavoriteReleasesResult.Success(enrichedItems)
+                FavoriteReleasesResult.Success(
+                    items = enrichedItems,
+                    pageNumber = normalizedPageNumber,
+                    hasNextPage = allItems.size > pageOffset + FAVORITE_RELEASES_PAGE_SIZE,
+                )
             }
         } catch (_: IOException) {
             FavoriteReleasesResult.Unavailable()
