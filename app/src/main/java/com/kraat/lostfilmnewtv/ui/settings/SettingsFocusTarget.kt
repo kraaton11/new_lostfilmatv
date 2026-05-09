@@ -9,6 +9,8 @@ sealed class SettingsFocusTarget {
     data class PlaybackQuality(val quality: PlaybackQualityPreference) : SettingsFocusTarget()
     data object HomeFavoritesShow : SettingsFocusTarget()
     data object HomeFavoritesHide : SettingsFocusTarget()
+    data object HomeMenuLabelsShow : SettingsFocusTarget()
+    data object HomeMenuLabelsHide : SettingsFocusTarget()
     data class UpdateChannel(val mode: UpdateCheckMode) : SettingsFocusTarget()
     data object CheckForUpdates : SettingsFocusTarget()
     data object InstallUpdate : SettingsFocusTarget()
@@ -21,6 +23,8 @@ fun SettingsFocusTarget.toTag(): String = when (this) {
     is SettingsFocusTarget.PlaybackQuality -> "settings-quality-${quality.storageValue}"
     SettingsFocusTarget.HomeFavoritesShow -> "settings-home-favorites-show"
     SettingsFocusTarget.HomeFavoritesHide -> "settings-home-favorites-hide"
+    SettingsFocusTarget.HomeMenuLabelsShow -> "settings-home-menu-labels-show"
+    SettingsFocusTarget.HomeMenuLabelsHide -> "settings-home-menu-labels-hide"
     is SettingsFocusTarget.UpdateChannel -> when (mode) {
         UpdateCheckMode.MANUAL -> "settings-update-mode-manual"
         UpdateCheckMode.QUIET_CHECK -> "settings-update-mode-quiet"

@@ -104,9 +104,9 @@ fun HomeRail(
                     }
                 }
                 .focusable()
-                .height(178.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(start = 8.dp, top = 8.dp, end = 8.dp, bottom = 8.dp),
+                .height(194.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            contentPadding = PaddingValues(start = 8.dp, top = 10.dp, end = 8.dp, bottom = 12.dp),
         ) {
             itemsIndexed(items = items, key = { _, item -> item.detailsUrl }) { index, item ->
                 val itemKey = homeItemKey(railId, item.detailsUrl)
@@ -179,7 +179,7 @@ internal fun posterTag(railId: String, detailsUrl: String): String = "poster:$ra
 
 @Composable
 private fun HomePagingPosterSkeleton(modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(14.dp)
+    val shape = RoundedCornerShape(8.dp)
     val shimmerBrush = rememberShimmerSkeletonBrush(
         label = "homePagingSkeleton",
         baseColor = HomePanelSurfaceStrong,
@@ -196,7 +196,7 @@ private fun HomePagingPosterSkeleton(modifier: Modifier = Modifier) {
     ShimmerSkeletonBox(
         brush = shimmerBrush,
         modifier = modifier
-            .size(width = 108.dp, height = 162.dp),
+            .size(width = 112.dp, height = 168.dp),
         shape = shape,
         borderColor = HomePanelBorder.copy(alpha = 0.20f),
     )

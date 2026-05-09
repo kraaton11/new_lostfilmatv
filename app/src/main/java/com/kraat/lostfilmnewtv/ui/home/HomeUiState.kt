@@ -32,6 +32,7 @@ data class HomeUiState(
     val seriesNextPage: Int = 1,
     val seriesHasNextPage: Boolean = true,
     val isFavoritesRailVisible: Boolean = false,
+    val isHomeMenuLabelsEnabled: Boolean = true,
 )
 
 data class HomeFocusState(

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -84,12 +86,23 @@ fun HomeHeader(
     scheduleFocusRequester: FocusRequester,
     updateFocusRequester: FocusRequester,
     settingsFocusRequester: FocusRequester,
+    menuLabelsFocusRequester: FocusRequester,
     downTarget: FocusRequester?,
+    showLabels: Boolean,
+    onHomeMenuLabelsVisibilitySelected: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val hasModeToggle = availableModes.size > 1
-    val firstModeRequester = if (hasModeToggle) modeFocusRequesters[availableModes.first()] else null
-    val lastModeRequester = if (hasModeToggle) modeFocusRequesters[availableModes.last()] else null
+    val visibleModes = remember(availableModes) {
+        buildList {
+            add(HomeFeedMode.AllNew)
+            add(HomeFeedMode.Favorites)
+            add(HomeFeedMode.Movies)
+            add(HomeFeedMode.Series)
+        }.filter { mode -> mode == HomeFeedMode.Favorites || mode in availableModes }
+    }
+    val hasModeToggle = visibleModes.isNotEmpty()
+    val firstModeRequester = if (hasModeToggle) modeFocusRequesters[visibleModes.first()] else null
+    val lastModeRequester = if (hasModeToggle) modeFocusRequesters[visibleModes.last()] else null
     val hasUpdate = !updateVersionText.isNullOrBlank()
     val initialFocusRequester = firstModeRequester ?: searchFocusRequester
 
@@ -97,145 +110,165 @@ fun HomeHeader(
         initialFocusRequester.requestFocus()
     }
 
-    Box(modifier = modifier.fillMaxWidth()) {
-        Row(
+    Column(
+        modifier = modifier
+            .fillMaxHeight()
+            .then(if (showLabels) Modifier else Modifier.width(46.dp)),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        HomeHeaderActionButton(
+            label = if (showLabels) "Скрыть меню" else "Показать меню",
+            subtitle = "",
+            leadingIcon = if (showLabels) HeaderActionIcon.MenuCollapse else HeaderActionIcon.MenuExpand,
+            onClick = {
+                onHeaderInteraction()
+                onHomeMenuLabelsVisibilitySelected(!showLabels)
+            },
+            onLongClick = {},
+            onInteraction = onHeaderInteraction,
+            onBackClick = onBackToContent,
+            minWidth = if (showLabels) 156.dp else 46.dp,
+            hideSubtitle = true,
+            showLabel = showLabels,
             modifier = Modifier
-                .align(Alignment.TopCenter)
-                .fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            if (hasModeToggle) {
-                HomeHeaderModeSegmentedControl(
-                    currentMode = selectedMode,
-                    availableModes = availableModes,
-                    modeFocusRequesters = modeFocusRequesters,
-                    leftEdgeRequester = null,
-                    rightEdgeRequester = searchFocusRequester,
-                    downTarget = downTarget,
-                    onModeClick = { mode ->
-                        onHeaderInteraction()
-                        onNavItemSelected(NavItem.HOME)
-                        onModeActivated(mode)
-                    },
-                    onModeLongClick = { onNavItemLongClick(NavItem.HOME) },
-                    onInteraction = onHeaderInteraction,
-                    onBackClick = onBackToContent,
-                    modifier = Modifier
-                        .testTag("home-mode-control"),
-                )
-            } else {
-                Spacer(modifier = Modifier.width(1.dp))
-            }
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                HomeHeaderActionButton(
-                    label = "Поиск",
-                    subtitle = "Сериал или фильм",
-                    leadingIcon = HeaderActionIcon.Search,
-                    onClick = {
-                        onNavItemSelected(NavItem.SEARCH)
-                        onSearchClick()
-                    },
-                    onLongClick = { onNavItemLongClick(NavItem.SEARCH) },
-                    onInteraction = onHeaderInteraction,
-                    onBackClick = onBackToContent,
-                    isPrimary = selectedNavItem == NavItem.SEARCH,
-                    minWidth = 82.dp,
-                    compact = true,
-                    hideSubtitle = true,
-                    modifier = Modifier
-                        .testTag("home-action-search")
-                        .focusRequester(searchFocusRequester)
-                        .focusProperties {
-                            if (lastModeRequester != null) {
-                                left = lastModeRequester
-                            }
-                            right = scheduleFocusRequester
-                            if (downTarget != null) {
-                                down = downTarget
-                            }
-                        },
-                )
-                HomeHeaderActionButton(
-                    label = "Расписание",
-                    subtitle = "Календарь",
-                    leadingIcon = HeaderActionIcon.Calendar,
-                    onClick = {
-                        onNavItemSelected(NavItem.SCHEDULE)
-                        onScheduleClick()
-                    },
-                    onLongClick = { onNavItemLongClick(NavItem.SCHEDULE) },
-                    onInteraction = onHeaderInteraction,
-                    onBackClick = onBackToContent,
-                    isPrimary = selectedNavItem == NavItem.SCHEDULE,
-                    minWidth = 112.dp,
-                    compact = true,
-                    hideSubtitle = true,
-                    modifier = Modifier
-                        .testTag("home-action-schedule")
-                        .focusRequester(scheduleFocusRequester)
-                        .focusProperties {
-                            left = searchFocusRequester
-                            right = if (hasUpdate) updateFocusRequester else settingsFocusRequester
-                            if (downTarget != null) {
-                                down = downTarget
-                            }
-                        },
-                )
-                if (hasUpdate) {
-                    HomeHeaderActionButton(
-                        label = "Обновить",
-                        subtitle = updateVersionText.orEmpty(),
-                        statusLabel = "Можно обновить",
-                        leadingIcon = HeaderActionIcon.Refresh,
-                    onClick = {
-                        onNavItemSelected(NavItem.UPDATE)
-                        onUpdateClick()
-                    },
-                    onLongClick = { onNavItemLongClick(NavItem.UPDATE) },
-                        onInteraction = onHeaderInteraction,
-                        onBackClick = onBackToContent,
-                        isPrimary = selectedNavItem == NavItem.UPDATE,
-                        minWidth = 92.dp,
-                        compact = true,
-                        hideSubtitle = true,
-                        modifier = Modifier
-                            .testTag("home-action-update")
-                            .focusRequester(updateFocusRequester)
-                            .focusProperties {
-                                left = scheduleFocusRequester
-                                right = settingsFocusRequester
-                                if (downTarget != null) {
-                                    down = downTarget
-                                }
-                            },
-                    )
-                }
-                HomeHeaderIconButton(
-                    iconResId = R.drawable.ic_settings,
-                    contentDescription = "Настройки",
-                    onClick = {
-                        onNavItemSelected(NavItem.SETTINGS)
-                        onSettingsClick()
-                    },
-                    onLongClick = { onNavItemLongClick(NavItem.SETTINGS) },
-                    onInteraction = onHeaderInteraction,
-                    onBackClick = onBackToContent,
-                    isSelected = selectedNavItem == NavItem.SETTINGS,
-                    modifier = Modifier
-                        .testTag("home-action-settings")
-                        .focusRequester(settingsFocusRequester)
-                        .focusProperties {
-                            left = if (hasUpdate) updateFocusRequester else scheduleFocusRequester
-                        }
-                        .applyDownFocus(downTarget),
-                )
-            }
+                .then(if (showLabels) Modifier.fillMaxWidth() else Modifier.width(46.dp))
+                .testTag("home-action-menu-labels")
+                .focusRequester(menuLabelsFocusRequester)
+                .focusProperties {
+                    down = firstModeRequester ?: scheduleFocusRequester
+                    right = firstModeRequester ?: scheduleFocusRequester
+                },
+        )
+        if (hasModeToggle) {
+            HomeHeaderModeSegmentedControl(
+                currentMode = selectedMode,
+                availableModes = visibleModes,
+                modeFocusRequesters = modeFocusRequesters,
+                leftEdgeRequester = null,
+                rightEdgeRequester = searchFocusRequester,
+                upEdgeRequester = menuLabelsFocusRequester,
+                downTarget = downTarget,
+                onModeClick = { mode ->
+                    onHeaderInteraction()
+                    onNavItemSelected(NavItem.HOME)
+                    onModeActivated(mode)
+                },
+                onModeLongClick = { onNavItemLongClick(NavItem.HOME) },
+                onInteraction = onHeaderInteraction,
+                onBackClick = onBackToContent,
+                showLabels = showLabels,
+                modifier = Modifier.testTag("home-mode-control"),
+            )
+        } else {
+            Spacer(modifier = Modifier.width(1.dp))
         }
+
+        HomeHeaderActionButton(
+            label = "Расписание",
+            subtitle = "Календарь",
+            leadingIcon = HeaderActionIcon.Calendar,
+            onClick = {
+                onNavItemSelected(NavItem.SCHEDULE)
+                onScheduleClick()
+            },
+            onLongClick = { onNavItemLongClick(NavItem.SCHEDULE) },
+            onInteraction = onHeaderInteraction,
+            onBackClick = onBackToContent,
+            isPrimary = selectedNavItem == NavItem.SCHEDULE,
+            minWidth = if (showLabels) 156.dp else 46.dp,
+            hideSubtitle = true,
+            showLabel = showLabels,
+            modifier = Modifier
+                .then(if (showLabels) Modifier.fillMaxWidth() else Modifier.width(46.dp))
+                .testTag("home-action-schedule")
+                .focusRequester(scheduleFocusRequester)
+                .focusProperties {
+                    up = lastModeRequester ?: searchFocusRequester
+                    down = searchFocusRequester
+                    right = searchFocusRequester
+                },
+        )
+        HomeHeaderActionButton(
+            label = "Поиск",
+            subtitle = "Сериал или фильм",
+            leadingIcon = HeaderActionIcon.Search,
+            onClick = {
+                onNavItemSelected(NavItem.SEARCH)
+                onSearchClick()
+            },
+            onLongClick = { onNavItemLongClick(NavItem.SEARCH) },
+            onInteraction = onHeaderInteraction,
+            onBackClick = onBackToContent,
+            isPrimary = selectedNavItem == NavItem.SEARCH,
+            minWidth = if (showLabels) 156.dp else 46.dp,
+            hideSubtitle = true,
+            showLabel = showLabels,
+            modifier = Modifier
+                .then(if (showLabels) Modifier.fillMaxWidth() else Modifier.width(46.dp))
+                .testTag("home-action-search")
+                .focusRequester(searchFocusRequester)
+                .focusProperties {
+                    up = scheduleFocusRequester
+                    down = if (hasUpdate) updateFocusRequester else settingsFocusRequester
+                    left = scheduleFocusRequester
+                    right = if (hasUpdate) updateFocusRequester else settingsFocusRequester
+                },
+        )
+        if (hasUpdate) {
+            HomeHeaderActionButton(
+                label = "Обновить",
+                subtitle = updateVersionText.orEmpty(),
+                statusLabel = "Можно обновить",
+                leadingIcon = HeaderActionIcon.Refresh,
+                onClick = {
+                    onNavItemSelected(NavItem.UPDATE)
+                    onUpdateClick()
+                },
+                onLongClick = { onNavItemLongClick(NavItem.UPDATE) },
+                onInteraction = onHeaderInteraction,
+                onBackClick = onBackToContent,
+                isPrimary = selectedNavItem == NavItem.UPDATE,
+                minWidth = if (showLabels) 156.dp else 46.dp,
+                hideSubtitle = true,
+                showLabel = showLabels,
+                modifier = Modifier
+                    .then(if (showLabels) Modifier.fillMaxWidth() else Modifier.width(46.dp))
+                    .testTag("home-action-update")
+                    .focusRequester(updateFocusRequester)
+                    .focusProperties {
+                        up = searchFocusRequester
+                        down = settingsFocusRequester
+                        left = searchFocusRequester
+                        right = settingsFocusRequester
+                    },
+            )
+        }
+        HomeHeaderActionButton(
+            label = "Настройки",
+            subtitle = "Приложение",
+            leadingIcon = HeaderActionIcon.Settings,
+            onClick = {
+                onNavItemSelected(NavItem.SETTINGS)
+                onSettingsClick()
+            },
+            onLongClick = { onNavItemLongClick(NavItem.SETTINGS) },
+            onInteraction = onHeaderInteraction,
+            onBackClick = onBackToContent,
+            isPrimary = selectedNavItem == NavItem.SETTINGS,
+            minWidth = if (showLabels) 156.dp else 46.dp,
+            hideSubtitle = true,
+            showLabel = showLabels,
+            modifier = Modifier
+                .then(if (showLabels) Modifier.fillMaxWidth() else Modifier.width(46.dp))
+                .testTag("home-action-settings")
+                .focusRequester(settingsFocusRequester)
+                .focusProperties {
+                    up = if (hasUpdate) updateFocusRequester else searchFocusRequester
+                    left = if (hasUpdate) updateFocusRequester else searchFocusRequester
+                    right = FocusRequester.Cancel
+                },
+        )
     }
 }
 
@@ -246,30 +279,22 @@ private fun HomeHeaderModeSegmentedControl(
     modeFocusRequesters: Map<HomeFeedMode, FocusRequester>,
     leftEdgeRequester: FocusRequester?,
     rightEdgeRequester: FocusRequester,
+    upEdgeRequester: FocusRequester?,
     downTarget: FocusRequester?,
     onModeClick: (HomeFeedMode) -> Unit,
     onModeLongClick: (HomeFeedMode) -> Unit,
     onInteraction: () -> Unit,
     onBackClick: () -> Boolean,
+    showLabels: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(8.dp)
 
-    Row(
+    Column(
         modifier = modifier
-            .height(38.dp)
-            .width(
-                when {
-                    availableModes.size > 3 -> 390.dp
-                    availableModes.size > 2 -> 305.dp
-                    else -> 200.dp
-                },
-            )
-            .background(HomePanelSurface, shape)
-            .border(1.dp, HomePanelBorder.copy(alpha = 0.52f), shape)
-            .padding(2.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .then(if (showLabels) Modifier.fillMaxWidth() else Modifier.width(46.dp)),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         availableModes.forEachIndexed { index, mode ->
             val requester = modeFocusRequesters.getValue(mode)
@@ -278,7 +303,12 @@ private fun HomeHeaderModeSegmentedControl(
             } else {
                 modeFocusRequesters[availableModes[index - 1]]
             }
-            val rightRequester = if (index == availableModes.lastIndex) {
+            val rightRequester = if (index == 0 && availableModes.size > 1) {
+                modeFocusRequesters[availableModes[index + 1]]
+            } else {
+                rightEdgeRequester
+            }
+            val downRequester = if (index == availableModes.lastIndex) {
                 rightEdgeRequester
             } else {
                 modeFocusRequesters[availableModes[index + 1]]
@@ -290,12 +320,15 @@ private fun HomeHeaderModeSegmentedControl(
                 focusRequester = requester,
                 leftRequester = leftRequester,
                 rightRequester = rightRequester,
-                downTarget = downTarget,
+                downTarget = downRequester,
+                upTarget = if (index == 0) upEdgeRequester else modeFocusRequesters[availableModes[index - 1]],
+                contentRightTarget = downTarget,
                 onClick = { onModeClick(mode) },
                 onLongClick = { onModeLongClick(mode) },
                 onInteraction = onInteraction,
                 onBackClick = onBackClick,
-                modifier = Modifier.weight(1f),
+                showLabel = showLabels,
+                modifier = if (showLabels) Modifier.fillMaxWidth() else Modifier.width(46.dp),
             )
         }
     }
@@ -310,10 +343,13 @@ private fun HomeModeSegmentButton(
     leftRequester: FocusRequester?,
     rightRequester: FocusRequester?,
     downTarget: FocusRequester?,
+    upTarget: FocusRequester?,
+    contentRightTarget: FocusRequester?,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onInteraction: () -> Unit,
     onBackClick: () -> Boolean,
+    showLabel: Boolean,
     modifier: Modifier = Modifier,
 ) {
     var isFocused by remember { mutableStateOf(false) }
@@ -325,15 +361,16 @@ private fun HomeModeSegmentButton(
         ),
         label = "homeModeSegmentScale",
     )
-    val shape = RoundedCornerShape(9.dp)
+    val shape = RoundedCornerShape(8.dp)
     Box(
         modifier = modifier
-            .height(34.dp)
+            .height(46.dp)
             .testTag(if (selected) "home-mode-toggle" else "home-mode-${mode.storageValue}")
             .focusRequester(focusRequester)
             .focusProperties {
                 leftRequester?.let { left = it }
                 rightRequester?.let { right = it }
+                upTarget?.let { up = it }
                 downTarget?.let { down = it }
             }
             .onPreviewKeyEvent { event ->
@@ -362,13 +399,13 @@ private fun HomeModeSegmentButton(
                 color = when {
                     selected -> HomeAccentGold
                     isFocused -> FocusBackground
-                    else -> Color.Transparent
+                    else -> HomePanelSurface
                 },
                 shape = shape,
             )
             .border(
-                width = if (isFocused) 1.dp else 0.dp,
-                color = if (isFocused) FocusBorder else Color.Transparent,
+                width = 0.dp,
+                color = Color.Transparent,
                 shape = shape,
             )
             .onFocusChanged {
@@ -383,15 +420,25 @@ private fun HomeModeSegmentButton(
             ),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = label,
-            color = if (selected) Color(0xFF17120D) else TextPrimary,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
-        )
+        Row(
+            modifier = Modifier
+                .then(if (showLabel) Modifier.fillMaxWidth() else Modifier)
+                .padding(horizontal = if (showLabel) 10.dp else 0.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            HeaderModeIcon(mode = mode, color = if (selected) Color(0xFF17120D) else TextPrimary)
+            if (showLabel) {
+                Text(
+                    text = label,
+                    color = if (selected) Color(0xFF17120D) else TextPrimary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
     }
 }
 
@@ -399,6 +446,9 @@ private enum class HeaderActionIcon {
     Search,
     Calendar,
     Refresh,
+    Settings,
+    MenuCollapse,
+    MenuExpand,
 }
 
 @Composable
@@ -417,6 +467,7 @@ private fun HomeHeaderActionButton(
     compact: Boolean = false,
     hideSubtitle: Boolean = false,
     leadingIcon: HeaderActionIcon? = null,
+    showLabel: Boolean = true,
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
@@ -442,7 +493,7 @@ private fun HomeHeaderActionButton(
     }
     val textColor = if (isPrimary) HomeAccentGold else TextPrimary
     val subtitleColor = if (isPrimary && isFocused) HomeAccentGoldGlow else HomeTextMuted
-    val shape = RoundedCornerShape(if (compact) 9.dp else 16.dp)
+    val shape = RoundedCornerShape(8.dp)
 
     Box(
         modifier = modifier
@@ -477,7 +528,7 @@ private fun HomeHeaderActionButton(
                 scaleY = scale
             }
             .background(backgroundColor, shape)
-            .border(if (isFocused) 1.5.dp else 1.dp, borderColor, shape)
+            .border(0.dp, Color.Transparent, shape)
             .onFocusChanged {
                 isFocused = it.isFocused
                 if (it.isFocused) {
@@ -491,27 +542,29 @@ private fun HomeHeaderActionButton(
                 onLongClick = onLongClick,
             )
             .padding(
-                horizontal = if (compact) 11.dp else 15.dp,
+                horizontal = if (!showLabel) 0.dp else if (compact) 11.dp else 10.dp,
                 vertical = if (compact) 4.dp else 7.dp,
             ),
-        contentAlignment = Alignment.Center,
+        contentAlignment = if (showLabel) Alignment.CenterStart else Alignment.Center,
     ) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             leadingIcon?.let { icon ->
                 HeaderVectorIcon(icon = icon, color = textColor)
             }
-            Text(
-                text = label,
-                color = textColor,
-                fontSize = if (compact) 13.sp else 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            statusLabel?.let { status ->
+            if (showLabel) {
+                Text(
+                    text = label,
+                    color = textColor,
+                    fontSize = if (compact) 13.sp else 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (showLabel) statusLabel?.let { status ->
                 Text(
                     text = status,
                     modifier = Modifier
@@ -524,22 +577,24 @@ private fun HomeHeaderActionButton(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Text(
-                text = subtitle,
-                modifier = if (hideSubtitle) {
-                    Modifier
-                        .size(1.dp)
-                        .alpha(0f)
-                } else {
-                    Modifier
-                },
-                color = subtitleColor,
-                fontSize = if (compact) 8.sp else 11.sp,
-                fontWeight = FontWeight.Medium,
-                letterSpacing = 0.5.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            if (showLabel) {
+                Text(
+                    text = subtitle,
+                    modifier = if (hideSubtitle) {
+                        Modifier
+                            .size(1.dp)
+                            .alpha(0f)
+                    } else {
+                        Modifier
+                    },
+                    color = subtitleColor,
+                    fontSize = if (compact) 8.sp else 11.sp,
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = 0.5.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
@@ -632,32 +687,186 @@ private fun HeaderVectorIcon(icon: HeaderActionIcon, color: Color) {
         HeaderActionIcon.Search -> SearchIcon(color = color)
         HeaderActionIcon.Calendar -> CalendarIcon(color = color)
         HeaderActionIcon.Refresh -> RefreshIcon(color = color)
+        HeaderActionIcon.Settings -> SettingsLineIcon(color = color)
+        HeaderActionIcon.MenuCollapse -> MenuVisibilityIcon(color = color, collapsed = false)
+        HeaderActionIcon.MenuExpand -> MenuVisibilityIcon(color = color, collapsed = true)
+    }
+}
+
+@Composable
+private fun HeaderModeIcon(mode: HomeFeedMode, color: Color) {
+    when (mode) {
+        HomeFeedMode.AllNew -> SparklesIcon(color = color)
+        HomeFeedMode.Favorites -> HeartIcon(color = color)
+        HomeFeedMode.Movies -> ClapperIcon(color = color)
+        HomeFeedMode.Series -> TvIcon(color = color)
+    }
+}
+
+@Composable
+private fun SparklesIcon(color: Color) {
+    androidx.compose.foundation.Canvas(modifier = Modifier.size(24.dp).offset(x = 1.dp)) {
+        val stroke = androidx.compose.ui.graphics.drawscope.Stroke(
+            width = 2.0f,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+            join = androidx.compose.ui.graphics.StrokeJoin.Round,
+        )
+        val main = androidx.compose.ui.graphics.Path().apply {
+            moveTo(size.width * 0.33f, size.height * 0.16f)
+            cubicTo(size.width * 0.35f, size.height * 0.38f, size.width * 0.41f, size.height * 0.46f, size.width * 0.63f, size.height * 0.50f)
+            cubicTo(size.width * 0.41f, size.height * 0.54f, size.width * 0.35f, size.height * 0.62f, size.width * 0.33f, size.height * 0.84f)
+            cubicTo(size.width * 0.31f, size.height * 0.62f, size.width * 0.25f, size.height * 0.54f, size.width * 0.03f, size.height * 0.50f)
+            cubicTo(size.width * 0.25f, size.height * 0.46f, size.width * 0.31f, size.height * 0.38f, size.width * 0.33f, size.height * 0.16f)
+        }
+        drawPath(path = main, color = color, style = stroke)
+        drawLine(
+            color = color,
+            start = Offset(size.width * 0.72f, size.height * 0.16f),
+            end = Offset(size.width * 0.72f, size.height * 0.32f),
+            strokeWidth = 2.0f,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+        )
+        drawLine(
+            color = color,
+            start = Offset(size.width * 0.64f, size.height * 0.24f),
+            end = Offset(size.width * 0.80f, size.height * 0.24f),
+            strokeWidth = 2.0f,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+        )
+    }
+}
+
+@Composable
+private fun HeartIcon(color: Color) {
+    androidx.compose.foundation.Canvas(modifier = Modifier.size(24.dp).offset(x = 1.dp)) {
+        val stroke = androidx.compose.ui.graphics.drawscope.Stroke(
+            width = 2.1f,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+            join = androidx.compose.ui.graphics.StrokeJoin.Round,
+        )
+        val path = androidx.compose.ui.graphics.Path().apply {
+            moveTo(size.width * 0.50f, size.height * 0.80f)
+            cubicTo(size.width * 0.23f, size.height * 0.64f, size.width * 0.13f, size.height * 0.46f, size.width * 0.18f, size.height * 0.31f)
+            cubicTo(size.width * 0.24f, size.height * 0.13f, size.width * 0.46f, size.height * 0.13f, size.width * 0.50f, size.height * 0.34f)
+            cubicTo(size.width * 0.54f, size.height * 0.13f, size.width * 0.76f, size.height * 0.13f, size.width * 0.82f, size.height * 0.31f)
+            cubicTo(size.width * 0.87f, size.height * 0.46f, size.width * 0.77f, size.height * 0.64f, size.width * 0.50f, size.height * 0.80f)
+        }
+        drawPath(path = path, color = color, style = stroke)
+    }
+}
+
+@Composable
+private fun ClapperIcon(color: Color) {
+    androidx.compose.foundation.Canvas(modifier = Modifier.size(24.dp)) {
+        val stroke = androidx.compose.ui.graphics.drawscope.Stroke(
+            width = 2.0f,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+            join = androidx.compose.ui.graphics.StrokeJoin.Round,
+        )
+        val left = size.width * 0.18f
+        val top = size.height * 0.38f
+        val right = size.width * 0.82f
+        val bottom = size.height * 0.78f
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(left, top),
+            size = androidx.compose.ui.geometry.Size(right - left, bottom - top),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f, 3f),
+            style = stroke,
+        )
+        drawLine(color, Offset(left, top), Offset(right, size.height * 0.25f), strokeWidth = 2.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        drawLine(color, Offset(size.width * 0.34f, size.height * 0.35f), Offset(size.width * 0.45f, size.height * 0.30f), strokeWidth = 2.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        drawLine(color, Offset(size.width * 0.58f, size.height * 0.30f), Offset(size.width * 0.70f, size.height * 0.27f), strokeWidth = 2.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        drawLine(color, Offset(left, size.height * 0.51f), Offset(right, size.height * 0.51f), strokeWidth = 2.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+    }
+}
+
+@Composable
+private fun TvIcon(color: Color) {
+    androidx.compose.foundation.Canvas(modifier = Modifier.size(24.dp)) {
+        val stroke = androidx.compose.ui.graphics.drawscope.Stroke(
+            width = 2.0f,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+            join = androidx.compose.ui.graphics.StrokeJoin.Round,
+        )
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(size.width * 0.18f, size.height * 0.30f),
+            size = androidx.compose.ui.geometry.Size(size.width * 0.64f, size.height * 0.42f),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f, 3f),
+            style = stroke,
+        )
+        drawLine(color, Offset(size.width * 0.35f, size.height * 0.84f), Offset(size.width * 0.65f, size.height * 0.84f), strokeWidth = 2.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        drawLine(color, Offset(size.width * 0.50f, size.height * 0.72f), Offset(size.width * 0.50f, size.height * 0.84f), strokeWidth = 2.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        drawLine(color, Offset(size.width * 0.38f, size.height * 0.22f), Offset(size.width * 0.50f, size.height * 0.30f), strokeWidth = 2.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+        drawLine(color, Offset(size.width * 0.62f, size.height * 0.22f), Offset(size.width * 0.50f, size.height * 0.30f), strokeWidth = 2.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
     }
 }
 
 @Composable
 private fun SearchIcon(color: Color) {
-    androidx.compose.foundation.Canvas(modifier = Modifier.size(18.dp)) {
-        val stroke = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)
+    androidx.compose.foundation.Canvas(modifier = Modifier.size(24.dp)) {
+        val stroke = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.1f)
         drawCircle(
             color = color,
-            radius = size.minDimension * 0.28f,
+            radius = size.minDimension * 0.25f,
             center = Offset(size.width * 0.42f, size.height * 0.42f),
             style = stroke,
         )
         drawLine(
             color = color,
-            start = Offset(size.width * 0.62f, size.height * 0.62f),
-            end = Offset(size.width * 0.84f, size.height * 0.84f),
-            strokeWidth = 2f,
+            start = Offset(size.width * 0.61f, size.height * 0.61f),
+            end = Offset(size.width * 0.83f, size.height * 0.83f),
+            strokeWidth = 2.1f,
+        )
+    }
+}
+
+@Composable
+private fun MenuVisibilityIcon(color: Color, collapsed: Boolean) {
+    androidx.compose.foundation.Canvas(modifier = Modifier.size(24.dp)) {
+        val stroke = androidx.compose.ui.graphics.drawscope.Stroke(
+            width = 2.0f,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+            join = androidx.compose.ui.graphics.StrokeJoin.Round,
+        )
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(size.width * 0.16f, size.height * 0.20f),
+            size = androidx.compose.ui.geometry.Size(size.width * 0.68f, size.height * 0.60f),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f, 3f),
+            style = stroke,
+        )
+        drawLine(
+            color = color,
+            start = Offset(size.width * 0.36f, size.height * 0.20f),
+            end = Offset(size.width * 0.36f, size.height * 0.80f),
+            strokeWidth = 2.0f,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+        )
+        val arrowX = if (collapsed) size.width * 0.64f else size.width * 0.54f
+        val direction = if (collapsed) 1f else -1f
+        drawLine(
+            color = color,
+            start = Offset(arrowX - direction * size.width * 0.08f, size.height * 0.40f),
+            end = Offset(arrowX + direction * size.width * 0.04f, size.height * 0.50f),
+            strokeWidth = 2.0f,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+        )
+        drawLine(
+            color = color,
+            start = Offset(arrowX - direction * size.width * 0.08f, size.height * 0.60f),
+            end = Offset(arrowX + direction * size.width * 0.04f, size.height * 0.50f),
+            strokeWidth = 2.0f,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round,
         )
     }
 }
 
 @Composable
 private fun CalendarIcon(color: Color) {
-    androidx.compose.foundation.Canvas(modifier = Modifier.size(18.dp)) {
-        val stroke = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)
+    androidx.compose.foundation.Canvas(modifier = Modifier.size(24.dp)) {
+        val stroke = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.1f)
         val left = size.width * 0.18f
         val top = size.height * 0.22f
         val right = size.width * 0.82f
@@ -673,27 +882,27 @@ private fun CalendarIcon(color: Color) {
             color = color,
             start = Offset(left, size.height * 0.40f),
             end = Offset(right, size.height * 0.40f),
-            strokeWidth = 2f,
+            strokeWidth = 2.1f,
         )
         drawLine(
             color = color,
             start = Offset(size.width * 0.34f, size.height * 0.14f),
             end = Offset(size.width * 0.34f, size.height * 0.28f),
-            strokeWidth = 2f,
+            strokeWidth = 2.1f,
         )
         drawLine(
             color = color,
             start = Offset(size.width * 0.66f, size.height * 0.14f),
             end = Offset(size.width * 0.66f, size.height * 0.28f),
-            strokeWidth = 2f,
+            strokeWidth = 2.1f,
         )
     }
 }
 
 @Composable
 private fun RefreshIcon(color: Color) {
-    androidx.compose.foundation.Canvas(modifier = Modifier.size(18.dp)) {
-        val stroke = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)
+    androidx.compose.foundation.Canvas(modifier = Modifier.size(24.dp)) {
+        val stroke = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.1f)
         drawArc(
             color = color,
             startAngle = 40f,
@@ -707,13 +916,60 @@ private fun RefreshIcon(color: Color) {
             color = color,
             start = Offset(size.width * 0.78f, size.height * 0.18f),
             end = Offset(size.width * 0.78f, size.height * 0.36f),
-            strokeWidth = 2f,
+            strokeWidth = 2.1f,
         )
         drawLine(
             color = color,
             start = Offset(size.width * 0.78f, size.height * 0.18f),
             end = Offset(size.width * 0.60f, size.height * 0.18f),
-            strokeWidth = 2f,
+            strokeWidth = 2.1f,
+        )
+    }
+}
+
+@Composable
+private fun SettingsLineIcon(color: Color) {
+    androidx.compose.foundation.Canvas(modifier = Modifier.size(24.dp)) {
+        val stroke = androidx.compose.ui.graphics.drawscope.Stroke(
+            width = 2.0f,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+            join = androidx.compose.ui.graphics.StrokeJoin.Round,
+        )
+        val cx = size.width * 0.50f
+        val cy = size.height * 0.50f
+        val teeth = 8
+        val inner = size.minDimension * 0.31f
+        val outer = size.minDimension * 0.42f
+        val toothHalfAngle = Math.PI / 18.0
+        val gapHalfAngle = Math.PI / teeth - toothHalfAngle
+        val gear = androidx.compose.ui.graphics.Path()
+        for (index in 0 until teeth) {
+            val center = -Math.PI / 2.0 + index * 2.0 * Math.PI / teeth
+            val points = listOf(
+                center - gapHalfAngle to inner,
+                center - toothHalfAngle to outer,
+                center + toothHalfAngle to outer,
+                center + gapHalfAngle to inner,
+            )
+            points.forEach { (angle, radius) ->
+                val point = Offset(
+                    x = cx + kotlin.math.cos(angle).toFloat() * radius,
+                    y = cy + kotlin.math.sin(angle).toFloat() * radius,
+                )
+                if (index == 0 && angle == points.first().first) {
+                    gear.moveTo(point.x, point.y)
+                } else {
+                    gear.lineTo(point.x, point.y)
+                }
+            }
+        }
+        gear.close()
+        drawPath(path = gear, color = color, style = stroke)
+        drawCircle(
+            color = color,
+            radius = size.minDimension * 0.14f,
+            center = Offset(cx, cy),
+            style = stroke,
         )
     }
 }

@@ -28,6 +28,7 @@ fun SettingsRoute(
         selectedUpdateMode = state.value.updateMode,
         selectedChannelMode = state.value.channelMode,
         isHomeFavoritesRailEnabled = state.value.isHomeFavoritesRailEnabled,
+        isHomeMenuLabelsEnabled = state.value.isHomeMenuLabelsEnabled,
         selectedWatchedMarkingMode = state.value.watchedMarkingMode,
         onWatchedMarkingModeSelected = viewModel::onWatchedMarkingModeSelected,
         isAuthenticated = isAuthenticated,
@@ -41,6 +42,7 @@ fun SettingsRoute(
         onUpdateModeSelected = viewModel::onUpdateModeSelected,
         onChannelModeSelected = viewModel::onChannelModeSelected,
         onHomeFavoritesRailVisibilitySelected = viewModel::onHomeFavoritesRailVisibilitySelected,
+        onHomeMenuLabelsVisibilitySelected = viewModel::onHomeMenuLabelsVisibilitySelected,
         onCheckForUpdatesClick = viewModel::onCheckForUpdatesClick,
         onInstallUpdateClick = {
             state.value.installUrl?.let { url ->

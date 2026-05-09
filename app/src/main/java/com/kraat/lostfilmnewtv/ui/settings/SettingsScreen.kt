@@ -57,6 +57,7 @@ fun SettingsScreen(
     selectedUpdateMode: UpdateCheckMode,
     selectedChannelMode: AndroidTvChannelMode,
     isHomeFavoritesRailEnabled: Boolean = false,
+    isHomeMenuLabelsEnabled: Boolean = true,
     selectedWatchedMarkingMode: WatchedMarkingMode = WatchedMarkingMode.AUTO,
     onWatchedMarkingModeSelected: (WatchedMarkingMode) -> Unit = {},
     isAuthenticated: Boolean = false,
@@ -70,6 +71,7 @@ fun SettingsScreen(
     onUpdateModeSelected: (UpdateCheckMode) -> Unit,
     onChannelModeSelected: (AndroidTvChannelMode) -> Unit,
     onHomeFavoritesRailVisibilitySelected: (Boolean) -> Unit = {},
+    onHomeMenuLabelsVisibilitySelected: (Boolean) -> Unit = {},
     onCheckForUpdatesClick: () -> Unit,
     onInstallUpdateClick: () -> Unit,
 ) {
@@ -96,6 +98,8 @@ fun SettingsScreen(
             AndroidTvChannelMode.DISABLED.buttonTag() to FocusRequester(),
             SettingsFocusTarget.HomeFavoritesShow.toTag() to FocusRequester(),
             SettingsFocusTarget.HomeFavoritesHide.toTag() to FocusRequester(),
+            SettingsFocusTarget.HomeMenuLabelsShow.toTag() to FocusRequester(),
+            SettingsFocusTarget.HomeMenuLabelsHide.toTag() to FocusRequester(),
             SettingsFocusTarget.AccountAuth.toTag() to FocusRequester(),
             SettingsFocusTarget.WatchedMarking(WatchedMarkingMode.AUTO).toTag() to FocusRequester(),
             SettingsFocusTarget.WatchedMarking(WatchedMarkingMode.DISABLED).toTag() to FocusRequester(),
@@ -138,7 +142,10 @@ fun SettingsScreen(
         installUrl = installUrl,
     )
     val channelSummary = selectedChannelMode.label()
-    val homeScreenSummary = if (isHomeFavoritesRailEnabled) "Избранное: показывается" else "Избранное: скрыто"
+    val homeScreenSummary = listOf(
+        if (isHomeFavoritesRailEnabled) "Избранное: показывается" else "Избранное: скрыто",
+        if (isHomeMenuLabelsEnabled) "Меню: иконки с надписями" else "Меню: только иконки",
+    ).joinToString(" · ")
     val watchedSummary = if (selectedWatchedMarkingMode == WatchedMarkingMode.AUTO) "Автоматически" else "Не отмечать"
     val accountSummary = if (isAuthenticated) "Выполнен вход" else "Не выполнен вход"
     val aboutSummary = BuildConfig.VERSION_NAME
@@ -328,15 +335,11 @@ fun SettingsScreen(
                             SettingsOptionsSection {
                                 SettingsOverviewCard(
                                     title = "Главный экран",
-                                    subtitle = "Вкладка «Избранное» — быстрый доступ к сериалам из вашего списка. Требует входа в аккаунт.",
+                                    subtitle = "Вкладка «Избранное» и вид левого меню на главном экране.",
                                     modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(22.dp)),
                                 ) {
                                     SettingsOverviewValue(
-                                        text = if (isHomeFavoritesRailEnabled) {
-                                            "Сейчас: вкладка Избранное показывается"
-                                        } else {
-                                            "Сейчас: вкладка Избранное скрыта"
-                                        },
+                                        text = homeScreenSummary,
                                     )
                                 }
                                 Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -373,6 +376,42 @@ fun SettingsScreen(
                                             .focusProperties {
                                                 left = railRequesters.getValue(SettingsSection.HOME_SCREEN)
                                                 up = contentRequesters.getValue(SettingsFocusTarget.HomeFavoritesShow.toTag())
+                                                down = contentRequesters.getValue(SettingsFocusTarget.HomeMenuLabelsShow.toTag())
+                                            },
+                                    )
+                                    SettingsTvButton(
+                                        text = "Меню: иконки с надписями",
+                                        onClick = { onHomeMenuLabelsVisibilitySelected(true) },
+                                        isSelected = isHomeMenuLabelsEnabled,
+                                        tag = SettingsFocusTarget.HomeMenuLabelsShow.toTag(),
+                                        onFocused = {
+                                            rememberedActionBySection = rememberedActionBySection + (
+                                                SettingsSection.HOME_SCREEN.name to SettingsFocusTarget.HomeMenuLabelsShow
+                                            )
+                                        },
+                                        modifier = Modifier
+                                            .focusRequester(contentRequesters.getValue(SettingsFocusTarget.HomeMenuLabelsShow.toTag()))
+                                            .focusProperties {
+                                                left = railRequesters.getValue(SettingsSection.HOME_SCREEN)
+                                                up = contentRequesters.getValue(SettingsFocusTarget.HomeFavoritesHide.toTag())
+                                                down = contentRequesters.getValue(SettingsFocusTarget.HomeMenuLabelsHide.toTag())
+                                            },
+                                    )
+                                    SettingsTvButton(
+                                        text = "Меню: только иконки",
+                                        onClick = { onHomeMenuLabelsVisibilitySelected(false) },
+                                        isSelected = !isHomeMenuLabelsEnabled,
+                                        tag = SettingsFocusTarget.HomeMenuLabelsHide.toTag(),
+                                        onFocused = {
+                                            rememberedActionBySection = rememberedActionBySection + (
+                                                SettingsSection.HOME_SCREEN.name to SettingsFocusTarget.HomeMenuLabelsHide
+                                            )
+                                        },
+                                        modifier = Modifier
+                                            .focusRequester(contentRequesters.getValue(SettingsFocusTarget.HomeMenuLabelsHide.toTag()))
+                                            .focusProperties {
+                                                left = railRequesters.getValue(SettingsSection.HOME_SCREEN)
+                                                up = contentRequesters.getValue(SettingsFocusTarget.HomeMenuLabelsShow.toTag())
                                                 down = FocusRequester.Default
                                             },
                                     )
