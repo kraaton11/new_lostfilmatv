@@ -39,4 +39,7 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run unit tests, lint, and debug assembly
+        env:
+          TMDB_API_KEY: ${{ secrets.TMDB_API_KEY }}
+          TMDB_BEARER_TOKEN: ${{ secrets.TMDB_BEARER_TOKEN }}
         run: ./gradlew testDebugUnitTest lint assembleDebug
