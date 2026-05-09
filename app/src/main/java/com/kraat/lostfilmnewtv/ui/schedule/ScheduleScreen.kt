@@ -13,7 +13,9 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -46,6 +48,8 @@ import androidx.compose.ui.unit.sp
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ScheduleDay
 import com.kraat.lostfilmnewtv.data.model.ScheduleItem
+import com.kraat.lostfilmnewtv.ui.components.ShimmerSkeletonBox
+import com.kraat.lostfilmnewtv.ui.components.rememberShimmerSkeletonBrush
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
 import com.kraat.lostfilmnewtv.ui.theme.DetailsAccentGold
 import com.kraat.lostfilmnewtv.ui.theme.DetailsAccentGoldFocus
@@ -106,12 +110,7 @@ fun ScheduleScreen(
 
             when {
                 state.isLoading && state.schedule == null -> {
-                    ScheduleCenteredStatePanel {
-                        CircularProgressIndicator(
-                            modifier = Modifier.testTag("schedule-loading"),
-                            color = DetailsAccentGold,
-                        )
-                    }
+                    ScheduleLoadingSkeleton()
                 }
 
                 state.errorMessage != null && state.schedule == null -> {
@@ -188,6 +187,54 @@ fun ScheduleScreen(
                             )
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ColumnScope.ScheduleLoadingSkeleton() {
+    val brush = rememberShimmerSkeletonBrush(label = "schedule-loading")
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxWidth()
+            .weight(1f)
+            .testTag("schedule-loading"),
+        verticalArrangement = Arrangement.spacedBy(18.dp),
+    ) {
+        items(5) { index ->
+            Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    ShimmerSkeletonBox(
+                        brush = brush,
+                        modifier = Modifier
+                            .width(86.dp)
+                            .height(22.dp),
+                        shape = RoundedCornerShape(7.dp),
+                    )
+                    ShimmerSkeletonBox(
+                        brush = brush,
+                        modifier = Modifier
+                            .width(if (index == 0) 62.dp else 76.dp)
+                            .height(16.dp),
+                        shape = RoundedCornerShape(6.dp),
+                    )
+                }
+                repeat(if (index == 0) 3 else 2) { rowIndex ->
+                    ShimmerSkeletonBox(
+                        brush = brush,
+                        modifier = Modifier
+                            .fillMaxWidth(if (rowIndex == 1) 0.88f else 1f)
+                            .height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        borderColor = HomePanelBorder,
+                    )
                 }
             }
         }
