@@ -13,6 +13,7 @@ import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteSeriesParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmListParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSearchParser
+import com.kraat.lostfilmnewtv.data.parser.LostFilmScheduleParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSeasonEpisodesParser
 import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolver
 import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolverImpl
@@ -64,6 +65,7 @@ object DataModule {
         favoriteSeriesParser = LostFilmFavoriteSeriesParser(),
         seasonEpisodesParser = LostFilmSeasonEpisodesParser(),
         searchParser = LostFilmSearchParser(),
+        scheduleParser = LostFilmScheduleParser(),
         tmdbResolver = tmdbResolver,
         hasAuthenticatedSession = {
             val session = sessionStore.read()

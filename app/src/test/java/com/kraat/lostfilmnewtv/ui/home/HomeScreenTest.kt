@@ -908,6 +908,7 @@ class HomeScreenTest {
             .performKeyInput {
                 pressKey(Key.DirectionRight)
                 pressKey(Key.DirectionRight)
+                pressKey(Key.DirectionRight)
             }
 
         composeRule.waitUntil(timeoutMillis = 5_000) {

@@ -72,6 +72,7 @@ fun HomeHeader(
     onHeaderInteraction: () -> Unit,
     onBackToContent: () -> Boolean,
     onSearchClick: () -> Unit,
+    onScheduleClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onUpdateClick: () -> Unit,
     selectedNavItem: NavItem,
@@ -80,6 +81,7 @@ fun HomeHeader(
     updateVersionText: String?,
     modeFocusRequesters: Map<HomeFeedMode, FocusRequester>,
     searchFocusRequester: FocusRequester,
+    scheduleFocusRequester: FocusRequester,
     updateFocusRequester: FocusRequester,
     settingsFocusRequester: FocusRequester,
     downTarget: FocusRequester?,
@@ -152,6 +154,32 @@ fun HomeHeader(
                             if (lastModeRequester != null) {
                                 left = lastModeRequester
                             }
+                            right = scheduleFocusRequester
+                            if (downTarget != null) {
+                                down = downTarget
+                            }
+                        },
+                )
+                HomeHeaderActionButton(
+                    label = "Расписание",
+                    subtitle = "Календарь",
+                    leadingIcon = HeaderActionIcon.Calendar,
+                    onClick = {
+                        onNavItemSelected(NavItem.SCHEDULE)
+                        onScheduleClick()
+                    },
+                    onLongClick = { onNavItemLongClick(NavItem.SCHEDULE) },
+                    onInteraction = onHeaderInteraction,
+                    onBackClick = onBackToContent,
+                    isPrimary = selectedNavItem == NavItem.SCHEDULE,
+                    minWidth = 112.dp,
+                    compact = true,
+                    hideSubtitle = true,
+                    modifier = Modifier
+                        .testTag("home-action-schedule")
+                        .focusRequester(scheduleFocusRequester)
+                        .focusProperties {
+                            left = searchFocusRequester
                             right = if (hasUpdate) updateFocusRequester else settingsFocusRequester
                             if (downTarget != null) {
                                 down = downTarget
@@ -179,7 +207,7 @@ fun HomeHeader(
                             .testTag("home-action-update")
                             .focusRequester(updateFocusRequester)
                             .focusProperties {
-                                left = searchFocusRequester
+                                left = scheduleFocusRequester
                                 right = settingsFocusRequester
                                 if (downTarget != null) {
                                     down = downTarget
@@ -202,7 +230,7 @@ fun HomeHeader(
                         .testTag("home-action-settings")
                         .focusRequester(settingsFocusRequester)
                         .focusProperties {
-                            left = if (hasUpdate) updateFocusRequester else searchFocusRequester
+                            left = if (hasUpdate) updateFocusRequester else scheduleFocusRequester
                         }
                         .applyDownFocus(downTarget),
                 )
@@ -369,6 +397,7 @@ private fun HomeModeSegmentButton(
 
 private enum class HeaderActionIcon {
     Search,
+    Calendar,
     Refresh,
 }
 
@@ -601,6 +630,7 @@ private fun HomeHeaderIconButton(
 private fun HeaderVectorIcon(icon: HeaderActionIcon, color: Color) {
     when (icon) {
         HeaderActionIcon.Search -> SearchIcon(color = color)
+        HeaderActionIcon.Calendar -> CalendarIcon(color = color)
         HeaderActionIcon.Refresh -> RefreshIcon(color = color)
     }
 }
@@ -619,6 +649,42 @@ private fun SearchIcon(color: Color) {
             color = color,
             start = Offset(size.width * 0.62f, size.height * 0.62f),
             end = Offset(size.width * 0.84f, size.height * 0.84f),
+            strokeWidth = 2f,
+        )
+    }
+}
+
+@Composable
+private fun CalendarIcon(color: Color) {
+    androidx.compose.foundation.Canvas(modifier = Modifier.size(18.dp)) {
+        val stroke = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)
+        val left = size.width * 0.18f
+        val top = size.height * 0.22f
+        val right = size.width * 0.82f
+        val bottom = size.height * 0.82f
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(left, top),
+            size = androidx.compose.ui.geometry.Size(right - left, bottom - top),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(2f, 2f),
+            style = stroke,
+        )
+        drawLine(
+            color = color,
+            start = Offset(left, size.height * 0.40f),
+            end = Offset(right, size.height * 0.40f),
+            strokeWidth = 2f,
+        )
+        drawLine(
+            color = color,
+            start = Offset(size.width * 0.34f, size.height * 0.14f),
+            end = Offset(size.width * 0.34f, size.height * 0.28f),
+            strokeWidth = 2f,
+        )
+        drawLine(
+            color = color,
+            start = Offset(size.width * 0.66f, size.height * 0.14f),
+            end = Offset(size.width * 0.66f, size.height * 0.28f),
             strokeWidth = 2f,
         )
     }

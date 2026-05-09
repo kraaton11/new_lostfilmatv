@@ -28,6 +28,7 @@ import com.kraat.lostfilmnewtv.ui.overview.MovieOverviewRoute
 import com.kraat.lostfilmnewtv.ui.overview.SeriesOverviewRoute
 import com.kraat.lostfilmnewtv.ui.search.SearchRoute
 import com.kraat.lostfilmnewtv.ui.home.HomeViewModel
+import com.kraat.lostfilmnewtv.ui.schedule.ScheduleRoute
 import com.kraat.lostfilmnewtv.ui.settings.SettingsRoute
 import com.kraat.lostfilmnewtv.ui.settings.SettingsViewModel
 import kotlinx.coroutines.Job
@@ -125,6 +126,7 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                     else navController.navigate(AppDestination.Auth.createRoute())
                 },
                 onSearchClick = { navController.navigate(AppDestination.Search.route) },
+                onScheduleClick = { navController.navigate(AppDestination.Schedule.route) },
                 onSettingsClick = { navController.navigate(AppDestination.Settings.createRoute()) },
                 onUpdateClick = {
                     val apkUrl = savedAppUpdate?.apkUrl
@@ -212,6 +214,22 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
         // ── Search ───────────────────────────────────────────────────────────
         composable(AppDestination.Search.route) {
             SearchRoute(
+                onOpenItem = { item ->
+                    when (item.kind) {
+                        com.kraat.lostfilmnewtv.data.model.ReleaseKind.SERIES -> {
+                            navController.navigate(AppDestination.SeriesGuide.createRoute(item.targetUrl))
+                        }
+                        com.kraat.lostfilmnewtv.data.model.ReleaseKind.MOVIE -> {
+                            navController.navigate(AppDestination.Details.createRoute(item.targetUrl, isAuthenticated))
+                        }
+                    }
+                },
+            )
+        }
+
+        // ── Schedule ─────────────────────────────────────────────────────────
+        composable(AppDestination.Schedule.route) {
+            ScheduleRoute(
                 onOpenItem = { item ->
                     when (item.kind) {
                         com.kraat.lostfilmnewtv.data.model.ReleaseKind.SERIES -> {

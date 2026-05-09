@@ -13,6 +13,10 @@ sealed interface AppDestination {
         override val route: String = "search"
     }
 
+    data object Schedule : AppDestination {
+        override val route: String = "schedule"
+    }
+
     data object Details : AppDestination {
         const val detailsUrlArg: String = "detailsUrl"
         const val isAuthenticatedArg: String = "isAuthenticated"

@@ -21,6 +21,7 @@ import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteSeriesParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmListParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSearchParser
+import com.kraat.lostfilmnewtv.data.parser.LostFilmScheduleParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSeriesCatalogParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSeriesOverviewParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSeasonEpisodesParser
@@ -79,6 +80,7 @@ class LostFilmRepositoryImpl(
     private val favoriteSeriesParser: LostFilmFavoriteSeriesParser = LostFilmFavoriteSeriesParser(),
     private val seasonEpisodesParser: LostFilmSeasonEpisodesParser = LostFilmSeasonEpisodesParser(),
     private val searchParser: LostFilmSearchParser = LostFilmSearchParser(),
+    private val scheduleParser: LostFilmScheduleParser = LostFilmScheduleParser(),
     private val seriesCatalogParser: LostFilmSeriesCatalogParser = LostFilmSeriesCatalogParser(),
     private val seriesOverviewParser: LostFilmSeriesOverviewParser = LostFilmSeriesOverviewParser(),
     private val tmdbResolver: TmdbPosterResolver,
@@ -425,6 +427,21 @@ class LostFilmRepositoryImpl(
                     query = normalizedQuery,
                     message = exception.message ?: "Не удалось выполнить поиск",
                 )
+            } else {
+                throw exception
+            }
+        }
+    }
+
+    override suspend fun loadSchedule(): ScheduleResult {
+        return try {
+            val html = httpClient.fetchSchedulePage()
+            ScheduleResult.Success(scheduleParser.parse(html))
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (exception: Exception) {
+            if (exception is IOException || exception is IllegalStateException) {
+                ScheduleResult.Error(exception.message ?: "Не удалось загрузить расписание")
             } else {
                 throw exception
             }
