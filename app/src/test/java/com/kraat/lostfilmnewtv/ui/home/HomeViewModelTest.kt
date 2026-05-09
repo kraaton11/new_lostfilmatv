@@ -70,6 +70,54 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun initialState_keepsFavoritesInAvailableModes_whenFavoritesRailIsHidden() = runTest(dispatcher) {
+        val viewModel = createViewModel(
+            repository = FakeLostFilmRepository(pageResults = emptyMap()),
+            savedStateHandle = SavedStateHandle(),
+            initialFavoritesRailVisible = false,
+            ioDispatcher = dispatcher,
+        )
+
+        assertEquals(
+            listOf(HomeFeedMode.AllNew, HomeFeedMode.Favorites, HomeFeedMode.Movies, HomeFeedMode.Series),
+            viewModel.uiState.value.availableModes,
+        )
+    }
+
+    @Test
+    fun onStart_loadsFavoritesMode_whenFavoritesRailIsHidden() = runTest(dispatcher) {
+        val favoriteItem = summary(
+            detailsUrl = "https://www.lostfilm.today/series/favorite/season_4/episode_7/",
+            titleRu = "Любимый сериал",
+        )
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(
+                    pageNumber = 1,
+                    items = listOf(summary(detailsUrl = "https://www.lostfilm.today/series/main/season_1/episode_1/")),
+                    hasNextPage = false,
+                    isStale = false,
+                ),
+            ),
+            favoriteReleaseResults = mutableListOf(FavoriteReleasesResult.Success(listOf(favoriteItem))),
+        )
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            initialFavoritesRailVisible = false,
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+
+        assertEquals(1, repository.favoriteReleaseCalls)
+        assertEquals(listOf(favoriteItem), viewModel.uiState.value.favoriteItems)
+        assertEquals(HomeModeContentState.Content(listOf(favoriteItem)), viewModel.uiState.value.favoritesModeState)
+        assertEquals(listOf(HOME_RAIL_ALL_NEW), viewModel.uiState.value.rails.map { it.id })
+    }
+
+    @Test
     fun onStart_successfulContentLoad_triggersChannelSync() = runTest(dispatcher) {
         val repository = FakeLostFilmRepository(
             pageResults = mapOf(

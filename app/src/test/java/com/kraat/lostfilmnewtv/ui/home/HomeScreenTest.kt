@@ -9,6 +9,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.assertIsNotFocused
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onAllNodesWithTag
@@ -515,6 +516,7 @@ class HomeScreenTest {
             SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
         }
         composeRule.onNodeWithText("Третий лишний").assertExists()
+        composeRule.onNodeWithTag("home-mode-toggle").assertIsNotFocused()
 
         composeRule.onNodeWithTag(favoritePosterTag)
             .performKeyInput { pressKey(Key.DirectionUp) }
@@ -527,6 +529,7 @@ class HomeScreenTest {
             SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
         }
         composeRule.onNodeWithText("9-1-1").assertExists()
+        composeRule.onNodeWithTag("home-mode-toggle").assertIsNotFocused()
     }
 
     // Note: homeScreen_serviceInfo_staysAboveBottomEdge removed — flaky in Robolectric
