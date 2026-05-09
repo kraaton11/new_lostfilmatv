@@ -136,11 +136,6 @@ fun HomeScreen(
         }
     }
 
-    BackHandler(enabled = state.selectedMode != HomeFeedMode.AllNew) {
-        startupContentFocusPending = true
-        onModeSelected(HomeFeedMode.AllNew)
-    }
-
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {

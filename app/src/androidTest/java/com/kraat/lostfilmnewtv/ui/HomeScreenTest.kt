@@ -236,50 +236,32 @@ class HomeScreenTest {
     }
 
     @Test
-    fun backPress_inFavoritesMode_switchesToAllNewInsteadOfClosing() {
+    fun backPress_onFocusedMenu_finishesActivity() {
         composeRule.setContent {
             LostFilmTheme {
-                var state by remember {
-                    mutableStateOf(
-                        seededModeState().copy(
-                            selectedMode = HomeFeedMode.Favorites,
-                            selectedItem = seededModeState().favoriteItems.first(),
-                            selectedItemKey = favoriteDetailsUrl,
-                        ),
-                    )
-                }
                 HomeScreen(
-                    state = state,
-                    onModeSelected = { mode ->
-                        state = state.copy(
-                            selectedMode = mode,
-                            selectedItemKey = when (mode) {
-                                HomeFeedMode.AllNew -> firstDetailsUrl
-                                HomeFeedMode.Favorites -> favoriteDetailsUrl
-                                HomeFeedMode.Movies -> firstDetailsUrl
-                                HomeFeedMode.Series -> firstDetailsUrl
-                            },
-                            selectedItem = when (mode) {
-                                HomeFeedMode.AllNew -> state.items.first()
-                                HomeFeedMode.Favorites -> state.favoriteItems.first()
-                                HomeFeedMode.Movies -> state.movieItems.firstOrNull() ?: state.items.first()
-                                HomeFeedMode.Series -> state.seriesItems.firstOrNull() ?: state.items.first()
-                            },
-                        )
-                    },
+                    state = seededModeState().copy(
+                        selectedMode = HomeFeedMode.Favorites,
+                        selectedItem = seededModeState().favoriteItems.first(),
+                        selectedItemKey = favoriteDetailsUrl,
+                    ),
                 )
             }
         }
 
         composeRule.onNodeWithText("Любимчики").assertExists()
+        composeRule.onNodeWithTag("home-mode-toggle")
+            .performSemanticsAction(SemanticsActions.RequestFocus)
+        composeRule.waitForIdle()
+        composeRule.onNodeWithTag("home-mode-toggle").assertIsFocused()
 
         composeRule.runOnIdle {
             composeRule.activity.onBackPressedDispatcher.onBackPressed()
         }
-        composeRule.waitForIdle()
 
-        composeRule.onNodeWithText("9-1-1").assertExists()
-        composeRule.onNodeWithTag(posterTag(HOME_RAIL_ALL_NEW, firstDetailsUrl)).assertIsFocused()
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.activity.isFinishing
+        }
     }
 
     @Test

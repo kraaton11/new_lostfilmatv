@@ -28,6 +28,7 @@ import com.kraat.lostfilmnewtv.ui.overview.MovieOverviewRoute
 import com.kraat.lostfilmnewtv.ui.overview.SeriesOverviewRoute
 import com.kraat.lostfilmnewtv.ui.search.SearchRoute
 import com.kraat.lostfilmnewtv.ui.home.HomeViewModel
+import com.kraat.lostfilmnewtv.ui.home.NavItem
 import com.kraat.lostfilmnewtv.ui.schedule.ScheduleRoute
 import com.kraat.lostfilmnewtv.ui.settings.SettingsRoute
 import com.kraat.lostfilmnewtv.ui.settings.SettingsViewModel
@@ -72,6 +73,10 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
             val savedAppUpdate by homeViewModel.savedAppUpdate.collectAsStateWithLifecycle()
             val selectedNavItem by homeViewModel.selectedNavItem.collectAsStateWithLifecycle()
             var updateInstallJob by remember { mutableStateOf<Job?>(null) }
+
+            LaunchedEffect(Unit) {
+                homeViewModel.onNavItemSelected(NavItem.HOME)
+            }
 
             val watchedDetailsUrl by backStackEntry.savedStateHandle
                 .getStateFlow<String?>(HOME_WATCHED_DETAILS_URL_KEY, null)
