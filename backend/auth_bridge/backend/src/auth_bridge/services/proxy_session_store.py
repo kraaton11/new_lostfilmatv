@@ -34,5 +34,8 @@ class ProxySessionStore:
     def clear(self, pairing_id: str) -> None:
         self._states.pop(pairing_id, None)
 
+    def count(self) -> int:
+        return len(self._states)
+
     def _cleanup_pairing_state(self, pairing: PairingRecord) -> None:
         self.clear(pairing.pairing_id)

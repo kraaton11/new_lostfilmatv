@@ -7,6 +7,11 @@ from auth_bridge.services.pairing_service import PairingService
 def build_health_router(pairing_service: PairingService) -> APIRouter:
     router = APIRouter(prefix="/health", tags=["health"])
 
+    @router.get("")
+    def health() -> dict[str, str]:
+        """Compatibility health endpoint for basic load balancer probes."""
+        return {"status": "ok"}
+
     @router.get("/live")
     def live() -> dict[str, str]:
         """Liveness probe — always returns ok if the process is up."""

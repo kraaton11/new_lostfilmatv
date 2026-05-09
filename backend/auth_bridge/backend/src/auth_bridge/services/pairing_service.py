@@ -89,6 +89,14 @@ class PairingService:
                 raise RuntimeError("wildcard base domain is not configured")
             self._store.healthcheck()
 
+    def prune_expired(self) -> None:
+        with self._lock:
+            self._store.prune_expired()
+
+    def active_pairing_count(self) -> int:
+        with self._lock:
+            return self._store.count()
+
     def open_phone_flow(self, phone_verifier: str) -> PairingRecord:
         with self._lock:
             record = self.get_pairing_by_phone_verifier(phone_verifier)

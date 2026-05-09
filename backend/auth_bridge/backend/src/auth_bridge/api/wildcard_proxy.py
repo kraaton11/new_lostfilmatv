@@ -14,6 +14,7 @@ from auth_bridge.middleware.rate_limit import (
     extract_client_ip,
 )
 from auth_bridge.services.pairing_service import PairingExpiredError, PairingNotFoundError, PairingService
+from auth_bridge.services.lostfilm_proxy_service import UpstreamProxyError
 
 logger = logging.getLogger(__name__)
 _templates_dir = Path(__file__).resolve().parents[1] / "templates"
@@ -80,16 +81,20 @@ def _open_phone_flow_for_request(pairing_service: PairingService, request: Reque
 
 
 async def _proxy_request(app, pairing_service: PairingService, pairing, request: Request, path: str, wildcard_host: str) -> Response:
-    proxied_response = await run_in_threadpool(
-        app.state.lostfilm_proxy_service.proxy,
-        pairing.pairing_id,
-        wildcard_host,
-        request.method,
-        path,
-        request.url.query,
-        dict(request.headers),
-        await request.body(),
-    )
+    try:
+        proxied_response = await run_in_threadpool(
+            app.state.lostfilm_proxy_service.proxy,
+            pairing.pairing_id,
+            wildcard_host,
+            request.method,
+            path,
+            request.url.query,
+            dict(request.headers),
+            await request.body(),
+        )
+    except UpstreamProxyError:
+        logger.warning("Upstream proxy unavailable pairing_id=%s path=%s", mask_token(pairing.pairing_id), path)
+        return HTMLResponse("LostFilm is temporarily unavailable. Please try again later.", status_code=502)
     if pairing.session_payload is None and "text/html" in proxied_response.headers.get("content-type", "").lower():
         proxy_state = app.state.proxy_session_store.get(pairing.pairing_id)
         cookie_names = [cookie.name for cookie in proxy_state.cookie_jar.jar] if proxy_state is not None else []

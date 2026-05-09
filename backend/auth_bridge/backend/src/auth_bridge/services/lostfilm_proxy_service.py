@@ -3,6 +3,7 @@ from html import escape
 import json
 import logging
 import re
+import time
 from typing import Mapping
 from urllib.parse import parse_qs, urlparse
 
@@ -19,6 +20,10 @@ class ProxyResponse:
     status_code: int
     headers: dict[str, str]
     content: bytes
+
+
+class UpstreamProxyError(Exception):
+    """Raised when the upstream LostFilm request cannot be completed."""
 
 
 class LostFilmProxyService:
@@ -134,11 +139,17 @@ body {
         base_url: str,
         proxy_session_store: ProxySessionStore,
         transport: httpx.BaseTransport | None = None,
+        timeout_seconds: float = 10.0,
+        retry_attempts: int = 2,
+        retry_backoff_seconds: float = 0.25,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._base_netloc = urlparse(self._base_url).netloc
         self._proxy_session_store = proxy_session_store
         self._transport = transport
+        self._timeout = httpx.Timeout(timeout_seconds)
+        self._retry_attempts = max(1, retry_attempts)
+        self._retry_backoff_seconds = max(0.0, retry_backoff_seconds)
 
     def proxy(
         self,
@@ -174,11 +185,13 @@ body {
                 follow_redirects=False,
                 cookies=session_state.cookie_jar,
             ) as client:
-                upstream_response = client.request(
+                upstream_response = self._request_with_retries(
+                    client=client,
+                    pairing_id=pairing_id,
                     method=method,
                     url=upstream_url,
                     headers=self._build_forward_headers(headers),
-                    content=body,
+                    body=body,
                 )
                 session_state.cookie_jar = client.cookies
 
@@ -209,6 +222,66 @@ body {
                 content=upstream_response.content,
             ),
         )
+
+    def _request_with_retries(
+        self,
+        *,
+        client: httpx.Client,
+        pairing_id: str,
+        method: str,
+        url: str,
+        headers: Mapping[str, str],
+        body: bytes,
+    ) -> httpx.Response:
+        attempts = self._retry_attempts if method.upper() in {"GET", "HEAD", "OPTIONS"} else 1
+        last_error: httpx.RequestError | None = None
+        for attempt in range(1, attempts + 1):
+            try:
+                response = client.request(
+                    method=method,
+                    url=url,
+                    headers=headers,
+                    content=body,
+                    timeout=self._timeout,
+                )
+            except httpx.RequestError as exc:
+                last_error = exc
+                if attempt >= attempts:
+                    break
+                logger.warning(
+                    "Upstream request failed; retrying pairing_id=%s method=%s url=%s attempt=%d/%d error=%s",
+                    mask_token(pairing_id),
+                    method,
+                    _redact_query(url),
+                    attempt,
+                    attempts,
+                    exc.__class__.__name__,
+                )
+                self._sleep_before_retry(attempt)
+                continue
+
+            if response.status_code in {502, 503, 504} and attempt < attempts:
+                logger.warning(
+                    "Upstream returned retryable status; retrying pairing_id=%s method=%s url=%s status=%d attempt=%d/%d",
+                    mask_token(pairing_id),
+                    method,
+                    _redact_query(url),
+                    response.status_code,
+                    attempt,
+                    attempts,
+                )
+                response.close()
+                self._sleep_before_retry(attempt)
+                continue
+
+            return response
+
+        raise UpstreamProxyError(last_error.__class__.__name__ if last_error is not None else "retryable_status")
+
+    def _sleep_before_retry(self, attempt: int) -> None:
+        if self._retry_backoff_seconds <= 0:
+            return
+        time.sleep(self._retry_backoff_seconds * attempt)
 
     def _build_forward_headers(self, headers: Mapping[str, str]) -> dict[str, str]:
         return {
@@ -388,3 +461,10 @@ body {
         except (UnicodeDecodeError, json.JSONDecodeError):
             return b'"success":true' in response.content and b'"result":"ok"' in response.content
         return payload.get("success") is True and payload.get("result") == "ok"
+
+
+def _redact_query(url: str) -> str:
+    parsed = urlparse(url)
+    if not parsed.query:
+        return url
+    return f"{parsed.scheme}://{parsed.netloc}{parsed.path}?..."

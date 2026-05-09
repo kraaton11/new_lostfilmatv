@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from auth_bridge.middleware.rate_limit import (
     RateLimitExceeded,
     SlidingWindowRateLimiter,
+    build_pairing_action_rate_limit_keys,
     build_proxy_rate_limit_keys,
     extract_client_ip,
 )
@@ -117,6 +118,35 @@ class RateLimitKeyTest(unittest.TestCase):
             ),
         )
 
+    def test_build_pairing_action_rate_limit_keys_include_ip_and_pairing_dimensions(self) -> None:
+        keys = build_pairing_action_rate_limit_keys(
+            client_ip="203.0.113.7",
+            pairing_id="pairing-1",
+        )
+
+        self.assertEqual(len(keys), 2)
+        self.assertEqual(
+            keys,
+            build_pairing_action_rate_limit_keys(
+                client_ip="203.0.113.7",
+                pairing_id="pairing-1",
+            ),
+        )
+        self.assertNotEqual(
+            keys,
+            build_pairing_action_rate_limit_keys(
+                client_ip="198.51.100.24",
+                pairing_id="pairing-1",
+            ),
+        )
+        self.assertNotEqual(
+            keys,
+            build_pairing_action_rate_limit_keys(
+                client_ip="203.0.113.7",
+                pairing_id="pairing-2",
+            ),
+        )
+
 class PairingCreationRateLimiterIntegrationTest(unittest.TestCase):
     def setUp(self) -> None:
         from auth_bridge.main import app
@@ -126,6 +156,7 @@ class PairingCreationRateLimiterIntegrationTest(unittest.TestCase):
         self.app = app
         self.app.state.pairing_service.reset()
         self.app.state.create_pairing_rate_limiter.clear()
+        self.app.state.pairing_action_rate_limiter.clear()
         self.app.state.proxy_rate_limiter.clear()
         self._had_original_limiter = hasattr(self.app.state, "create_pairing_rate_limiter")
         self._original_limiter = getattr(self.app.state, "create_pairing_rate_limiter", None)
@@ -147,5 +178,45 @@ class PairingCreationRateLimiterIntegrationTest(unittest.TestCase):
 
         self.assertEqual(r1.status_code, 201)
         self.assertEqual(r2.status_code, 201)
+        self.assertEqual(r3.status_code, 429)
+        self.assertIn("Too many pairing requests", r3.json()["detail"])
+
+
+class PairingActionRateLimiterIntegrationTest(unittest.TestCase):
+    def setUp(self) -> None:
+        from auth_bridge.main import app
+        from auth_bridge.middleware.rate_limit import SlidingWindowRateLimiter
+        from fastapi.testclient import TestClient
+
+        self.app = app
+        self.app.state.pairing_service.reset()
+        self.app.state.create_pairing_rate_limiter.clear()
+        self.app.state.pairing_action_rate_limiter.clear()
+        self.app.state.proxy_rate_limiter.clear()
+        self._had_original_limiter = hasattr(self.app.state, "pairing_action_rate_limiter")
+        self._original_limiter = getattr(self.app.state, "pairing_action_rate_limiter", None)
+        self.app.state.pairing_action_rate_limiter = SlidingWindowRateLimiter(max_requests=2, window_seconds=60)
+        self.client = TestClient(app)
+
+    def tearDown(self) -> None:
+        if self._had_original_limiter:
+            self.app.state.pairing_action_rate_limiter = self._original_limiter
+        else:
+            delattr(self.app.state, "pairing_action_rate_limiter")
+
+    def test_pairing_poll_rate_limit_blocks_after_max_requests(self) -> None:
+        headers = {"X-Forwarded-For": "203.0.113.7"}
+        pairing = self.client.post("/api/pairings", headers=headers).json()
+        poll_headers = {
+            **headers,
+            "X-Pairing-Secret": pairing["pairingSecret"],
+        }
+
+        r1 = self.client.get(f"/api/pairings/{pairing['pairingId']}", headers=poll_headers)
+        r2 = self.client.get(f"/api/pairings/{pairing['pairingId']}", headers=poll_headers)
+        r3 = self.client.get(f"/api/pairings/{pairing['pairingId']}", headers=poll_headers)
+
+        self.assertEqual(r1.status_code, 200)
+        self.assertEqual(r2.status_code, 200)
         self.assertEqual(r3.status_code, 429)
         self.assertIn("Too many pairing requests", r3.json()["detail"])

@@ -1,5 +1,6 @@
 import sys
 import unittest
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
@@ -35,3 +36,11 @@ class PairingServiceHostTest(unittest.TestCase):
             with self.subTest(host=host):
                 with self.assertRaises(PairingNotFoundError):
                     self.service.resolve_phone_verifier_from_host(host)
+
+    def test_prune_expired_removes_stale_pairings(self) -> None:
+        record = self.service.get_pairing(self.pairing.pairingId)
+        record.expires_at = datetime.now(UTC) - timedelta(seconds=1)
+
+        self.service.prune_expired()
+
+        self.assertEqual(self.service.active_pairing_count(), 0)

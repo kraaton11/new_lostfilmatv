@@ -8,7 +8,7 @@ import httpx
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from auth_bridge.services.lostfilm_proxy_service import LostFilmProxyService
+from auth_bridge.services.lostfilm_proxy_service import LostFilmProxyService, UpstreamProxyError
 from auth_bridge.services.pairing_store import InMemoryPairingStore
 from auth_bridge.services.proxy_session_store import ProxySessionStore
 
@@ -565,3 +565,117 @@ class LostFilmProxyServiceTest(unittest.TestCase):
         state = proxy_session_store.get(pairing.pairing_id)
         self.assertIsNotNone(state)
         self.assertEqual(_cookie_value(state.cookie_jar, "lf_session"), "auth-cookie")
+
+    def test_proxy_retries_retryable_get_statuses(self) -> None:
+        pairing_store = InMemoryPairingStore(ttl_seconds=600)
+        proxy_session_store = ProxySessionStore(pairing_store)
+        pairing = pairing_store.save(
+            pairing_id="pairing-1",
+            pairing_secret="secret-1",
+            phone_verifier="verifier-1",
+            user_code="ABC123",
+        )
+        attempts = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal attempts
+            attempts += 1
+            if attempts == 1:
+                return httpx.Response(503, text="temporary")
+            return httpx.Response(200, text="ok")
+
+        proxy_service = LostFilmProxyService(
+            base_url="https://www.lostfilm.today",
+            proxy_session_store=proxy_session_store,
+            transport=httpx.MockTransport(handler),
+            retry_attempts=2,
+            retry_backoff_seconds=0,
+        )
+
+        response = proxy_service.proxy(
+            pairing_id=pairing.pairing_id,
+            wildcard_host="verifier-1.auth.example.test",
+            method="GET",
+            path="/my",
+            query_string="",
+            headers={},
+            body=b"",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"ok")
+        self.assertEqual(attempts, 2)
+
+    def test_proxy_does_not_retry_post_to_avoid_duplicate_login_submit(self) -> None:
+        pairing_store = InMemoryPairingStore(ttl_seconds=600)
+        proxy_session_store = ProxySessionStore(pairing_store)
+        pairing = pairing_store.save(
+            pairing_id="pairing-1",
+            pairing_secret="secret-1",
+            phone_verifier="verifier-1",
+            user_code="ABC123",
+        )
+        attempts = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal attempts
+            attempts += 1
+            return httpx.Response(503, text="temporary")
+
+        proxy_service = LostFilmProxyService(
+            base_url="https://www.lostfilm.today",
+            proxy_session_store=proxy_session_store,
+            transport=httpx.MockTransport(handler),
+            retry_attempts=3,
+            retry_backoff_seconds=0,
+        )
+
+        response = proxy_service.proxy(
+            pairing_id=pairing.pairing_id,
+            wildcard_host="verifier-1.auth.example.test",
+            method="POST",
+            path="/ajaxik.users.php",
+            query_string="",
+            headers={},
+            body=b"act=users&type=login",
+        )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(attempts, 1)
+
+    def test_proxy_raises_controlled_error_after_network_failures(self) -> None:
+        pairing_store = InMemoryPairingStore(ttl_seconds=600)
+        proxy_session_store = ProxySessionStore(pairing_store)
+        pairing = pairing_store.save(
+            pairing_id="pairing-1",
+            pairing_secret="secret-1",
+            phone_verifier="verifier-1",
+            user_code="ABC123",
+        )
+        attempts = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal attempts
+            attempts += 1
+            raise httpx.ConnectError("temporary", request=request)
+
+        proxy_service = LostFilmProxyService(
+            base_url="https://www.lostfilm.today",
+            proxy_session_store=proxy_session_store,
+            transport=httpx.MockTransport(handler),
+            retry_attempts=2,
+            retry_backoff_seconds=0,
+        )
+
+        with self.assertRaises(UpstreamProxyError):
+            proxy_service.proxy(
+                pairing_id=pairing.pairing_id,
+                wildcard_host="verifier-1.auth.example.test",
+                method="GET",
+                path="/my",
+                query_string="",
+                headers={},
+                body=b"",
+            )
+
+        self.assertEqual(attempts, 2)

@@ -126,6 +126,15 @@ def build_pairing_creation_rate_limit_keys(client_ip: str) -> tuple[str, ...]:
     return (_build_rate_limit_key("pairings:create:ip", normalized_client_ip),)
 
 
+def build_pairing_action_rate_limit_keys(client_ip: str, pairing_id: str) -> tuple[str, ...]:
+    normalized_client_ip = (client_ip or "unknown").strip().lower() or "unknown"
+    normalized_pairing_id = pairing_id.strip().lower()
+    return (
+        _build_rate_limit_key("pairings:action:ip", normalized_client_ip),
+        _build_rate_limit_key("pairings:action:ip+pairing", normalized_client_ip, normalized_pairing_id),
+    )
+
+
 def build_proxy_rate_limit_keys(client_ip: str, phone_verifier: str) -> tuple[str, ...]:
     normalized_client_ip = (client_ip or "unknown").strip().lower() or "unknown"
     normalized_phone_verifier = phone_verifier.strip().lower()

@@ -15,10 +15,17 @@ class HealthEndpointTest(unittest.TestCase):
         self.client = TestClient(app)
         app.state.pairing_service.reset()
         app.state.create_pairing_rate_limiter.clear()
+        app.state.pairing_action_rate_limiter.clear()
         app.state.proxy_rate_limiter.clear()
 
     def test_live_health_returns_ok_status(self) -> None:
         response = self.client.get("/health/live")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"status": "ok"})
+
+    def test_root_health_returns_ok_status(self) -> None:
+        response = self.client.get("/health")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {"status": "ok"})
