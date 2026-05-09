@@ -375,6 +375,8 @@ private fun HomeHeaderModeSegmentedControl(
             } else {
                 modeFocusRequesters[availableModes[index + 1]]
             }
+            val previousMode = availableModes.getOrNull(index - 1)
+            val nextMode = availableModes.getOrNull(index + 1)
             HomeModeSegmentButton(
                 mode = mode,
                 label = mode.segmentLabel(),
@@ -386,6 +388,8 @@ private fun HomeHeaderModeSegmentedControl(
                 upTarget = if (index == 0) upEdgeRequester else modeFocusRequesters[availableModes[index - 1]],
                 onClick = { onModeClick(mode) },
                 onLongClick = { onModeLongClick(mode) },
+                onMoveToPreviousMode = previousMode?.let { targetMode -> { onModeClick(targetMode) } },
+                onMoveToNextMode = nextMode?.let { targetMode -> { onModeClick(targetMode) } },
                 onInteraction = onInteraction,
                 onBackClick = onBackClick,
                 showLabel = showLabels,
@@ -407,6 +411,8 @@ private fun HomeModeSegmentButton(
     upTarget: FocusRequester?,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    onMoveToPreviousMode: (() -> Unit)?,
+    onMoveToNextMode: (() -> Unit)?,
     onInteraction: () -> Unit,
     onBackClick: () -> Boolean,
     showLabel: Boolean,
@@ -441,6 +447,16 @@ private fun HomeModeSegmentButton(
                 if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight) {
                     onInteraction()
                     return@onPreviewKeyEvent onBackClick()
+                }
+                if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionUp && onMoveToPreviousMode != null) {
+                    onInteraction()
+                    onMoveToPreviousMode()
+                    return@onPreviewKeyEvent true
+                }
+                if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown && onMoveToNextMode != null) {
+                    onInteraction()
+                    onMoveToNextMode()
+                    return@onPreviewKeyEvent true
                 }
                 if (event.type == KeyEventType.KeyDown && event.key.isHeaderActivationKey()) {
                     onInteraction()

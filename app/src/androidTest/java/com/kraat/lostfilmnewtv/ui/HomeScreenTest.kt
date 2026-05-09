@@ -56,7 +56,7 @@ class HomeScreenTest {
     }
 
     @Test
-    fun railFocus_movesUpToModeToggle_andDownBackToSelectedCard() {
+    fun railFocus_keepsVerticalFocusAndBackMovesToModeToggle() {
         composeRule.setContent {
             LostFilmTheme {
                 var state by remember { mutableStateOf(seededState()) }
@@ -85,16 +85,22 @@ class HomeScreenTest {
             keyUp(Key.DirectionUp)
         }
         composeRule.waitForIdle()
+        composeRule.onNodeWithTag(posterTag(firstDetailsUrl)).assertIsFocused()
 
-        composeRule.onNodeWithTag("home-mode-toggle").assertIsFocused()
-
-        composeRule.onNodeWithTag("home-mode-toggle").performKeyInput {
+        composeRule.onNodeWithTag(posterTag(firstDetailsUrl)).performKeyInput {
             keyDown(Key.DirectionDown)
             keyUp(Key.DirectionDown)
         }
         composeRule.waitForIdle()
-
         composeRule.onNodeWithTag(posterTag(firstDetailsUrl)).assertIsFocused()
+
+        composeRule.onNodeWithTag(posterTag(firstDetailsUrl)).performKeyInput {
+            keyDown(Key.Back)
+            keyUp(Key.Back)
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("home-mode-toggle").assertIsFocused()
     }
 
     @Test
@@ -184,8 +190,8 @@ class HomeScreenTest {
         )
 
         composeRule.onNodeWithTag(posterTag(HOME_RAIL_ALL_NEW, firstDetailsUrl)).performKeyInput {
-            keyDown(Key.DirectionUp)
-            keyUp(Key.DirectionUp)
+            keyDown(Key.Back)
+            keyUp(Key.Back)
         }
         composeRule.waitForIdle()
 
@@ -351,8 +357,8 @@ class HomeScreenTest {
         }
 
         composeRule.onNodeWithTag(posterTag(HOME_RAIL_FAVORITES, favoriteDetailsUrl)).performKeyInput {
-            keyDown(Key.DirectionUp)
-            keyUp(Key.DirectionUp)
+            keyDown(Key.Back)
+            keyUp(Key.Back)
         }
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("home-mode-toggle").assertIsFocused()

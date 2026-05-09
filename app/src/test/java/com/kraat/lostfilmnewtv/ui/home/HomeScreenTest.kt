@@ -226,6 +226,44 @@ class HomeScreenTest {
 
     @Test
     @OptIn(ExperimentalTestApi::class)
+    fun homeScreen_posterVerticalKeysStayOnPoster_andBackFocusesMenu() {
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(state = seededState())
+            }
+        }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag(posterTag(firstDetailsUrl))
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+
+        composeRule.onNodeWithTag(posterTag(firstDetailsUrl))
+            .performKeyInput { pressKey(Key.DirectionUp) }
+        composeRule.onNodeWithTag(posterTag(firstDetailsUrl)).assertIsFocused()
+
+        composeRule.onNodeWithTag(posterTag(firstDetailsUrl))
+            .performKeyInput { pressKey(Key.DirectionDown) }
+        composeRule.onNodeWithTag(posterTag(firstDetailsUrl)).assertIsFocused()
+
+        composeRule.onNodeWithTag(posterTag(firstDetailsUrl))
+            .performKeyInput { pressKey(Key.Back) }
+
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            val node = composeRule.onAllNodesWithTag("home-mode-toggle")
+                .fetchSemanticsNodes()
+                .singleOrNull()
+                ?: return@waitUntil false
+            SemanticsProperties.Focused in node.config && node.config[SemanticsProperties.Focused]
+        }
+        composeRule.onNodeWithTag("home-mode-toggle").assertIsFocused()
+    }
+
+    @Test
+    @OptIn(ExperimentalTestApi::class)
     fun homeScreen_centerKeyOnFocusedPoster_opensDetails() {
         var openedUrl: String? = null
 
@@ -758,7 +796,7 @@ class HomeScreenTest {
         }
 
         composeRule.onNodeWithTag(favoritePosterTag)
-            .performKeyInput { pressKey(Key.DirectionUp) }
+            .performKeyInput { pressKey(Key.Back) }
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
             val node = composeRule.onAllNodesWithTag("home-mode-toggle")
@@ -843,7 +881,7 @@ class HomeScreenTest {
         }
 
         composeRule.onNodeWithTag(favoritePosterTag)
-            .performKeyInput { pressKey(Key.DirectionUp) }
+            .performKeyInput { pressKey(Key.Back) }
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
             val node = composeRule.onAllNodesWithTag("home-mode-toggle")
@@ -925,7 +963,7 @@ class HomeScreenTest {
         }
 
         composeRule.onNodeWithTag(favoritePosterTag)
-            .performKeyInput { pressKey(Key.DirectionUp) }
+            .performKeyInput { pressKey(Key.Back) }
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
             val node = composeRule.onAllNodesWithTag("home-mode-toggle")
@@ -937,7 +975,7 @@ class HomeScreenTest {
 
         composeRule.onNodeWithTag("home-mode-toggle")
             .performKeyInput {
-                repeat(3) {
+                repeat(4) {
                     pressKey(Key.DirectionDown)
                 }
             }
@@ -1195,7 +1233,7 @@ class HomeScreenTest {
         }
 
         composeRule.onNodeWithTag(allNewFirstTag)
-            .performKeyInput { pressKey(Key.DirectionUp) }
+            .performKeyInput { pressKey(Key.Back) }
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
             val node = composeRule.onAllNodesWithTag("home-mode-toggle")
@@ -1231,7 +1269,7 @@ class HomeScreenTest {
         }
 
         composeRule.onNodeWithTag(sharedFavoriteTag)
-            .performKeyInput { pressKey(Key.DirectionUp) }
+            .performKeyInput { pressKey(Key.Back) }
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
             val node = composeRule.onAllNodesWithTag("home-mode-toggle")
