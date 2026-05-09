@@ -20,6 +20,8 @@ interface LostFilmHttpClient {
 
     suspend fun fetchSeriesCatalogPage(pageNumber: Int = 1): String = fetchDetails(seriesCatalogPageUrl(pageNumber))
 
+    suspend fun fetchSchedulePage(): String = fetchDetails("$BASE_URL/schedule/")
+
     suspend fun fetchDetails(detailsUrl: String): String
 
     suspend fun fetchAccountPage(path: String): String
@@ -69,6 +71,10 @@ class OkHttpLostFilmHttpClient(
 
     override suspend fun fetchSeriesCatalogPage(pageNumber: Int): String = withContext(Dispatchers.IO) {
         executeSeriesCatalogSearch(pageNumber)
+    }
+
+    override suspend fun fetchSchedulePage(): String = withContext(Dispatchers.IO) {
+        executeLostFilm("$BASE_URL/schedule/")
     }
 
     override suspend fun fetchDetails(detailsUrl: String): String = withContext(Dispatchers.IO) {

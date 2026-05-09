@@ -81,6 +81,7 @@ fun HomeScreen(
     onOpenSeriesGuide: (String) -> Unit = onOpenSeriesOverview,
     onEndReached: () -> Unit = {},
     onSearchClick: () -> Unit = {},
+    onScheduleClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onUpdateClick: () -> Unit = {},
     onAuthClick: () -> Unit = {},
@@ -153,6 +154,7 @@ fun HomeScreen(
         HomeFeedMode.entries.associateWith { FocusRequester() }
     }
     val searchRequester = remember { FocusRequester() }
+    val scheduleRequester = remember { FocusRequester() }
     val settingsRequester = remember { FocusRequester() }
     val updateRequester = remember { FocusRequester() }
     val loginActionRequester = remember { FocusRequester() }
@@ -254,6 +256,7 @@ fun HomeScreen(
                     }
                 },
                 onSearchClick = onSearchClick,
+                onScheduleClick = onScheduleClick,
                 onSettingsClick = onSettingsClick,
                 onUpdateClick = onUpdateClick,
                 selectedNavItem = selectedNavItem,
@@ -262,6 +265,7 @@ fun HomeScreen(
                 updateVersionText = savedAppUpdate?.latestVersion,
                 modeFocusRequesters = modeFocusRequesters,
                 searchFocusRequester = searchRequester,
+                scheduleFocusRequester = scheduleRequester,
                 updateFocusRequester = updateRequester,
                 settingsFocusRequester = settingsRequester,
                 downTarget = headerDownTarget,

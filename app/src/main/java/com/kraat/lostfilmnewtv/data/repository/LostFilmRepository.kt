@@ -5,6 +5,7 @@ import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
+import com.kraat.lostfilmnewtv.data.model.ScheduleMonth
 import com.kraat.lostfilmnewtv.data.model.SeriesGuide
 import com.kraat.lostfilmnewtv.data.model.SeriesOverview
 
@@ -52,6 +53,16 @@ sealed interface SearchResultsResult {
     ) : SearchResultsResult
 }
 
+sealed interface ScheduleResult {
+    data class Success(
+        val schedule: ScheduleMonth,
+    ) : ScheduleResult
+
+    data class Error(
+        val message: String,
+    ) : ScheduleResult
+}
+
 interface LostFilmRepository {
     suspend fun loadPage(pageNumber: Int): PageState
 
@@ -70,6 +81,9 @@ interface LostFilmRepository {
 
     suspend fun search(query: String): SearchResultsResult =
         SearchResultsResult.Error(query, "Поиск недоступен")
+
+    suspend fun loadSchedule(): ScheduleResult =
+        ScheduleResult.Error("Расписание недоступно")
 
     suspend fun loadWatchedState(detailsUrl: String): Boolean?
 
