@@ -211,8 +211,8 @@ fun HomeScreen(
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    0f to Color(0xFF14293B),
-                    0.32f to Color(0xFF0B1520),
+                    0f to Color(0xFF07111B),
+                    0.34f to Color(0xFF061018),
                     1f to BackgroundPrimary,
                 ),
             ),
@@ -222,8 +222,8 @@ fun HomeScreen(
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 12.dp, top = 42.dp, end = 18.dp, bottom = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(start = 22.dp, top = 22.dp, end = 10.dp, bottom = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(26.dp),
         ) {
             val headerPrimaryRequester = when {
                 state.availableModes.size > 1 -> modeFocusRequesters.getValue(state.selectedMode)
@@ -261,7 +261,7 @@ fun HomeScreen(
                 onSearchClick = onSearchClick,
                 onScheduleClick = onScheduleClick,
                 onSettingsClick = onSettingsClick,
-                onUpdateClick = onUpdateClick,
+                onUpdateClick = if (savedAppUpdate != null) onUpdateClick else onRetry,
                 selectedNavItem = selectedNavItem,
                 onNavItemSelected = onNavItemSelected,
                 onNavItemLongClick = onNavItemLongClick,
@@ -276,22 +276,15 @@ fun HomeScreen(
                 showLabels = state.isHomeMenuLabelsEnabled,
                 onHomeMenuLabelsVisibilitySelected = onHomeMenuLabelsVisibilitySelected,
                 modifier = Modifier
-                    .width(if (state.isHomeMenuLabelsEnabled) 156.dp else 46.dp)
+                    .width(if (state.isHomeMenuLabelsEnabled) 204.dp else 68.dp)
                     .fillMaxHeight(),
-            )
-
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .width(1.dp)
-                    .background(HomePanelBorder.copy(alpha = 0.74f)),
             )
 
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .padding(top = 24.dp),
+                    .padding(top = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if (isAllNewMode && state.fullScreenErrorMessage != null && state.items.isNotEmpty()) {
@@ -350,7 +343,7 @@ fun HomeScreen(
                                     isPaging = when (state.selectedMode) {
                                         HomeFeedMode.AllNew -> state.isPaging
                                         HomeFeedMode.Movies -> state.isMoviesPaging
-                                        HomeFeedMode.Favorites -> false
+                                        HomeFeedMode.Favorites -> state.isFavoritesPaging
                                         HomeFeedMode.Series -> state.isSeriesPaging
                                     },
                                     onItemFocused = { detailsUrl ->
@@ -363,13 +356,7 @@ fun HomeScreen(
                                     } else {
                                         onOpenDetails
                                     },
-                                    onEndReached = if (
-                                        state.selectedMode != HomeFeedMode.Favorites
-                                    ) {
-                                        onEndReached
-                                    } else {
-                                        {}
-                                    },
+                                    onEndReached = onEndReached,
                                 )
                             }
                             HomeModeContentState.Empty -> {
@@ -414,7 +401,7 @@ fun HomeScreen(
                         val activePagingErrorMessage = when (state.selectedMode) {
                             HomeFeedMode.AllNew -> state.pagingErrorMessage
                             HomeFeedMode.Movies -> state.moviesPagingErrorMessage
-                            HomeFeedMode.Favorites -> null
+                            HomeFeedMode.Favorites -> state.favoritesPagingErrorMessage
                             HomeFeedMode.Series -> state.seriesPagingErrorMessage
                         }
                         if (activePagingErrorMessage != null) {
@@ -442,26 +429,26 @@ private fun HomeHeroStage(
     Crossfade(
         targetState = item,
         modifier = modifier
-            .height(224.dp)
+            .height(232.dp)
             .testTag("home-hero-stage"),
         label = "homeHeroStage",
     ) { targetItem ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 0.dp, top = 0.dp, end = 290.dp, bottom = 6.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(start = 2.dp, top = 0.dp, end = 260.dp, bottom = 2.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             ReleaseHeroMetaRow(targetItem)
 
             Text(
                 text = targetItem?.titleRu.orEmpty(),
                 color = TextPrimary,
-                fontSize = 42.sp,
-                lineHeight = 46.sp,
+                fontSize = 32.sp,
+                lineHeight = 36.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
+                overflow = TextOverflow.Clip,
             )
 
             targetItem?.episodeTitleRu?.takeIf { it.isNotBlank() }?.let { episodeTitle ->
@@ -471,8 +458,8 @@ private fun HomeHeroStage(
                         platformStyle = PlatformTextStyle(includeFontPadding = true),
                     ),
                     color = HomeTextSecondary,
-                    fontSize = 24.sp,
-                    lineHeight = 28.sp,
+                    fontSize = 18.sp,
+                    lineHeight = 22.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -482,11 +469,11 @@ private fun HomeHeroStage(
             Text(
                 text = targetItem.heroDescription(),
                 color = HomeTextSecondary,
-                fontSize = 17.sp,
-                lineHeight = 22.sp,
-                maxLines = 3,
+                fontSize = 16.sp,
+                lineHeight = 21.sp,
+                maxLines = 4,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.width(560.dp),
+                modifier = Modifier.width(820.dp),
             )
         }
     }
@@ -530,8 +517,8 @@ private fun HeroMetaPill(
     Text(
         text = label,
         color = TextPrimary,
-        fontSize = 14.sp,
-        lineHeight = 16.sp,
+        fontSize = 12.sp,
+        lineHeight = 14.sp,
         fontWeight = FontWeight.Bold,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
@@ -545,7 +532,7 @@ private fun HeroMetaPill(
                 color = HomeAccentGold.copy(alpha = 0.78f),
                 shape = shape,
             )
-            .padding(horizontal = 14.dp, vertical = 6.dp),
+            .padding(horizontal = 12.dp, vertical = 5.dp),
     )
 }
 
@@ -581,10 +568,10 @@ private fun HomeRailSectionHeader(selectedMode: HomeFeedMode) {
 
     Text(
         text = title,
-        color = HomeTextSecondary,
-        fontSize = 16.sp,
+        color = TextPrimary,
+        fontSize = 20.sp,
         fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-        modifier = Modifier.padding(start = 8.dp),
+        modifier = Modifier.padding(start = 2.dp),
     )
 }
 
@@ -643,10 +630,10 @@ private fun HomeBackdrop(item: ReleaseSummary?) {
             .fillMaxSize()
             .background(
                 Brush.horizontalGradient(
-                    0f to BackgroundPrimary.copy(alpha = 0.96f),
-                    0.34f to BackgroundPrimary.copy(alpha = 0.74f),
-                    0.64f to BackgroundPrimary.copy(alpha = 0.12f),
-                    1f to BackgroundPrimary.copy(alpha = 0.26f),
+                    0f to BackgroundPrimary.copy(alpha = 0.98f),
+                    0.30f to BackgroundPrimary.copy(alpha = 0.78f),
+                    0.56f to BackgroundPrimary.copy(alpha = 0.10f),
+                    1f to BackgroundPrimary.copy(alpha = 0.18f),
                 ),
             ),
     )
@@ -655,9 +642,9 @@ private fun HomeBackdrop(item: ReleaseSummary?) {
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    0f to Color(0x4414293B),
+                    0f to Color(0x22081420),
                     0.42f to Color.Transparent,
-                    1f to BackgroundPrimary.copy(alpha = 0.86f),
+                    1f to BackgroundPrimary.copy(alpha = 0.92f),
                 ),
             ),
     )

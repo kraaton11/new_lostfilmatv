@@ -31,6 +31,8 @@ sealed interface FavoriteMutationResult {
 sealed interface FavoriteReleasesResult {
     data class Success(
         val items: List<ReleaseSummary>,
+        val pageNumber: Int = 1,
+        val hasNextPage: Boolean = false,
     ) : FavoriteReleasesResult
 
     data class Unavailable(

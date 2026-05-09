@@ -105,9 +105,9 @@ fun HomeRail(
                     }
                 }
                 .focusable()
-                .height(194.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            contentPadding = PaddingValues(start = 8.dp, top = 10.dp, end = 8.dp, bottom = 12.dp),
+                .height(210.dp),
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
+            contentPadding = PaddingValues(start = 2.dp, top = 10.dp, end = 6.dp, bottom = 16.dp),
         ) {
             itemsIndexed(items = items, key = { _, item -> item.detailsUrl }) { index, item ->
                 val itemKey = homeItemKey(railId, item.detailsUrl)
@@ -199,8 +199,8 @@ private fun HomePagingPosterSkeleton(modifier: Modifier = Modifier) {
 
     ShimmerSkeletonBox(
         brush = shimmerBrush,
-        modifier = modifier
-            .size(width = 112.dp, height = 168.dp),
+            modifier = modifier
+            .size(width = 112.dp, height = 172.dp),
         shape = shape,
         borderColor = HomePanelBorder.copy(alpha = 0.20f),
     )

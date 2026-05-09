@@ -688,7 +688,7 @@ private class RouteFakeDetailsRepository(
         }
     }
 
-    override suspend fun loadFavoriteReleases(): FavoriteReleasesResult {
+    override suspend fun loadFavoriteReleases(pageNumber: Int): FavoriteReleasesResult {
         return FavoriteReleasesResult.Unavailable()
     }
 

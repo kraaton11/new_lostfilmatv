@@ -227,6 +227,49 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun onEndReached_inFavoritesMode_loadsNextFavoritePage() = runTest(dispatcher) {
+        val firstFavorite = summary(detailsUrl = "https://www.lostfilm.today/series/favorite/season_1/episode_1/")
+        val secondFavorite = summary(
+            detailsUrl = "https://www.lostfilm.today/series/favorite/season_1/episode_2/",
+            titleRu = "Favorite 2",
+        )
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(pageNumber = 1, items = emptyList(), hasNextPage = false, isStale = false),
+            ),
+            favoriteReleaseResults = mutableListOf(
+                FavoriteReleasesResult.Success(
+                    items = listOf(firstFavorite),
+                    pageNumber = 1,
+                    hasNextPage = true,
+                ),
+                FavoriteReleasesResult.Success(
+                    items = listOf(secondFavorite),
+                    pageNumber = 2,
+                    hasNextPage = false,
+                ),
+            ),
+        )
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            initialSelectedMode = HomeFeedMode.Favorites,
+            initialFavoritesRailVisible = true,
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+        viewModel.onEndReached()
+        advanceUntilIdle()
+
+        assertEquals(listOf(1, 2), repository.favoriteReleaseRequests)
+        assertEquals(listOf(firstFavorite, secondFavorite), viewModel.uiState.value.favoriteItems)
+        assertFalse(viewModel.uiState.value.isFavoritesPaging)
+        assertFalse(viewModel.uiState.value.favoritesHasNextPage)
+    }
+
+    @Test
     fun onPagingRetry_inMoviesMode_retriesSoftMoviePagingError() = runTest(dispatcher) {
         val firstMovie = summary(detailsUrl = "https://www.lostfilm.today/movies/Dune_Part_Three")
         val secondMovie = summary(detailsUrl = "https://www.lostfilm.today/movies/Frankenstein")
@@ -828,6 +871,7 @@ private class FakeLostFilmRepository(
 ) : LostFilmRepository {
     val pageRequests = mutableListOf<Int>()
     val movieRequests = mutableListOf<Int>()
+    val favoriteReleaseRequests = mutableListOf<Int>()
     var favoriteReleaseCalls = 0
 
     override suspend fun loadPage(pageNumber: Int): PageState {
@@ -872,8 +916,9 @@ private class FakeLostFilmRepository(
         return FavoriteMutationResult.RequiresLogin()
     }
 
-    override suspend fun loadFavoriteReleases(): FavoriteReleasesResult {
+    override suspend fun loadFavoriteReleases(pageNumber: Int): FavoriteReleasesResult {
         favoriteReleaseCalls += 1
+        favoriteReleaseRequests += pageNumber
         return favoriteReleaseResults.removeFirstOrNull() ?: FavoriteReleasesResult.Unavailable()
     }
 }

@@ -8,6 +8,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
@@ -37,11 +38,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.key.Key
@@ -65,6 +68,12 @@ import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurface
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 import com.kraat.lostfilmnewtv.ui.theme.HomeTextMuted
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
+
+private val ExpandedMenuWidth = 204.dp
+private val CollapsedMenuWidth = 68.dp
+private val MenuButtonHeight = 42.dp
+private val MenuShape = RoundedCornerShape(18.dp)
+private val MenuButtonShape = RoundedCornerShape(10.dp)
 
 @Composable
 fun HomeHeader(
@@ -110,119 +119,122 @@ fun HomeHeader(
         initialFocusRequester.requestFocus()
     }
 
-    Column(
+    Box(
         modifier = modifier
             .fillMaxHeight()
-            .then(if (showLabels) Modifier else Modifier.width(46.dp)),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .then(if (showLabels) Modifier.width(ExpandedMenuWidth) else Modifier.width(CollapsedMenuWidth))
+            .shadow(
+                elevation = 18.dp,
+                shape = MenuShape,
+                spotColor = HomeAccentGoldGlow.copy(alpha = 0.28f),
+                ambientColor = Color.Black.copy(alpha = 0.65f),
+            )
+            .background(
+                brush = Brush.verticalGradient(
+                    0f to Color(0xDD0B0E10),
+                    0.48f to Color(0xEE090D10),
+                    1f to Color(0xF2070A0D),
+                ),
+                shape = MenuShape,
+            )
+            .border(
+                width = 1.3.dp,
+                brush = Brush.verticalGradient(
+                    0f to HomeAccentGoldGlow.copy(alpha = 0.92f),
+                    0.50f to HomeAccentGold.copy(alpha = 0.42f),
+                    1f to HomeAccentGold.copy(alpha = 0.86f),
+                ),
+                shape = MenuShape,
+            )
+            .padding(horizontal = if (showLabels) 16.dp else 9.dp, vertical = 8.dp),
     ) {
-        HomeHeaderActionButton(
-            label = if (showLabels) "Скрыть меню" else "Показать меню",
-            subtitle = "",
-            leadingIcon = if (showLabels) HeaderActionIcon.MenuCollapse else HeaderActionIcon.MenuExpand,
-            onClick = {
-                onHeaderInteraction()
-                onHomeMenuLabelsVisibilitySelected(!showLabels)
-            },
-            onLongClick = {},
-            onInteraction = onHeaderInteraction,
-            onBackClick = onBackToContent,
-            minWidth = if (showLabels) 156.dp else 46.dp,
-            hideSubtitle = true,
-            showLabel = showLabels,
-            modifier = Modifier
-                .then(if (showLabels) Modifier.fillMaxWidth() else Modifier.width(46.dp))
-                .testTag("home-action-menu-labels")
-                .focusRequester(menuLabelsFocusRequester)
-                .focusProperties {
-                    down = firstModeRequester ?: scheduleFocusRequester
-                    up = settingsFocusRequester
-                    right = downTarget ?: FocusRequester.Default
-                    left = FocusRequester.Cancel
+        Column(
+            modifier = Modifier.fillMaxHeight(),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            HomeMenuLogo(showLabels = showLabels)
+            if (hasModeToggle) {
+                HomeHeaderModeSegmentedControl(
+                    currentMode = selectedMode,
+                    availableModes = visibleModes,
+                    modeFocusRequesters = modeFocusRequesters,
+                    leftEdgeRequester = null,
+                    rightEdgeRequester = downTarget,
+                    nextDownRequester = scheduleFocusRequester,
+                    upEdgeRequester = menuLabelsFocusRequester,
+                    onModeClick = { mode ->
+                        onHeaderInteraction()
+                        onNavItemSelected(NavItem.HOME)
+                        onModeActivated(mode)
+                    },
+                    onModeLongClick = { onNavItemLongClick(NavItem.HOME) },
+                    onInteraction = onHeaderInteraction,
+                    onBackClick = onBackToContent,
+                    showLabels = showLabels,
+                    modifier = Modifier.testTag("home-mode-control"),
+                )
+            } else {
+                Spacer(modifier = Modifier.width(1.dp))
+            }
+
+            HomeHeaderActionButton(
+                label = "Расписание",
+                subtitle = "Календарь",
+                leadingIcon = HeaderActionIcon.Calendar,
+                onClick = {
+                    onNavItemSelected(NavItem.SCHEDULE)
+                    onScheduleClick()
                 },
-        )
-        if (hasModeToggle) {
-            HomeHeaderModeSegmentedControl(
-                currentMode = selectedMode,
-                availableModes = visibleModes,
-                modeFocusRequesters = modeFocusRequesters,
-                leftEdgeRequester = null,
-                rightEdgeRequester = downTarget,
-                nextDownRequester = scheduleFocusRequester,
-                upEdgeRequester = menuLabelsFocusRequester,
-                onModeClick = { mode ->
-                    onHeaderInteraction()
-                    onNavItemSelected(NavItem.HOME)
-                    onModeActivated(mode)
-                },
-                onModeLongClick = { onNavItemLongClick(NavItem.HOME) },
+                onLongClick = { onNavItemLongClick(NavItem.SCHEDULE) },
                 onInteraction = onHeaderInteraction,
                 onBackClick = onBackToContent,
-                showLabels = showLabels,
-                modifier = Modifier.testTag("home-mode-control"),
+                isPrimary = selectedNavItem == NavItem.SCHEDULE,
+                minWidth = if (showLabels) ExpandedMenuWidth - 36.dp else CollapsedMenuWidth - 20.dp,
+                hideSubtitle = true,
+                showLabel = showLabels,
+                modifier = Modifier
+                    .then(if (showLabels) Modifier.fillMaxWidth() else Modifier.width(CollapsedMenuWidth - 20.dp))
+                    .testTag("home-action-schedule")
+                    .focusRequester(scheduleFocusRequester)
+                    .focusProperties {
+                        up = lastModeRequester ?: searchFocusRequester
+                        down = searchFocusRequester
+                        right = downTarget ?: FocusRequester.Default
+                        left = FocusRequester.Cancel
+                    },
             )
-        } else {
-            Spacer(modifier = Modifier.width(1.dp))
-        }
-
-        HomeHeaderActionButton(
-            label = "Расписание",
-            subtitle = "Календарь",
-            leadingIcon = HeaderActionIcon.Calendar,
-            onClick = {
-                onNavItemSelected(NavItem.SCHEDULE)
-                onScheduleClick()
-            },
-            onLongClick = { onNavItemLongClick(NavItem.SCHEDULE) },
-            onInteraction = onHeaderInteraction,
-            onBackClick = onBackToContent,
-            isPrimary = selectedNavItem == NavItem.SCHEDULE,
-            minWidth = if (showLabels) 156.dp else 46.dp,
-            hideSubtitle = true,
-            showLabel = showLabels,
-            modifier = Modifier
-                .then(if (showLabels) Modifier.fillMaxWidth() else Modifier.width(46.dp))
-                .testTag("home-action-schedule")
-                .focusRequester(scheduleFocusRequester)
-                .focusProperties {
-                    up = lastModeRequester ?: searchFocusRequester
-                    down = searchFocusRequester
-                    right = downTarget ?: FocusRequester.Default
-                    left = FocusRequester.Cancel
+            MenuDivider()
+            HomeHeaderActionButton(
+                label = "Поиск",
+                subtitle = "Сериал или фильм",
+                leadingIcon = HeaderActionIcon.Search,
+                onClick = {
+                    onNavItemSelected(NavItem.SEARCH)
+                    onSearchClick()
                 },
-        )
-        HomeHeaderActionButton(
-            label = "Поиск",
-            subtitle = "Сериал или фильм",
-            leadingIcon = HeaderActionIcon.Search,
-            onClick = {
-                onNavItemSelected(NavItem.SEARCH)
-                onSearchClick()
-            },
-            onLongClick = { onNavItemLongClick(NavItem.SEARCH) },
-            onInteraction = onHeaderInteraction,
-            onBackClick = onBackToContent,
-            isPrimary = selectedNavItem == NavItem.SEARCH,
-            minWidth = if (showLabels) 156.dp else 46.dp,
-            hideSubtitle = true,
-            showLabel = showLabels,
-            modifier = Modifier
-                .then(if (showLabels) Modifier.fillMaxWidth() else Modifier.width(46.dp))
-                .testTag("home-action-search")
-                .focusRequester(searchFocusRequester)
-                .focusProperties {
-                    up = scheduleFocusRequester
-                    down = if (hasUpdate) updateFocusRequester else settingsFocusRequester
-                    left = FocusRequester.Cancel
-                    right = downTarget ?: FocusRequester.Default
-                },
-        )
-        if (hasUpdate) {
+                onLongClick = { onNavItemLongClick(NavItem.SEARCH) },
+                onInteraction = onHeaderInteraction,
+                onBackClick = onBackToContent,
+                isPrimary = selectedNavItem == NavItem.SEARCH,
+                minWidth = if (showLabels) ExpandedMenuWidth - 36.dp else CollapsedMenuWidth - 20.dp,
+                hideSubtitle = true,
+                showLabel = showLabels,
+                modifier = Modifier
+                    .then(if (showLabels) Modifier.fillMaxWidth() else Modifier.width(CollapsedMenuWidth - 20.dp))
+                    .testTag("home-action-search")
+                    .focusRequester(searchFocusRequester)
+                    .focusProperties {
+                        up = scheduleFocusRequester
+                        down = updateFocusRequester
+                        left = FocusRequester.Cancel
+                        right = downTarget ?: FocusRequester.Default
+                    },
+            )
             HomeHeaderActionButton(
                 label = "Обновить",
                 subtitle = updateVersionText.orEmpty(),
-                statusLabel = "Можно обновить",
+                statusLabel = if (hasUpdate) "Можно обновить" else null,
                 leadingIcon = HeaderActionIcon.Refresh,
                 onClick = {
                     onNavItemSelected(NavItem.UPDATE)
@@ -232,11 +244,11 @@ fun HomeHeader(
                 onInteraction = onHeaderInteraction,
                 onBackClick = onBackToContent,
                 isPrimary = selectedNavItem == NavItem.UPDATE,
-                minWidth = if (showLabels) 156.dp else 46.dp,
+                minWidth = if (showLabels) ExpandedMenuWidth - 36.dp else CollapsedMenuWidth - 20.dp,
                 hideSubtitle = true,
                 showLabel = showLabels,
                 modifier = Modifier
-                    .then(if (showLabels) Modifier.fillMaxWidth() else Modifier.width(46.dp))
+                    .then(if (showLabels) Modifier.fillMaxWidth() else Modifier.width(CollapsedMenuWidth - 20.dp))
                     .testTag("home-action-update")
                     .focusRequester(updateFocusRequester)
                     .focusProperties {
@@ -246,34 +258,89 @@ fun HomeHeader(
                         right = downTarget ?: FocusRequester.Default
                     },
             )
-        }
-        HomeHeaderActionButton(
-            label = "Настройки",
-            subtitle = "Приложение",
-            leadingIcon = HeaderActionIcon.Settings,
-            onClick = {
-                onNavItemSelected(NavItem.SETTINGS)
-                onSettingsClick()
-            },
-            onLongClick = { onNavItemLongClick(NavItem.SETTINGS) },
-            onInteraction = onHeaderInteraction,
-            onBackClick = onBackToContent,
-            isPrimary = selectedNavItem == NavItem.SETTINGS,
-            minWidth = if (showLabels) 156.dp else 46.dp,
-            hideSubtitle = true,
-            showLabel = showLabels,
-            modifier = Modifier
-                .then(if (showLabels) Modifier.fillMaxWidth() else Modifier.width(46.dp))
-                .testTag("home-action-settings")
-                .focusRequester(settingsFocusRequester)
-                .focusProperties {
-                    up = if (hasUpdate) updateFocusRequester else searchFocusRequester
-                    down = menuLabelsFocusRequester
-                    left = FocusRequester.Cancel
-                    right = downTarget ?: FocusRequester.Default
+            HomeHeaderActionButton(
+                label = "Настройки",
+                subtitle = "Приложение",
+                leadingIcon = HeaderActionIcon.Settings,
+                onClick = {
+                    onNavItemSelected(NavItem.SETTINGS)
+                    onSettingsClick()
                 },
+                onLongClick = { onNavItemLongClick(NavItem.SETTINGS) },
+                onInteraction = onHeaderInteraction,
+                onBackClick = onBackToContent,
+                isPrimary = selectedNavItem == NavItem.SETTINGS,
+                minWidth = if (showLabels) ExpandedMenuWidth - 36.dp else CollapsedMenuWidth - 20.dp,
+                hideSubtitle = true,
+                showLabel = showLabels,
+                modifier = Modifier
+                    .then(if (showLabels) Modifier.fillMaxWidth() else Modifier.width(CollapsedMenuWidth - 20.dp))
+                    .testTag("home-action-settings")
+                    .focusRequester(settingsFocusRequester)
+                    .focusProperties {
+                        up = updateFocusRequester
+                        down = menuLabelsFocusRequester
+                        left = FocusRequester.Cancel
+                        right = downTarget ?: FocusRequester.Default
+                    },
+            )
+            Spacer(modifier = Modifier.weight(1f))
+            MenuDivider()
+            HomeHeaderActionButton(
+                label = if (showLabels) "Скрыть меню" else "Показать меню",
+                subtitle = "",
+                leadingIcon = if (showLabels) HeaderActionIcon.MenuCollapse else HeaderActionIcon.MenuExpand,
+                onClick = {
+                    onHeaderInteraction()
+                    onHomeMenuLabelsVisibilitySelected(!showLabels)
+                },
+                onLongClick = {},
+                onInteraction = onHeaderInteraction,
+                onBackClick = onBackToContent,
+                minWidth = if (showLabels) ExpandedMenuWidth - 36.dp else CollapsedMenuWidth - 20.dp,
+                hideSubtitle = true,
+                showLabel = showLabels,
+                modifier = Modifier
+                    .then(if (showLabels) Modifier.fillMaxWidth() else Modifier.width(CollapsedMenuWidth - 20.dp))
+                    .testTag("home-action-menu-labels")
+                    .focusRequester(menuLabelsFocusRequester)
+                    .focusProperties {
+                        down = firstModeRequester ?: scheduleFocusRequester
+                        up = settingsFocusRequester
+                        right = downTarget ?: FocusRequester.Default
+                        left = FocusRequester.Cancel
+                    },
+            )
+        }
+    }
+}
+
+@Composable
+private fun HomeMenuLogo(showLabels: Boolean) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(46.dp)
+            .padding(horizontal = if (showLabels) 18.dp else 0.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Image(
+            painter = painterResource(id = R.drawable.ic_lf_logo),
+            contentDescription = null,
+            modifier = Modifier.size(if (showLabels) 62.dp else 34.dp),
         )
     }
+}
+
+@Composable
+private fun MenuDivider() {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 6.dp, vertical = 3.dp)
+            .height(1.dp)
+            .background(HomeAccentGold.copy(alpha = 0.24f)),
+    )
 }
 
 @Composable
@@ -292,12 +359,12 @@ private fun HomeHeaderModeSegmentedControl(
     showLabels: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val shape = RoundedCornerShape(8.dp)
+    val shape = MenuButtonShape
 
     Column(
         modifier = modifier
             .then(if (showLabels) Modifier.fillMaxWidth() else Modifier.width(46.dp)),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         availableModes.forEachIndexed { index, mode ->
@@ -322,7 +389,7 @@ private fun HomeHeaderModeSegmentedControl(
                 onInteraction = onInteraction,
                 onBackClick = onBackClick,
                 showLabel = showLabels,
-                modifier = if (showLabels) Modifier.fillMaxWidth() else Modifier.width(46.dp),
+                modifier = if (showLabels) Modifier.fillMaxWidth() else Modifier.width(CollapsedMenuWidth - 20.dp),
             )
         }
     }
@@ -354,10 +421,11 @@ private fun HomeModeSegmentButton(
         ),
         label = "homeModeSegmentScale",
     )
-    val shape = RoundedCornerShape(8.dp)
+    val shape = MenuButtonShape
+    val selectedTextColor = Color(0xFF201404)
     Box(
         modifier = modifier
-            .height(46.dp)
+            .height(MenuButtonHeight)
             .testTag(if (selected) "home-mode-toggle" else "home-mode-${mode.storageValue}")
             .focusRequester(focusRequester)
             .focusProperties {
@@ -389,16 +457,22 @@ private fun HomeModeSegmentButton(
                 scaleY = scale
             }
             .background(
-                color = when {
-                    selected -> HomeAccentGold
-                    isFocused -> FocusBackground
-                    else -> HomePanelSurface
+                brush = when {
+                    selected || isFocused -> Brush.verticalGradient(
+                        0f to HomeAccentGoldGlow,
+                        0.42f to HomeAccentGold,
+                        1f to Color(0xFF9C661B),
+                    )
+                    else -> Brush.verticalGradient(
+                        0f to Color(0xA9151718),
+                        1f to Color(0xB8070B0F),
+                    )
                 },
                 shape = shape,
             )
             .border(
-                width = 0.dp,
-                color = Color.Transparent,
+                width = 1.dp,
+                color = HomeAccentGold.copy(alpha = if (selected || isFocused) 0.95f else 0.44f),
                 shape = shape,
             )
             .onFocusChanged {
@@ -420,13 +494,13 @@ private fun HomeModeSegmentButton(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            HeaderModeIcon(mode = mode, color = if (selected) Color(0xFF17120D) else TextPrimary)
+            HeaderModeIcon(mode = mode, color = if (selected || isFocused) selectedTextColor else HomeAccentGoldGlow)
             if (showLabel) {
                 Text(
                     text = label,
-                    color = if (selected) Color(0xFF17120D) else TextPrimary,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    color = if (selected || isFocused) selectedTextColor else TextPrimary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -472,21 +546,13 @@ private fun HomeHeaderActionButton(
         label = "homeActionScale",
     )
 
-    val backgroundColor = when {
-        isPrimary && isFocused -> FocusBackground
-        isPrimary -> HomePanelSurface
-        isFocused -> FocusBackground
-        else -> HomePanelSurface
-    }
     val borderColor = when {
-        isPrimary && isFocused -> HomeAccentGoldGlow
-        isPrimary -> HomeAccentGold.copy(alpha = 0.82f)
-        isFocused -> FocusBorder
-        else -> HomePanelBorder
+        isPrimary || isFocused -> HomeAccentGoldGlow
+        else -> HomeAccentGold.copy(alpha = 0.40f)
     }
-    val textColor = if (isPrimary) HomeAccentGold else TextPrimary
+    val textColor = if (isPrimary || isFocused) Color(0xFF201404) else TextPrimary
     val subtitleColor = if (isPrimary && isFocused) HomeAccentGoldGlow else HomeTextMuted
-    val shape = RoundedCornerShape(8.dp)
+    val shape = MenuButtonShape
 
     Box(
         modifier = modifier
@@ -514,14 +580,28 @@ private fun HomeHeaderActionButton(
                     Modifier
                 },
             )
-            .height(if (compact) 38.dp else 46.dp)
+            .height(if (compact) 38.dp else MenuButtonHeight)
             .widthIn(min = minWidth)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
             }
-            .background(backgroundColor, shape)
-            .border(0.dp, Color.Transparent, shape)
+            .background(
+                brush = if (isPrimary || isFocused) {
+                    Brush.verticalGradient(
+                        0f to HomeAccentGoldGlow,
+                        0.42f to HomeAccentGold,
+                        1f to Color(0xFF9C661B),
+                    )
+                } else {
+                    Brush.verticalGradient(
+                        0f to Color(0xA9151718),
+                        1f to Color(0xB8070B0F),
+                    )
+                },
+                shape = shape,
+            )
+            .border(1.dp, borderColor, shape)
             .onFocusChanged {
                 isFocused = it.isFocused
                 if (it.isFocused) {
@@ -535,13 +615,13 @@ private fun HomeHeaderActionButton(
                 onLongClick = onLongClick,
             )
             .padding(
-                horizontal = if (!showLabel) 0.dp else if (compact) 11.dp else 10.dp,
-                vertical = if (compact) 4.dp else 7.dp,
+                horizontal = if (!showLabel) 0.dp else if (compact) 11.dp else 18.dp,
+                vertical = if (compact) 3.dp else 3.dp,
             ),
         contentAlignment = if (showLabel) Alignment.CenterStart else Alignment.Center,
     ) {
         Row(
-            horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (compact) 7.dp else 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             leadingIcon?.let { icon ->
@@ -551,8 +631,8 @@ private fun HomeHeaderActionButton(
                 Text(
                     text = label,
                     color = textColor,
-                    fontSize = if (compact) 13.sp else 13.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    fontSize = if (compact) 14.sp else 15.sp,
+                    fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -895,27 +975,58 @@ private fun CalendarIcon(color: Color) {
 @Composable
 private fun RefreshIcon(color: Color) {
     androidx.compose.foundation.Canvas(modifier = Modifier.size(24.dp)) {
-        val stroke = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.1f)
+        val stroke = androidx.compose.ui.graphics.drawscope.Stroke(
+            width = 2.0f,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+            join = androidx.compose.ui.graphics.StrokeJoin.Round,
+        )
+        val arcSize = androidx.compose.ui.geometry.Size(size.width * 0.66f, size.height * 0.66f)
+        val arcTopLeft = Offset(size.width * 0.17f, size.height * 0.17f)
         drawArc(
             color = color,
-            startAngle = 40f,
-            sweepAngle = 286f,
+            startAngle = 205f,
+            sweepAngle = 205f,
             useCenter = false,
-            topLeft = Offset(size.width * 0.18f, size.height * 0.18f),
-            size = androidx.compose.ui.geometry.Size(size.width * 0.64f, size.height * 0.64f),
+            topLeft = arcTopLeft,
+            size = arcSize,
             style = stroke,
         )
         drawLine(
             color = color,
-            start = Offset(size.width * 0.78f, size.height * 0.18f),
-            end = Offset(size.width * 0.78f, size.height * 0.36f),
-            strokeWidth = 2.1f,
+            start = Offset(size.width * 0.76f, size.height * 0.19f),
+            end = Offset(size.width * 0.76f, size.height * 0.36f),
+            strokeWidth = 2.0f,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round,
         )
         drawLine(
             color = color,
-            start = Offset(size.width * 0.78f, size.height * 0.18f),
-            end = Offset(size.width * 0.60f, size.height * 0.18f),
-            strokeWidth = 2.1f,
+            start = Offset(size.width * 0.76f, size.height * 0.19f),
+            end = Offset(size.width * 0.58f, size.height * 0.19f),
+            strokeWidth = 2.0f,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+        )
+        drawArc(
+            color = color,
+            startAngle = 25f,
+            sweepAngle = 205f,
+            useCenter = false,
+            topLeft = arcTopLeft,
+            size = arcSize,
+            style = stroke,
+        )
+        drawLine(
+            color = color,
+            start = Offset(size.width * 0.24f, size.height * 0.81f),
+            end = Offset(size.width * 0.24f, size.height * 0.64f),
+            strokeWidth = 2.0f,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+        )
+        drawLine(
+            color = color,
+            start = Offset(size.width * 0.24f, size.height * 0.81f),
+            end = Offset(size.width * 0.42f, size.height * 0.81f),
+            strokeWidth = 2.0f,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round,
         )
     }
 }

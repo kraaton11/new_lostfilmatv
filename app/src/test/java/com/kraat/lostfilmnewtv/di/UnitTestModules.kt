@@ -82,7 +82,7 @@ class UnitTestFakeRepository : LostFilmRepository {
     override suspend fun loadWatchedState(detailsUrl: String) = watchedStateResult
     override suspend fun setEpisodeWatched(detailsUrl: String, playEpisodeId: String, targetWatched: Boolean) = markWatchedResult
     override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean) = favoriteResult
-    override suspend fun loadFavoriteReleases() = favoriteReleasesResult
+    override suspend fun loadFavoriteReleases(pageNumber: Int) = favoriteReleasesResult
 }
 
 class UnitTestFakeAuthRepository : AuthRepositoryContract {

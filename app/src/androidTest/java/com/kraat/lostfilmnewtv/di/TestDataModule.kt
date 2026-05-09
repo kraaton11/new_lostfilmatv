@@ -68,7 +68,7 @@ class TestFakeRepository : LostFilmRepository {
         targetWatched: Boolean,
     ): Boolean? = setEpisodeWatchedResult
     override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult = setFavoriteResult
-    override suspend fun loadFavoriteReleases(): FavoriteReleasesResult = favoriteReleasesResult
+    override suspend fun loadFavoriteReleases(pageNumber: Int): FavoriteReleasesResult = favoriteReleasesResult
 }
 
 class TestFakeAuthRepository : AuthRepositoryContract {

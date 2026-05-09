@@ -91,5 +91,5 @@ interface LostFilmRepository {
 
     suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult
 
-    suspend fun loadFavoriteReleases(): FavoriteReleasesResult
+    suspend fun loadFavoriteReleases(pageNumber: Int = 1): FavoriteReleasesResult
 }
