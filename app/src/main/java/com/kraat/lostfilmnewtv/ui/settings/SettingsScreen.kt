@@ -534,6 +534,7 @@ private fun SettingsSectionRail(
                 isSelected = section == selectedSection,
                 tag = section.tag,
                 onClick = { onSectionSelected(section) },
+                onFocused = { onSectionSelected(section) },
                 modifier = Modifier
                     .focusRequester(focusRequesterForSection(section))
                     .focusProperties {
