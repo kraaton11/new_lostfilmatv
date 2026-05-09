@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -34,17 +35,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ScheduleDay
 import com.kraat.lostfilmnewtv.data.model.ScheduleItem
@@ -65,6 +71,8 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
 private val fullDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy")
+private val ScheduleRowShape = RoundedCornerShape(8.dp)
+private val EpisodeChipShape = RoundedCornerShape(6.dp)
 
 @Composable
 fun ScheduleScreen(
@@ -323,13 +331,14 @@ private fun ScheduleItemRow(
 
     Button(
         onClick = onClick,
-        shape = RoundedCornerShape(12.dp),
+        shape = ScheduleRowShape,
         colors = ButtonDefaults.buttonColors(
             containerColor = if (isFocused) DetailsSurfaceFocused else DetailsSurfaceReadable,
         ),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp),
+        contentPadding = PaddingValues(0.dp),
         modifier = modifier
             .fillMaxWidth()
+            .height(82.dp)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -337,43 +346,112 @@ private fun ScheduleItemRow(
             .border(
                 width = if (isFocused) 1.5.dp else 1.dp,
                 color = if (isFocused) DetailsAccentGoldFocus else HomePanelBorder,
-                shape = RoundedCornerShape(12.dp),
+                shape = ScheduleRowShape,
             )
             .onFocusChanged { isFocused = it.isFocused },
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(start = 8.dp, end = 22.dp, top = 6.dp, bottom = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(22.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = item.episodeLabel ?: kindLabel,
-                color = DetailsAccentGold,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(0.18f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+            ScheduleItemImage(
+                item = item,
+                modifier = Modifier
+                    .width(224.dp)
+                    .fillMaxHeight(),
             )
+            Box(
+                modifier = Modifier
+                    .width(72.dp)
+                    .height(36.dp)
+                    .background(Color(0xFF3B277E), EpisodeChipShape)
+                    .padding(horizontal = 8.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = item.episodeLabel?.takeIf { it.isNotBlank() } ?: kindLabel,
+                    color = TextPrimary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    text = item.title,
+                    color = TextPrimary,
+                    fontSize = 21.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = kindLabel,
+                    color = DetailsTextSecondary,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScheduleItemImage(
+    item: ScheduleItem,
+    modifier: Modifier = Modifier,
+) {
+    val posterUrl = item.posterUrl?.takeIf { it.isNotBlank() }
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(
+                Brush.horizontalGradient(
+                    0f to Color(0xFF172636),
+                    1f to Color(0xFF0B1320),
+                ),
+            ),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (posterUrl != null) {
+            val request = rememberScheduleImageRequest(posterUrl)
+            AsyncImage(
+                model = request,
+                contentDescription = item.title,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        } else {
             Text(
                 text = item.title,
-                color = TextPrimary,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(0.62f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = kindLabel,
                 color = DetailsTextSecondary,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.weight(0.20f),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.padding(horizontal = 14.dp),
             )
         }
+    }
+}
+
+@Composable
+private fun rememberScheduleImageRequest(posterUrl: String): ImageRequest {
+    val context = LocalContext.current
+    return remember(context, posterUrl) {
+        ImageRequest.Builder(context)
+            .data(posterUrl)
+            .crossfade(true)
+            .build()
     }
 }
 

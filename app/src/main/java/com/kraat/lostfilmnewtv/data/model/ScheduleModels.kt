@@ -19,4 +19,5 @@ data class ScheduleItem(
     val episodeLabel: String?,
     val targetUrl: String,
     val kind: ReleaseKind,
+    val posterUrl: String? = null,
 )

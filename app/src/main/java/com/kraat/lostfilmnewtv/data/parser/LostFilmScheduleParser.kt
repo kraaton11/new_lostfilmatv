@@ -109,12 +109,16 @@ class LostFilmScheduleParser {
                 ?.text()
                 ?.normalizeText()
                 ?.takeIf { it.isNotBlank() }
+            val posterUrl = cell.selectFirst("img")
+                .absoluteUrl("src")
+                .takeIf { it.isLostFilmScheduleImageUrl() }
 
             ScheduleItem(
                 title = title,
                 episodeLabel = episodeLabel,
                 targetUrl = targetUrl,
                 kind = kind,
+                posterUrl = posterUrl,
             )
         }
     }
@@ -145,3 +149,10 @@ private data class ScheduleDayBuilder(
     var isToday: Boolean,
     val items: MutableList<ScheduleItem> = mutableListOf(),
 )
+
+private fun String.isLostFilmScheduleImageUrl(): Boolean {
+    val normalized = lowercase()
+    return normalized.startsWith("$BASE_URL/static/") ||
+        normalized.startsWith("https://static.lostfilm.") ||
+        normalized.startsWith("http://static.lostfilm.")
+}
