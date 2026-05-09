@@ -126,13 +126,13 @@ class LostFilmRepositoryImpl(
                 items = itemsToPersist,
                 persistToCache = true,
             )
-            val allItems = releaseDao.getSummariesUpToPage(pageNumber).toSummaryModels()
 
             PageState.Content(
                 pageNumber = pageNumber,
-                items = allItems,
+                items = itemsToPersist,
                 hasNextPage = hasNextPage(html, pageNumber, parsedItems.isNotEmpty()),
                 isStale = false,
+                isAppend = pageNumber > 1,
             )
         } catch (exception: CancellationException) {
             throw exception
@@ -501,8 +501,14 @@ class LostFilmRepositoryImpl(
 
         return semaphore.withPermit {
             try {
-                detailsParser.parsePosterUrl(httpClient.fetchDetails(item.targetUrl))
+                val fetchedPosterUrl = detailsParser.parsePosterUrl(httpClient.fetchDetails(item.targetUrl))
                     .takeIf { it.isLostFilmImageUrl() }
+                if (fetchedPosterUrl != null) {
+                    releaseDao.getSummary(item.targetUrl)?.let { existing ->
+                        releaseDao.upsertSummaries(listOf(existing.copy(posterUrl = fetchedPosterUrl)))
+                    }
+                }
+                fetchedPosterUrl
             } catch (exception: CancellationException) {
                 throw exception
             } catch (_: Exception) {
@@ -587,12 +593,16 @@ class LostFilmRepositoryImpl(
                 ajaxSessionToken = ajaxSessionToken,
                 targetWatched = targetWatched,
             )
-            val refreshedDetailsHtml = httpClient.fetchDetails(normalizedDetailsUrl)
-            val refreshedWatched = detailsParser.parseWatchedState(refreshedDetailsHtml)
-            val effectiveWatched = when {
-                refreshedWatched == targetWatched -> refreshedWatched
-                requestSucceeded -> targetWatched
-                else -> refreshedWatched ?: currentWatched
+            val effectiveWatched = if (requestSucceeded) {
+                targetWatched
+            } else {
+                val refreshedDetailsHtml = httpClient.fetchDetails(normalizedDetailsUrl)
+                val refreshedWatched = detailsParser.parseWatchedState(refreshedDetailsHtml)
+                if (refreshedWatched == targetWatched) {
+                    refreshedWatched
+                } else {
+                    refreshedWatched ?: currentWatched
+                }
             }
             if (effectiveWatched != null) {
                 releaseDao.updateSummaryWatched(
@@ -865,14 +875,7 @@ class LostFilmRepositoryImpl(
 
     private suspend fun upsertChangedSummaries(entities: List<ReleaseSummaryEntity>) {
         if (entities.isEmpty()) return
-        val existingByUrl = releaseDao.getSummaries(entities.map { it.detailsUrl })
-            .associateBy { it.detailsUrl }
-        val changedEntities = entities.filter { entity ->
-            existingByUrl[entity.detailsUrl] != entity
-        }
-        if (changedEntities.isNotEmpty()) {
-            releaseDao.upsertSummaries(changedEntities)
-        }
+        releaseDao.upsertSummaries(entities)
     }
 
     private suspend fun cleanupExpiredDataIfNeeded() {

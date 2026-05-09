@@ -7,6 +7,7 @@ sealed interface PageState {
         val hasNextPage: Boolean,
         val isStale: Boolean,
         val pagingErrorMessage: String? = null,
+        val isAppend: Boolean = false,
     ) : PageState
 
     data class Error(

@@ -49,6 +49,7 @@ class TmdbPosterResolverImpl(
     private val clock: () -> Long = { System.currentTimeMillis() },
 ) : TmdbPosterResolver {
     private val inMemoryCache = LruMemoryCache<String, TmdbImageUrls>(MEMORY_CACHE_MAX_SIZE)
+    private val negativeMemoryCache = LruMemoryCache<String, Unit>(MEMORY_CACHE_MAX_SIZE)
     private val inMemoryTmdbIdCache = LruMemoryCache<String, Int>(MEMORY_CACHE_MAX_SIZE)
     private val episodeOverviewCache = LruMemoryCache<String, String>(MEMORY_CACHE_MAX_SIZE)
     private val seriesOverviewCache = LruMemoryCache<Int, String>(MEMORY_CACHE_MAX_SIZE)
@@ -79,9 +80,13 @@ class TmdbPosterResolverImpl(
                 rating = it.rating,
             )
         }
+        if (!hasTmdbIdOverride && negativeMemoryCache[cacheKey] != null) {
+            return null
+        }
 
         val cached = tmdbDao.getByDetailsUrl(cacheKey)
         if (cached != null && canReuseNegativeMapping(cached) && !hasTmdbIdOverride) {
+            negativeMemoryCache[cacheKey] = Unit
             return null
         }
         if (cached != null && canReuseCachedMapping(cached, originalReleaseYear)) {
@@ -113,9 +118,13 @@ class TmdbPosterResolverImpl(
                     rating = it.rating,
                 )
             }
+            if (!hasTmdbIdOverride && negativeMemoryCache[cacheKey] != null) {
+                return@withKeyLock null
+            }
 
             val rechecked = tmdbDao.getByDetailsUrl(cacheKey)
             if (rechecked != null && canReuseNegativeMapping(rechecked) && !hasTmdbIdOverride) {
+                negativeMemoryCache[cacheKey] = Unit
                 return@withKeyLock null
             }
             if (rechecked != null && canReuseCachedMapping(rechecked, originalReleaseYear)) {
@@ -274,6 +283,7 @@ class TmdbPosterResolverImpl(
                         fetchedAt = clock(),
                     ),
                 )
+                negativeMemoryCache[cacheKey] = Unit
             }
             return null
         }
