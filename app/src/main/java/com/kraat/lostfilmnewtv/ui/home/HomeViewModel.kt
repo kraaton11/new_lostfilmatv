@@ -99,9 +99,7 @@ class HomeViewModel @Inject constructor(
         loadPage(pageNumber = 1, isPagingRequest = false)
         loadMovies(pageNumber = 1, isPagingRequest = false)
         loadSeriesCatalog(pageNumber = 1, isPagingRequest = false)
-        if (_uiState.value.isFavoritesRailVisible) {
-            loadFavoriteReleases()
-        }
+        loadFavoriteReleases()
     }
 
     fun onRetry() {
@@ -130,7 +128,7 @@ class HomeViewModel @Inject constructor(
         loadPage(pageNumber = 1, isPagingRequest = false)
         loadMovies(pageNumber = 1, isPagingRequest = false)
         loadSeriesCatalog(pageNumber = 1, isPagingRequest = false)
-        if (_uiState.value.isFavoritesRailVisible) loadFavoriteReleases()
+        loadFavoriteReleases()
     }
 
     fun onPagingRetry() {
@@ -243,7 +241,9 @@ class HomeViewModel @Inject constructor(
             ).resolveSelection()
         }
         if (shouldPersistFallback) preferencesStore.writeHomeSelectedFeedMode(HomeFeedMode.AllNew)
-        if (started && isVisible) loadFavoriteReleases()
+        if (started && isVisible && _uiState.value.favoritesModeState !is HomeModeContentState.Content) {
+            loadFavoriteReleases()
+        }
     }
 
     fun onHomeMenuLabelsVisibilityChanged(isVisible: Boolean) {
@@ -252,12 +252,12 @@ class HomeViewModel @Inject constructor(
     }
 
     fun onFavoriteContentInvalidated() {
-        if (!started || !_uiState.value.isFavoritesRailVisible) return
+        if (!started) return
         loadFavoriteReleases()
     }
 
     fun onFavoriteStateChanged(detailsUrl: String, isFavorite: Boolean) {
-        if (!started || !_uiState.value.isFavoritesRailVisible) return
+        if (!started) return
         _uiState.update { state ->
             val updatedFavoriteItems = applyOptimisticFavoriteChange(
                 currentFavoriteItems = state.favoriteItems,
@@ -592,11 +592,7 @@ private fun HomeModeContentState.optimisticallyUpdateFavoriteItems(items: List<R
 }
 
 private fun availableModes(isFavoritesVisible: Boolean) =
-    if (isFavoritesVisible) {
-        listOf(HomeFeedMode.AllNew, HomeFeedMode.Favorites, HomeFeedMode.Movies, HomeFeedMode.Series)
-    } else {
-        listOf(HomeFeedMode.AllNew, HomeFeedMode.Movies, HomeFeedMode.Series)
-    }
+    listOf(HomeFeedMode.AllNew, HomeFeedMode.Favorites, HomeFeedMode.Movies, HomeFeedMode.Series)
 
 private fun resolvedInitialMode(initialSelectedMode: HomeFeedMode, isFavoritesVisible: Boolean) =
     if (initialSelectedMode == HomeFeedMode.Favorites && !isFavoritesVisible) HomeFeedMode.AllNew else initialSelectedMode

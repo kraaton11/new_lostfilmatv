@@ -128,7 +128,7 @@ fun HomeScreen(
     }
     var lastSyncedKey by remember { mutableStateOf<String?>(null) }
     var startupContentFocusPending by rememberSaveable { mutableStateOf(true) }
-    var contentReturnFocusRequestVersion by remember(activeRailId) { mutableStateOf(0) }
+    var contentReturnFocusRequestVersion by remember { mutableStateOf(0) }
     var isContentRailFocused by remember(activeRailId) { mutableStateOf(false) }
 
     LaunchedEffect(externalSelectedItemKey, state.selectedItemKey, state.selectedMode, itemKeys) {
@@ -161,7 +161,7 @@ fun HomeScreen(
     val menuLabelsRequester = remember { FocusRequester() }
     val loginActionRequester = remember { FocusRequester() }
     val retryActionRequester = remember { FocusRequester() }
-    val contentEntryRequester = remember(activeRailId) { FocusRequester() }
+    val contentEntryRequester = remember { FocusRequester() }
     val cardFocusRequesters = remember(activeRailId) {
         linkedMapOf<String, FocusRequester>()
     }
@@ -194,6 +194,7 @@ fun HomeScreen(
         val nextIndex = (currentIndex + offset + modeSwitchOrder.size) % modeSwitchOrder.size
         startupContentFocusPending = true
         contentReturnFocusRequestVersion += 1
+        contentEntryRequester.requestFocus()
         onModeSelected(modeSwitchOrder[nextIndex])
     }
 
