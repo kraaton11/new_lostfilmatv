@@ -15,6 +15,7 @@ class PairingsApiTest(unittest.TestCase):
         self.client = TestClient(app)
         app.state.pairing_service.reset()
         app.state.create_pairing_rate_limiter.clear()
+        app.state.pairing_action_rate_limiter.clear()
         app.state.proxy_rate_limiter.clear()
 
     def test_create_pairing_returns_tv_secret_and_phone_verifier(self) -> None:

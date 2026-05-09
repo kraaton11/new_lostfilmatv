@@ -15,6 +15,7 @@ class PhoneFlowCompatibilityTest(unittest.TestCase):
         self.client = TestClient(app)
         app.state.pairing_service.reset()
         app.state.create_pairing_rate_limiter.clear()
+        app.state.pairing_action_rate_limiter.clear()
         app.state.proxy_rate_limiter.clear()
 
     def test_pair_route_redirects_to_wildcard_host_for_active_pairing(self) -> None:

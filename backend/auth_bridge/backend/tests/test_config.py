@@ -69,3 +69,26 @@ class SettingsTest(unittest.TestCase):
 
         self.assertEqual(settings.public_base_url, "https://auth.bazuka.pp.ua")
         self.assertEqual(settings.wildcard_base_domain, "auth.bazuka.pp.ua")
+
+    def test_runtime_stability_settings_are_configurable(self) -> None:
+        settings = Settings(
+            public_base_url="https://auth.bazuka.pp.ua",
+            cleanup_interval_seconds=15,
+            upstream_timeout_seconds=3.5,
+            upstream_retry_attempts=3,
+            upstream_retry_backoff_seconds=0.1,
+            log_format="json",
+        )
+
+        self.assertEqual(settings.cleanup_interval_seconds, 15)
+        self.assertEqual(settings.upstream_timeout_seconds, 3.5)
+        self.assertEqual(settings.upstream_retry_attempts, 3)
+        self.assertEqual(settings.upstream_retry_backoff_seconds, 0.1)
+        self.assertEqual(settings.log_format, "json")
+
+    def test_runtime_stability_settings_reject_invalid_values(self) -> None:
+        with self.assertRaises(ValueError):
+            Settings(public_base_url="https://auth.bazuka.pp.ua", upstream_retry_attempts=0)
+
+        with self.assertRaises(ValueError):
+            Settings(public_base_url="https://auth.bazuka.pp.ua", log_format="xml")

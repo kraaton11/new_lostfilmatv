@@ -17,6 +17,7 @@ class WildcardProxyRouterTest(unittest.TestCase):
         self.client = TestClient(app)
         app.state.pairing_service.reset()
         app.state.create_pairing_rate_limiter.clear()
+        app.state.pairing_action_rate_limiter.clear()
         app.state.proxy_rate_limiter.clear()
 
     def test_wildcard_root_redirects_to_login_for_active_pairing(self) -> None:

@@ -157,6 +157,10 @@ class InMemoryPairingStore:
         self._pairing_id_by_code.clear()
         self._pairing_id_by_verifier.clear()
 
+    def count(self) -> int:
+        self.prune_expired()
+        return len(self._records_by_id)
+
     def _release_expired_state(self, record: PairingRecord) -> None:
         record.session_payload = None
         record.lease_active = False

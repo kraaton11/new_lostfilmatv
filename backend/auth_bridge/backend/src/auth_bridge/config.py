@@ -28,8 +28,59 @@ class Settings(BaseSettings):
     claim_lease_ttl_seconds: int = 60
     create_pairing_rate_limit_max_requests: int = 10
     create_pairing_rate_limit_window_seconds: int = 60
+    pairing_action_rate_limit_max_requests: int = 120
+    pairing_action_rate_limit_window_seconds: int = 60
     proxy_rate_limit_max_requests: int = 60
     proxy_rate_limit_window_seconds: int = 60
+    cleanup_interval_seconds: int = 60
+    upstream_timeout_seconds: float = 10.0
+    upstream_retry_attempts: int = 2
+    upstream_retry_backoff_seconds: float = 0.25
+    log_format: str = "text"
+
+    @field_validator("pairing_ttl_seconds", "pairing_poll_interval_seconds", "claim_lease_ttl_seconds")
+    @classmethod
+    def validate_positive_int(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("value must be positive")
+        return value
+
+    @field_validator(
+        "create_pairing_rate_limit_max_requests",
+        "create_pairing_rate_limit_window_seconds",
+        "pairing_action_rate_limit_max_requests",
+        "pairing_action_rate_limit_window_seconds",
+        "proxy_rate_limit_max_requests",
+        "proxy_rate_limit_window_seconds",
+        "cleanup_interval_seconds",
+    )
+    @classmethod
+    def validate_non_negative_int(cls, value: int) -> int:
+        if value < 0:
+            raise ValueError("value must not be negative")
+        return value
+
+    @field_validator("upstream_timeout_seconds", "upstream_retry_backoff_seconds")
+    @classmethod
+    def validate_non_negative_float(cls, value: float) -> float:
+        if value < 0:
+            raise ValueError("value must not be negative")
+        return value
+
+    @field_validator("upstream_retry_attempts")
+    @classmethod
+    def validate_retry_attempts(cls, value: int) -> int:
+        if value < 1:
+            raise ValueError("upstream_retry_attempts must be at least 1")
+        return value
+
+    @field_validator("log_format")
+    @classmethod
+    def validate_log_format(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if normalized not in {"text", "json"}:
+            raise ValueError("log_format must be either 'text' or 'json'")
+        return normalized
 
     @field_validator("public_base_url")
     @classmethod

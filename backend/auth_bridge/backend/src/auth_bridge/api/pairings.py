@@ -3,6 +3,7 @@ from fastapi import APIRouter, Header, HTTPException, Request, Response, status
 from auth_bridge.middleware.rate_limit import (
     RateLimitExceeded,
     SlidingWindowRateLimiter,
+    build_pairing_action_rate_limit_keys,
     build_pairing_creation_rate_limit_keys,
     extract_client_ip,
 )
@@ -33,18 +34,38 @@ def build_pairings_router(pairing_service: PairingService) -> APIRouter:
         return pairing_service.create_pairing()
 
     @router.get("/{pairing_id}", response_model=PairingStatusResponse)
-    def get_pairing_status(pairing_id: str, x_pairing_secret: str | None = Header(default=None)) -> PairingStatusResponse:
+    def get_pairing_status(
+        pairing_id: str,
+        request: Request,
+        x_pairing_secret: str | None = Header(default=None),
+    ) -> PairingStatusResponse:
         try:
+            _check_pairing_action_rate_limit(request, pairing_id)
             return pairing_service.get_status(pairing_id, x_pairing_secret or "")
+        except RateLimitExceeded as exc:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many pairing requests. Please try again later.",
+            ) from exc
         except PairingNotFoundError as exc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pairing session was not found.") from exc
         except PairingForbiddenError as exc:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Pairing secret is invalid.") from exc
 
     @router.post("/{pairing_id}/claim", response_model=SessionPayload)
-    def claim_pairing(pairing_id: str, x_pairing_secret: str | None = Header(default=None)) -> SessionPayload:
+    def claim_pairing(
+        pairing_id: str,
+        request: Request,
+        x_pairing_secret: str | None = Header(default=None),
+    ) -> SessionPayload:
         try:
+            _check_pairing_action_rate_limit(request, pairing_id)
             return pairing_service.claim_session(pairing_id, x_pairing_secret or "")
+        except RateLimitExceeded as exc:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many pairing requests. Please try again later.",
+            ) from exc
         except PairingNotFoundError as exc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pairing session was not found.") from exc
         except PairingForbiddenError as exc:
@@ -63,9 +84,15 @@ def build_pairings_router(pairing_service: PairingService) -> APIRouter:
         x_pairing_secret: str | None = Header(default=None),
     ) -> Response:
         try:
+            _check_pairing_action_rate_limit(request, pairing_id)
             pairing_service.finalize_claim(pairing_id, x_pairing_secret or "")
             request.app.state.proxy_session_store.clear(pairing_id)
             return Response(status_code=status.HTTP_204_NO_CONTENT)
+        except RateLimitExceeded as exc:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many pairing requests. Please try again later.",
+            ) from exc
         except PairingNotFoundError as exc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pairing session was not found.") from exc
         except PairingForbiddenError as exc:
@@ -82,9 +109,15 @@ def build_pairings_router(pairing_service: PairingService) -> APIRouter:
         x_pairing_secret: str | None = Header(default=None),
     ) -> Response:
         try:
+            _check_pairing_action_rate_limit(request, pairing_id)
             pairing_service.release_claim(pairing_id, x_pairing_secret or "")
             request.app.state.proxy_session_store.clear(pairing_id)
             return Response(status_code=status.HTTP_204_NO_CONTENT)
+        except RateLimitExceeded as exc:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many pairing requests. Please try again later.",
+            ) from exc
         except PairingNotFoundError as exc:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pairing session was not found.") from exc
         except PairingForbiddenError as exc:
@@ -97,6 +130,10 @@ def _get_create_pairing_rate_limiter(request: Request) -> SlidingWindowRateLimit
     return getattr(request.app.state, "create_pairing_rate_limiter", None)
 
 
+def _get_pairing_action_rate_limiter(request: Request) -> SlidingWindowRateLimiter | None:
+    return getattr(request.app.state, "pairing_action_rate_limiter", None)
+
+
 def _check_create_pairing_rate_limit(request: Request) -> None:
     limiter = _get_create_pairing_rate_limiter(request)
     if limiter is None:
@@ -107,3 +144,15 @@ def _check_create_pairing_rate_limit(request: Request) -> None:
         client_host=request.client.host if request.client is not None else None,
     )
     limiter.check_many(build_pairing_creation_rate_limit_keys(client_ip))
+
+
+def _check_pairing_action_rate_limit(request: Request, pairing_id: str) -> None:
+    limiter = _get_pairing_action_rate_limiter(request)
+    if limiter is None:
+        return
+
+    client_ip = extract_client_ip(
+        headers=request.headers,
+        client_host=request.client.host if request.client is not None else None,
+    )
+    limiter.check_many(build_pairing_action_rate_limit_keys(client_ip, pairing_id))
