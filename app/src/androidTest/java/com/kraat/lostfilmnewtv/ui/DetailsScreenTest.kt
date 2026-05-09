@@ -8,7 +8,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.ExperimentalTestApi
-import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsFocused
@@ -16,6 +15,7 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.AndroidComposeTestRule
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
@@ -227,9 +227,9 @@ class DetailsScreenTest {
 
         composeRule.onNodeWithTag("details-primary-action").assertIsDisplayed()
         composeRule.onNodeWithText("Войти в LostFilm").assertIsDisplayed()
-        composeRule.onNodeWithTag(torrServeTag("preferred")).assertDoesNotExist()
-        composeRule.onNodeWithTag("details-favorite-action").assertDoesNotExist()
-        composeRule.onNodeWithTag("details-series-guide-action").assertDoesNotExist()
+        assertEquals(0, composeRule.onAllNodesWithTag(torrServeTag("preferred")).fetchSemanticsNodes().size)
+        assertEquals(0, composeRule.onAllNodesWithTag("details-favorite-action").fetchSemanticsNodes().size)
+        assertEquals(0, composeRule.onAllNodesWithTag("details-series-guide-action").fetchSemanticsNodes().size)
     }
 
     @Test

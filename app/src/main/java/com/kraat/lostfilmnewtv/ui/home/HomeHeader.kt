@@ -1,11 +1,15 @@
+@file:OptIn(ExperimentalFoundationApi::class)
+
 package com.kraat.lostfilmnewtv.ui.home
 
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +27,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.ui.res.painterResource
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,6 +74,9 @@ fun HomeHeader(
     onSearchClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onUpdateClick: () -> Unit,
+    selectedNavItem: NavItem,
+    onNavItemSelected: (NavItem) -> Unit,
+    onNavItemLongClick: (NavItem) -> Unit = {},
     updateVersionText: String?,
     modeFocusRequesters: Map<HomeFeedMode, FocusRequester>,
     searchFocusRequester: FocusRequester,
@@ -81,6 +89,11 @@ fun HomeHeader(
     val firstModeRequester = if (hasModeToggle) modeFocusRequesters[availableModes.first()] else null
     val lastModeRequester = if (hasModeToggle) modeFocusRequesters[availableModes.last()] else null
     val hasUpdate = !updateVersionText.isNullOrBlank()
+    val initialFocusRequester = firstModeRequester ?: searchFocusRequester
+
+    LaunchedEffect(Unit) {
+        initialFocusRequester.requestFocus()
+    }
 
     Box(modifier = modifier.fillMaxWidth()) {
         Row(
@@ -100,8 +113,10 @@ fun HomeHeader(
                     downTarget = downTarget,
                     onModeClick = { mode ->
                         onHeaderInteraction()
+                        onNavItemSelected(NavItem.HOME)
                         onModeActivated(mode)
                     },
+                    onModeLongClick = { onNavItemLongClick(NavItem.HOME) },
                     onInteraction = onHeaderInteraction,
                     onBackClick = onBackToContent,
                     modifier = Modifier
@@ -119,9 +134,14 @@ fun HomeHeader(
                     label = "Поиск",
                     subtitle = "Сериал или фильм",
                     leadingIcon = HeaderActionIcon.Search,
-                    onClick = onSearchClick,
+                    onClick = {
+                        onNavItemSelected(NavItem.SEARCH)
+                        onSearchClick()
+                    },
+                    onLongClick = { onNavItemLongClick(NavItem.SEARCH) },
                     onInteraction = onHeaderInteraction,
                     onBackClick = onBackToContent,
+                    isPrimary = selectedNavItem == NavItem.SEARCH,
                     minWidth = 82.dp,
                     compact = true,
                     hideSubtitle = true,
@@ -144,10 +164,14 @@ fun HomeHeader(
                         subtitle = updateVersionText.orEmpty(),
                         statusLabel = "Можно обновить",
                         leadingIcon = HeaderActionIcon.Refresh,
-                        onClick = onUpdateClick,
+                    onClick = {
+                        onNavItemSelected(NavItem.UPDATE)
+                        onUpdateClick()
+                    },
+                    onLongClick = { onNavItemLongClick(NavItem.UPDATE) },
                         onInteraction = onHeaderInteraction,
                         onBackClick = onBackToContent,
-                        isPrimary = false,
+                        isPrimary = selectedNavItem == NavItem.UPDATE,
                         minWidth = 92.dp,
                         compact = true,
                         hideSubtitle = true,
@@ -166,9 +190,14 @@ fun HomeHeader(
                 HomeHeaderIconButton(
                     iconResId = R.drawable.ic_settings,
                     contentDescription = "Настройки",
-                    onClick = onSettingsClick,
+                    onClick = {
+                        onNavItemSelected(NavItem.SETTINGS)
+                        onSettingsClick()
+                    },
+                    onLongClick = { onNavItemLongClick(NavItem.SETTINGS) },
                     onInteraction = onHeaderInteraction,
                     onBackClick = onBackToContent,
+                    isSelected = selectedNavItem == NavItem.SETTINGS,
                     modifier = Modifier
                         .testTag("home-action-settings")
                         .focusRequester(settingsFocusRequester)
@@ -191,6 +220,7 @@ private fun HomeHeaderModeSegmentedControl(
     rightEdgeRequester: FocusRequester,
     downTarget: FocusRequester?,
     onModeClick: (HomeFeedMode) -> Unit,
+    onModeLongClick: (HomeFeedMode) -> Unit,
     onInteraction: () -> Unit,
     onBackClick: () -> Boolean,
     modifier: Modifier = Modifier,
@@ -234,6 +264,7 @@ private fun HomeHeaderModeSegmentedControl(
                 rightRequester = rightRequester,
                 downTarget = downTarget,
                 onClick = { onModeClick(mode) },
+                onLongClick = { onModeLongClick(mode) },
                 onInteraction = onInteraction,
                 onBackClick = onBackClick,
                 modifier = Modifier.weight(1f),
@@ -252,6 +283,7 @@ private fun HomeModeSegmentButton(
     rightRequester: FocusRequester?,
     downTarget: FocusRequester?,
     onClick: () -> Unit,
+    onLongClick: () -> Unit,
     onInteraction: () -> Unit,
     onBackClick: () -> Boolean,
     modifier: Modifier = Modifier,
@@ -259,7 +291,10 @@ private fun HomeModeSegmentButton(
     var isFocused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
         targetValue = if (isFocused) 1.04f else 1f,
-        animationSpec = tween(durationMillis = 120),
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
         label = "homeModeSegmentScale",
     )
     val shape = RoundedCornerShape(9.dp)
@@ -313,7 +348,11 @@ private fun HomeModeSegmentButton(
                 if (it.isFocused) onInteraction()
             }
             .focusable()
-            .clickable(role = Role.Button, onClick = onClick),
+            .combinedClickable(
+                role = Role.Button,
+                onClick = onClick,
+                onLongClick = onLongClick,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -339,6 +378,7 @@ private fun HomeHeaderActionButton(
     subtitle: String,
     statusLabel: String? = null,
     onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
     onInteraction: () -> Unit = {},
     onBackClick: () -> Boolean = { false },
     modifier: Modifier = Modifier,
@@ -352,7 +392,10 @@ private fun HomeHeaderActionButton(
     var isFocused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
         targetValue = if (isFocused) 1.04f else 1f,
-        animationSpec = tween(durationMillis = 120),
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
         label = "homeActionScale",
     )
 
@@ -413,7 +456,11 @@ private fun HomeHeaderActionButton(
                 }
             }
             .focusable()
-            .clickable(role = Role.Button, onClick = onClick)
+            .combinedClickable(
+                role = Role.Button,
+                onClick = onClick,
+                onLongClick = onLongClick,
+            )
             .padding(
                 horizontal = if (compact) 11.dp else 15.dp,
                 vertical = if (compact) 4.dp else 7.dp,
@@ -473,19 +520,24 @@ private fun HomeHeaderIconButton(
     iconResId: Int,
     contentDescription: String,
     onClick: () -> Unit,
+    onLongClick: () -> Unit = {},
     onInteraction: () -> Unit = {},
     onBackClick: () -> Boolean = { false },
     modifier: Modifier = Modifier,
     observeKeyInteractions: Boolean = true,
+    isSelected: Boolean = false,
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
         targetValue = if (isFocused) 1.04f else 1f,
-        animationSpec = tween(durationMillis = 120),
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
         label = "homeActionScale",
     )
 
-    val iconColor = if (isFocused) HomeAccentGoldGlow else HomeTextMuted
+    val iconColor = if (isFocused || isSelected) HomeAccentGoldGlow else HomeTextMuted
     val shape = RoundedCornerShape(9.dp)
     val borderColor = if (isFocused) FocusBorder else HomePanelBorder
 
@@ -520,7 +572,7 @@ private fun HomeHeaderIconButton(
                 scaleX = scale
                 scaleY = scale
             }
-            .background(if (isFocused) FocusBackground else HomePanelSurface, shape)
+            .background(if (isFocused || isSelected) FocusBackground else HomePanelSurface, shape)
             .border(if (isFocused) 1.5.dp else 1.dp, borderColor, shape)
             .onFocusChanged {
                 isFocused = it.isFocused
@@ -529,7 +581,11 @@ private fun HomeHeaderIconButton(
                 }
             }
             .focusable()
-            .clickable(role = Role.Button, onClick = onClick),
+            .combinedClickable(
+                role = Role.Button,
+                onClick = onClick,
+                onLongClick = onLongClick,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Icon(

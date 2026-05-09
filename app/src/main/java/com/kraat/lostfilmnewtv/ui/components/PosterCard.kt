@@ -1,7 +1,8 @@
 package com.kraat.lostfilmnewtv.ui.components
 
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -56,8 +57,11 @@ fun PosterCard(
     val density = LocalDensity.current
     val scale by animateFloatAsState(
         targetValue = if (isFocused) POSTER_FOCUSED_SCALE else 1f,
-        animationSpec = tween(durationMillis = 120),
-        label = "posterScale",
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "buttonScale",
     )
     val liftPx = with(density) { if (isFocused) (-6).dp.toPx() else 0f }
     val borderColor = if (isFocused) FocusBorder.copy(alpha = 0.92f) else HomePanelBorder.copy(alpha = 0.28f)

@@ -57,6 +57,9 @@ sealed interface AppDestination {
     }
 
     data object Settings : AppDestination {
-        override val route: String = "settings"
+        override val route: String = "settings?section={section}"
+
+        fun createRoute(section: String? = null): String =
+            if (section.isNullOrBlank()) "settings" else "settings?section=$section"
     }
 }

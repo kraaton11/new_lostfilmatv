@@ -69,6 +69,7 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
             val state by homeViewModel.uiState.collectAsStateWithLifecycle()
             val focusState by homeViewModel.focusState.collectAsStateWithLifecycle()
             val savedAppUpdate by homeViewModel.savedAppUpdate.collectAsStateWithLifecycle()
+            val selectedNavItem by homeViewModel.selectedNavItem.collectAsStateWithLifecycle()
             var updateInstallJob by remember { mutableStateOf<Job?>(null) }
 
             val watchedDetailsUrl by backStackEntry.savedStateHandle
@@ -117,12 +118,14 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                 onEndReached = homeViewModel::onEndReached,
                 onRetry = homeViewModel::onRetry,
                 onPagingRetry = homeViewModel::onPagingRetry,
+                selectedNavItem = selectedNavItem,
+                onNavItemSelected = homeViewModel::onNavItemSelected,
                 onAuthClick = {
                     if (isAuthenticated) authViewModel.logout()
                     else navController.navigate(AppDestination.Auth.createRoute())
                 },
                 onSearchClick = { navController.navigate(AppDestination.Search.route) },
-                onSettingsClick = { navController.navigate(AppDestination.Settings.route) },
+                onSettingsClick = { navController.navigate(AppDestination.Settings.createRoute()) },
                 onUpdateClick = {
                     val apkUrl = savedAppUpdate?.apkUrl
                     if (!apkUrl.isNullOrBlank() && updateInstallJob?.isActive != true) {
@@ -223,7 +226,17 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
         }
 
         // ── Settings ──────────────────────────────────────────────────────────
-        composable(AppDestination.Settings.route) { backStackEntry ->
+        composable(
+            route = AppDestination.Settings.route,
+            arguments = listOf(
+                navArgument("section") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                },
+            ),
+        ) { backStackEntry ->
+            val sectionArg = backStackEntry.arguments?.getString("section")
             val homeBackStack = remember(backStackEntry) {
                 navController.getBackStackEntry(AppDestination.Home.route)
             }
@@ -238,6 +251,7 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
 
             SettingsRoute(
                 viewModel = settingsViewModel,
+                initialSection = sectionArg,
                 isAuthenticated = isAuthenticated,
                 onAuthClick = {
                     if (isAuthenticated) authViewModel.logout()

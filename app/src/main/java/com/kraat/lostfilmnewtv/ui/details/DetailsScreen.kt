@@ -2,8 +2,9 @@ package com.kraat.lostfilmnewtv.ui.details
 
 import android.content.Intent
 import android.net.Uri
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -884,9 +885,12 @@ private fun StageButton(
     var isFocused by remember { mutableStateOf(false) }
     val isInteractionEnabled = enabled
     val scale by animateFloatAsState(
-        targetValue = if (isFocused) 1.03f else 1f,
-        animationSpec = tween(durationMillis = 110),
-        label = "stageButtonScale",
+        targetValue = if (isFocused && isInteractionEnabled) 1.06f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "buttonScale",
     )
 
     val background = when {

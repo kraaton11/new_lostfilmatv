@@ -67,6 +67,9 @@ class HomeViewModel @Inject constructor(
     private val _focusState = MutableStateFlow(HomeFocusState.from(initialUiState))
     val focusState: StateFlow<HomeFocusState> = _focusState.asStateFlow()
 
+    private val _selectedNavItem = MutableStateFlow(NavItem.HOME)
+    val selectedNavItem: StateFlow<NavItem> = _selectedNavItem.asStateFlow()
+
     val savedAppUpdate: StateFlow<SavedAppUpdate?> = appUpdateCoordinator.savedUpdateState
 
     private fun HomeUiState.resolveSelection(): HomeUiState =
@@ -170,6 +173,10 @@ class HomeViewModel @Inject constructor(
                 selectedItemKey = if (mode == state.selectedMode) normalizedKey else focus.selectedItemKey,
             )
         }
+    }
+
+    fun onNavItemSelected(item: NavItem) {
+        _selectedNavItem.update { item }
     }
 
     fun onItemWatched(detailsUrl: String) {

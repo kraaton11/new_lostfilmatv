@@ -1,7 +1,8 @@
 package com.kraat.lostfilmnewtv.ui.guide
 
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -570,8 +571,11 @@ private fun GuideActionButton(
     var isFocused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
         targetValue = if (isFocused) 1.03f else 1f,
-        animationSpec = tween(durationMillis = 110),
-        label = "guideActionScale",
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "buttonScale",
     )
 
     val shape = RoundedCornerShape(22.dp)

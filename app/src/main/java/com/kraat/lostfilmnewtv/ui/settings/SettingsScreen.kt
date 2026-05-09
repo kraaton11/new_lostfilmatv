@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.ui.settings
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.focusable
@@ -18,6 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -47,6 +49,9 @@ import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 
 @Composable
 fun SettingsScreen(
+    currentSection: SettingsSection = SettingsSection.QUALITY,
+    onSectionSelected: (SettingsSection) -> Unit = {},
+    onSectionBack: () -> Unit = {},
     selectedQuality: PlaybackQualityPreference,
     onQualitySelected: (PlaybackQualityPreference) -> Unit,
     selectedUpdateMode: UpdateCheckMode,
@@ -68,7 +73,10 @@ fun SettingsScreen(
     onCheckForUpdatesClick: () -> Unit,
     onInstallUpdateClick: () -> Unit,
 ) {
-    var selectedSectionName by rememberSaveable { mutableStateOf(SettingsSection.QUALITY.name) }
+    var selectedSectionName by rememberSaveable { mutableStateOf(currentSection.name) }
+    LaunchedEffect(currentSection) {
+        selectedSectionName = currentSection.name
+    }
     val selectedSection = SettingsSection.valueOf(selectedSectionName)
     val contentScrollState = rememberScrollState()
     val railRequesters = remember {
@@ -81,27 +89,31 @@ fun SettingsScreen(
             PlaybackQualityPreference.Q480.buttonTag() to FocusRequester(),
             UpdateCheckMode.MANUAL.buttonTag() to FocusRequester(),
             UpdateCheckMode.QUIET_CHECK.buttonTag() to FocusRequester(),
-            CHECK_UPDATES_TAG to FocusRequester(),
-            INSTALL_UPDATE_TAG to FocusRequester(),
+            SettingsFocusTarget.CheckForUpdates.toTag() to FocusRequester(),
+            SettingsFocusTarget.InstallUpdate.toTag() to FocusRequester(),
             AndroidTvChannelMode.ALL_NEW.buttonTag() to FocusRequester(),
             AndroidTvChannelMode.UNWATCHED.buttonTag() to FocusRequester(),
             AndroidTvChannelMode.DISABLED.buttonTag() to FocusRequester(),
-            HOME_FAVORITES_SHOW_TAG to FocusRequester(),
-            HOME_FAVORITES_HIDE_TAG to FocusRequester(),
-            ACCOUNT_AUTH_ACTION_TAG to FocusRequester(),
-            WATCHED_MARKING_AUTO_TAG to FocusRequester(),
-            WATCHED_MARKING_DISABLED_TAG to FocusRequester(),
+            SettingsFocusTarget.HomeFavoritesShow.toTag() to FocusRequester(),
+            SettingsFocusTarget.HomeFavoritesHide.toTag() to FocusRequester(),
+            SettingsFocusTarget.AccountAuth.toTag() to FocusRequester(),
+            SettingsFocusTarget.WatchedMarking(WatchedMarkingMode.AUTO).toTag() to FocusRequester(),
+            SettingsFocusTarget.WatchedMarking(WatchedMarkingMode.DISABLED).toTag() to FocusRequester(),
         )
     }
-    var rememberedActionBySection by rememberSaveable {
+    var rememberedActionBySection by remember {
         mutableStateOf(
             mapOf(
-                SettingsSection.QUALITY.name to selectedQuality.buttonTag(),
-                SettingsSection.UPDATES.name to selectedUpdateMode.buttonTag(),
-                SettingsSection.CHANNEL.name to selectedChannelMode.buttonTag(),
-                SettingsSection.HOME_SCREEN.name to if (isHomeFavoritesRailEnabled) HOME_FAVORITES_SHOW_TAG else HOME_FAVORITES_HIDE_TAG,
-                SettingsSection.PLAYBACK.name to if (selectedWatchedMarkingMode == WatchedMarkingMode.AUTO) WATCHED_MARKING_AUTO_TAG else WATCHED_MARKING_DISABLED_TAG,
-                SettingsSection.ACCOUNT.name to ACCOUNT_AUTH_ACTION_TAG,
+                SettingsSection.QUALITY.name to SettingsFocusTarget.PlaybackQuality(selectedQuality),
+                SettingsSection.UPDATES.name to SettingsFocusTarget.UpdateChannel(selectedUpdateMode),
+                SettingsSection.CHANNEL.name to SettingsFocusTarget.ChannelMode(selectedChannelMode),
+                SettingsSection.HOME_SCREEN.name to if (isHomeFavoritesRailEnabled) {
+                    SettingsFocusTarget.HomeFavoritesShow
+                } else {
+                    SettingsFocusTarget.HomeFavoritesHide
+                },
+                SettingsSection.PLAYBACK.name to SettingsFocusTarget.WatchedMarking(selectedWatchedMarkingMode),
+                SettingsSection.ACCOUNT.name to SettingsFocusTarget.AccountAuth,
             ),
         )
     }
@@ -111,6 +123,10 @@ fun SettingsScreen(
     }
     LaunchedEffect(Unit) {
         railRequesters.getValue(selectedSection).requestFocus()
+    }
+    BackHandler(enabled = selectedSection != SettingsSection.QUALITY) {
+        selectedSectionName = SettingsSection.QUALITY.name
+        onSectionBack()
     }
 
     val qualitySummary = selectedQuality.shortLabel()
@@ -155,7 +171,10 @@ fun SettingsScreen(
                 watchedSummary = watchedSummary,
                 accountSummary = accountSummary,
                 aboutSummary = aboutSummary,
-                onSectionSelected = { selectedSectionName = it.name },
+                onSectionSelected = {
+                    selectedSectionName = it.name
+                    onSectionSelected(it)
+                },
                 focusRequesterForSection = { railRequesters.getValue(it) },
                 contentRequesterForSection = { section ->
                     if (section == SettingsSection.ABOUT) {
@@ -170,10 +189,10 @@ fun SettingsScreen(
                             installUrl = installUrl,
                             rememberedActionBySection = rememberedActionBySection,
                         )
-                        if (tag.isBlank()) {
+                        if (tag == null) {
                             railRequesters.getValue(section)
                         } else {
-                            contentRequesters.getValue(tag)
+                            contentRequesters.getValue(tag.toTag())
                         }
                     }
                 },
@@ -214,7 +233,7 @@ fun SettingsScreen(
                                             tag = quality.buttonTag(),
                                             onFocused = {
                                                 rememberedActionBySection = rememberedActionBySection + (
-                                                    SettingsSection.QUALITY.name to quality.buttonTag()
+                                                    SettingsSection.QUALITY.name to SettingsFocusTarget.PlaybackQuality(quality)
                                                 )
                                             },
                                             modifier = Modifier
@@ -281,7 +300,7 @@ fun SettingsScreen(
                                             tag = mode.buttonTag(),
                                             onFocused = {
                                                 rememberedActionBySection = rememberedActionBySection + (
-                                                    SettingsSection.CHANNEL.name to mode.buttonTag()
+                                                    SettingsSection.CHANNEL.name to SettingsFocusTarget.ChannelMode(mode)
                                                 )
                                             },
                                             modifier = Modifier
@@ -325,35 +344,35 @@ fun SettingsScreen(
                                         text = "Показывать вкладку Избранное",
                                         onClick = { onHomeFavoritesRailVisibilitySelected(true) },
                                         isSelected = isHomeFavoritesRailEnabled,
-                                        tag = HOME_FAVORITES_SHOW_TAG,
+                                        tag = SettingsFocusTarget.HomeFavoritesShow.toTag(),
                                         onFocused = {
                                             rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.HOME_SCREEN.name to HOME_FAVORITES_SHOW_TAG
+                                                SettingsSection.HOME_SCREEN.name to SettingsFocusTarget.HomeFavoritesShow
                                             )
                                         },
                                         modifier = Modifier
-                                            .focusRequester(contentRequesters.getValue(HOME_FAVORITES_SHOW_TAG))
+                                            .focusRequester(contentRequesters.getValue(SettingsFocusTarget.HomeFavoritesShow.toTag()))
                                             .focusProperties {
                                                 left = railRequesters.getValue(SettingsSection.HOME_SCREEN)
                                                 up = railRequesters.getValue(SettingsSection.HOME_SCREEN)
-                                                down = contentRequesters.getValue(HOME_FAVORITES_HIDE_TAG)
+                                                down = contentRequesters.getValue(SettingsFocusTarget.HomeFavoritesHide.toTag())
                                             },
                                     )
                                     SettingsTvButton(
                                         text = "Скрывать вкладку Избранное",
                                         onClick = { onHomeFavoritesRailVisibilitySelected(false) },
                                         isSelected = !isHomeFavoritesRailEnabled,
-                                        tag = HOME_FAVORITES_HIDE_TAG,
+                                        tag = SettingsFocusTarget.HomeFavoritesHide.toTag(),
                                         onFocused = {
                                             rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.HOME_SCREEN.name to HOME_FAVORITES_HIDE_TAG
+                                                SettingsSection.HOME_SCREEN.name to SettingsFocusTarget.HomeFavoritesHide
                                             )
                                         },
                                         modifier = Modifier
-                                            .focusRequester(contentRequesters.getValue(HOME_FAVORITES_HIDE_TAG))
+                                            .focusRequester(contentRequesters.getValue(SettingsFocusTarget.HomeFavoritesHide.toTag()))
                                             .focusProperties {
                                                 left = railRequesters.getValue(SettingsSection.HOME_SCREEN)
-                                                up = contentRequesters.getValue(HOME_FAVORITES_SHOW_TAG)
+                                                up = contentRequesters.getValue(SettingsFocusTarget.HomeFavoritesShow.toTag())
                                                 down = FocusRequester.Default
                                             },
                                     )
@@ -375,14 +394,14 @@ fun SettingsScreen(
                                         text = "Отмечать автоматически",
                                         onClick = { onWatchedMarkingModeSelected(WatchedMarkingMode.AUTO) },
                                         isSelected = selectedWatchedMarkingMode == WatchedMarkingMode.AUTO,
-                                        tag = WATCHED_MARKING_AUTO_TAG,
+                                        tag = SettingsFocusTarget.WatchedMarking(WatchedMarkingMode.AUTO).toTag(),
                                         onFocused = {
                                             rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.PLAYBACK.name to WATCHED_MARKING_AUTO_TAG
+                                                SettingsSection.PLAYBACK.name to SettingsFocusTarget.WatchedMarking(WatchedMarkingMode.AUTO)
                                             )
                                         },
                                         modifier = Modifier
-                                            .focusRequester(contentRequesters.getValue(WATCHED_MARKING_AUTO_TAG))
+                                            .focusRequester(contentRequesters.getValue(SettingsFocusTarget.WatchedMarking(WatchedMarkingMode.AUTO).toTag()))
                                             .focusProperties {
                                                 left = railRequesters.getValue(SettingsSection.PLAYBACK)
                                             },
@@ -391,14 +410,14 @@ fun SettingsScreen(
                                         text = "Не отмечать",
                                         onClick = { onWatchedMarkingModeSelected(WatchedMarkingMode.DISABLED) },
                                         isSelected = selectedWatchedMarkingMode == WatchedMarkingMode.DISABLED,
-                                        tag = WATCHED_MARKING_DISABLED_TAG,
+                                        tag = SettingsFocusTarget.WatchedMarking(WatchedMarkingMode.DISABLED).toTag(),
                                         onFocused = {
                                             rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.PLAYBACK.name to WATCHED_MARKING_DISABLED_TAG
+                                                SettingsSection.PLAYBACK.name to SettingsFocusTarget.WatchedMarking(WatchedMarkingMode.DISABLED)
                                             )
                                         },
                                         modifier = Modifier
-                                            .focusRequester(contentRequesters.getValue(WATCHED_MARKING_DISABLED_TAG))
+                                            .focusRequester(contentRequesters.getValue(SettingsFocusTarget.WatchedMarking(WatchedMarkingMode.DISABLED).toTag()))
                                             .focusProperties {
                                                 left = railRequesters.getValue(SettingsSection.PLAYBACK)
                                             },
@@ -426,14 +445,14 @@ fun SettingsScreen(
                                     SettingsTvButton(
                                         text = if (isAuthenticated) "Выйти" else "Войти",
                                         onClick = onAuthClick,
-                                        tag = ACCOUNT_AUTH_ACTION_TAG,
+                                        tag = SettingsFocusTarget.AccountAuth.toTag(),
                                         onFocused = {
                                             rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.ACCOUNT.name to ACCOUNT_AUTH_ACTION_TAG
+                                                SettingsSection.ACCOUNT.name to SettingsFocusTarget.AccountAuth
                                             )
                                         },
                                         modifier = Modifier
-                                            .focusRequester(contentRequesters.getValue(ACCOUNT_AUTH_ACTION_TAG))
+                                            .focusRequester(contentRequesters.getValue(SettingsFocusTarget.AccountAuth.toTag()))
                                             .focusProperties {
                                                 left = railRequesters.getValue(SettingsSection.ACCOUNT)
                                                 up = railRequesters.getValue(SettingsSection.ACCOUNT)
@@ -462,7 +481,7 @@ fun SettingsScreen(
     }
 }
 
-private enum class SettingsSection(
+enum class SettingsSection(
     val railTitle: String,
     val tag: String,
     val summaryTag: String,
@@ -552,8 +571,17 @@ private fun UpdatesSectionContent(
     onInstallUpdateClick: () -> Unit,
     railRequester: FocusRequester,
     contentRequesters: Map<String, FocusRequester>,
-    onActionFocused: (String) -> Unit,
+    onActionFocused: (SettingsFocusTarget) -> Unit,
 ) {
+    val isInstallVisible by remember(installUrl) {
+        derivedStateOf { !installUrl.isNullOrBlank() }
+    }
+    val isCheckEnabled by remember(isCheckingForUpdates) {
+        derivedStateOf { !isCheckingForUpdates }
+    }
+    val isInstallEnabled by remember(isDownloadingUpdate) {
+        derivedStateOf { !isDownloadingUpdate }
+    }
     val updateStatus = when {
         isDownloadingUpdate -> "Скачивание обновления…"
         else -> statusText ?: selectedUpdateMode.summaryLabel()
@@ -573,18 +601,19 @@ private fun UpdatesSectionContent(
     ) {
         val orderedTags = buildList {
             UpdateCheckMode.entries.forEach { add(it.buttonTag()) }
-            add(CHECK_UPDATES_TAG)
-            if (!installUrl.isNullOrBlank()) add(INSTALL_UPDATE_TAG)
+            add(SettingsFocusTarget.CheckForUpdates.toTag())
+            if (isInstallVisible) add(SettingsFocusTarget.InstallUpdate.toTag())
         }
         UpdateCheckMode.entries.forEach { mode ->
             val tag = mode.buttonTag()
+            val focusTarget = SettingsFocusTarget.UpdateChannel(mode)
             val index = orderedTags.indexOf(tag)
             SettingsTvButton(
                 text = mode.label(),
                 onClick = { onUpdateModeSelected(mode) },
                 isSelected = mode == selectedUpdateMode,
                 tag = tag,
-                onFocused = { onActionFocused(tag) },
+                onFocused = { onActionFocused(focusTarget) },
                 modifier = Modifier
                     .focusRequester(contentRequesters.getValue(tag))
                     .focusProperties {
@@ -602,15 +631,16 @@ private fun UpdatesSectionContent(
                     },
             )
         }
-        val checkUpdatesIndex = orderedTags.indexOf(CHECK_UPDATES_TAG)
+        val checkUpdatesTag = SettingsFocusTarget.CheckForUpdates.toTag()
+        val checkUpdatesIndex = orderedTags.indexOf(checkUpdatesTag)
         SettingsTvButton(
             text = if (isCheckingForUpdates) "Проверяем..." else "Проверить обновления",
             onClick = onCheckForUpdatesClick,
-            enabled = !isCheckingForUpdates,
-            tag = CHECK_UPDATES_TAG,
-            onFocused = { onActionFocused(CHECK_UPDATES_TAG) },
+            enabled = isCheckEnabled,
+            tag = checkUpdatesTag,
+            onFocused = { onActionFocused(SettingsFocusTarget.CheckForUpdates) },
             modifier = Modifier
-                .focusRequester(contentRequesters.getValue(CHECK_UPDATES_TAG))
+                .focusRequester(contentRequesters.getValue(checkUpdatesTag))
                 .focusProperties {
                     left = railRequester
                     up = if (checkUpdatesIndex > 0) {
@@ -625,16 +655,17 @@ private fun UpdatesSectionContent(
                     }
                 },
         )
-        if (!installUrl.isNullOrBlank()) {
-            val installUpdateIndex = orderedTags.indexOf(INSTALL_UPDATE_TAG)
+        if (isInstallVisible) {
+            val installUpdateTag = SettingsFocusTarget.InstallUpdate.toTag()
+            val installUpdateIndex = orderedTags.indexOf(installUpdateTag)
             SettingsTvButton(
                 text = if (isDownloadingUpdate) "Скачивание…" else "Скачать и установить",
                 onClick = onInstallUpdateClick,
-                enabled = !isDownloadingUpdate,
-                tag = INSTALL_UPDATE_TAG,
-                onFocused = { onActionFocused(INSTALL_UPDATE_TAG) },
+                enabled = isInstallEnabled,
+                tag = installUpdateTag,
+                onFocused = { onActionFocused(SettingsFocusTarget.InstallUpdate) },
                 modifier = Modifier
-                    .focusRequester(contentRequesters.getValue(INSTALL_UPDATE_TAG))
+                    .focusRequester(contentRequesters.getValue(installUpdateTag))
                     .focusProperties {
                         left = railRequester
                         up = if (installUpdateIndex > 0) {
@@ -660,24 +691,24 @@ private fun targetContentTag(
     selectedChannelMode: AndroidTvChannelMode,
     selectedWatchedMarkingMode: WatchedMarkingMode,
     installUrl: String?,
-    rememberedActionBySection: Map<String, String>,
-): String {
-    val rememberedTag = rememberedActionBySection[section.name]
+    rememberedActionBySection: Map<String, SettingsFocusTarget>,
+): SettingsFocusTarget? {
+    val rememberedTarget = rememberedActionBySection[section.name]
     return when {
-        rememberedTag != null && isActionAvailable(rememberedTag, installUrl) -> rememberedTag
-        section == SettingsSection.QUALITY -> selectedQuality.buttonTag()
-        section == SettingsSection.UPDATES -> selectedUpdateMode.buttonTag()
-        section == SettingsSection.CHANNEL -> selectedChannelMode.buttonTag()
-        section == SettingsSection.HOME_SCREEN -> if (rememberedActionBySection[section.name] != null) rememberedActionBySection[section.name]!! else HOME_FAVORITES_SHOW_TAG
-        section == SettingsSection.PLAYBACK -> if (selectedWatchedMarkingMode == WatchedMarkingMode.AUTO) WATCHED_MARKING_AUTO_TAG else WATCHED_MARKING_DISABLED_TAG
-        section == SettingsSection.ACCOUNT -> ACCOUNT_AUTH_ACTION_TAG
-        section == SettingsSection.ABOUT -> ""
-        else -> selectedQuality.buttonTag()
+        rememberedTarget != null && isActionAvailable(rememberedTarget, installUrl) -> rememberedTarget
+        section == SettingsSection.QUALITY -> SettingsFocusTarget.PlaybackQuality(selectedQuality)
+        section == SettingsSection.UPDATES -> SettingsFocusTarget.UpdateChannel(selectedUpdateMode)
+        section == SettingsSection.CHANNEL -> SettingsFocusTarget.ChannelMode(selectedChannelMode)
+        section == SettingsSection.HOME_SCREEN -> rememberedActionBySection[section.name] ?: SettingsFocusTarget.HomeFavoritesShow
+        section == SettingsSection.PLAYBACK -> SettingsFocusTarget.WatchedMarking(selectedWatchedMarkingMode)
+        section == SettingsSection.ACCOUNT -> SettingsFocusTarget.AccountAuth
+        section == SettingsSection.ABOUT -> null
+        else -> SettingsFocusTarget.PlaybackQuality(selectedQuality)
     }
 }
 
-private fun isActionAvailable(tag: String, installUrl: String?): Boolean {
-    return tag != INSTALL_UPDATE_TAG || !installUrl.isNullOrBlank()
+private fun isActionAvailable(target: SettingsFocusTarget, installUrl: String?): Boolean {
+    return target != SettingsFocusTarget.InstallUpdate || !installUrl.isNullOrBlank()
 }
 
 private fun updateSummary(
@@ -713,7 +744,7 @@ private fun PlaybackQualityPreference.label(): String {
 }
 
 private fun PlaybackQualityPreference.buttonTag(): String {
-    return "settings-quality-${storageValue}"
+    return SettingsFocusTarget.PlaybackQuality(this).toTag()
 }
 
 private fun UpdateCheckMode.label(): String {
@@ -738,10 +769,7 @@ private fun UpdateCheckMode.shortSummary(): String {
 }
 
 private fun UpdateCheckMode.buttonTag(): String {
-    return when (this) {
-        UpdateCheckMode.MANUAL -> "settings-update-mode-manual"
-        UpdateCheckMode.QUIET_CHECK -> "settings-update-mode-quiet"
-    }
+    return SettingsFocusTarget.UpdateChannel(this).toTag()
 }
 
 private fun AndroidTvChannelMode.label(): String {
@@ -753,17 +781,5 @@ private fun AndroidTvChannelMode.label(): String {
 }
 
 private fun AndroidTvChannelMode.buttonTag(): String {
-    return when (this) {
-        AndroidTvChannelMode.ALL_NEW -> "settings-tv-channel-all-new"
-        AndroidTvChannelMode.UNWATCHED -> "settings-tv-channel-unwatched"
-        AndroidTvChannelMode.DISABLED -> "settings-tv-channel-disabled"
-    }
+    return SettingsFocusTarget.ChannelMode(this).toTag()
 }
-
-private const val CHECK_UPDATES_TAG = "settings-action-check-updates"
-private const val INSTALL_UPDATE_TAG = "settings-install-update"
-private const val HOME_FAVORITES_SHOW_TAG = "settings-home-favorites-show"
-private const val HOME_FAVORITES_HIDE_TAG = "settings-home-favorites-hide"
-private const val ACCOUNT_AUTH_ACTION_TAG = "settings-account-auth-action"
-private const val WATCHED_MARKING_AUTO_TAG = "settings-watched-marking-auto"
-private const val WATCHED_MARKING_DISABLED_TAG = "settings-watched-marking-disabled"

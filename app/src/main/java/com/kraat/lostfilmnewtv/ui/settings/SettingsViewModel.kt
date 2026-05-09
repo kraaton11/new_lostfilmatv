@@ -82,6 +82,19 @@ class SettingsViewModel @Inject constructor(
         if (_uiState.value.updateMode == UpdateCheckMode.QUIET_CHECK) refreshUpdateInfo()
     }
 
+    fun onSectionSelected(section: SettingsSection) {
+        _uiState.update { it.copy(currentSection = section) }
+    }
+
+    fun onSectionBack() {
+        _uiState.update { it.copy(currentSection = SettingsSection.QUALITY) }
+    }
+
+    fun onDeepLinkSection(sectionName: String) {
+        val section = SettingsSection.entries.firstOrNull { it.name == sectionName } ?: return
+        _uiState.update { it.copy(currentSection = section) }
+    }
+
     fun onPlaybackQualitySelected(quality: PlaybackQualityPreference) {
         preferencesStore.writeDefaultQuality(quality)
         _uiState.update { it.copy(playbackQuality = quality) }

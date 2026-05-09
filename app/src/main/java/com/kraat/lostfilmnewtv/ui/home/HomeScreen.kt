@@ -21,6 +21,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -85,17 +86,27 @@ fun HomeScreen(
     onAuthClick: () -> Unit = {},
     onRetry: () -> Unit = {},
     onPagingRetry: () -> Unit = {},
+    selectedNavItem: NavItem = NavItem.HOME,
+    onNavItemSelected: (NavItem) -> Unit = {},
+    onNavItemLongClick: (NavItem) -> Unit = {},
     isAuthenticated: Boolean = false,
     savedAppUpdate: SavedAppUpdate? = null,
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
-    val activeModeState = when (state.selectedMode) {
-        HomeFeedMode.AllNew -> state.allNewModeState
-        HomeFeedMode.Favorites -> state.favoritesModeState
-        HomeFeedMode.Movies -> state.moviesModeState
-        HomeFeedMode.Series -> state.seriesModeState
+    val activeModeStateState = remember(state.selectedMode, state.allNewModeState, state.favoritesModeState, state.moviesModeState, state.seriesModeState) {
+        derivedStateOf {
+            when (state.selectedMode) {
+                HomeFeedMode.AllNew -> state.allNewModeState
+                HomeFeedMode.Favorites -> state.favoritesModeState
+                HomeFeedMode.Movies -> state.moviesModeState
+                HomeFeedMode.Series -> state.seriesModeState
+            }
+        }
     }
-    val isAllNewMode = state.selectedMode == HomeFeedMode.AllNew
+    val activeModeState = activeModeStateState.value
+    val isAllNewMode by remember(state.selectedMode) {
+        derivedStateOf { state.selectedMode == HomeFeedMode.AllNew }
+    }
     val activeItems = state.itemsForMode(state.selectedMode)
     val activeRailId = when (state.selectedMode) {
         HomeFeedMode.AllNew -> HOME_RAIL_ALL_NEW
@@ -245,6 +256,9 @@ fun HomeScreen(
                 onSearchClick = onSearchClick,
                 onSettingsClick = onSettingsClick,
                 onUpdateClick = onUpdateClick,
+                selectedNavItem = selectedNavItem,
+                onNavItemSelected = onNavItemSelected,
+                onNavItemLongClick = onNavItemLongClick,
                 updateVersionText = savedAppUpdate?.latestVersion,
                 modeFocusRequesters = modeFocusRequesters,
                 searchFocusRequester = searchRequester,
