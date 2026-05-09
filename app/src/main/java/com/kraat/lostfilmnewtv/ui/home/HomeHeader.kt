@@ -226,38 +226,40 @@ fun HomeHeader(
                     .focusRequester(searchFocusRequester)
                     .focusProperties {
                         up = scheduleFocusRequester
-                        down = updateFocusRequester
+                        down = if (hasUpdate) updateFocusRequester else settingsFocusRequester
                         left = FocusRequester.Cancel
                         right = downTarget ?: FocusRequester.Default
                     },
             )
-            HomeHeaderActionButton(
-                label = "Обновить",
-                subtitle = updateVersionText.orEmpty(),
-                statusLabel = if (hasUpdate) "Можно обновить" else null,
-                leadingIcon = HeaderActionIcon.Refresh,
-                onClick = {
-                    onNavItemSelected(NavItem.UPDATE)
-                    onUpdateClick()
-                },
-                onLongClick = { onNavItemLongClick(NavItem.UPDATE) },
-                onInteraction = onHeaderInteraction,
-                onBackClick = onBackToContent,
-                isPrimary = selectedNavItem == NavItem.UPDATE,
-                minWidth = if (showLabels) ExpandedMenuWidth - 36.dp else CollapsedMenuWidth - 20.dp,
-                hideSubtitle = true,
-                showLabel = showLabels,
-                modifier = Modifier
-                    .then(if (showLabels) Modifier.fillMaxWidth() else Modifier.width(CollapsedMenuWidth - 20.dp))
-                    .testTag("home-action-update")
-                    .focusRequester(updateFocusRequester)
-                    .focusProperties {
-                        up = searchFocusRequester
-                        down = settingsFocusRequester
-                        left = FocusRequester.Cancel
-                        right = downTarget ?: FocusRequester.Default
+            if (hasUpdate) {
+                HomeHeaderActionButton(
+                    label = "Обновить",
+                    subtitle = updateVersionText.orEmpty(),
+                    statusLabel = "Можно обновить",
+                    leadingIcon = HeaderActionIcon.Refresh,
+                    onClick = {
+                        onNavItemSelected(NavItem.UPDATE)
+                        onUpdateClick()
                     },
-            )
+                    onLongClick = { onNavItemLongClick(NavItem.UPDATE) },
+                    onInteraction = onHeaderInteraction,
+                    onBackClick = onBackToContent,
+                    isPrimary = selectedNavItem == NavItem.UPDATE,
+                    minWidth = if (showLabels) ExpandedMenuWidth - 36.dp else CollapsedMenuWidth - 20.dp,
+                    hideSubtitle = true,
+                    showLabel = showLabels,
+                    modifier = Modifier
+                        .then(if (showLabels) Modifier.fillMaxWidth() else Modifier.width(CollapsedMenuWidth - 20.dp))
+                        .testTag("home-action-update")
+                        .focusRequester(updateFocusRequester)
+                        .focusProperties {
+                            up = searchFocusRequester
+                            down = settingsFocusRequester
+                            left = FocusRequester.Cancel
+                            right = downTarget ?: FocusRequester.Default
+                        },
+                )
+            }
             HomeHeaderActionButton(
                 label = "Настройки",
                 subtitle = "Приложение",
@@ -278,8 +280,8 @@ fun HomeHeader(
                     .testTag("home-action-settings")
                     .focusRequester(settingsFocusRequester)
                     .focusProperties {
-                        up = updateFocusRequester
-                        down = menuLabelsFocusRequester
+                        up = if (hasUpdate) updateFocusRequester else searchFocusRequester
+                        down = if (hasUpdate) menuLabelsFocusRequester else FocusRequester.Cancel
                         left = FocusRequester.Cancel
                         right = downTarget ?: FocusRequester.Default
                     },
