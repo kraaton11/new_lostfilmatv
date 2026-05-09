@@ -60,6 +60,7 @@ fun HomeRail(
     downTargetRequester: FocusRequester?,
     isPaging: Boolean,
     onItemFocused: (String) -> Unit,
+    onRailFocusChanged: (Boolean) -> Unit,
     onOpenDetails: (String) -> Unit,
     onEndReached: () -> Unit,
     modifier: Modifier = Modifier,
@@ -117,15 +118,11 @@ fun HomeRail(
                     modifier = Modifier
                         .focusRequester(cardFocusRequesters.getValue(itemKey))
                         .focusProperties {
-                            if (upTargetRequester != null) {
-                                up = upTargetRequester
-                            }
+                            up = FocusRequester.Cancel
                             if (leftTargetRequester != null && index == 0) {
                                 left = leftTargetRequester
                             }
-                            if (downTargetRequester != null) {
-                                down = downTargetRequester
-                            }
+                            down = FocusRequester.Cancel
                             if (isPaging && index == items.lastIndex) {
                                 right = FocusRequester.Cancel
                             }
@@ -133,21 +130,33 @@ fun HomeRail(
                         .testTag(posterTag(railId, item.detailsUrl))
                         .onFocusChanged { focusState ->
                             if (focusState.isFocused) {
+                                onRailFocusChanged(true)
                                 focusedCardKey = item.detailsUrl
                                 onItemFocused(item.detailsUrl)
                                 if (index == items.lastIndex) {
                                     onEndReached()
                                 }
                             } else if (focusedCardKey == item.detailsUrl) {
+                                onRailFocusChanged(false)
                                 focusedCardKey = null
                             }
                         }
                         .onPreviewKeyEvent { event ->
-                            if (event.type == KeyEventType.KeyDown && event.key.isPosterActivationKey()) {
-                                onOpenDetails(item.detailsUrl)
-                                true
-                            } else {
-                                false
+                            if (event.type != KeyEventType.KeyDown) {
+                                return@onPreviewKeyEvent false
+                            }
+
+                            when {
+                                event.key.isPosterActivationKey() -> {
+                                    onOpenDetails(item.detailsUrl)
+                                    true
+                                }
+                                event.key == Key.Back && leftTargetRequester != null -> {
+                                    leftTargetRequester.requestFocus()
+                                    true
+                                }
+                                event.key == Key.DirectionUp || event.key == Key.DirectionDown -> true
+                                else -> false
                             }
                         }
                         .focusable()

@@ -126,6 +126,7 @@ fun HomeScreen(
     var lastSyncedKey by remember { mutableStateOf<String?>(null) }
     var startupContentFocusPending by rememberSaveable { mutableStateOf(true) }
     var contentReturnFocusRequestVersion by remember(activeRailId) { mutableStateOf(0) }
+    var isContentRailFocused by remember(activeRailId) { mutableStateOf(false) }
 
     LaunchedEffect(externalSelectedItemKey, state.selectedItemKey, state.selectedMode, itemKeys) {
         val preferredKey = externalSelectedItemKey ?: state.selectedItemKey ?: itemKeys.firstOrNull()
@@ -225,10 +226,12 @@ fun HomeScreen(
                 .padding(start = 22.dp, top = 22.dp, end = 10.dp, bottom = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(26.dp),
         ) {
-            val headerPrimaryRequester = when {
-                state.availableModes.size > 1 -> modeFocusRequesters.getValue(state.selectedMode)
-                savedAppUpdate != null -> updateRequester
-                else -> searchRequester
+            val headerPrimaryRequester = modeFocusRequesters.getValue(state.selectedMode)
+
+            BackHandler(enabled = isContentRailFocused) {
+                focusScope.launch {
+                    requestFocusWhenReady(headerPrimaryRequester)
+                }
             }
 
             HomeHeader(
@@ -350,6 +353,9 @@ fun HomeScreen(
                                         startupContentFocusPending = false
                                         focusedItemKey = detailsUrl
                                         onItemFocused(detailsUrl)
+                                    },
+                                    onRailFocusChanged = { isFocused ->
+                                        isContentRailFocused = isFocused
                                     },
                                     onOpenDetails = if (state.selectedMode == HomeFeedMode.Series) {
                                         onOpenSeriesGuide
