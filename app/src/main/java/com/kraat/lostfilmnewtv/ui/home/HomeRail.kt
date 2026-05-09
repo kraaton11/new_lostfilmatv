@@ -56,6 +56,7 @@ fun HomeRail(
     shouldRequestFocus: Boolean,
     returnFocusRequestVersion: Int,
     upTargetRequester: FocusRequester?,
+    leftTargetRequester: FocusRequester?,
     downTargetRequester: FocusRequester?,
     isPaging: Boolean,
     onItemFocused: (String) -> Unit,
@@ -118,6 +119,9 @@ fun HomeRail(
                         .focusProperties {
                             if (upTargetRequester != null) {
                                 up = upTargetRequester
+                            }
+                            if (leftTargetRequester != null && index == 0) {
+                                left = leftTargetRequester
                             }
                             if (downTargetRequester != null) {
                                 down = downTargetRequester

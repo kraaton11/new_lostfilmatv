@@ -345,6 +345,7 @@ fun HomeScreen(
                                     shouldRequestFocus = startupContentFocusPending,
                                     returnFocusRequestVersion = contentReturnFocusRequestVersion,
                                     upTargetRequester = headerPrimaryRequester,
+                                    leftTargetRequester = headerPrimaryRequester,
                                     downTargetRequester = null,
                                     isPaging = when (state.selectedMode) {
                                         HomeFeedMode.AllNew -> state.isPaging
