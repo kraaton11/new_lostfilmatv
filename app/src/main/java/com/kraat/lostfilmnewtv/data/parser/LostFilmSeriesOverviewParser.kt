@@ -7,8 +7,8 @@ import org.jsoup.nodes.Element
 
 private val labeledHtmlBreakRegex = Regex("""<br\s*/?>""", setOf(RegexOption.IGNORE_CASE))
 private val plotSectionRegex = Regex(
-    """<strong[^>]*>\s*Сюжет\s*</strong>\s*<br\s*/?>""",
-    setOf(RegexOption.IGNORE_CASE),
+    """(?:<strong[^>]*>\s*)?Сюжет\s*(?:</strong>)?\s*(?:<br\s*/?>|\r?\n)?""",
+    setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE),
 )
 
 class LostFilmSeriesOverviewParser {
@@ -50,8 +50,14 @@ class LostFilmSeriesOverviewParser {
 }
 
 private fun Document.descriptionAndPlot(): Pair<String?, String?> {
-    val rawHtml = selectFirst(".text-block.description .body .body")
-        ?.html()
+    val rawHtml = sequenceOf(
+        { selectFirst(".text-block.description [itemprop=description]")?.html() },
+        { selectFirst(".text-block.description .body .body")?.html() },
+        { selectFirst("meta[property=og:description]")?.attr("content") },
+        { selectFirst("meta[name=description]")?.attr("content") },
+    )
+        .mapNotNull { it()?.takeIf(String::isNotBlank) }
+        .firstOrNull()
         .orEmpty()
 
     if (rawHtml.isBlank()) {

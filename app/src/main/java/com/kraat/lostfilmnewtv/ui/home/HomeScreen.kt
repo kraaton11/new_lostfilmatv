@@ -111,6 +111,9 @@ fun HomeScreen(
         derivedStateOf { state.selectedMode == HomeFeedMode.AllNew }
     }
     val activeItems = state.itemsForMode(state.selectedMode)
+    val modeSwitchOrder = remember(state.availableModes) {
+        HomeFeedMode.entries.filter { it in state.availableModes }
+    }
     val activeRailId = when (state.selectedMode) {
         HomeFeedMode.AllNew -> HOME_RAIL_ALL_NEW
         HomeFeedMode.Favorites -> HOME_RAIL_FAVORITES
@@ -185,6 +188,13 @@ fun HomeScreen(
     val focusedItem = railItems.firstOrNull { it.detailsUrl == focusedItemKey }
         ?: state.selectedItem
         ?: railItems.firstOrNull()
+    fun switchModeFromRail(offset: Int) {
+        val currentIndex = modeSwitchOrder.indexOf(state.selectedMode)
+        if (currentIndex < 0 || modeSwitchOrder.size < 2) return
+        val nextIndex = (currentIndex + offset + modeSwitchOrder.size) % modeSwitchOrder.size
+        startupContentFocusPending = true
+        onModeSelected(modeSwitchOrder[nextIndex])
+    }
 
     val startupAuxFocusTarget = when (activeModeState) {
         is HomeModeContentState.Error -> retryActionRequester
@@ -357,6 +367,8 @@ fun HomeScreen(
                                     } else {
                                         onOpenDetails
                                     },
+                                    onMoveToPreviousMode = { switchModeFromRail(offset = -1) },
+                                    onMoveToNextMode = { switchModeFromRail(offset = 1) },
                                     onEndReached = onEndReached,
                                 )
                             }
@@ -467,15 +479,17 @@ private fun HomeHeroStage(
                 )
             }
 
-            Text(
-                text = targetItem.heroDescription(),
-                color = HomeTextSecondary,
-                fontSize = 16.sp,
-                lineHeight = 21.sp,
-                maxLines = 4,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.width(820.dp),
-            )
+            targetItem.heroDescription().takeIf { it.isNotBlank() }?.let { description ->
+                Text(
+                    text = description,
+                    color = HomeTextSecondary,
+                    fontSize = 16.sp,
+                    lineHeight = 21.sp,
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.width(820.dp),
+                )
+            }
         }
     }
 }
@@ -549,9 +563,7 @@ private fun ReleaseSummary?.heroDescription(): String {
     return when (item.kind) {
         ReleaseKind.SERIES -> item.episodeOverviewRu
             ?.takeIf { it.isNotBlank() }
-            ?: item.seriesOverviewRu
-            ?.takeIf { it.isNotBlank() }
-            ?: "Новая серия доступна в релизах LostFilm."
+            ?: item.seriesOverviewRu?.takeIf { it.isNotBlank() }.orEmpty()
         ReleaseKind.MOVIE -> item.movieOverviewRu
             ?.takeIf { it.isNotBlank() }
             ?: "Фильм доступен в релизах LostFilm."

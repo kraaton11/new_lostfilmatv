@@ -393,6 +393,8 @@ class LostFilmRepositoryImpl(
                         ?: parsedOverview.posterUrl,
                     backdropUrl = tmdbUrls?.backdropUrl?.takeIf { it.isNotBlank() } ?: parsedOverview.backdropUrl,
                     tmdbRating = tmdbUrls?.rating?.takeIf { it.isNotBlank() } ?: parsedOverview.tmdbRating,
+                    descriptionRu = parsedOverview.descriptionRu
+                        ?: tmdbUrls?.seriesOverviewRu?.takeIf { it.isNotBlank() },
                 ),
             )
         } catch (exception: CancellationException) {
