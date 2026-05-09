@@ -301,16 +301,21 @@ class HomeViewModel @Inject constructor(
         allNewLoadJob = viewModelScope.launch(ioDispatcher) {
             when (val result = repository.loadPage(pageNumber)) {
                 is PageState.Content -> {
+                    val updatedItems = if (result.isAppend) {
+                        (_uiState.value.items + result.items).distinctBy { it.detailsUrl }
+                    } else {
+                        result.items
+                    }
                     _uiState.update { state ->
                         state.copy(
-                            items = result.items,
+                            items = updatedItems,
                             isInitialLoading = false,
                             isPaging = false,
                             fullScreenErrorMessage = null,
                             pagingErrorMessage = result.pagingErrorMessage,
                             nextPage = result.pageNumber + 1,
                             hasNextPage = result.hasNextPage,
-                            allNewModeState = HomeModeContentState.Content(result.items),
+                            allNewModeState = HomeModeContentState.Content(updatedItems),
                         ).resolveSelection()
                     }
                     // Channel rows are based on the first page; avoid expensive background sync on pagination.

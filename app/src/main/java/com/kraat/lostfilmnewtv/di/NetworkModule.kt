@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.di
 
+import android.content.Context
 import com.kraat.lostfilmnewtv.BuildConfig
 import com.kraat.lostfilmnewtv.data.auth.EncryptedSessionStore
 import com.kraat.lostfilmnewtv.data.network.AuthBridgeClient
@@ -8,11 +9,14 @@ import com.kraat.lostfilmnewtv.data.network.OkHttpLostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.network.TmdbPosterClient
 import dagger.Module
 import dagger.Provides
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import java.io.File
 import java.util.concurrent.TimeUnit
 import javax.inject.Qualifier
 import javax.inject.Singleton
+import okhttp3.Cache
 import okhttp3.OkHttpClient
 
 @Qualifier
@@ -29,7 +33,8 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient = OkHttpClient.Builder()
+    fun provideOkHttpClient(@ApplicationContext context: Context): OkHttpClient = OkHttpClient.Builder()
+        .cache(Cache(File(context.cacheDir, "okhttp_cache"), 10L * 1024 * 1024))
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
         .build()
