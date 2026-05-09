@@ -122,14 +122,14 @@ class LostFilmRepositoryImpl(
             )
 
             // Only enrich the freshly fetched page; previous pages already keep their TMDB posters in Room.
-            enrichSummaries(
+            val enrichedItems = enrichSummaries(
                 items = itemsToPersist,
                 persistToCache = true,
             )
 
             PageState.Content(
                 pageNumber = pageNumber,
-                items = itemsToPersist,
+                items = enrichedItems,
                 hasNextPage = hasNextPage(html, pageNumber, parsedItems.isNotEmpty()),
                 isStale = false,
                 isAppend = pageNumber > 1,
