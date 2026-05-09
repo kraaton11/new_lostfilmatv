@@ -33,7 +33,9 @@ object TmdbPosterEnricher {
         return details.copy(
             posterUrl = tmdbUrls.posterUrl.ifBlank { details.posterUrl },
             backdropUrl = tmdbUrls.backdropUrl.ifBlank { null },
-            episodeOverviewRu = tmdbUrls.episodeOverviewRu?.ifBlank { null } ?: details.episodeOverviewRu,
+            episodeOverviewRu = tmdbUrls.episodeOverviewRu?.ifBlank { null }
+                ?: details.episodeOverviewRu
+                ?: tmdbUrls.seriesOverviewRu?.takeIf { details.kind == ReleaseKind.SERIES }?.ifBlank { null },
             movieOverviewRu = if (details.kind == ReleaseKind.MOVIE) {
                 tmdbUrls.movieOverviewRu?.ifBlank { null } ?: details.movieOverviewRu
             } else {
