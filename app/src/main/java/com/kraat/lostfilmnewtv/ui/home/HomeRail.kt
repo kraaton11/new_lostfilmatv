@@ -82,6 +82,20 @@ fun HomeRail(
     var handledReturnFocusRequestVersion by remember(railId) {
         mutableStateOf(returnFocusRequestVersion)
     }
+    fun handleVerticalNavigation(key: Key): Boolean {
+        return when {
+            key == Key.DirectionUp && onMoveToPreviousMode != null -> {
+                onMoveToPreviousMode()
+                true
+            }
+            key == Key.DirectionDown && onMoveToNextMode != null -> {
+                onMoveToNextMode()
+                true
+            }
+            key == Key.DirectionUp || key == Key.DirectionDown -> true
+            else -> false
+        }
+    }
 
     LaunchedEffect(shouldRequestFocus, returnFocusRequestVersion, targetIndex, targetRequester) {
         val hasReturnFocusRequest = returnFocusRequestVersion != handledReturnFocusRequestVersion
@@ -101,11 +115,16 @@ fun HomeRail(
                 .fillMaxWidth()
                 .focusRequester(entryFocusRequester)
                 .focusProperties {
+                    up = FocusRequester.Cancel
+                    down = FocusRequester.Cancel
                     onEnter = {
                         if (shouldRequestFocus && targetRequester != null) {
                             targetRequester.requestFocus()
                         }
                     }
+                }
+                .onPreviewKeyEvent { event ->
+                    event.type == KeyEventType.KeyDown && handleVerticalNavigation(event.key)
                 }
                 .focusable()
                 .height(210.dp),
@@ -157,15 +176,7 @@ fun HomeRail(
                                     leftTargetRequester.requestFocus()
                                     true
                                 }
-                                event.key == Key.DirectionUp && onMoveToPreviousMode != null -> {
-                                    onMoveToPreviousMode()
-                                    true
-                                }
-                                event.key == Key.DirectionDown && onMoveToNextMode != null -> {
-                                    onMoveToNextMode()
-                                    true
-                                }
-                                event.key == Key.DirectionUp || event.key == Key.DirectionDown -> true
+                                handleVerticalNavigation(event.key) -> true
                                 else -> false
                             }
                         }
