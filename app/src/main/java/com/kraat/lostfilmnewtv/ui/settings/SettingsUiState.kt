@@ -12,6 +12,7 @@ data class SettingsUiState(
     val updateMode: UpdateCheckMode,
     val channelMode: AndroidTvChannelMode,
     val isHomeFavoritesRailEnabled: Boolean,
+    val isHomeMenuLabelsEnabled: Boolean = true,
     val watchedMarkingMode: WatchedMarkingMode,
     val installedVersionText: String,
     val savedAppUpdate: SavedAppUpdate? = null,

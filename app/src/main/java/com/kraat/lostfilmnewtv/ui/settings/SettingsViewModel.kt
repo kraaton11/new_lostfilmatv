@@ -59,6 +59,7 @@ class SettingsViewModel @Inject constructor(
             updateMode = preferencesStore.readUpdateCheckMode(),
             channelMode = preferencesStore.readAndroidTvChannelMode(),
             isHomeFavoritesRailEnabled = preferencesStore.readHomeFavoritesRailEnabled(),
+            isHomeMenuLabelsEnabled = preferencesStore.readHomeMenuLabelsEnabled(),
             watchedMarkingMode = preferencesStore.readWatchedMarkingMode(),
             installedVersionText = BuildConfig.VERSION_NAME,
             savedAppUpdate = initialSavedUpdate,
@@ -69,6 +70,8 @@ class SettingsViewModel @Inject constructor(
 
     private val _railVisibilityEvents = MutableSharedFlow<Boolean>(extraBufferCapacity = 1)
     val railVisibilityEvents: SharedFlow<Boolean> = _railVisibilityEvents.asSharedFlow()
+    private val _homeMenuLabelsVisibilityEvents = MutableSharedFlow<Boolean>(extraBufferCapacity = 1)
+    val homeMenuLabelsVisibilityEvents: SharedFlow<Boolean> = _homeMenuLabelsVisibilityEvents.asSharedFlow()
 
     init {
         viewModelScope.launch(ioDispatcher) {
@@ -123,6 +126,13 @@ class SettingsViewModel @Inject constructor(
         preferencesStore.writeHomeFavoritesRailEnabled(enabled)
         _railVisibilityEvents.tryEmit(enabled)
         _uiState.update { it.copy(isHomeFavoritesRailEnabled = enabled) }
+    }
+
+    fun onHomeMenuLabelsVisibilitySelected(enabled: Boolean) {
+        if (enabled == _uiState.value.isHomeMenuLabelsEnabled) return
+        preferencesStore.writeHomeMenuLabelsEnabled(enabled)
+        _homeMenuLabelsVisibilityEvents.tryEmit(enabled)
+        _uiState.update { it.copy(isHomeMenuLabelsEnabled = enabled) }
     }
 
     fun onWatchedMarkingModeSelected(mode: WatchedMarkingMode) {

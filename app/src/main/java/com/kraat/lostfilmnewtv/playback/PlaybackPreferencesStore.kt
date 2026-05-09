@@ -98,6 +98,16 @@ class PlaybackPreferencesStore(
             .apply()
     }
 
+    fun readHomeMenuLabelsEnabled(): Boolean {
+        return prefs.getBoolean(KEY_HOME_MENU_LABELS_ENABLED, true)
+    }
+
+    fun writeHomeMenuLabelsEnabled(value: Boolean) {
+        prefs.edit()
+            .putBoolean(KEY_HOME_MENU_LABELS_ENABLED, value)
+            .apply()
+    }
+
     fun readWatchedMarkingMode(): WatchedMarkingMode {
         return WatchedMarkingMode.fromStorageValue(
             prefs.getString(KEY_WATCHED_MARKING_MODE, null),
@@ -130,6 +140,7 @@ class PlaybackPreferencesStore(
         const val KEY_ANDROID_TV_CHANNEL_ID = "android_tv_channel_id"
         const val KEY_ANDROID_TV_FAVORITES_CHANNEL_ID = "android_tv_favorites_channel_id"
         const val KEY_HOME_FAVORITES_RAIL_ENABLED = "home_favorites_rail_enabled"
+        const val KEY_HOME_MENU_LABELS_ENABLED = "home_menu_labels_enabled"
         const val KEY_HOME_SELECTED_FEED_MODE = "home_selected_feed_mode"
         const val KEY_WATCHED_MARKING_MODE = "watched_marking_mode"
     }

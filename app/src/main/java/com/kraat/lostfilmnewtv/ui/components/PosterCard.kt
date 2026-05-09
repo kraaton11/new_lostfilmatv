@@ -43,9 +43,9 @@ import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurface
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 import kotlin.math.roundToInt
 
-private val POSTER_CARD_WIDTH = 108.dp
-private val POSTER_CARD_HEIGHT = 162.dp
-private const val POSTER_FOCUSED_SCALE = 1.07f
+private val POSTER_CARD_WIDTH = 112.dp
+private val POSTER_CARD_HEIGHT = 168.dp
+private const val POSTER_FOCUSED_SCALE = 1.06f
 
 @Composable
 fun PosterCard(
@@ -53,7 +53,7 @@ fun PosterCard(
     isFocused: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    val shape = RoundedCornerShape(14.dp)
+    val shape = RoundedCornerShape(8.dp)
     val density = LocalDensity.current
     val scale by animateFloatAsState(
         targetValue = if (isFocused) POSTER_FOCUSED_SCALE else 1f,
@@ -79,14 +79,14 @@ fun PosterCard(
                 translationY = liftPx
             }
             .shadow(
-                elevation = if (isFocused) 36.dp else 3.dp,
+                elevation = if (isFocused) 30.dp else 2.dp,
                 spotColor = if (isFocused) HomeAccentGoldGlow.copy(alpha = 0.45f) else Color.Black,
                 ambientColor = if (isFocused) HomeAccentGold.copy(alpha = 0.28f) else Color.Black,
                 shape = shape,
             )
             .clip(shape)
             .background(HomePanelSurfaceStrong)
-            .border(width = if (isFocused) 2.dp else 0.5.dp, color = borderColor, shape = shape),
+            .border(width = if (isFocused) 1.5.dp else 0.5.dp, color = borderColor, shape = shape),
     ) {
         AsyncImage(
             model = posterRequest,
@@ -119,13 +119,13 @@ fun PosterCard(
                             1f to overlayColor,
                         ),
                     )
-                    .padding(horizontal = 9.dp, vertical = 8.dp),
+                    .padding(horizontal = 13.dp, vertical = 12.dp),
             ) {
                 Text(
                     text = label,
                     color = Color.White,
-                    fontSize = 12.sp,
-                    lineHeight = 14.sp,
+                    fontSize = 13.sp,
+                    lineHeight = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
             }

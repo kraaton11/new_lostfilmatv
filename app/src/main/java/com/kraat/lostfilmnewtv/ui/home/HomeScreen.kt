@@ -7,6 +7,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -84,6 +85,7 @@ fun HomeScreen(
     onScheduleClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onUpdateClick: () -> Unit = {},
+    onHomeMenuLabelsVisibilitySelected: (Boolean) -> Unit = {},
     onAuthClick: () -> Unit = {},
     onRetry: () -> Unit = {},
     onPagingRetry: () -> Unit = {},
@@ -157,6 +159,7 @@ fun HomeScreen(
     val scheduleRequester = remember { FocusRequester() }
     val settingsRequester = remember { FocusRequester() }
     val updateRequester = remember { FocusRequester() }
+    val menuLabelsRequester = remember { FocusRequester() }
     val loginActionRequester = remember { FocusRequester() }
     val retryActionRequester = remember { FocusRequester() }
     val contentEntryRequester = remember(activeRailId) { FocusRequester() }
@@ -216,11 +219,11 @@ fun HomeScreen(
     ) {
         HomeBackdrop(item = focusedItem)
 
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 24.dp, top = 12.dp, end = 24.dp, bottom = 22.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(start = 12.dp, top = 42.dp, end = 18.dp, bottom = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             val headerPrimaryRequester = when {
                 state.availableModes.size > 1 -> modeFocusRequesters.getValue(state.selectedMode)
@@ -268,41 +271,61 @@ fun HomeScreen(
                 scheduleFocusRequester = scheduleRequester,
                 updateFocusRequester = updateRequester,
                 settingsFocusRequester = settingsRequester,
+                menuLabelsFocusRequester = menuLabelsRequester,
                 downTarget = headerDownTarget,
+                showLabels = state.isHomeMenuLabelsEnabled,
+                onHomeMenuLabelsVisibilitySelected = onHomeMenuLabelsVisibilitySelected,
+                modifier = Modifier
+                    .width(if (state.isHomeMenuLabelsEnabled) 156.dp else 46.dp)
+                    .fillMaxHeight(),
             )
 
-            if (isAllNewMode && state.fullScreenErrorMessage != null && state.items.isNotEmpty()) {
-                HomeStatusPanel(
-                    tag = "home-error-status",
-                    text = state.fullScreenErrorMessage,
-                    isError = true,
-                    actionLabel = "Повторить",
-                    onAction = onRetry,
-                )
-            }
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(1.dp)
+                    .background(HomePanelBorder.copy(alpha = 0.74f)),
+            )
 
-            when {
-                isAllNewMode && state.isInitialLoading && state.items.isEmpty() && state.fullScreenErrorMessage == null -> {
-                    HomeLoadingSkeleton(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                    )
-                }
-                isAllNewMode && state.items.isEmpty() && state.fullScreenErrorMessage != null -> {
-                    HomeActionPanel(
-                        message = state.fullScreenErrorMessage,
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .padding(top = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (isAllNewMode && state.fullScreenErrorMessage != null && state.items.isNotEmpty()) {
+                    HomeStatusPanel(
+                        tag = "home-error-status",
+                        text = state.fullScreenErrorMessage,
+                        isError = true,
                         actionLabel = "Повторить",
                         onAction = onRetry,
-                        modifier = Modifier.fillMaxWidth().weight(1f).padding(vertical = 8.dp),
                     )
                 }
-                else -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                        .weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(7.dp),
+
+                when {
+                    isAllNewMode && state.isInitialLoading && state.items.isEmpty() && state.fullScreenErrorMessage == null -> {
+                        HomeLoadingSkeleton(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                        )
+                    }
+                    isAllNewMode && state.items.isEmpty() && state.fullScreenErrorMessage != null -> {
+                        HomeActionPanel(
+                            message = state.fullScreenErrorMessage,
+                            actionLabel = "Повторить",
+                            onAction = onRetry,
+                            modifier = Modifier.fillMaxWidth().weight(1f).padding(vertical = 8.dp),
+                        )
+                    }
+                    else -> {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(7.dp),
                     ) {
                         when (activeModeState) {
                             is HomeModeContentState.Content -> {
@@ -405,6 +428,7 @@ fun HomeScreen(
                     }
                 }
             }
+            }
         }
     }
 }
@@ -417,23 +441,23 @@ private fun HomeHeroStage(
     Crossfade(
         targetState = item,
         modifier = modifier
-            .height(246.dp)
+            .height(224.dp)
             .testTag("home-hero-stage"),
         label = "homeHeroStage",
     ) { targetItem ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 0.dp, top = 10.dp, end = 360.dp, bottom = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+                .padding(start = 0.dp, top = 0.dp, end = 290.dp, bottom = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             ReleaseHeroMetaRow(targetItem)
 
             Text(
                 text = targetItem?.titleRu.orEmpty(),
                 color = TextPrimary,
-                fontSize = 34.sp,
-                lineHeight = 37.sp,
+                fontSize = 42.sp,
+                lineHeight = 46.sp,
                 fontWeight = FontWeight.SemiBold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -446,9 +470,9 @@ private fun HomeHeroStage(
                         platformStyle = PlatformTextStyle(includeFontPadding = true),
                     ),
                     color = HomeTextSecondary,
-                    fontSize = 18.sp,
-                    lineHeight = 21.sp,
-                    fontWeight = FontWeight.Medium,
+                    fontSize = 24.sp,
+                    lineHeight = 28.sp,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -456,10 +480,10 @@ private fun HomeHeroStage(
 
             Text(
                 text = targetItem.heroDescription(),
-                color = HomeTextMuted,
-                fontSize = 15.sp,
-                lineHeight = 19.sp,
-                maxLines = 4,
+                color = HomeTextSecondary,
+                fontSize = 17.sp,
+                lineHeight = 22.sp,
+                maxLines = 3,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.width(560.dp),
             )
@@ -504,9 +528,9 @@ private fun HeroMetaPill(
     val shape = RoundedCornerShape(999.dp)
     Text(
         text = label,
-        color = HomeTextSecondary,
-        fontSize = 12.sp,
-        lineHeight = 14.sp,
+        color = TextPrimary,
+        fontSize = 14.sp,
+        lineHeight = 16.sp,
         fontWeight = FontWeight.Bold,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
@@ -517,10 +541,10 @@ private fun HeroMetaPill(
             )
             .border(
                 width = 1.dp,
-                color = HomePanelBorder.copy(alpha = 0.84f),
+                color = HomeAccentGold.copy(alpha = 0.78f),
                 shape = shape,
             )
-            .padding(horizontal = 10.dp, vertical = 5.dp),
+            .padding(horizontal = 14.dp, vertical = 6.dp),
     )
 }
 
@@ -557,9 +581,9 @@ private fun HomeRailSectionHeader(selectedMode: HomeFeedMode) {
     Text(
         text = title,
         color = HomeTextSecondary,
-        fontSize = 15.sp,
+        fontSize = 16.sp,
         fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
-        modifier = Modifier.padding(start = 14.dp),
+        modifier = Modifier.padding(start = 8.dp),
     )
 }
 

@@ -43,6 +43,9 @@ class HomeViewModel @Inject constructor(
     private val initialFavoritesRailVisible: Boolean
         get() = preferencesStore.readHomeFavoritesRailEnabled()
 
+    private val initialHomeMenuLabelsEnabled: Boolean
+        get() = preferencesStore.readHomeMenuLabelsEnabled()
+
     private val initialUiState = HomeUiState(
         selectedItemKey = savedStateHandle[FOCUS_KEY],
         isInitialLoading = true,
@@ -59,6 +62,7 @@ class HomeViewModel @Inject constructor(
         },
         seriesModeState = HomeModeContentState.Loading,
         isFavoritesRailVisible = initialFavoritesRailVisible,
+        isHomeMenuLabelsEnabled = initialHomeMenuLabelsEnabled,
     ).withResolvedHomeSelection()
 
     private val _uiState = MutableStateFlow(initialUiState)
@@ -218,6 +222,11 @@ class HomeViewModel @Inject constructor(
         }
         if (shouldPersistFallback) preferencesStore.writeHomeSelectedFeedMode(HomeFeedMode.AllNew)
         if (started && isVisible) loadFavoriteReleases()
+    }
+
+    fun onHomeMenuLabelsVisibilityChanged(isVisible: Boolean) {
+        preferencesStore.writeHomeMenuLabelsEnabled(isVisible)
+        _uiState.update { it.copy(isHomeMenuLabelsEnabled = isVisible) }
     }
 
     fun onFavoriteContentInvalidated() {

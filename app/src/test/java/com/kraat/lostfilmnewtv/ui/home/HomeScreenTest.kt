@@ -124,8 +124,8 @@ class HomeScreenTest {
         val favoritesBounds = composeRule.onNodeWithTag("home-mode-toggle").fetchSemanticsNode().boundsInRoot
         val searchBounds = composeRule.onNodeWithTag("home-action-search").fetchSemanticsNode().boundsInRoot
 
-        assertTrue("favoritesBounds=$favoritesBounds updateBounds=$updateBounds", favoritesBounds.left < updateBounds.left)
-        assertTrue("favoritesBounds=$favoritesBounds searchBounds=$searchBounds", favoritesBounds.left < searchBounds.left)
+        assertTrue("favoritesBounds=$favoritesBounds searchBounds=$searchBounds", favoritesBounds.top < searchBounds.top)
+        assertTrue("searchBounds=$searchBounds updateBounds=$updateBounds", searchBounds.top < updateBounds.top)
     }
 
     @Test
