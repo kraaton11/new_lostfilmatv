@@ -41,6 +41,34 @@ class DeeplTranslationServiceTest(unittest.TestCase):
         self.assertEqual(form["text"], ["English episode overview."])
         self.assertEqual(form["source_lang"], ["EN"])
         self.assertEqual(form["target_lang"], ["RU"])
+        self.assertEqual(service.snapshot().successes, 1)
+        self.assertEqual(service.snapshot().cache_entries, 1)
+
+    def test_translate_reuses_cached_translation(self) -> None:
+        requests: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return httpx.Response(
+                status_code=200,
+                json={"translations": [{"text": "Русское описание серии."}]},
+            )
+
+        service = DeeplTranslationService(
+            api_key="test-key",
+            api_url="https://api-free.deepl.com/v2/translate",
+            timeout_seconds=3.0,
+            transport=httpx.MockTransport(handler),
+        )
+
+        first = service.translate("English episode overview.", source_language="EN", target_language="RU")
+        second = service.translate("English episode overview.", source_language="EN", target_language="RU")
+
+        self.assertEqual(first, "Русское описание серии.")
+        self.assertEqual(second, "Русское описание серии.")
+        self.assertEqual(len(requests), 1)
+        self.assertEqual(service.snapshot().cache_hits, 1)
+        self.assertEqual(service.snapshot().successes, 2)
 
     def test_translate_rejects_unsupported_language_pair(self) -> None:
         service = DeeplTranslationService(
@@ -51,3 +79,5 @@ class DeeplTranslationServiceTest(unittest.TestCase):
 
         with self.assertRaises(UnsupportedTranslationPairError):
             service.translate("Text", source_language="DE", target_language="RU")
+
+        self.assertEqual(service.snapshot().unsupported_errors, 1)

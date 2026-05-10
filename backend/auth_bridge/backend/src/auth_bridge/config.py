@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     deepl_api_key: str = ""
     deepl_api_url: str = "https://api-free.deepl.com/v2/translate"
     deepl_timeout_seconds: float = 10.0
+    translation_cache_max_entries: int = 1000
+    translation_cache_ttl_seconds: int = 7 * 24 * 60 * 60
     log_format: str = "text"
 
     @field_validator("pairing_ttl_seconds", "pairing_poll_interval_seconds", "claim_lease_ttl_seconds")
@@ -59,6 +61,8 @@ class Settings(BaseSettings):
         "proxy_rate_limit_window_seconds",
         "translation_rate_limit_max_requests",
         "translation_rate_limit_window_seconds",
+        "translation_cache_max_entries",
+        "translation_cache_ttl_seconds",
         "cleanup_interval_seconds",
     )
     @classmethod

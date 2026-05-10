@@ -1,6 +1,7 @@
 package com.kraat.lostfilmnewtv.data.network
 
 import com.kraat.lostfilmnewtv.data.model.TmdbMediaType
+import com.kraat.lostfilmnewtv.data.model.TmdbEpisodeOverviewSource
 import kotlinx.coroutines.test.runTest
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
@@ -229,9 +230,10 @@ class TmdbPosterClientTest {
             apiKey = "test",
         )
 
-        val result = client.getEpisodeOverviewRu(tmdbId = 123, seasonNumber = 2, episodeNumber = 8)
+        val result = client.getEpisodeOverview(tmdbId = 123, seasonNumber = 2, episodeNumber = 8)
 
-        assertEquals("English episode overview.", result)
+        assertEquals("English episode overview.", result?.text)
+        assertEquals(TmdbEpisodeOverviewSource.TMDB_EN, result?.source)
         assertTrue(requestedUrls.any { it.contains("/tv/123/season/2/episode/8") && it.contains("language=ru-RU") })
         assertTrue(requestedUrls.any { it.contains("/tv/123/season/2/episode/8") && it.contains("language=en-US") })
     }
@@ -256,9 +258,10 @@ class TmdbPosterClientTest {
             apiKey = "test",
         )
 
-        val result = client.getEpisodeOverviewRu(tmdbId = 123, seasonNumber = 2, episodeNumber = 8)
+        val result = client.getEpisodeOverview(tmdbId = 123, seasonNumber = 2, episodeNumber = 8)
 
-        assertEquals("Русское описание серии.", result)
+        assertEquals("Русское описание серии.", result?.text)
+        assertEquals(TmdbEpisodeOverviewSource.TMDB_RU, result?.source)
         assertEquals(1, requestedUrls.count { it.contains("/tv/123/season/2/episode/8") })
         assertTrue(requestedUrls.single().contains("language=ru-RU"))
     }
@@ -291,8 +294,9 @@ class TmdbPosterClientTest {
             },
         )
 
-        val result = client.getEpisodeOverviewRu(tmdbId = 123, seasonNumber = 2, episodeNumber = 8)
+        val result = client.getEpisodeOverview(tmdbId = 123, seasonNumber = 2, episodeNumber = 8)
 
-        assertEquals("Русское описание серии.", result)
+        assertEquals("Русское описание серии.", result?.text)
+        assertEquals(TmdbEpisodeOverviewSource.MACHINE_TRANSLATED, result?.source)
     }
 }

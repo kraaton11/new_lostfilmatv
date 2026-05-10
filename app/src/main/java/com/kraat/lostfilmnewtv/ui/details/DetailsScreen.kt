@@ -62,6 +62,7 @@ import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
+import com.kraat.lostfilmnewtv.data.model.TmdbEpisodeOverviewSource
 import com.kraat.lostfilmnewtv.ui.components.ShimmerSkeletonBox
 import com.kraat.lostfilmnewtv.ui.components.rememberShimmerSkeletonBrush
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
@@ -632,6 +633,7 @@ private fun buildDetailsMetaChips(
         details?.tmdbRating?.takeIf { it.isNotBlank() }?.let { rating ->
             add("TMDB $rating")
         }
+        details.episodeOverviewSourceLabel()?.let(::add)
         details?.releaseDateRu?.takeIf { it.isNotBlank() }?.let(::add)
         details?.kind?.let { kind ->
             add(
@@ -642,6 +644,16 @@ private fun buildDetailsMetaChips(
             )
         }
     }.distinct()
+}
+
+private fun ReleaseDetails?.episodeOverviewSourceLabel(): String? {
+    val details = this ?: return null
+    if (details.kind != ReleaseKind.SERIES || details.episodeOverviewRu.isNullOrBlank()) return null
+    return when (details.episodeOverviewSource) {
+        TmdbEpisodeOverviewSource.MACHINE_TRANSLATED.name -> "Автоперевод"
+        TmdbEpisodeOverviewSource.TMDB_EN.name -> "English"
+        else -> null
+    }
 }
 
 @Composable
@@ -798,7 +810,7 @@ private fun DetailsDescription(details: ReleaseDetails?) {
         color = DetailsTextSecondary,
         fontSize = 14.sp,
         lineHeight = 20.sp,
-        maxLines = 4,
+        maxLines = 5,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier
             .widthIn(max = 660.dp)

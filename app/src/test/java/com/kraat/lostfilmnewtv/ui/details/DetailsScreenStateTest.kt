@@ -9,6 +9,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.semantics.SemanticsProperties
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
+import com.kraat.lostfilmnewtv.data.model.TmdbEpisodeOverviewSource
 import com.kraat.lostfilmnewtv.data.model.TorrentLink
 import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
 import org.junit.Assert.assertEquals
@@ -228,6 +229,37 @@ class DetailsScreenStateTest {
         composeRule.onNodeWithTag("details-hero-status").assertExists()
         composeRule.onNodeWithText("Статус: Идет 1 сезон").assertExists()
         composeRule.onNodeWithText("Следующая серия: 12 апреля 2026 года").assertExists()
+    }
+
+    @Test
+    fun detailsScreen_showsMachineTranslatedEpisodeOverviewSource() {
+        composeRule.setContent {
+            LostFilmTheme {
+                DetailsScreen(
+                    state = DetailsUiState(
+                        details = seriesDetails().copy(
+                            episodeOverviewRu = "Автоматически переведенное описание серии.",
+                            episodeOverviewSource = TmdbEpisodeOverviewSource.MACHINE_TRANSLATED.name,
+                        ),
+                    ),
+                    isAuthenticated = true,
+                    availableTorrentRowsCount = 1,
+                    playbackRow = DetailsTorrentRowUiModel(
+                        rowId = "row-0",
+                        label = "1080p",
+                        url = "https://example.com/1080",
+                        isTorrServeSupported = true,
+                    ),
+                    torrServeMessage = null,
+                    activeTorrServeRowId = null,
+                    isTorrServeBusy = false,
+                    onRetry = {},
+                    onOpenTorrServe = { _, _ -> },
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Автоперевод").assertExists()
     }
 
     @Test

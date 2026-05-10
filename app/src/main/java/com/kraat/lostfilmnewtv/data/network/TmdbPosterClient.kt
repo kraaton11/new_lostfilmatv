@@ -1,6 +1,8 @@
 package com.kraat.lostfilmnewtv.data.network
 
 import com.kraat.lostfilmnewtv.data.model.TmdbImageUrls
+import com.kraat.lostfilmnewtv.data.model.TmdbEpisodeOverview
+import com.kraat.lostfilmnewtv.data.model.TmdbEpisodeOverviewSource
 import com.kraat.lostfilmnewtv.data.model.TmdbMediaType
 import com.kraat.lostfilmnewtv.data.model.TmdbSearchResult
 import android.util.Log
@@ -178,12 +180,30 @@ open class TmdbPosterClient(
         tmdbId: Int,
         seasonNumber: Int,
         episodeNumber: Int,
-    ): String? = withContext(Dispatchers.IO) {
+    ): String? = getEpisodeOverview(tmdbId, seasonNumber, episodeNumber)?.text
+
+    open suspend fun getEpisodeOverview(
+        tmdbId: Int,
+        seasonNumber: Int,
+        episodeNumber: Int,
+    ): TmdbEpisodeOverview? = withContext(Dispatchers.IO) {
         val baseUrl = "$TMDB_BASE_URL/tv/$tmdbId/season/$seasonNumber/episode/$episodeNumber"
-        fetchOverview("$baseUrl?language=ru-RU")
-            ?: fetchOverview("$baseUrl?language=en-US")?.let { englishOverview ->
-                translateEnglishOverview(englishOverview) ?: englishOverview
-            }
+        fetchOverview("$baseUrl?language=ru-RU")?.let { russianOverview ->
+            TmdbEpisodeOverview(
+                text = russianOverview,
+                source = TmdbEpisodeOverviewSource.TMDB_RU,
+            )
+        } ?: fetchOverview("$baseUrl?language=en-US")?.let { englishOverview ->
+            translateEnglishOverview(englishOverview)?.let { translatedOverview ->
+                TmdbEpisodeOverview(
+                    text = translatedOverview,
+                    source = TmdbEpisodeOverviewSource.MACHINE_TRANSLATED,
+                )
+            } ?: TmdbEpisodeOverview(
+                text = englishOverview,
+                source = TmdbEpisodeOverviewSource.TMDB_EN,
+            )
+        }
     }
 
     private suspend fun translateEnglishOverview(overview: String): String? {

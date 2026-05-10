@@ -18,6 +18,7 @@ data class ReleaseSummary(
     val originalReleaseYear: Int? = null,
     val backdropUrl: String? = null,
     val episodeOverviewRu: String? = null,
+    val episodeOverviewSource: String? = null,
     val seriesOverviewRu: String? = null,
     val movieOverviewRu: String? = null,
     val tmdbRating: String? = null,

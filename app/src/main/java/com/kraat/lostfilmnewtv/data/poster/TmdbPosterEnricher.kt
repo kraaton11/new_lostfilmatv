@@ -17,6 +17,7 @@ object TmdbPosterEnricher {
             posterUrl = tmdbUrls.posterUrl.ifBlank { summary.posterUrl },
             backdropUrl = tmdbUrls.backdropUrl.ifBlank { summary.backdropUrl },
             episodeOverviewRu = tmdbUrls.episodeOverviewRu?.ifBlank { null } ?: summary.episodeOverviewRu,
+            episodeOverviewSource = tmdbUrls.episodeOverviewSource?.ifBlank { null } ?: summary.episodeOverviewSource,
             seriesOverviewRu = tmdbUrls.seriesOverviewRu?.ifBlank { null } ?: summary.seriesOverviewRu,
             movieOverviewRu = tmdbUrls.movieOverviewRu?.ifBlank { null } ?: summary.movieOverviewRu,
             tmdbRating = tmdbUrls.rating?.ifBlank { null } ?: summary.tmdbRating,
@@ -36,6 +37,7 @@ object TmdbPosterEnricher {
             episodeOverviewRu = tmdbUrls.episodeOverviewRu?.ifBlank { null }
                 ?: details.episodeOverviewRu
                 ?: tmdbUrls.seriesOverviewRu?.takeIf { details.kind == ReleaseKind.SERIES }?.ifBlank { null },
+            episodeOverviewSource = tmdbUrls.episodeOverviewSource?.ifBlank { null } ?: details.episodeOverviewSource,
             movieOverviewRu = if (details.kind == ReleaseKind.MOVIE) {
                 tmdbUrls.movieOverviewRu?.ifBlank { null } ?: details.movieOverviewRu
             } else {

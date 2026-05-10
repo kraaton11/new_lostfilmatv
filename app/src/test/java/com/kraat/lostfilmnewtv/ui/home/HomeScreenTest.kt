@@ -21,6 +21,7 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.pressKey
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
+import com.kraat.lostfilmnewtv.data.model.TmdbEpisodeOverviewSource
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
 import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
 import org.junit.Assert.assertEquals
@@ -160,6 +161,22 @@ class HomeScreenTest {
         composeRule.onNodeWithText("Русское описание серии из TMDB.").assertExists()
         composeRule.onNodeWithText("Русское описание сериала из TMDB.").assertDoesNotExist()
         composeRule.onNodeWithText("Новая серия доступна в релизах LostFilm.").assertDoesNotExist()
+    }
+
+    @Test
+    fun homeScreen_heroStage_showsMachineTranslatedEpisodeOverviewSource() {
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(
+                    state = seededState(
+                        episodeOverviewRu = "Автоматически переведенное описание серии.",
+                        episodeOverviewSource = TmdbEpisodeOverviewSource.MACHINE_TRANSLATED.name,
+                    ),
+                )
+            }
+        }
+
+        composeRule.onNodeWithText("Автоперевод").assertExists()
     }
 
     @Test
@@ -1489,6 +1506,7 @@ private fun seededState(
     episodeTitleRu: String? = "Маменькин сынок",
     releaseDateRu: String = "14.03.2026",
     episodeOverviewRu: String? = null,
+    episodeOverviewSource: String? = null,
     seriesOverviewRu: String? = null,
 ): HomeUiState {
     val first = release(
@@ -1502,6 +1520,7 @@ private fun seededState(
         pageNumber = 1,
         positionInPage = 0,
         episodeOverviewRu = episodeOverviewRu,
+        episodeOverviewSource = episodeOverviewSource,
         seriesOverviewRu = seriesOverviewRu,
     )
     val second = release(
@@ -1584,6 +1603,7 @@ private fun release(
     pageNumber: Int = 1,
     positionInPage: Int = 0,
     episodeOverviewRu: String? = null,
+    episodeOverviewSource: String? = null,
     seriesOverviewRu: String? = null,
     movieOverviewRu: String? = null,
 ): ReleaseSummary {
@@ -1605,6 +1625,7 @@ private fun release(
         positionInPage = positionInPage,
         fetchedAt = 0L,
         episodeOverviewRu = episodeOverviewRu,
+        episodeOverviewSource = episodeOverviewSource,
         seriesOverviewRu = seriesOverviewRu,
         movieOverviewRu = movieOverviewRu,
     )

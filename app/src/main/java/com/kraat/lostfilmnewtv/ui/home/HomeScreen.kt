@@ -54,8 +54,9 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
-import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
+import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
+import com.kraat.lostfilmnewtv.data.model.TmdbEpisodeOverviewSource
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
 import com.kraat.lostfilmnewtv.ui.components.ShimmerSkeletonBox
 import com.kraat.lostfilmnewtv.ui.components.rememberShimmerSkeletonBrush
@@ -503,7 +504,7 @@ private fun HomeHeroStage(
                     color = HomeTextSecondary,
                     fontSize = 16.sp,
                     lineHeight = 22.sp,
-                    maxLines = 3,
+                    maxLines = 5,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.width(760.dp),
                 )
@@ -526,6 +527,9 @@ private fun ReleaseHeroMetaRow(item: ReleaseSummary?) {
         }
         item?.tmdbRating?.takeIf { it.isNotBlank() }?.let { rating ->
             HeroMetaPill(label = "TMDB $rating")
+        }
+        item.episodeOverviewSourceLabel()?.let { label ->
+            HeroMetaPill(label = label)
         }
         item?.releaseDateRu?.takeIf { it.isNotBlank() }?.let { date ->
             HeroMetaPill(label = date)
@@ -585,6 +589,16 @@ private fun ReleaseSummary?.heroDescription(): String {
         ReleaseKind.MOVIE -> item.movieOverviewRu
             ?.takeIf { it.isNotBlank() }
             ?: "Фильм доступен в релизах LostFilm."
+    }
+}
+
+private fun ReleaseSummary?.episodeOverviewSourceLabel(): String? {
+    val item = this ?: return null
+    if (item.kind != ReleaseKind.SERIES || item.episodeOverviewRu.isNullOrBlank()) return null
+    return when (item.episodeOverviewSource) {
+        TmdbEpisodeOverviewSource.MACHINE_TRANSLATED.name -> "Автоперевод"
+        TmdbEpisodeOverviewSource.TMDB_EN.name -> "English"
+        else -> null
     }
 }
 

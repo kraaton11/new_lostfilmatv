@@ -79,6 +79,8 @@ class SettingsTest(unittest.TestCase):
             upstream_retry_backoff_seconds=0.1,
             deepl_api_key="test-key",
             deepl_api_url="https://api-free.deepl.com/v2/translate",
+            translation_cache_max_entries=50,
+            translation_cache_ttl_seconds=3600,
             translation_rate_limit_max_requests=20,
             translation_rate_limit_window_seconds=30,
             log_format="json",
@@ -89,6 +91,8 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(settings.upstream_retry_attempts, 3)
         self.assertEqual(settings.upstream_retry_backoff_seconds, 0.1)
         self.assertEqual(settings.deepl_api_key, "test-key")
+        self.assertEqual(settings.translation_cache_max_entries, 50)
+        self.assertEqual(settings.translation_cache_ttl_seconds, 3600)
         self.assertEqual(settings.translation_rate_limit_max_requests, 20)
         self.assertEqual(settings.translation_rate_limit_window_seconds, 30)
         self.assertEqual(settings.log_format, "json")
