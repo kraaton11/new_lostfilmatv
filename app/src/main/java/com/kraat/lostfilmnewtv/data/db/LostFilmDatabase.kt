@@ -10,7 +10,7 @@ import androidx.room.RoomDatabase
         PageCacheMetadataEntity::class,
         TmdbPosterMappingEntity::class,
     ],
-    version = 16,
+    version = 17,
     exportSchema = false,
 )
 abstract class LostFilmDatabase : RoomDatabase() {

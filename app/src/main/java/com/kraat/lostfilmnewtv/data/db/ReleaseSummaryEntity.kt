@@ -9,7 +9,7 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 @Entity(
     tableName = "release_summaries",
     indices = [
-        Index(value = ["pageNumber"]),
+        Index(value = ["pageNumber", "positionInPage"]),
         Index(value = ["isWatched", "pageNumber", "positionInPage"]),
         Index(value = ["fetchedAt"]),
     ],

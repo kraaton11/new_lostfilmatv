@@ -49,6 +49,7 @@ import java.time.format.DateTimeParseException
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -56,6 +57,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 
 private const val FRESH_WINDOW_MS = 6 * 60 * 60 * 1000L
@@ -103,11 +105,13 @@ class LostFilmRepositoryImpl(
             val fetchedAt = clock()
             val hasAuthenticatedSession = hasAuthenticatedSession()
             val html = httpClient.fetchNewPage(pageNumber)
-            val parsedItems = listParser.parse(
-                html = html,
-                pageNumber = pageNumber,
-                fetchedAt = fetchedAt,
-            )
+            val parsedItems = withContext(Dispatchers.Default) {
+                listParser.parse(
+                    html = html,
+                    pageNumber = pageNumber,
+                    fetchedAt = fetchedAt,
+                )
+            }
             val itemsToPersist = mergeWatchedState(
                 pageNumber = pageNumber,
                 html = html,
@@ -160,11 +164,13 @@ class LostFilmRepositoryImpl(
         return try {
             val fetchedAt = clock()
             val html = httpClient.fetchMoviesPage(pageNumber)
-            val parsedItems = listParser.parse(
-                html = html,
-                pageNumber = pageNumber,
-                fetchedAt = fetchedAt,
-            )
+            val parsedItems = withContext(Dispatchers.Default) {
+                listParser.parse(
+                    html = html,
+                    pageNumber = pageNumber,
+                    fetchedAt = fetchedAt,
+                )
+            }
             val enrichedItems = enrichSummaries(
                 items = parsedItems,
                 persistToCache = false,
@@ -194,11 +200,13 @@ class LostFilmRepositoryImpl(
         return try {
             val fetchedAt = clock()
             val json = httpClient.fetchSeriesCatalogPage(pageNumber)
-            val parsedItems = seriesCatalogParser.parseSearchJson(
-                json = json,
-                pageNumber = pageNumber,
-                fetchedAt = fetchedAt,
-            )
+            val parsedItems = withContext(Dispatchers.Default) {
+                seriesCatalogParser.parseSearchJson(
+                    json = json,
+                    pageNumber = pageNumber,
+                    fetchedAt = fetchedAt,
+                )
+            }
             val enrichedItems = enrichSummaries(
                 items = parsedItems,
                 persistToCache = false,
@@ -384,10 +392,12 @@ class LostFilmRepositoryImpl(
 
         return try {
             val overviewHtml = httpClient.fetchDetails(seriesRootUrl)
-            val parsedOverview = seriesOverviewParser.parse(
-                html = overviewHtml,
-                seriesUrl = seriesRootUrl,
-            )
+            val parsedOverview = withContext(Dispatchers.Default) {
+                seriesOverviewParser.parse(
+                    html = overviewHtml,
+                    seriesUrl = seriesRootUrl,
+                )
+            }
             val tmdbUrls = tmdbResolver.resolve(
                 detailsUrl = normalizedDetailsUrl,
                 titleRu = parsedOverview.titleRu,
@@ -426,7 +436,9 @@ class LostFilmRepositoryImpl(
             val encodedQuery = URLEncoder.encode(normalizedQuery, StandardCharsets.UTF_8.toString())
                 .replace("+", "%20")
             val html = httpClient.fetchDetails("$BASE_URL/search/?q=$encodedQuery")
-            val parsedItems = searchParser.parse(html)
+            val parsedItems = withContext(Dispatchers.Default) {
+                searchParser.parse(html)
+            }
 
             SearchResultsResult.Success(
                 query = normalizedQuery,
@@ -449,7 +461,10 @@ class LostFilmRepositoryImpl(
     override suspend fun loadSchedule(): ScheduleResult {
         return try {
             val html = httpClient.fetchSchedulePage()
-            ScheduleResult.Success(enrichScheduleWithLostFilmImages(scheduleParser.parse(html)))
+            val schedule = withContext(Dispatchers.Default) {
+                scheduleParser.parse(html)
+            }
+            ScheduleResult.Success(enrichScheduleWithLostFilmImages(schedule))
         } catch (exception: CancellationException) {
             throw exception
         } catch (exception: Exception) {
@@ -739,14 +754,16 @@ class LostFilmRepositoryImpl(
                             }
                             val watchedEpisodeIds = watchedEpisodeIdsFromSeriesRoot + watchedEpisodeIdsFromMarks
                             SeriesLoadResult(
-                                items = seasonEpisodesParser.parse(
-                                    html = seasonsHtml,
-                                    series = series,
-                                    fetchedAt = fetchedAt,
-                                    watchedEpisodeIds = watchedEpisodeIds,
-                                    maxEpisodesPerSeason = FAVORITE_RELEASES_MAX_EPISODES_PER_SEASON,
-                                    maxSeasons = FAVORITE_RELEASES_MAX_SEASONS_PER_SERIES,
-                                ),
+                                items = withContext(Dispatchers.Default) {
+                                    seasonEpisodesParser.parse(
+                                        html = seasonsHtml,
+                                        series = series,
+                                        fetchedAt = fetchedAt,
+                                        watchedEpisodeIds = watchedEpisodeIds,
+                                        maxEpisodesPerSeason = FAVORITE_RELEASES_MAX_EPISODES_PER_SEASON,
+                                        maxSeasons = FAVORITE_RELEASES_MAX_SEASONS_PER_SERIES,
+                                    )
+                                },
                                 loaded = true,
                             )
                         }
@@ -883,6 +900,7 @@ class LostFilmRepositoryImpl(
                         tmdbEnrichCache.remove(item.detailsUrl, tmdbUrlsDeferred)
                         throw exception
                     }
+                    tmdbEnrichCache.remove(item.detailsUrl, tmdbUrlsDeferred)
                     TmdbPosterEnricher.enrichSummary(item, tmdbUrls)
                 }
             }.awaitAll()
@@ -1037,9 +1055,11 @@ class LostFilmRepositoryImpl(
             else -> ReleaseKind.SERIES
         }
 
-        return when (resolvedKind) {
-            ReleaseKind.SERIES -> detailsParser.parseSeries(html, detailsUrl, fetchedAt)
-            ReleaseKind.MOVIE -> detailsParser.parseMovie(html, detailsUrl, fetchedAt)
+        return withContext(Dispatchers.Default) {
+            when (resolvedKind) {
+                ReleaseKind.SERIES -> detailsParser.parseSeries(html, detailsUrl, fetchedAt)
+                ReleaseKind.MOVIE -> detailsParser.parseMovie(html, detailsUrl, fetchedAt)
+            }
         }
     }
 
