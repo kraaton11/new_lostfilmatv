@@ -17,6 +17,7 @@ import com.kraat.lostfilmnewtv.data.model.ScheduleItem
 import com.kraat.lostfilmnewtv.data.model.ScheduleMonth
 import com.kraat.lostfilmnewtv.data.model.SeriesGuide
 import com.kraat.lostfilmnewtv.data.model.SeriesOverview
+import com.kraat.lostfilmnewtv.data.model.TmdbImageUrls
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.parser.BASE_URL
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
@@ -45,7 +46,9 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -90,6 +93,7 @@ class LostFilmRepositoryImpl(
     private val clock: () -> Long = { System.currentTimeMillis() },
 ) : LostFilmRepository {
     private val cleanupMutex = Mutex()
+    private val tmdbEnrichCache = ConcurrentHashMap<String, Deferred<TmdbImageUrls?>>()
     private var lastCleanupAt = 0L
 
     override suspend fun loadPage(pageNumber: Int): PageState {
@@ -852,16 +856,29 @@ class LostFilmRepositoryImpl(
         val enrichedItems = coroutineScope {
             items.map { item ->
                 async {
-                    semaphore.withPermit {
-                        val tmdbUrls = tmdbResolver.resolve(
-                            detailsUrl = item.detailsUrl,
-                            titleRu = item.titleRu,
-                            releaseDateRu = item.releaseDateRu,
-                            kind = item.kind,
-                            originalReleaseYear = item.originalReleaseYear,
-                        )
-                        TmdbPosterEnricher.enrichSummary(item, tmdbUrls)
+                    val tmdbUrlsDeferred = tmdbEnrichCache.getOrPut(item.detailsUrl) {
+                        async {
+                            semaphore.withPermit {
+                                tmdbResolver.resolve(
+                                    detailsUrl = item.detailsUrl,
+                                    titleRu = item.titleRu,
+                                    releaseDateRu = item.releaseDateRu,
+                                    kind = item.kind,
+                                    originalReleaseYear = item.originalReleaseYear,
+                                )
+                            }
+                        }
                     }
+                    val tmdbUrls = try {
+                        tmdbUrlsDeferred.await()
+                    } catch (exception: CancellationException) {
+                        tmdbEnrichCache.remove(item.detailsUrl, tmdbUrlsDeferred)
+                        throw exception
+                    } catch (exception: Exception) {
+                        tmdbEnrichCache.remove(item.detailsUrl, tmdbUrlsDeferred)
+                        throw exception
+                    }
+                    TmdbPosterEnricher.enrichSummary(item, tmdbUrls)
                 }
             }.awaitAll()
         }
