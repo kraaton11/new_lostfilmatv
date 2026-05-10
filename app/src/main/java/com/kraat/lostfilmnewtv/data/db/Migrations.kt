@@ -154,6 +154,21 @@ val MIGRATION_15_16 = object : Migration(15, 16) {
     }
 }
 
+/**
+ * Миграция 16→17: составной индекс для выборки ленты с сортировкой по странице и позиции.
+ */
+val MIGRATION_16_17 = object : Migration(16, 17) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("DROP INDEX IF EXISTS `index_release_summaries_pageNumber`")
+        db.execSQL(
+            """
+            CREATE INDEX IF NOT EXISTS `index_release_summaries_pageNumber_positionInPage`
+            ON `release_summaries` (`pageNumber`, `positionInPage`)
+            """.trimIndent(),
+        )
+    }
+}
+
 /** Список всех миграций для передачи в Room.databaseBuilder. */
 val ALL_MIGRATIONS = arrayOf(
     MIGRATION_5_6,
@@ -167,6 +182,7 @@ val ALL_MIGRATIONS = arrayOf(
     MIGRATION_13_14,
     MIGRATION_14_15,
     MIGRATION_15_16,
+    MIGRATION_16_17,
 )
 
 private fun SupportSQLiteDatabase.hasColumn(tableName: String, columnName: String): Boolean {
