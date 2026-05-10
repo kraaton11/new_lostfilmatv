@@ -24,6 +24,8 @@ class ReleaseSummaryEntityTest {
             positionInPage = 0,
             fetchedAt = 1L,
             isWatched = true,
+            episodeOverviewRu = "Описание серии.",
+            episodeOverviewSource = "MACHINE_TRANSLATED",
             seriesOverviewRu = "Описание сериала.",
             movieOverviewRu = "Описание фильма.",
         )
@@ -31,6 +33,7 @@ class ReleaseSummaryEntityTest {
         val restored = ReleaseSummaryEntity.fromModel(model).toModel()
 
         assertTrue(restored.isWatched)
+        assertEquals("MACHINE_TRANSLATED", restored.episodeOverviewSource)
         assertEquals("Описание сериала.", restored.seriesOverviewRu)
         assertEquals("Описание фильма.", restored.movieOverviewRu)
     }

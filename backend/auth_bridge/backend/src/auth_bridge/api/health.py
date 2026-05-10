@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from starlette.concurrency import run_in_threadpool
 
 from auth_bridge.services.pairing_service import PairingService
@@ -29,5 +29,15 @@ def build_health_router(pairing_service: PairingService) -> APIRouter:
         except Exception:
             raise HTTPException(status_code=503, detail="Pairing store is not ready.")
         return {"status": "ok"}
+
+    @router.get("/translation")
+    def translation(request: Request) -> dict[str, int | bool | str]:
+        """
+        Translation health and counters. Does not call DeepL and does not expose secrets.
+        """
+        service = getattr(request.app.state, "translation_service", None)
+        if service is None:
+            raise HTTPException(status_code=503, detail="Translation service is not available.")
+        return service.snapshot().to_dict()
 
     return router

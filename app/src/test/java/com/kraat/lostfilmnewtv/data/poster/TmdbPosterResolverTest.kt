@@ -3,6 +3,8 @@ package com.kraat.lostfilmnewtv.data.poster
 import com.kraat.lostfilmnewtv.data.db.TmdbPosterDao
 import com.kraat.lostfilmnewtv.data.db.TmdbPosterMappingEntity
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
+import com.kraat.lostfilmnewtv.data.model.TmdbEpisodeOverview
+import com.kraat.lostfilmnewtv.data.model.TmdbEpisodeOverviewSource
 import com.kraat.lostfilmnewtv.data.model.TmdbImageUrls
 import com.kraat.lostfilmnewtv.data.model.TmdbMediaType
 import com.kraat.lostfilmnewtv.data.model.TmdbSearchResult
@@ -33,15 +35,18 @@ class TmdbPosterResolverTest {
                 )
             }
 
-            override suspend fun getEpisodeOverviewRu(
+            override suspend fun getEpisodeOverview(
                 tmdbId: Int,
                 seasonNumber: Int,
                 episodeNumber: Int,
-            ): String? {
+            ): TmdbEpisodeOverview? {
                 assertEquals(777, tmdbId)
                 assertEquals(2, seasonNumber)
                 assertEquals(8, episodeNumber)
-                return "Русское описание серии из TMDB."
+                return TmdbEpisodeOverview(
+                    text = "Русское описание серии из TMDB.",
+                    source = TmdbEpisodeOverviewSource.TMDB_RU,
+                )
             }
 
             override suspend fun getSeriesOverviewRu(tmdbId: Int): String? {
@@ -59,6 +64,7 @@ class TmdbPosterResolverTest {
         )
 
         assertEquals("Русское описание серии из TMDB.", result?.episodeOverviewRu)
+        assertEquals(TmdbEpisodeOverviewSource.TMDB_RU.name, result?.episodeOverviewSource)
         assertEquals("Русское описание сериала из TMDB.", result?.seriesOverviewRu)
         assertEquals("8.4", result?.rating)
         assertEquals("8.4", dao.upserted?.rating)

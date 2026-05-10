@@ -60,3 +60,13 @@ class HealthEndpointTest(unittest.TestCase):
             response = self.client.get("/health/ready")
 
         self.assertEqual(response.status_code, 503)
+
+    def test_translation_health_returns_counters_without_secrets(self) -> None:
+        response = self.client.get("/health/translation")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["provider"], "deepl")
+        self.assertIn("configured", payload)
+        self.assertIn("cache_entries", payload)
+        self.assertNotIn("api_key", payload)

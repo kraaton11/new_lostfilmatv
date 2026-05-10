@@ -32,6 +32,7 @@ private const val RELEASE_DETAILS_TABLE_SQL = """
         `favoriteTargetKind` TEXT,
         `isFavorite` INTEGER,
         `episodeOverviewRu` TEXT,
+        `episodeOverviewSource` TEXT,
         `movieOverviewRu` TEXT,
         `tmdbRating` TEXT,
         PRIMARY KEY(`detailsUrl`)
@@ -169,6 +170,16 @@ val MIGRATION_16_17 = object : Migration(16, 17) {
     }
 }
 
+/**
+ * Миграция 17→18: источник описания эпизода для пометок TMDB/автоперевода.
+ */
+val MIGRATION_17_18 = object : Migration(17, 18) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `release_summaries` ADD COLUMN `episodeOverviewSource` TEXT")
+        db.execSQL("ALTER TABLE `release_details` ADD COLUMN `episodeOverviewSource` TEXT")
+    }
+}
+
 /** Список всех миграций для передачи в Room.databaseBuilder. */
 val ALL_MIGRATIONS = arrayOf(
     MIGRATION_5_6,
@@ -183,6 +194,7 @@ val ALL_MIGRATIONS = arrayOf(
     MIGRATION_14_15,
     MIGRATION_15_16,
     MIGRATION_16_17,
+    MIGRATION_17_18,
 )
 
 private fun SupportSQLiteDatabase.hasColumn(tableName: String, columnName: String): Boolean {

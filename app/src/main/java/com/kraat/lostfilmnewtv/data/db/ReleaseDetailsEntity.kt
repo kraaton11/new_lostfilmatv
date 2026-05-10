@@ -31,6 +31,7 @@ data class ReleaseDetailsEntity(
     val favoriteTargetKind: String?,
     val isFavorite: Boolean?,
     val episodeOverviewRu: String? = null,
+    val episodeOverviewSource: String? = null,
     val movieOverviewRu: String? = null,
     val tmdbRating: String? = null,
 ) {
@@ -53,6 +54,7 @@ data class ReleaseDetailsEntity(
         },
         isFavorite = isFavorite,
         episodeOverviewRu = episodeOverviewRu,
+        episodeOverviewSource = episodeOverviewSource,
         movieOverviewRu = movieOverviewRu,
         tmdbRating = tmdbRating,
     )
@@ -75,6 +77,7 @@ data class ReleaseDetailsEntity(
             favoriteTargetKind = model.favoriteTargetKind?.name,
             isFavorite = model.isFavorite,
             episodeOverviewRu = model.episodeOverviewRu,
+            episodeOverviewSource = model.episodeOverviewSource,
             movieOverviewRu = model.movieOverviewRu,
             tmdbRating = model.tmdbRating,
         )

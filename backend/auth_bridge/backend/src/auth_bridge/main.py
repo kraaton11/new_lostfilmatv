@@ -130,6 +130,8 @@ def create_app() -> FastAPI:
         api_key=settings.deepl_api_key,
         api_url=settings.deepl_api_url,
         timeout_seconds=settings.deepl_timeout_seconds,
+        cache_max_entries=settings.translation_cache_max_entries,
+        cache_ttl_seconds=settings.translation_cache_ttl_seconds,
     )
 
     app.state.pairing_service = pairing_service

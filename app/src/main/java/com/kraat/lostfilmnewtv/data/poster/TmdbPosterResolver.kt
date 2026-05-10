@@ -4,6 +4,7 @@ import android.util.Log
 import com.kraat.lostfilmnewtv.data.db.TmdbPosterDao
 import com.kraat.lostfilmnewtv.data.db.TmdbPosterMappingEntity
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
+import com.kraat.lostfilmnewtv.data.model.TmdbEpisodeOverview
 import com.kraat.lostfilmnewtv.data.model.TmdbImageUrls
 import com.kraat.lostfilmnewtv.data.model.TmdbMediaType
 import com.kraat.lostfilmnewtv.data.model.TmdbSearchResult
@@ -54,7 +55,7 @@ class TmdbPosterResolverImpl(
     private val inMemoryCache = LruMemoryCache<String, TmdbImageUrls>(MEMORY_CACHE_MAX_SIZE)
     private val negativeMemoryCache = LruMemoryCache<String, Unit>(MEMORY_CACHE_MAX_SIZE)
     private val inMemoryTmdbIdCache = LruMemoryCache<String, Int>(MEMORY_CACHE_MAX_SIZE)
-    private val episodeOverviewCache = LruMemoryCache<String, String>(MEMORY_CACHE_MAX_SIZE)
+    private val episodeOverviewCache = LruMemoryCache<String, TmdbEpisodeOverview>(MEMORY_CACHE_MAX_SIZE)
     private val seriesOverviewCache = LruMemoryCache<Int, String>(MEMORY_CACHE_MAX_SIZE)
     private val movieOverviewCache = LruMemoryCache<Int, String>(MEMORY_CACHE_MAX_SIZE)
     private val locks = ConcurrentHashMap<String, LockEntry>()
@@ -70,15 +71,16 @@ class TmdbPosterResolverImpl(
         val hasTmdbIdOverride = tmdbIdOverride(extractEnglishSlug(detailsUrl), kind) != null
 
         inMemoryCache[cacheKey]?.let {
-            val (episodeOverviewRu, seriesOverviewRu, movieOverviewRu) = resolveOverviews(
+            val overviews = resolveOverviews(
                 detailsUrl = detailsUrl,
                 tmdbId = inMemoryTmdbIdCache[cacheKey],
                 kind = kind,
             )
             return it.copy(
-                episodeOverviewRu = episodeOverviewRu,
-                seriesOverviewRu = seriesOverviewRu,
-                movieOverviewRu = movieOverviewRu,
+                episodeOverviewRu = overviews.episodeOverview?.text,
+                episodeOverviewSource = overviews.episodeOverview?.source?.name,
+                seriesOverviewRu = overviews.seriesOverviewRu,
+                movieOverviewRu = overviews.movieOverviewRu,
                 rating = it.rating,
             )
         }
@@ -92,7 +94,7 @@ class TmdbPosterResolverImpl(
             return null
         }
         if (cached != null && canReuseCachedMapping(cached, originalReleaseYear)) {
-            val (episodeOverviewRu, seriesOverviewRu, movieOverviewRu) = resolveOverviews(
+            val overviews = resolveOverviews(
                 detailsUrl = detailsUrl,
                 tmdbId = cached.tmdbId,
                 kind = kind,
@@ -100,27 +102,29 @@ class TmdbPosterResolverImpl(
             val urls = TmdbImageUrls(
                 posterUrl = cached.posterUrl,
                 backdropUrl = cached.backdropUrl,
-                episodeOverviewRu = episodeOverviewRu,
-                seriesOverviewRu = seriesOverviewRu,
-                movieOverviewRu = movieOverviewRu,
+                episodeOverviewRu = overviews.episodeOverview?.text,
+                episodeOverviewSource = overviews.episodeOverview?.source?.name,
+                seriesOverviewRu = overviews.seriesOverviewRu,
+                movieOverviewRu = overviews.movieOverviewRu,
                 rating = cached.rating,
             )
-            inMemoryCache[cacheKey] = urls.copy(episodeOverviewRu = null)
+            inMemoryCache[cacheKey] = urls.copy(episodeOverviewRu = null, episodeOverviewSource = null)
             inMemoryTmdbIdCache[cacheKey] = cached.tmdbId
             return urls
         }
 
         return withKeyLock(cacheKey) {
             inMemoryCache[cacheKey]?.let {
-                val (episodeOverviewRu, seriesOverviewRu, movieOverviewRu) = resolveOverviews(
+                val overviews = resolveOverviews(
                     detailsUrl = detailsUrl,
                     tmdbId = inMemoryTmdbIdCache[cacheKey],
                     kind = kind,
                 )
                 return@withKeyLock it.copy(
-                    episodeOverviewRu = episodeOverviewRu,
-                    seriesOverviewRu = seriesOverviewRu,
-                    movieOverviewRu = movieOverviewRu,
+                    episodeOverviewRu = overviews.episodeOverview?.text,
+                    episodeOverviewSource = overviews.episodeOverview?.source?.name,
+                    seriesOverviewRu = overviews.seriesOverviewRu,
+                    movieOverviewRu = overviews.movieOverviewRu,
                     rating = it.rating,
                 )
             }
@@ -134,7 +138,7 @@ class TmdbPosterResolverImpl(
                 return@withKeyLock null
             }
             if (rechecked != null && canReuseCachedMapping(rechecked, originalReleaseYear)) {
-                val (episodeOverviewRu, seriesOverviewRu, movieOverviewRu) = resolveOverviews(
+                val overviews = resolveOverviews(
                     detailsUrl = detailsUrl,
                     tmdbId = rechecked.tmdbId,
                     kind = kind,
@@ -142,18 +146,19 @@ class TmdbPosterResolverImpl(
                 val urls = TmdbImageUrls(
                     posterUrl = rechecked.posterUrl,
                     backdropUrl = rechecked.backdropUrl,
-                    episodeOverviewRu = episodeOverviewRu,
-                    seriesOverviewRu = seriesOverviewRu,
-                    movieOverviewRu = movieOverviewRu,
+                    episodeOverviewRu = overviews.episodeOverview?.text,
+                    episodeOverviewSource = overviews.episodeOverview?.source?.name,
+                    seriesOverviewRu = overviews.seriesOverviewRu,
+                    movieOverviewRu = overviews.movieOverviewRu,
                     rating = rechecked.rating,
                 )
-                inMemoryCache[cacheKey] = urls.copy(episodeOverviewRu = null)
+                inMemoryCache[cacheKey] = urls.copy(episodeOverviewRu = null, episodeOverviewSource = null)
                 inMemoryTmdbIdCache[cacheKey] = rechecked.tmdbId
                 return@withKeyLock urls
             }
 
             val result = performSearch(cacheKey, detailsUrl, titleRu, kind, originalReleaseYear)
-            result?.let { inMemoryCache[cacheKey] = it.copy(episodeOverviewRu = null) }
+            result?.let { inMemoryCache[cacheKey] = it.copy(episodeOverviewRu = null, episodeOverviewSource = null) }
             result
         }
     }
@@ -314,7 +319,7 @@ class TmdbPosterResolverImpl(
             return null
         }
 
-        val (episodeOverviewRu, seriesOverviewRu, movieOverviewRu) = resolveOverviews(
+        val overviews = resolveOverviews(
             detailsUrl = detailsUrl,
             tmdbId = bestMatch.id,
             kind = kind,
@@ -340,9 +345,10 @@ class TmdbPosterResolverImpl(
         inMemoryTmdbIdCache[cacheKey] = bestMatch.id
 
         return resolvedImages.copy(
-            episodeOverviewRu = episodeOverviewRu,
-            seriesOverviewRu = seriesOverviewRu,
-            movieOverviewRu = movieOverviewRu,
+            episodeOverviewRu = overviews.episodeOverview?.text,
+            episodeOverviewSource = overviews.episodeOverview?.source?.name,
+            seriesOverviewRu = overviews.seriesOverviewRu,
+            movieOverviewRu = overviews.movieOverviewRu,
             rating = rating,
         )
     }
@@ -351,9 +357,9 @@ class TmdbPosterResolverImpl(
         detailsUrl: String,
         tmdbId: Int?,
         kind: ReleaseKind,
-    ): Triple<String?, String?, String?> {
+    ): ResolvedOverviews {
         if (tmdbId == null) {
-            return Triple(null, null, null)
+            return ResolvedOverviews()
         }
 
         val overviews = coroutineScope {
@@ -363,7 +369,11 @@ class TmdbPosterResolverImpl(
                 async { resolveMovieOverview(tmdbId, kind) },
             ).awaitAll()
         }
-        return Triple(overviews[0], overviews[1], overviews[2])
+        return ResolvedOverviews(
+            episodeOverview = overviews[0] as? TmdbEpisodeOverview,
+            seriesOverviewRu = overviews[1] as? String,
+            movieOverviewRu = overviews[2] as? String,
+        )
     }
 
     private suspend fun resolveMovieOverview(
@@ -432,7 +442,7 @@ class TmdbPosterResolverImpl(
         detailsUrl: String,
         tmdbId: Int,
         kind: ReleaseKind,
-    ): String? {
+    ): TmdbEpisodeOverview? {
         if (kind != ReleaseKind.SERIES || tmdbId <= 0) {
             return null
         }
@@ -452,7 +462,7 @@ class TmdbPosterResolverImpl(
         episodeOverviewCache[overviewKey]?.let { return it }
 
         return try {
-            tmdbClient.getEpisodeOverviewRu(tmdbId, seasonNumber, episodeNumber)
+            tmdbClient.getEpisodeOverview(tmdbId, seasonNumber, episodeNumber)
                 ?.also { episodeOverviewCache[overviewKey] = it }
         } catch (e: CancellationException) {
             throw e
@@ -565,6 +575,12 @@ private class LockEntry {
     val mutex = Mutex()
     val refs = AtomicInteger(0)
 }
+
+private data class ResolvedOverviews(
+    val episodeOverview: TmdbEpisodeOverview? = null,
+    val seriesOverviewRu: String? = null,
+    val movieOverviewRu: String? = null,
+)
 
 private class LruMemoryCache<K, V>(
     private val maxSize: Int,

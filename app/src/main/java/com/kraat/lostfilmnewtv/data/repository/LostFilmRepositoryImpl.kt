@@ -1130,6 +1130,8 @@ class LostFilmRepositoryImpl(
                 ?: summary.episodeTitleRu?.takeIf { it.isNotBlank() },
             episodeOverviewRu = details.episodeOverviewRu
                 ?: summary.episodeOverviewRu?.takeIf { it.isNotBlank() },
+            episodeOverviewSource = details.episodeOverviewSource
+                ?: summary.episodeOverviewSource?.takeIf { it.isNotBlank() },
         )
     }
 
