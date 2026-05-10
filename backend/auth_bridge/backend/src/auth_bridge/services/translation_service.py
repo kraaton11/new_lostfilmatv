@@ -51,8 +51,8 @@ class DeeplTranslationService:
             with httpx.Client(transport=self._transport, timeout=self._timeout) as client:
                 response = client.post(
                     self._api_url,
+                    headers={"Authorization": f"DeepL-Auth-Key {self._api_key}"},
                     data={
-                        "auth_key": self._api_key,
                         "text": text,
                         "source_lang": source,
                         "target_lang": target,
