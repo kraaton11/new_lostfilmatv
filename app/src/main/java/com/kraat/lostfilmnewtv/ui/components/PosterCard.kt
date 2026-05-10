@@ -45,7 +45,7 @@ import kotlin.math.roundToInt
 
 private val POSTER_CARD_WIDTH = 112.dp
 private val POSTER_CARD_HEIGHT = 172.dp
-private const val POSTER_FOCUSED_SCALE = 1.045f
+private const val POSTER_FOCUSED_SCALE = 1.065f
 
 @Composable
 fun PosterCard(
@@ -53,7 +53,7 @@ fun PosterCard(
     isFocused: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    val shape = RoundedCornerShape(8.dp)
+    val shape = RoundedCornerShape(12.dp)
     val density = LocalDensity.current
     val scale by animateFloatAsState(
         targetValue = if (isFocused) POSTER_FOCUSED_SCALE else 1f,
@@ -66,9 +66,9 @@ fun PosterCard(
     val liftPx = remember(isFocused, density) {
         if (isFocused) with(density) { (-6).dp.toPx() } else 0f
     }
-    val borderColor = if (isFocused) FocusBorder.copy(alpha = 0.96f) else HomePanelBorder.copy(alpha = 0.30f)
-    val overlayColor = if (isFocused) FocusBackground.copy(alpha = 0.88f) else HomePanelSurface.copy(alpha = 0.76f)
-    val watchedBadgeColor = if (isFocused) HomeAccentGoldGlow.copy(alpha = 0.94f) else HomeAccentGold.copy(alpha = 0.9f)
+    val borderColor = if (isFocused) FocusBorder.copy(alpha = 0.88f) else HomePanelBorder.copy(alpha = 0.14f)
+    val overlayColor = if (isFocused) FocusBackground.copy(alpha = 0.82f) else HomePanelSurface.copy(alpha = 0.62f)
+    val watchedBadgeColor = if (isFocused) HomeAccentGoldGlow.copy(alpha = 0.86f) else HomePanelSurfaceStrong.copy(alpha = 0.86f)
     val posterRequest = rememberPosterImageRequest(item.posterUrl)
 
     Box(
@@ -81,14 +81,14 @@ fun PosterCard(
                 translationY = liftPx
             }
             .shadow(
-                elevation = if (isFocused) 34.dp else 2.dp,
-                spotColor = if (isFocused) HomeAccentGoldGlow.copy(alpha = 0.52f) else Color.Black,
-                ambientColor = if (isFocused) HomeAccentGold.copy(alpha = 0.28f) else Color.Black,
+                elevation = if (isFocused) 36.dp else 10.dp,
+                spotColor = if (isFocused) HomeAccentGoldGlow.copy(alpha = 0.42f) else Color.Black.copy(alpha = 0.80f),
+                ambientColor = if (isFocused) HomeAccentGold.copy(alpha = 0.22f) else Color.Black.copy(alpha = 0.70f),
                 shape = shape,
             )
             .clip(shape)
             .background(HomePanelSurfaceStrong)
-            .border(width = if (isFocused) 1.4.dp else 0.5.dp, color = borderColor, shape = shape),
+            .border(width = if (isFocused) 1.2.dp else 0.5.dp, color = borderColor, shape = shape),
     ) {
         AsyncImage(
             model = posterRequest,
@@ -137,17 +137,17 @@ fun PosterCard(
             Box(
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(7.dp)
+                    .padding(8.dp)
                     .background(HomeAccentGold.copy(alpha = 0.94f), RoundedCornerShape(999.dp)),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     text = label,
                     color = Color(0xFF1B1408),
-                    fontSize = 12.sp,
-                    lineHeight = 14.sp,
+                    fontSize = 11.sp,
+                    lineHeight = 13.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
                 )
             }
         }
@@ -156,15 +156,17 @@ fun PosterCard(
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(7.dp)
+                    .padding(8.dp)
                     .background(watchedBadgeColor, RoundedCornerShape(999.dp)),
                 contentAlignment = Alignment.Center,
             ) {
                 Text(
                     text = "✓",
-                    color = Color(0xFF1B1408),
+                    color = if (isFocused) Color(0xFF1B1408) else HomeAccentGoldGlow,
+                    fontSize = 11.sp,
+                    lineHeight = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
+                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
                 )
             }
         }

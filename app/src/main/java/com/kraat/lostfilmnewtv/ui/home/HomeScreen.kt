@@ -453,24 +453,31 @@ private fun HomeHeroStage(
     Crossfade(
         targetState = item,
         modifier = modifier
-            .height(232.dp)
+            .height(252.dp)
             .testTag("home-hero-stage"),
         label = "homeHeroStage",
     ) { targetItem ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 2.dp, top = 0.dp, end = 260.dp, bottom = 2.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+                .background(
+                    Brush.horizontalGradient(
+                        0f to BackgroundPrimary.copy(alpha = 0.68f),
+                        0.54f to BackgroundPrimary.copy(alpha = 0.22f),
+                        1f to Color.Transparent,
+                    ),
+                )
+                .padding(start = 2.dp, top = 4.dp, end = 280.dp, bottom = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp),
         ) {
             ReleaseHeroMetaRow(targetItem)
 
             Text(
                 text = targetItem?.titleRu.orEmpty(),
                 color = TextPrimary,
-                fontSize = 32.sp,
-                lineHeight = 36.sp,
-                fontWeight = FontWeight.SemiBold,
+                fontSize = 36.sp,
+                lineHeight = 40.sp,
+                fontWeight = FontWeight.Bold,
                 maxLines = 2,
                 overflow = TextOverflow.Clip,
             )
@@ -481,7 +488,7 @@ private fun HomeHeroStage(
                     style = TextStyle(
                         platformStyle = PlatformTextStyle(includeFontPadding = true),
                     ),
-                    color = HomeTextSecondary,
+                    color = HomeAccentGold,
                     fontSize = 18.sp,
                     lineHeight = 22.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -495,10 +502,10 @@ private fun HomeHeroStage(
                     text = description,
                     color = HomeTextSecondary,
                     fontSize = 16.sp,
-                    lineHeight = 21.sp,
-                    maxLines = 4,
+                    lineHeight = 22.sp,
+                    maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.width(820.dp),
+                    modifier = Modifier.width(760.dp),
                 )
             }
         }
@@ -508,7 +515,7 @@ private fun HomeHeroStage(
 @Composable
 private fun ReleaseHeroMetaRow(item: ReleaseSummary?) {
     Row(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         item?.availabilityLabel?.takeIf { it.isNotBlank() }?.let { label ->
@@ -543,22 +550,22 @@ private fun HeroMetaPill(
     Text(
         text = label,
         color = TextPrimary,
-        fontSize = 12.sp,
-        lineHeight = 14.sp,
-        fontWeight = FontWeight.Bold,
+        fontSize = 11.sp,
+        lineHeight = 13.sp,
+        fontWeight = FontWeight.SemiBold,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier
             .background(
-                color = HomePanelSurface.copy(alpha = 0.30f),
+                color = HomePanelSurface.copy(alpha = 0.46f),
                 shape = shape,
             )
             .border(
                 width = 1.dp,
-                color = HomeAccentGold.copy(alpha = 0.78f),
+                color = if (highlighted) HomeAccentGold.copy(alpha = 0.62f) else HomePanelBorder.copy(alpha = 0.46f),
                 shape = shape,
             )
-            .padding(horizontal = 12.dp, vertical = 5.dp),
+            .padding(horizontal = 11.dp, vertical = 4.dp),
     )
 }
 
@@ -648,26 +655,26 @@ private fun HomeBackdrop(item: ReleaseSummary?) {
         modifier = Modifier
             .fillMaxSize()
             .drawBehind {
-                drawRect(Color(0x66101620))
+                drawRect(Color(0x8A040A11))
                 drawRect(
                     brush = Brush.horizontalGradient(
-                        0f to BackgroundPrimary.copy(alpha = 0.98f),
-                        0.30f to BackgroundPrimary.copy(alpha = 0.78f),
-                        0.56f to BackgroundPrimary.copy(alpha = 0.10f),
-                        1f to BackgroundPrimary.copy(alpha = 0.18f),
+                        0f to BackgroundPrimary.copy(alpha = 1f),
+                        0.34f to BackgroundPrimary.copy(alpha = 0.88f),
+                        0.62f to BackgroundPrimary.copy(alpha = 0.18f),
+                        1f to BackgroundPrimary.copy(alpha = 0.28f),
                     ),
                 )
                 drawRect(
                     brush = Brush.verticalGradient(
-                        0f to Color(0x22081420),
-                        0.42f to Color.Transparent,
-                        1f to BackgroundPrimary.copy(alpha = 0.92f),
+                        0f to Color(0x33040A11),
+                        0.38f to Color.Transparent,
+                        1f to BackgroundPrimary.copy(alpha = 0.96f),
                     ),
                 )
                 drawRect(
                     brush = Brush.verticalGradient(
-                        0f to BackgroundPrimary.copy(alpha = 0.66f),
-                        0.18f to BackgroundPrimary.copy(alpha = 0.42f),
+                        0f to BackgroundPrimary.copy(alpha = 0.74f),
+                        0.18f to BackgroundPrimary.copy(alpha = 0.48f),
                         0.34f to Color.Transparent,
                     ),
                 )
