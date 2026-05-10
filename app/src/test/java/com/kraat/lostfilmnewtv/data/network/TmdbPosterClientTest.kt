@@ -202,4 +202,64 @@ class TmdbPosterClientTest {
         assertEquals("https://image.tmdb.org/t/p/w1280/ru-backdrop.jpg", result.backdropUrl)
         assertEquals(1, requestedUrls.count { it.contains("/tv/123/images") })
     }
+
+    @Test
+    fun getEpisodeOverviewRu_usesEnglishFallback_whenRussianOverviewMissing() = runTest {
+        val requestedUrls = mutableListOf<String>()
+        val client = TmdbPosterClient(
+            okHttpClient = OkHttpClient.Builder()
+                .addInterceptor(Interceptor { chain ->
+                    val url = chain.request().url.toString()
+                    requestedUrls += url
+                    val body = when {
+                        url.contains("language=ru-RU") -> """{"overview": ""}"""
+                        url.contains("language=en-US") -> """{"overview": "English episode overview."}"""
+                        else -> """{"overview": ""}"""
+                    }
+
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body(body.toResponseBody())
+                        .build()
+                })
+                .build(),
+            apiKey = "test",
+        )
+
+        val result = client.getEpisodeOverviewRu(tmdbId = 123, seasonNumber = 2, episodeNumber = 8)
+
+        assertEquals("English episode overview.", result)
+        assertTrue(requestedUrls.any { it.contains("/tv/123/season/2/episode/8") && it.contains("language=ru-RU") })
+        assertTrue(requestedUrls.any { it.contains("/tv/123/season/2/episode/8") && it.contains("language=en-US") })
+    }
+
+    @Test
+    fun getEpisodeOverviewRu_doesNotCallEnglish_whenRussianOverviewExists() = runTest {
+        val requestedUrls = mutableListOf<String>()
+        val client = TmdbPosterClient(
+            okHttpClient = OkHttpClient.Builder()
+                .addInterceptor(Interceptor { chain ->
+                    requestedUrls += chain.request().url.toString()
+
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body("""{"overview": "Русское описание серии."}""".toResponseBody())
+                        .build()
+                })
+                .build(),
+            apiKey = "test",
+        )
+
+        val result = client.getEpisodeOverviewRu(tmdbId = 123, seasonNumber = 2, episodeNumber = 8)
+
+        assertEquals("Русское описание серии.", result)
+        assertEquals(1, requestedUrls.count { it.contains("/tv/123/season/2/episode/8") })
+        assertTrue(requestedUrls.single().contains("language=ru-RU"))
+    }
 }
