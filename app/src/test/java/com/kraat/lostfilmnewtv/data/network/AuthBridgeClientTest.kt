@@ -7,6 +7,7 @@ import okhttp3.OkHttpClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assert.fail
 import org.junit.Test
 
@@ -53,6 +54,30 @@ class AuthBridgeClientTest {
             } catch (error: AuthBridgeHttpException) {
                 assertEquals(503, error.statusCode)
             }
+        } finally {
+            server.shutdown()
+        }
+    }
+
+    @Test
+    fun translateEnglishToRussian_postsTextToBridge() = runTest {
+        val server = MockWebServer()
+        server.enqueue(
+            MockResponse()
+                .setResponseCode(200)
+                .setBody("""{"text":"Русское описание серии.","source_language":"EN","target_language":"RU","provider":"deepl"}"""),
+        )
+        server.start()
+        try {
+            val client = AuthBridgeClient(baseUrl(server), OkHttpClient())
+
+            val result = client.translateEnglishToRussian("English episode overview.")
+            val request = server.takeRequest()
+
+            assertEquals("Русское описание серии.", result)
+            assertEquals("/api/translate", request.path)
+            assertEquals("POST", request.method)
+            assertTrue(request.body.readUtf8().contains("English episode overview."))
         } finally {
             server.shutdown()
         }

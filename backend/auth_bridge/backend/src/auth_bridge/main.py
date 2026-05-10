@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from auth_bridge.api.health import build_health_router
 from auth_bridge.api.pairings import build_pairings_router
 from auth_bridge.api.phone_flow import attach_phone_flow_router
+from auth_bridge.api.translation import build_translation_router
 from auth_bridge.api.wildcard_proxy import attach_wildcard_proxy_router
 from auth_bridge.config import get_settings
 from auth_bridge.logging_utils import JsonLogFormatter
@@ -18,6 +19,7 @@ from auth_bridge.services.lostfilm_proxy_service import LostFilmProxyService
 from auth_bridge.services.pairing_service import PairingService
 from auth_bridge.services.pairing_store import InMemoryPairingStore
 from auth_bridge.services.proxy_session_store import ProxySessionStore
+from auth_bridge.services.translation_service import DeeplTranslationService
 
 
 def _configure_logging(log_format: str) -> None:
@@ -112,6 +114,10 @@ def create_app() -> FastAPI:
         max_requests=settings.proxy_rate_limit_max_requests,
         window_seconds=settings.proxy_rate_limit_window_seconds,
     )
+    translation_rate_limiter = SlidingWindowRateLimiter(
+        max_requests=settings.translation_rate_limit_max_requests,
+        window_seconds=settings.translation_rate_limit_window_seconds,
+    )
     lostfilm_auth_detector = LostFilmAuthDetector()
     lostfilm_proxy_service = LostFilmProxyService(
         base_url=settings.lostfilm_base_url,
@@ -120,17 +126,25 @@ def create_app() -> FastAPI:
         retry_attempts=settings.upstream_retry_attempts,
         retry_backoff_seconds=settings.upstream_retry_backoff_seconds,
     )
+    translation_service = DeeplTranslationService(
+        api_key=settings.deepl_api_key,
+        api_url=settings.deepl_api_url,
+        timeout_seconds=settings.deepl_timeout_seconds,
+    )
 
     app.state.pairing_service = pairing_service
     app.state.proxy_session_store = proxy_session_store
     app.state.create_pairing_rate_limiter = create_pairing_rate_limiter
     app.state.pairing_action_rate_limiter = pairing_action_rate_limiter
     app.state.proxy_rate_limiter = proxy_rate_limiter
+    app.state.translation_rate_limiter = translation_rate_limiter
     app.state.lostfilm_auth_detector = lostfilm_auth_detector
     app.state.lostfilm_proxy_service = lostfilm_proxy_service
+    app.state.translation_service = translation_service
 
     app.include_router(build_health_router(pairing_service))
     app.include_router(build_pairings_router(pairing_service))
+    app.include_router(build_translation_router())
     attach_phone_flow_router(app, pairing_service)
     attach_wildcard_proxy_router(app, pairing_service)
 
@@ -138,4 +152,3 @@ def create_app() -> FastAPI:
 
 
 app = create_app()
-
