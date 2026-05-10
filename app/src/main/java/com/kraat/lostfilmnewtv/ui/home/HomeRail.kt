@@ -127,9 +127,9 @@ fun HomeRail(
                     event.type == KeyEventType.KeyDown && handleVerticalNavigation(event.key)
                 }
                 .focusable()
-                .height(210.dp),
-            horizontalArrangement = Arrangement.spacedBy(9.dp),
-            contentPadding = PaddingValues(start = 2.dp, top = 10.dp, end = 6.dp, bottom = 16.dp),
+                .height(218.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            contentPadding = PaddingValues(start = 2.dp, top = 12.dp, end = 10.dp, bottom = 20.dp),
         ) {
             itemsIndexed(items = items, key = { _, item -> item.detailsUrl }) { index, item ->
                 val itemKey = homeItemKey(railId, item.detailsUrl)

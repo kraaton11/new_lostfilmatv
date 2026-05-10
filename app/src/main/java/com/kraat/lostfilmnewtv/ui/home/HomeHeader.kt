@@ -63,17 +63,17 @@ import com.kraat.lostfilmnewtv.ui.theme.FocusBorder
 import com.kraat.lostfilmnewtv.ui.theme.FocusBackground
 import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGold
 import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGoldGlow
-import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurface
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 import com.kraat.lostfilmnewtv.ui.theme.HomeTextMuted
+import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 
 private val ExpandedMenuWidth = 204.dp
 private val CollapsedMenuWidth = 68.dp
-private val MenuButtonHeight = 42.dp
-private val MenuShape = RoundedCornerShape(18.dp)
-private val MenuButtonShape = RoundedCornerShape(10.dp)
+private val MenuButtonHeight = 38.dp
+private val MenuShape = RoundedCornerShape(20.dp)
+private val MenuButtonShape = RoundedCornerShape(12.dp)
 
 @Composable
 fun HomeHeader(
@@ -124,25 +124,25 @@ fun HomeHeader(
             .fillMaxHeight()
             .then(if (showLabels) Modifier.width(ExpandedMenuWidth) else Modifier.width(CollapsedMenuWidth))
             .shadow(
-                elevation = 18.dp,
+                elevation = 22.dp,
                 shape = MenuShape,
-                spotColor = HomeAccentGoldGlow.copy(alpha = 0.28f),
-                ambientColor = Color.Black.copy(alpha = 0.65f),
+                spotColor = Color.Black.copy(alpha = 0.82f),
+                ambientColor = Color.Black.copy(alpha = 0.76f),
             )
             .background(
                 brush = Brush.verticalGradient(
-                    0f to FocusBackground.copy(alpha = 0.82f),
-                    0.46f to HomePanelSurfaceStrong.copy(alpha = 0.94f),
-                    1f to HomePanelSurface.copy(alpha = 0.96f),
+                    0f to Color(0xE60A1420),
+                    0.52f to HomePanelSurfaceStrong.copy(alpha = 0.90f),
+                    1f to Color(0xF2050B12),
                 ),
                 shape = MenuShape,
             )
             .border(
-                width = 1.3.dp,
+                width = 1.dp,
                 brush = Brush.verticalGradient(
-                    0f to HomeAccentGoldGlow.copy(alpha = 0.92f),
-                    0.50f to HomeAccentGold.copy(alpha = 0.42f),
-                    1f to HomeAccentGold.copy(alpha = 0.86f),
+                    0f to Color.White.copy(alpha = 0.12f),
+                    0.58f to Color.White.copy(alpha = 0.04f),
+                    1f to HomeAccentGold.copy(alpha = 0.16f),
                 ),
                 shape = MenuShape,
             )
@@ -322,14 +322,14 @@ private fun HomeMenuLogo(showLabels: Boolean) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(46.dp)
+            .height(40.dp)
             .padding(horizontal = if (showLabels) 18.dp else 0.dp),
         contentAlignment = Alignment.Center,
     ) {
         Image(
             painter = painterResource(id = R.drawable.ic_lf_logo),
             contentDescription = null,
-            modifier = Modifier.size(if (showLabels) 62.dp else 34.dp),
+            modifier = Modifier.size(if (showLabels) 54.dp else 30.dp),
         )
     }
 }
@@ -339,9 +339,9 @@ private fun MenuDivider() {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 6.dp, vertical = 3.dp)
+            .padding(horizontal = 10.dp, vertical = 4.dp)
             .height(1.dp)
-            .background(HomeAccentGold.copy(alpha = 0.24f)),
+            .background(HomePanelBorder.copy(alpha = 0.55f)),
     )
 }
 
@@ -424,7 +424,8 @@ private fun HomeModeSegmentButton(
         label = "homeModeSegmentScale",
     )
     val shape = MenuButtonShape
-    val contentColor = if (selected || isFocused) HomeAccentGoldGlow else TextPrimary
+    val active = selected || isFocused
+    val contentColor = if (active) HomeAccentGoldGlow else HomeTextMuted
     Box(
         modifier = modifier
             .height(MenuButtonHeight)
@@ -457,14 +458,14 @@ private fun HomeModeSegmentButton(
             }
             .background(
                 brush = Brush.verticalGradient(
-                    0f to FocusBackground.copy(alpha = if (selected || isFocused) 0.58f else 0.34f),
-                    1f to HomePanelSurfaceStrong.copy(alpha = if (selected || isFocused) 0.86f else 0.62f),
+                    0f to FocusBackground.copy(alpha = if (active) 0.78f else 0.28f),
+                    1f to HomePanelSurfaceStrong.copy(alpha = if (active) 0.92f else 0.48f),
                 ),
                 shape = shape,
             )
             .border(
                 width = 1.dp,
-                color = HomeAccentGold.copy(alpha = if (selected || isFocused) 0.95f else 0.44f),
+                color = if (active) HomeAccentGold.copy(alpha = 0.84f) else HomePanelBorder.copy(alpha = 0.10f),
                 shape = shape,
             )
             .onFocusChanged {
@@ -539,10 +540,10 @@ private fun HomeHeaderActionButton(
     )
 
     val borderColor = when {
-        isPrimary || isFocused -> HomeAccentGoldGlow
-        else -> HomeAccentGold.copy(alpha = 0.40f)
+        isPrimary || isFocused -> HomeAccentGold.copy(alpha = 0.86f)
+        else -> HomePanelBorder.copy(alpha = 0.10f)
     }
-    val textColor = if (isPrimary || isFocused) HomeAccentGoldGlow else TextPrimary
+    val textColor = if (isPrimary || isFocused) HomeAccentGoldGlow else HomeTextMuted
     val subtitleColor = if (isPrimary || isFocused) HomeAccentGold.copy(alpha = 0.80f) else HomeTextMuted
     val shape = MenuButtonShape
 
@@ -577,8 +578,8 @@ private fun HomeHeaderActionButton(
             }
             .background(
                 brush = Brush.verticalGradient(
-                    0f to FocusBackground.copy(alpha = if (isPrimary || isFocused) 0.58f else 0.34f),
-                    1f to HomePanelSurfaceStrong.copy(alpha = if (isPrimary || isFocused) 0.86f else 0.62f),
+                    0f to FocusBackground.copy(alpha = if (isPrimary || isFocused) 0.76f else 0.24f),
+                    1f to HomePanelSurfaceStrong.copy(alpha = if (isPrimary || isFocused) 0.90f else 0.46f),
                 ),
                 shape = shape,
             )
