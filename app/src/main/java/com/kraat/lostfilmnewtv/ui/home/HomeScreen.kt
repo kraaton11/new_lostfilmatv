@@ -34,6 +34,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -110,7 +111,15 @@ fun HomeScreen(
     val isAllNewMode by remember(state.selectedMode) {
         derivedStateOf { state.selectedMode == HomeFeedMode.AllNew }
     }
-    val activeItems = state.itemsForMode(state.selectedMode)
+    val activeItems = remember(
+        state.selectedMode,
+        state.allNewModeState,
+        state.favoritesModeState,
+        state.moviesModeState,
+        state.seriesModeState,
+    ) {
+        state.itemsForMode(state.selectedMode)
+    }
     val modeSwitchOrder = remember(state.availableModes) {
         HomeFeedMode.entries.filter { it in state.availableModes }
     }
@@ -638,41 +647,31 @@ private fun HomeBackdrop(item: ReleaseSummary?) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0x66101620)),
-    )
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.horizontalGradient(
-                    0f to BackgroundPrimary.copy(alpha = 0.98f),
-                    0.30f to BackgroundPrimary.copy(alpha = 0.78f),
-                    0.56f to BackgroundPrimary.copy(alpha = 0.10f),
-                    1f to BackgroundPrimary.copy(alpha = 0.18f),
-                ),
-            ),
-    )
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    0f to Color(0x22081420),
-                    0.42f to Color.Transparent,
-                    1f to BackgroundPrimary.copy(alpha = 0.92f),
-                ),
-            ),
-    )
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    0f to BackgroundPrimary.copy(alpha = 0.66f),
-                    0.18f to BackgroundPrimary.copy(alpha = 0.42f),
-                    0.34f to Color.Transparent,
-                ),
-            ),
+            .drawBehind {
+                drawRect(Color(0x66101620))
+                drawRect(
+                    brush = Brush.horizontalGradient(
+                        0f to BackgroundPrimary.copy(alpha = 0.98f),
+                        0.30f to BackgroundPrimary.copy(alpha = 0.78f),
+                        0.56f to BackgroundPrimary.copy(alpha = 0.10f),
+                        1f to BackgroundPrimary.copy(alpha = 0.18f),
+                    ),
+                )
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        0f to Color(0x22081420),
+                        0.42f to Color.Transparent,
+                        1f to BackgroundPrimary.copy(alpha = 0.92f),
+                    ),
+                )
+                drawRect(
+                    brush = Brush.verticalGradient(
+                        0f to BackgroundPrimary.copy(alpha = 0.66f),
+                        0.18f to BackgroundPrimary.copy(alpha = 0.42f),
+                        0.34f to Color.Transparent,
+                    ),
+                )
+            },
     )
 }
 

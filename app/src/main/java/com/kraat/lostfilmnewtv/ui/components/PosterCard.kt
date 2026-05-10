@@ -63,7 +63,9 @@ fun PosterCard(
         ),
         label = "buttonScale",
     )
-    val liftPx = with(density) { if (isFocused) (-6).dp.toPx() else 0f }
+    val liftPx = remember(isFocused, density) {
+        if (isFocused) with(density) { (-6).dp.toPx() } else 0f
+    }
     val borderColor = if (isFocused) FocusBorder.copy(alpha = 0.96f) else HomePanelBorder.copy(alpha = 0.30f)
     val overlayColor = if (isFocused) FocusBackground.copy(alpha = 0.88f) else HomePanelSurface.copy(alpha = 0.76f)
     val watchedBadgeColor = if (isFocused) HomeAccentGoldGlow.copy(alpha = 0.94f) else HomeAccentGold.copy(alpha = 0.9f)

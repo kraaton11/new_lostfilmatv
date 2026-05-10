@@ -209,10 +209,10 @@ class HomeViewModel @Inject constructor(
 
     fun onItemWatchedStateChanged(detailsUrl: String, isWatched: Boolean) {
         _uiState.update { state ->
-            val updatedItems = state.items.map { if (it.detailsUrl == detailsUrl) it.copy(isWatched = isWatched) else it }
-            val updatedFavoriteItems = state.favoriteItems.map { if (it.detailsUrl == detailsUrl) it.copy(isWatched = isWatched) else it }
-            val updatedMovieItems = state.movieItems.map { if (it.detailsUrl == detailsUrl) it.copy(isWatched = isWatched) else it }
-            val updatedSeriesItems = state.seriesItems.map { if (it.detailsUrl == detailsUrl) it.copy(isWatched = isWatched) else it }
+            val updatedItems = state.items.updateWatched(detailsUrl, isWatched)
+            val updatedFavoriteItems = state.favoriteItems.updateWatched(detailsUrl, isWatched)
+            val updatedMovieItems = state.movieItems.updateWatched(detailsUrl, isWatched)
+            val updatedSeriesItems = state.seriesItems.updateWatched(detailsUrl, isWatched)
             state.copy(
                 items = updatedItems,
                 favoriteItems = updatedFavoriteItems,
@@ -557,13 +557,17 @@ private fun HomeUiState.withResolvedHomeSelection(
         selectedItemKey = selectedItemKey,
     ),
 ): HomeUiState {
-    val rails = buildHomeRails(
-        items = items,
-        favoriteItems = favoriteItems,
-        movieItems = movieItems,
-        seriesItems = seriesItems,
-        isFavoritesRailVisible = isFavoritesRailVisible,
-    )
+    val resolvedRails = if (rails.matchesHomeRailInputs(this)) {
+        rails
+    } else {
+        buildHomeRails(
+            items = items,
+            favoriteItems = favoriteItems,
+            movieItems = movieItems,
+            seriesItems = seriesItems,
+            isFavoritesRailVisible = isFavoritesRailVisible,
+        )
+    }
     val normalizedSelectedMode = if (selectedMode in availableModes) selectedMode else HomeFeedMode.AllNew
     val activeItems = itemsForMode(normalizedSelectedMode)
     val preferredKey = focusState.rememberedItemKeyByMode[normalizedSelectedMode]
@@ -574,12 +578,42 @@ private fun HomeUiState.withResolvedHomeSelection(
     return copy(
         selectedMode = normalizedSelectedMode,
         availableModes = availableModes(isFavoritesRailVisible),
-        rails = rails,
+        rails = resolvedRails,
         rememberedItemKeyByMode = focusState.rememberedItemKeyByMode
             .withDefaultRememberedKeys(items, favoriteItems, movieItems, seriesItems),
         selectedItem = selectedItem,
         selectedItemKey = selectedItem?.detailsUrl,
     )
+}
+
+private fun List<ReleaseSummary>.updateWatched(detailsUrl: String, isWatched: Boolean): List<ReleaseSummary> =
+    if (none { it.detailsUrl == detailsUrl }) this
+    else map { if (it.detailsUrl == detailsUrl) it.copy(isWatched = isWatched) else it }
+
+private fun List<HomeContentRail>.matchesHomeRailInputs(state: HomeUiState): Boolean {
+    var index = 0
+
+    if (!matchesRail(index, HOME_RAIL_ALL_NEW, state.items)) return false
+    if (state.items.isNotEmpty()) index += 1
+
+    if (state.isFavoritesRailVisible) {
+        if (!matchesRail(index, HOME_RAIL_FAVORITES, state.favoriteItems)) return false
+        if (state.favoriteItems.isNotEmpty()) index += 1
+    }
+
+    if (!matchesRail(index, HOME_RAIL_MOVIES, state.movieItems)) return false
+    if (state.movieItems.isNotEmpty()) index += 1
+
+    if (!matchesRail(index, HOME_RAIL_SERIES, state.seriesItems)) return false
+    if (state.seriesItems.isNotEmpty()) index += 1
+
+    return index == size
+}
+
+private fun List<HomeContentRail>.matchesRail(index: Int, railId: String, items: List<ReleaseSummary>): Boolean {
+    if (items.isEmpty()) return true
+    val rail = getOrNull(index) ?: return false
+    return rail.id == railId && rail.items === items
 }
 
 private fun HomeModeContentState.updateItems(items: List<ReleaseSummary>): HomeModeContentState =
