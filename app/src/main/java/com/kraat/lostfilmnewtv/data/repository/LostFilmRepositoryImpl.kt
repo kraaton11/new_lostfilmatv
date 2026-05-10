@@ -130,10 +130,15 @@ class LostFilmRepositoryImpl(
                 items = itemsToPersist,
                 persistToCache = true,
             )
+            val pageItems = if (pageNumber > 1) {
+                releaseDao.getSummariesUpToPage(pageNumber).toSummaryModels()
+            } else {
+                enrichedItems
+            }
 
             PageState.Content(
                 pageNumber = pageNumber,
-                items = enrichedItems,
+                items = pageItems,
                 hasNextPage = hasNextPage(html, pageNumber, parsedItems.isNotEmpty()),
                 isStale = false,
                 isAppend = pageNumber > 1,
