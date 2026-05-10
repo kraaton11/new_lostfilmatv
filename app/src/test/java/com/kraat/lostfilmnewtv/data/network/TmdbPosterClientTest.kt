@@ -262,4 +262,37 @@ class TmdbPosterClientTest {
         assertEquals(1, requestedUrls.count { it.contains("/tv/123/season/2/episode/8") })
         assertTrue(requestedUrls.single().contains("language=ru-RU"))
     }
+
+    @Test
+    fun getEpisodeOverviewRu_translatesEnglishFallback_whenTranslatorIsAvailable() = runTest {
+        val client = TmdbPosterClient(
+            okHttpClient = OkHttpClient.Builder()
+                .addInterceptor(Interceptor { chain ->
+                    val url = chain.request().url.toString()
+                    val body = when {
+                        url.contains("language=ru-RU") -> """{"overview": ""}"""
+                        url.contains("language=en-US") -> """{"overview": "English episode overview."}"""
+                        else -> """{"overview": ""}"""
+                    }
+
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body(body.toResponseBody())
+                        .build()
+                })
+                .build(),
+            apiKey = "test",
+            englishToRussianTranslator = { english ->
+                assertEquals("English episode overview.", english)
+                "Русское описание серии."
+            },
+        )
+
+        val result = client.getEpisodeOverviewRu(tmdbId = 123, seasonNumber = 2, episodeNumber = 8)
+
+        assertEquals("Русское описание серии.", result)
+    }
 }

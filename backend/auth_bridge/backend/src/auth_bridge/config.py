@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     upstream_timeout_seconds: float = 10.0
     upstream_retry_attempts: int = 2
     upstream_retry_backoff_seconds: float = 0.25
+    translation_rate_limit_max_requests: int = 120
+    translation_rate_limit_window_seconds: int = 60
+    deepl_api_key: str = ""
+    deepl_api_url: str = "https://api-free.deepl.com/v2/translate"
+    deepl_timeout_seconds: float = 10.0
     log_format: str = "text"
 
     @field_validator("pairing_ttl_seconds", "pairing_poll_interval_seconds", "claim_lease_ttl_seconds")
@@ -52,6 +57,8 @@ class Settings(BaseSettings):
         "pairing_action_rate_limit_window_seconds",
         "proxy_rate_limit_max_requests",
         "proxy_rate_limit_window_seconds",
+        "translation_rate_limit_max_requests",
+        "translation_rate_limit_window_seconds",
         "cleanup_interval_seconds",
     )
     @classmethod
@@ -60,7 +67,7 @@ class Settings(BaseSettings):
             raise ValueError("value must not be negative")
         return value
 
-    @field_validator("upstream_timeout_seconds", "upstream_retry_backoff_seconds")
+    @field_validator("upstream_timeout_seconds", "upstream_retry_backoff_seconds", "deepl_timeout_seconds")
     @classmethod
     def validate_non_negative_float(cls, value: float) -> float:
         if value < 0:

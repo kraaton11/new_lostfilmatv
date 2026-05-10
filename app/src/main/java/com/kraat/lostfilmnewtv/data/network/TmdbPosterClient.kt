@@ -22,6 +22,7 @@ open class TmdbPosterClient(
     private val okHttpClient: OkHttpClient,
     private val apiKey: String,
     private val bearerToken: String = "",
+    private val englishToRussianTranslator: (suspend (String) -> String?)? = null,
 ) {
     open suspend fun searchByTitle(
         query: String,
@@ -180,7 +181,17 @@ open class TmdbPosterClient(
     ): String? = withContext(Dispatchers.IO) {
         val baseUrl = "$TMDB_BASE_URL/tv/$tmdbId/season/$seasonNumber/episode/$episodeNumber"
         fetchOverview("$baseUrl?language=ru-RU")
-            ?: fetchOverview("$baseUrl?language=en-US")
+            ?: fetchOverview("$baseUrl?language=en-US")?.let { englishOverview ->
+                translateEnglishOverview(englishOverview) ?: englishOverview
+            }
+    }
+
+    private suspend fun translateEnglishOverview(overview: String): String? {
+        val translator = englishToRussianTranslator ?: return null
+        return runCatching { translator(overview) }
+            .getOrNull()
+            ?.trim()
+            ?.takeIf { it.isNotBlank() }
     }
 
     private fun fetchOverview(url: String): String? {
