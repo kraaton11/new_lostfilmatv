@@ -178,17 +178,21 @@ open class TmdbPosterClient(
         seasonNumber: Int,
         episodeNumber: Int,
     ): String? = withContext(Dispatchers.IO) {
-        val url = "$TMDB_BASE_URL/tv/$tmdbId/season/$seasonNumber/episode/$episodeNumber?language=ru-RU"
-            .withTmdbApiKey()
+        val baseUrl = "$TMDB_BASE_URL/tv/$tmdbId/season/$seasonNumber/episode/$episodeNumber"
+        fetchOverview("$baseUrl?language=ru-RU")
+            ?: fetchOverview("$baseUrl?language=en-US")
+    }
+
+    private fun fetchOverview(url: String): String? {
         val request = Request.Builder()
-            .url(url)
+            .url(url.withTmdbApiKey())
             .tmdbHeaders()
             .build()
 
         okHttpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return@withContext null
-            val body = response.body?.string() ?: return@withContext null
-            JSONObject(body).optString("overview", "")
+            if (!response.isSuccessful) return null
+            val body = response.body?.string() ?: return null
+            return JSONObject(body).optString("overview", "")
                 .trim()
                 .takeIf { it.isNotBlank() }
         }
