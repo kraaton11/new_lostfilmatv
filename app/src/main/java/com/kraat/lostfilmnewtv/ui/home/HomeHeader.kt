@@ -322,15 +322,26 @@ private fun HomeMenuLogo(showLabels: Boolean) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(40.dp)
-            .padding(horizontal = if (showLabels) 18.dp else 0.dp),
+            .height(44.dp)
+            .padding(horizontal = if (showLabels) 12.dp else 0.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Image(
-            painter = painterResource(id = R.drawable.ic_lf_logo),
-            contentDescription = null,
-            modifier = Modifier.size(if (showLabels) 54.dp else 30.dp),
-        )
+        if (showLabels) {
+            Text(
+                text = "LostFilm.TV",
+                color = HomeAccentGold,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Clip,
+            )
+        } else {
+            Image(
+                painter = painterResource(id = R.drawable.ic_lf_logo),
+                contentDescription = null,
+                modifier = Modifier.size(34.dp),
+            )
+        }
     }
 }
 
