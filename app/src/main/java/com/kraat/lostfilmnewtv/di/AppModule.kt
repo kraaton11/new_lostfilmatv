@@ -5,6 +5,8 @@ import androidx.work.WorkManager
 import com.kraat.lostfilmnewtv.BuildConfig
 import com.kraat.lostfilmnewtv.data.auth.EncryptedSessionStore
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
+import com.kraat.lostfilmnewtv.data.db.TmdbPosterDao
+import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolver
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeActionHandler
@@ -25,6 +27,12 @@ import com.kraat.lostfilmnewtv.updates.GitHubReleaseClient
 import com.kraat.lostfilmnewtv.updates.ReleaseApkLauncher
 import com.kraat.lostfilmnewtv.updates.UpdateHttpClientFactory
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
+import com.kraat.lostfilmnewtv.ui.settings.AppSettingsDataManager
+import com.kraat.lostfilmnewtv.ui.settings.AppSettingsDiagnosticsRunner
+import com.kraat.lostfilmnewtv.ui.settings.OkHttpTorrServeEndpointChecker
+import com.kraat.lostfilmnewtv.ui.settings.SettingsDataManager
+import com.kraat.lostfilmnewtv.ui.settings.SettingsDiagnosticsRunner
+import com.kraat.lostfilmnewtv.ui.settings.TorrServeEndpointChecker
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -88,6 +96,13 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideTorrServeEndpointChecker(
+        okHttpClient: OkHttpClient,
+        probe: TorrServeAvailabilityProbe,
+    ): TorrServeEndpointChecker = OkHttpTorrServeEndpointChecker(okHttpClient, probe)
+
+    @Provides
+    @Singleton
     fun provideTorrServeLauncher(): TorrServeLauncher = TorrServeLauncher()
 
     @Provides
@@ -97,6 +112,36 @@ object AppModule {
         probe: TorrServeAvailabilityProbe,
         launcher: TorrServeLauncher,
     ): TorrServeActionHandler = TorrServeActionHandler(linkBuilder, probe, launcher)
+
+    // endregion
+
+    // region Settings Maintenance / Diagnostics
+
+    @Provides
+    @Singleton
+    fun provideSettingsDataManager(
+        @ApplicationContext context: Context,
+        releaseDao: ReleaseDao,
+        tmdbPosterDao: TmdbPosterDao,
+        repository: LostFilmRepository,
+        okHttpClient: OkHttpClient,
+    ): SettingsDataManager = AppSettingsDataManager(
+        appContext = context,
+        releaseDao = releaseDao,
+        tmdbPosterDao = tmdbPosterDao,
+        repository = repository,
+        okHttpClient = okHttpClient,
+    )
+
+    @Provides
+    @Singleton
+    fun provideSettingsDiagnosticsRunner(
+        @AnonymousHttpClient lostFilmHttpClient: LostFilmHttpClient,
+        torrServeEndpointChecker: TorrServeEndpointChecker,
+    ): SettingsDiagnosticsRunner = AppSettingsDiagnosticsRunner(
+        lostFilmHttpClient = lostFilmHttpClient,
+        torrServeEndpointChecker = torrServeEndpointChecker,
+    )
 
     // endregion
 

@@ -15,6 +15,12 @@ import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeAvailabilityChecker
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeConfig
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeLinkBuilder
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeUrlLauncher
+import com.kraat.lostfilmnewtv.ui.settings.SettingsDataManager
+import com.kraat.lostfilmnewtv.ui.settings.SettingsDiagnosticResult
+import com.kraat.lostfilmnewtv.ui.settings.SettingsDiagnosticsRunner
+import com.kraat.lostfilmnewtv.ui.settings.TorrServeEndpointCheck
+import com.kraat.lostfilmnewtv.ui.settings.TorrServeEndpointChecker
+import com.kraat.lostfilmnewtv.ui.settings.normalizeTorrServeBaseUrl
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelBackgroundRefreshRunner
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPreferences
@@ -196,6 +202,35 @@ object MainActivityTestAppModule {
             probe = TorrServeAvailabilityChecker { false },
             launcher = TorrServeUrlLauncher { _, _, _, _ -> false },
         )
+
+    @Provides
+    @Singleton
+    fun provideTorrServeEndpointChecker(): TorrServeEndpointChecker = object : TorrServeEndpointChecker {
+        override suspend fun check(baseUrl: String): TorrServeEndpointCheck {
+            return TorrServeEndpointCheck(
+                normalizedBaseUrl = normalizeTorrServeBaseUrl(baseUrl),
+                isAppInstalled = false,
+                isEndpointReachable = false,
+            )
+        }
+    }
+
+    @Provides
+    @Singleton
+    fun provideSettingsDataManager(): SettingsDataManager = object : SettingsDataManager {
+        override suspend fun refreshFirstPage(): Boolean = true
+        override suspend fun clearReleaseCache() = Unit
+        override suspend fun clearPosterCache() = Unit
+        override suspend fun clearNetworkCache() = Unit
+    }
+
+    @Provides
+    @Singleton
+    fun provideSettingsDiagnosticsRunner(): SettingsDiagnosticsRunner = object : SettingsDiagnosticsRunner {
+        override suspend fun run(torrServeBaseUrl: String): List<SettingsDiagnosticResult> {
+            return listOf(SettingsDiagnosticResult("LostFilm", "Доступен", isOk = true))
+        }
+    }
 
     @Provides
     @Singleton

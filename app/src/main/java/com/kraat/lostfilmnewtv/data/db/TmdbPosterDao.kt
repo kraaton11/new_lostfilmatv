@@ -14,4 +14,7 @@ interface TmdbPosterDao {
 
     @Query("DELETE FROM tmdb_poster_mappings WHERE fetchedAt < :threshold")
     suspend fun deleteExpired(threshold: Long)
+
+    @Query("DELETE FROM tmdb_poster_mappings")
+    suspend fun deleteAll()
 }

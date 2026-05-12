@@ -7,24 +7,39 @@ import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 
 sealed class SettingsFocusTarget {
     data class PlaybackQuality(val quality: PlaybackQualityPreference) : SettingsFocusTarget()
-    data object HomeFavoritesShow : SettingsFocusTarget()
-    data object HomeFavoritesHide : SettingsFocusTarget()
-    data object HomeMenuLabelsShow : SettingsFocusTarget()
-    data object HomeMenuLabelsHide : SettingsFocusTarget()
+    data object TorrServeBaseUrl : SettingsFocusTarget()
+    data object TorrServeSave : SettingsFocusTarget()
+    data object TorrServeCheck : SettingsFocusTarget()
+    data object TorrServeReset : SettingsFocusTarget()
+    data object HomeFavoritesToggle : SettingsFocusTarget()
+    data object HomeMenuLabelsToggle : SettingsFocusTarget()
+    data object DataRefreshHome : SettingsFocusTarget()
+    data object DataClearReleases : SettingsFocusTarget()
+    data object DataClearPosters : SettingsFocusTarget()
+    data object DataClearNetwork : SettingsFocusTarget()
+    data object DiagnosticsRun : SettingsFocusTarget()
     data class UpdateChannel(val mode: UpdateCheckMode) : SettingsFocusTarget()
     data object CheckForUpdates : SettingsFocusTarget()
     data object InstallUpdate : SettingsFocusTarget()
     data class ChannelMode(val mode: AndroidTvChannelMode) : SettingsFocusTarget()
     data class WatchedMarking(val mode: WatchedMarkingMode) : SettingsFocusTarget()
+    data object WatchedMarkingToggle : SettingsFocusTarget()
     data object AccountAuth : SettingsFocusTarget()
 }
 
 fun SettingsFocusTarget.toTag(): String = when (this) {
     is SettingsFocusTarget.PlaybackQuality -> "settings-quality-${quality.storageValue}"
-    SettingsFocusTarget.HomeFavoritesShow -> "settings-home-favorites-show"
-    SettingsFocusTarget.HomeFavoritesHide -> "settings-home-favorites-hide"
-    SettingsFocusTarget.HomeMenuLabelsShow -> "settings-home-menu-labels-show"
-    SettingsFocusTarget.HomeMenuLabelsHide -> "settings-home-menu-labels-hide"
+    SettingsFocusTarget.TorrServeBaseUrl -> "settings-torrserve-base-url"
+    SettingsFocusTarget.TorrServeSave -> "settings-torrserve-save"
+    SettingsFocusTarget.TorrServeCheck -> "settings-torrserve-check"
+    SettingsFocusTarget.TorrServeReset -> "settings-torrserve-reset"
+    SettingsFocusTarget.HomeFavoritesToggle -> "settings-home-favorites-toggle"
+    SettingsFocusTarget.HomeMenuLabelsToggle -> "settings-home-menu-labels-toggle"
+    SettingsFocusTarget.DataRefreshHome -> "settings-data-refresh-home"
+    SettingsFocusTarget.DataClearReleases -> "settings-data-clear-releases"
+    SettingsFocusTarget.DataClearPosters -> "settings-data-clear-posters"
+    SettingsFocusTarget.DataClearNetwork -> "settings-data-clear-network"
+    SettingsFocusTarget.DiagnosticsRun -> "settings-diagnostics-run"
     is SettingsFocusTarget.UpdateChannel -> when (mode) {
         UpdateCheckMode.MANUAL -> "settings-update-mode-manual"
         UpdateCheckMode.QUIET_CHECK -> "settings-update-mode-quiet"
@@ -40,5 +55,6 @@ fun SettingsFocusTarget.toTag(): String = when (this) {
         WatchedMarkingMode.AUTO -> "settings-watched-marking-auto"
         WatchedMarkingMode.DISABLED -> "settings-watched-marking-disabled"
     }
+    SettingsFocusTarget.WatchedMarkingToggle -> "settings-watched-marking-toggle"
     SettingsFocusTarget.AccountAuth -> "settings-account-auth-action"
 }

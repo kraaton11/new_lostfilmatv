@@ -46,13 +46,13 @@ class SettingsScreenFocusTest {
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
             runCatching {
-                composeRule.onNodeWithTag("settings-section-quality").assertIsFocused()
+                composeRule.onNodeWithTag("settings-section-playback").assertIsFocused()
                 true
             }.getOrDefault(false)
         }
 
-        composeRule.onNodeWithTag("settings-section-quality").assertIsFocused()
-        composeRule.onNodeWithTag("settings-section-quality").performKeyInput {
+        composeRule.onNodeWithTag("settings-section-playback").assertIsFocused()
+        composeRule.onNodeWithTag("settings-section-playback").performKeyInput {
             keyDown(Key.DirectionRight)
             keyUp(Key.DirectionRight)
         }
@@ -65,7 +65,7 @@ class SettingsScreenFocusTest {
         }
         composeRule.waitForIdle()
 
-        composeRule.onNodeWithTag("settings-section-quality").assertIsFocused()
+        composeRule.onNodeWithTag("settings-section-playback").assertIsFocused()
     }
 
     @Test
@@ -90,9 +90,9 @@ class SettingsScreenFocusTest {
             }
         }
 
-        composeRule.onNodeWithTag("settings-section-quality")
+        composeRule.onNodeWithTag("settings-section-playback")
             .performSemanticsAction(SemanticsActions.RequestFocus)
-        composeRule.onNodeWithTag("settings-section-quality").performKeyInput {
+        composeRule.onNodeWithTag("settings-section-playback").performKeyInput {
             keyDown(Key.DirectionRight)
             keyUp(Key.DirectionRight)
         }
@@ -104,11 +104,11 @@ class SettingsScreenFocusTest {
 
         composeRule.onNodeWithTag("settings-section-channel")
             .performSemanticsAction(SemanticsActions.OnClick)
-        composeRule.onNodeWithTag("settings-section-quality")
+        composeRule.onNodeWithTag("settings-section-playback")
             .performSemanticsAction(SemanticsActions.OnClick)
-        composeRule.onNodeWithTag("settings-section-quality")
+        composeRule.onNodeWithTag("settings-section-playback")
             .performSemanticsAction(SemanticsActions.RequestFocus)
-        composeRule.onNodeWithTag("settings-section-quality").performKeyInput {
+        composeRule.onNodeWithTag("settings-section-playback").performKeyInput {
             keyDown(Key.DirectionRight)
             keyUp(Key.DirectionRight)
         }

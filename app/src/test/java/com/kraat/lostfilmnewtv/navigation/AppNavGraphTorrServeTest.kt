@@ -315,10 +315,10 @@ class AppNavGraphTorrServeTest {
         setContentWithNavGraph()
 
         composeRule.openSettingsSection(
-            sectionTag = "settings-section-quality",
-            readyText = "Качество видео",
+            sectionTag = "settings-section-playback",
+            readyText = "Качество: 1080p",
         )
-        composeRule.onNodeWithTag("settings-section-quality").assertIsSelected()
+        composeRule.onNodeWithTag("settings-section-playback").assertIsSelected()
         composeRule.onNodeWithTag("settings-quality-1080").assertIsSelected()
     }
 
@@ -356,8 +356,8 @@ class AppNavGraphTorrServeTest {
 
         composeRule.waitForHomeScreen()
         composeRule.onNodeWithTag("home-action-settings").performSemanticsAction(SemanticsActions.OnClick)
-        composeRule.onNodeWithTag("settings-section-quality").performSemanticsAction(SemanticsActions.OnClick)
-        composeRule.waitForText("Качество видео")
+        composeRule.onNodeWithTag("settings-section-playback").performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitForText("Качество: 1080p")
         composeRule.onNodeWithTag("settings-quality-720").performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitUntil(timeoutMillis = 5_000) { store.readDefaultQuality() == PlaybackQualityPreference.Q720 }
         assertEquals(PlaybackQualityPreference.Q720, store.readDefaultQuality())
@@ -386,12 +386,12 @@ class AppNavGraphTorrServeTest {
         setContentWithNavGraph()
 
         composeRule.openSettingsSection("settings-section-updates", "Проверить обновления")
-        composeRule.onNodeWithText("Проверить обновления").performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.onNodeWithTag("settings-action-check-updates").performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitUntil(timeoutMillis = 5_000) {
             composeRule.onAllNodesWithText("Последняя версия: 0.2.0").fetchSemanticsNodes().isNotEmpty()
         }
         assertEquals(1, composeRule.onAllNodesWithText("Последняя версия: 0.2.0").fetchSemanticsNodes().size)
-        composeRule.onNodeWithText("Скачать и установить").performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.onNodeWithTag("settings-install-update").performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitUntil(timeoutMillis = 5_000) { launcher.launchedUrls == listOf(TEST_APK_URL) }
         assertEquals(listOf(TEST_APK_URL), launcher.launchedUrls)
     }
@@ -408,9 +408,9 @@ class AppNavGraphTorrServeTest {
         setContentWithNavGraph()
 
         composeRule.openSettingsSection("settings-section-updates", "Проверить обновления")
-        composeRule.onNodeWithText("Проверить обновления").performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.onNodeWithTag("settings-action-check-updates").performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitForText("Скачать и установить")
-        composeRule.onNodeWithText("Скачать и установить").performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.onNodeWithTag("settings-install-update").performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitForText("Не удалось открыть обновление.")
         assertEquals(listOf(TEST_APK_URL), launcher.launchedUrls)
     }
@@ -431,7 +431,7 @@ class AppNavGraphTorrServeTest {
         composeRule.waitForHomeScreen()
         composeRule.onNodeWithTag("home-action-settings").performSemanticsAction(SemanticsActions.OnClick)
         composeRule.onNodeWithTag("settings-section-channel").performSemanticsAction(SemanticsActions.OnClick)
-        composeRule.waitForText("Канал Android TV")
+        composeRule.waitForText("Android TV")
         composeRule.onNodeWithTag("settings-tv-channel-unwatched").performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitUntil(timeoutMillis = 5_000) { store.readAndroidTvChannelMode() == AndroidTvChannelMode.UNWATCHED }
         assertEquals(AndroidTvChannelMode.UNWATCHED, store.readAndroidTvChannelMode())
@@ -441,7 +441,7 @@ class AppNavGraphTorrServeTest {
         composeRule.waitForHomeScreen()
         composeRule.onNodeWithTag("home-action-settings").performSemanticsAction(SemanticsActions.OnClick)
         composeRule.onNodeWithTag("settings-section-channel").performSemanticsAction(SemanticsActions.OnClick)
-        composeRule.waitForText("Канал Android TV")
+        composeRule.waitForText("Android TV")
         composeRule.onNodeWithTag("settings-tv-channel-unwatched").assertIsSelected()
     }
 }

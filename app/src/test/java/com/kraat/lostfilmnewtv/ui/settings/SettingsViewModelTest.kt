@@ -583,6 +583,9 @@ class SettingsViewModelTest {
             homeChannelBackgroundScheduler = homeChannelBackgroundScheduler,
             appUpdateBackgroundScheduler = appUpdateBackgroundScheduler,
             releaseApkLauncher = releaseApkLauncher,
+            torrServeEndpointChecker = FakeTorrServeEndpointChecker(),
+            settingsDataManager = FakeSettingsDataManager(),
+            diagnosticsRunner = FakeSettingsDiagnosticsRunner(),
             ioDispatcher = ioDispatcher,
             debounceIntervalMs = debounceIntervalMs,
         )
@@ -606,6 +609,32 @@ class SettingsViewModelTest {
             return checkNotNull(deferredResults.removeFirstOrNull()) {
                 "Missing fake refresh result for call $callCount"
             }.await()
+        }
+    }
+
+    private class FakeTorrServeEndpointChecker : TorrServeEndpointChecker {
+        override suspend fun check(baseUrl: String): TorrServeEndpointCheck {
+            return TorrServeEndpointCheck(
+                normalizedBaseUrl = normalizeTorrServeBaseUrl(baseUrl),
+                isAppInstalled = true,
+                isEndpointReachable = true,
+            )
+        }
+    }
+
+    private class FakeSettingsDataManager : SettingsDataManager {
+        override suspend fun refreshFirstPage(): Boolean = true
+        override suspend fun clearReleaseCache() = Unit
+        override suspend fun clearPosterCache() = Unit
+        override suspend fun clearNetworkCache() = Unit
+    }
+
+    private class FakeSettingsDiagnosticsRunner : SettingsDiagnosticsRunner {
+        override suspend fun run(torrServeBaseUrl: String): List<SettingsDiagnosticResult> {
+            return listOf(
+                SettingsDiagnosticResult("LostFilm", "Доступен", isOk = true),
+                SettingsDiagnosticResult("TorrServe HTTP", "Доступен", isOk = true),
+            )
         }
     }
 }

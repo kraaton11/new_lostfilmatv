@@ -745,4 +745,6 @@ private class FakeTmdbPosterDao(
     }
 
     override suspend fun deleteExpired(threshold: Long) = Unit
+
+    override suspend fun deleteAll() = Unit
 }
