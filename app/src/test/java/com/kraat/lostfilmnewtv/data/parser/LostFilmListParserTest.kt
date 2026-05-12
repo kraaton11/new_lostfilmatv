@@ -101,4 +101,38 @@ class LostFilmListParserTest {
         assertEquals("Precious Flowers", item.episodeTitleRu)
         assertEquals("11.04.2026", item.releaseDateRu)
     }
+
+    @Test
+    fun parsesAdditionalEpisodeRow_withoutSeasonNumber() {
+        val html = """
+            <div class="serials-list">
+                <div class="row">
+                    <a href="/series/The_Bear/additional/episode_1/" style="text-decoration:none;display:block">
+                        <div class="picture-box">
+                            <div class="overlay">
+                                <div class="left-part">Спецэпизод 1</div>
+                            </div>
+                            <img src="/Static/Images/935/Posters/image_s1.jpg" class="thumb" />
+                        </div>
+                        <div class="body">
+                            <div class="name-ru">Медведь</div>
+                            <div class="details-pane">
+                                <div class="alpha">Факты</div>
+                                <div class="alpha">Дата выхода Ru: 11.05.2026</div>
+                                <div class="beta">Дата выхода Eng: 05.05.2026</div>
+                            </div>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        """.trimIndent()
+
+        val item = LostFilmListParser().parse(html, pageNumber = 1).single()
+
+        assertEquals("Медведь", item.titleRu)
+        assertNull(item.seasonNumber)
+        assertEquals(1, item.episodeNumber)
+        assertEquals("Факты", item.episodeTitleRu)
+        assertEquals("https://www.lostfilm.today/series/The_Bear/additional/episode_1/", item.detailsUrl)
+    }
 }

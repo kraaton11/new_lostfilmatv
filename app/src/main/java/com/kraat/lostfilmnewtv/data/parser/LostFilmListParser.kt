@@ -7,6 +7,8 @@ import org.jsoup.nodes.Element
 
 const val BASE_URL = "https://www.lostfilm.today"
 private val seasonEpisodeRegex = Regex("""(\d+)\s+сезон\s+(\d+)\s+серия""")
+private val specialEpisodeRegex = Regex("""спецэпизод\s+(\d+)""", RegexOption.IGNORE_CASE)
+private val additionalEpisodeUrlRegex = Regex(""".*/additional/episode_(\d+)/?""")
 private val yearRegex = Regex("""\b(19|20)\d{2}\b""")
 
 data class ReleaseWatchMarker(
@@ -93,10 +95,10 @@ class LostFilmListParser {
         val (seasonNumber, episodeNumber) = if (isMovie) {
             null to null
         } else {
-            val match = checkNotNull(seasonEpisodeRegex.find(overlayLabel)) {
-                "Cannot parse season/episode from '$overlayLabel'"
-            }
-            match.groupValues[1].toInt() to match.groupValues[2].toInt()
+            parseSeriesNumbers(
+                overlayLabel = overlayLabel,
+                detailsUrl = detailsUrl,
+            )
         }
 
         val episodeTitleRu = detailsPaneValues
@@ -122,6 +124,29 @@ class LostFilmListParser {
             availabilityLabel = availabilityLabel,
             originalReleaseYear = originalReleaseYear,
         )
+    }
+
+    private fun parseSeriesNumbers(
+        overlayLabel: String,
+        detailsUrl: String,
+    ): Pair<Int?, Int?> {
+        seasonEpisodeRegex.find(overlayLabel)?.let { match ->
+            return match.groupValues[1].toInt() to match.groupValues[2].toInt()
+        }
+
+        val specialEpisodeNumber = additionalEpisodeUrlRegex.matchEntire(detailsUrl)
+            ?.groupValues
+            ?.getOrNull(1)
+            ?.toIntOrNull()
+            ?: specialEpisodeRegex.find(overlayLabel)
+                ?.groupValues
+                ?.getOrNull(1)
+                ?.toIntOrNull()
+        if (specialEpisodeNumber != null) {
+            return null to specialEpisodeNumber
+        }
+
+        error("Cannot parse season/episode from '$overlayLabel'")
     }
 }
 

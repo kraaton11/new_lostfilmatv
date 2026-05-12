@@ -50,6 +50,17 @@ class LostFilmDetailsParserTest {
     }
 
     @Test
+    fun parsesAdditionalEpisodeDetails_withoutSeasonNumber() {
+        val details = LostFilmDetailsParser().parseSeries(
+            fixture("series-details.html"),
+            "/series/The_Bear/additional/episode_1/",
+        )
+
+        assertNull(details.seasonNumber)
+        assertEquals(1, details.episodeNumber)
+    }
+
+    @Test
     fun parsesSeriesStatus_fromSeriesRootPage() {
         val html = """
             <html>

@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 private const val FOCUS_KEY = "home.focused_item_key"
+private const val HOME_RESUME_REFRESH_INTERVAL_MS = 30 * 60 * 1000L
 private val favoriteSeriesSlugRegex = Regex("""/series/([^/]+)""")
 
 @HiltViewModel
@@ -36,6 +37,7 @@ class HomeViewModel @Inject constructor(
     private val appUpdateCoordinator: AppUpdateCoordinator,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
+    internal var clock: () -> Long = { System.currentTimeMillis() }
 
     private val initialSelectedMode: HomeFeedMode
         get() = preferencesStore.readHomeSelectedFeedMode()
@@ -89,9 +91,13 @@ class HomeViewModel @Inject constructor(
     private var favoriteLoadJob: Job? = null
     private var moviesLoadJob: Job? = null
     private var seriesLoadJob: Job? = null
+    private var lastAllNewRefreshAt = 0L
 
     fun onStart() {
-        if (started) return
+        if (started) {
+            onResume()
+            return
+        }
         started = true
         if (!initialFavoritesRailVisible && initialSelectedMode == HomeFeedMode.Favorites) {
             preferencesStore.writeHomeSelectedFeedMode(HomeFeedMode.AllNew)
@@ -100,6 +106,16 @@ class HomeViewModel @Inject constructor(
         loadMovies(pageNumber = 1, isPagingRequest = false)
         loadSeriesCatalog(pageNumber = 1, isPagingRequest = false)
         loadFavoriteReleases()
+    }
+
+    fun onResume() {
+        if (!started) return
+        if (allNewLoadJob?.isActive == true) return
+
+        val now = clock()
+        if (now - lastAllNewRefreshAt < HOME_RESUME_REFRESH_INTERVAL_MS) return
+
+        loadPage(pageNumber = 1, isPagingRequest = false)
     }
 
     fun onRetry() {
@@ -286,6 +302,9 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun loadPage(pageNumber: Int, isPagingRequest: Boolean) {
+        if (!isPagingRequest && pageNumber == 1) {
+            lastAllNewRefreshAt = clock()
+        }
         if (!isPagingRequest) {
             allNewLoadJob?.cancel()
         }

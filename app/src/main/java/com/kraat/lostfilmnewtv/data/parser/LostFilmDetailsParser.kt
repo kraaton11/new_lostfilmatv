@@ -9,6 +9,7 @@ import org.jsoup.Jsoup
 import org.jsoup.nodes.Document
 
 private val detailsSeasonEpisodeRegex = Regex(""".*/season_(\d+)/episode_(\d+)/?""")
+private val detailsAdditionalEpisodeRegex = Regex(""".*/additional/episode_(\d+)/?""")
 private val playEpisodeRegex = Regex("""PlayEpisode\('?(\d+)'?\)""")
 private val torrentRedirectRegex = Regex("""/V/\?[^"'\s<]+""")
 private val followSerialRegex = Regex("""FollowSerial\((\d+),\s*(true|false)\)""", RegexOption.IGNORE_CASE)
@@ -25,7 +26,7 @@ class LostFilmDetailsParser {
         val document = Jsoup.parse(html, BASE_URL)
         val favoriteMetadata = parseFavoriteMetadata(html)
         val absoluteDetailsUrl = resolveUrl(detailsUrl)
-        val match = checkNotNull(detailsSeasonEpisodeRegex.matchEntire(absoluteDetailsUrl)) {
+        val (seasonNumber, episodeNumber) = checkNotNull(parseSeriesNumbers(absoluteDetailsUrl)) {
             "Cannot parse season/episode from '$detailsUrl'"
         }
 
@@ -33,10 +34,8 @@ class LostFilmDetailsParser {
             detailsUrl = absoluteDetailsUrl,
             kind = ReleaseKind.SERIES,
             titleRu = document.selectFirst(".breadcrumbs-pane a[href^=/series/]").textOrEmpty(),
-            seasonNumber = match.groupValues[1].toIntOrNull()
-                ?: throw IllegalStateException("Cannot parse season from '$detailsUrl'"),
-            episodeNumber = match.groupValues[2].toIntOrNull()
-                ?: throw IllegalStateException("Cannot parse episode from '$detailsUrl'"),
+            seasonNumber = seasonNumber,
+            episodeNumber = episodeNumber,
             releaseDateRu = document.releaseDateRu(),
             posterUrl = document.posterUrl(),
             fetchedAt = fetchedAt,
@@ -46,6 +45,21 @@ class LostFilmDetailsParser {
             isFavorite = favoriteMetadata?.isFavorite,
             originalReleaseYear = document.originalReleaseYear(),
         )
+    }
+
+    private fun parseSeriesNumbers(detailsUrl: String): Pair<Int?, Int>? {
+        detailsSeasonEpisodeRegex.matchEntire(detailsUrl)?.let { match ->
+            val seasonNumber = match.groupValues[1].toIntOrNull() ?: return null
+            val episodeNumber = match.groupValues[2].toIntOrNull() ?: return null
+            return seasonNumber to episodeNumber
+        }
+
+        detailsAdditionalEpisodeRegex.matchEntire(detailsUrl)?.let { match ->
+            val episodeNumber = match.groupValues[1].toIntOrNull() ?: return null
+            return null to episodeNumber
+        }
+
+        return null
     }
 
     fun parseMovie(
