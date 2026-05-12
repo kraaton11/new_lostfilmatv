@@ -124,6 +124,7 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                 onEndReached = homeViewModel::onEndReached,
                 onRetry = homeViewModel::onRetry,
                 onPagingRetry = homeViewModel::onPagingRetry,
+                onResume = homeViewModel::onResume,
                 selectedNavItem = selectedNavItem,
                 onNavItemSelected = homeViewModel::onNavItemSelected,
                 onAuthClick = {

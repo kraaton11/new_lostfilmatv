@@ -91,6 +91,7 @@ fun HomeScreen(
     onAuthClick: () -> Unit = {},
     onRetry: () -> Unit = {},
     onPagingRetry: () -> Unit = {},
+    onResume: () -> Unit = {},
     selectedNavItem: NavItem = NavItem.HOME,
     onNavItemSelected: (NavItem) -> Unit = {},
     onNavItemLongClick: (NavItem) -> Unit = {},
@@ -153,6 +154,7 @@ fun HomeScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 startupContentFocusPending = true
+                onResume()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)

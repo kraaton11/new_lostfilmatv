@@ -70,6 +70,69 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun onResume_refreshesFirstPageAfterInterval() = runTest(dispatcher) {
+        var now = 1_000L
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(
+                    pageNumber = 1,
+                    items = listOf(summary(detailsUrl = "https://www.lostfilm.today/series/resume/season_1/episode_1/")),
+                    hasNextPage = true,
+                    isStale = false,
+                ),
+            ),
+        )
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            ioDispatcher = dispatcher,
+            clock = { now },
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+        viewModel.onResume()
+        advanceUntilIdle()
+
+        assertEquals(listOf(1), repository.pageRequests)
+
+        now += 30 * 60 * 1000L + 1
+        viewModel.onResume()
+        advanceUntilIdle()
+
+        assertEquals(listOf(1, 1), repository.pageRequests)
+    }
+
+    @Test
+    fun onStart_whenAlreadyStarted_refreshesFirstPageAfterInterval() = runTest(dispatcher) {
+        var now = 1_000L
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(
+                    pageNumber = 1,
+                    items = listOf(summary(detailsUrl = "https://www.lostfilm.today/series/return/season_1/episode_1/")),
+                    hasNextPage = true,
+                    isStale = false,
+                ),
+            ),
+        )
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            ioDispatcher = dispatcher,
+            clock = { now },
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+        now += 30 * 60 * 1000L + 1
+        viewModel.onStart()
+        advanceUntilIdle()
+
+        assertEquals(listOf(1, 1), repository.pageRequests)
+    }
+
+    @Test
     fun initialState_keepsFavoritesInAvailableModes_whenFavoritesRailIsHidden() = runTest(dispatcher) {
         val viewModel = createViewModel(
             repository = FakeLostFilmRepository(pageResults = emptyMap()),
@@ -1002,6 +1065,7 @@ private fun createViewModel(
     initialFavoritesRailVisible: Boolean = false,
     onChannelContentChanged: () -> Unit = {},
     ioDispatcher: CoroutineDispatcher,
+    clock: () -> Long = { System.currentTimeMillis() },
 ): HomeViewModel {
     val context = ApplicationProvider.getApplicationContext<Context>()
     val prefsName = "home-view-model-test-${homePrefsCounter++}"
@@ -1064,5 +1128,7 @@ private fun createViewModel(
         homeChannelSyncManager = homeChannelSyncManager,
         appUpdateCoordinator = appUpdateCoordinator,
         ioDispatcher = ioDispatcher,
-    )
+    ).apply {
+        this.clock = clock
+    }
 }
