@@ -282,6 +282,7 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                 viewModel = settingsViewModel,
                 initialSection = sectionArg,
                 isAuthenticated = isAuthenticated,
+                onNavigateBack = { navController.popBackStack() },
                 onAuthClick = {
                     if (isAuthenticated) authViewModel.logout()
                     else navController.navigate(AppDestination.Auth.createRoute())

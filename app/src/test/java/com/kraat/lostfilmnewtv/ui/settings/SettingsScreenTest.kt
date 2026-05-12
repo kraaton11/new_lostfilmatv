@@ -27,7 +27,7 @@ class SettingsScreenTest {
     val composeRule = createComposeRule()
 
     @Test
-    fun settingsScreen_defaultsToQualitySection_showsRailSummaries_andSwitchesVisiblePanel() {
+    fun settingsScreen_defaultsToPlaybackSection_showsRailSummaries_andSwitchesVisiblePanel() {
         composeRule.setContent {
             LostFilmTheme {
                 SettingsScreen(
@@ -48,12 +48,12 @@ class SettingsScreenTest {
             }
         }
 
-        composeRule.onNodeWithTag("settings-section-quality").assertIsSelected()
-        composeRule.onNodeWithTag("settings-section-quality-summary", useUnmergedTree = true).assertTextEquals("720p")
+        composeRule.onNodeWithTag("settings-section-playback").assertIsSelected()
+        composeRule.onNodeWithTag("settings-section-playback-summary", useUnmergedTree = true).assertTextEquals("720p · отметка Авто")
         composeRule.onNodeWithTag("settings-section-updates-summary", useUnmergedTree = true).assertTextEquals("Доступно обновление")
         composeRule.onNodeWithTag("settings-section-channel-summary", useUnmergedTree = true).assertTextEquals("Только непросмотренные")
         composeRule.onNodeWithTag("settings-overview-card").assertExists()
-        composeRule.onNodeWithText("Качество видео").assertExists()
+        composeRule.onNodeWithText("Качество: 720p").assertExists()
         composeRule.onNodeWithTag("settings-quality-720").assertExists()
         assertEquals(
             0,
@@ -123,7 +123,7 @@ class SettingsScreenTest {
         )
         composeRule.onNodeWithTag("settings-action-check-updates")
             .performSemanticsAction(SemanticsActions.OnClick)
-        composeRule.onNodeWithText("Скачать и установить")
+        composeRule.onNodeWithTag("settings-install-update")
             .performSemanticsAction(SemanticsActions.OnClick)
         composeRule.onNodeWithTag("settings-update-mode-quiet")
             .performSemanticsAction(SemanticsActions.OnClick)
@@ -158,7 +158,7 @@ class SettingsScreenTest {
             }
         }
 
-        composeRule.onNodeWithTag("settings-section-quality")
+        composeRule.onNodeWithTag("settings-section-playback")
             .performSemanticsAction(SemanticsActions.OnClick)
         composeRule.onNodeWithTag("settings-quality-720")
             .performSemanticsAction(SemanticsActions.OnClick)
@@ -297,11 +297,11 @@ class SettingsScreenTest {
 
         assertEquals(
             0,
-            composeRule.onAllNodesWithTag("settings-home-favorites-show").fetchSemanticsNodes().size,
+            composeRule.onAllNodesWithTag("settings-home-favorites-toggle").fetchSemanticsNodes().size,
         )
         assertEquals(
             0,
-            composeRule.onAllNodesWithTag("settings-home-favorites-hide").fetchSemanticsNodes().size,
+            composeRule.onAllNodesWithTag("settings-home-menu-labels-toggle").fetchSemanticsNodes().size,
         )
     }
 
@@ -333,13 +333,12 @@ class SettingsScreenTest {
 
         composeRule.onNodeWithTag("settings-section-home-screen").assertExists()
         composeRule.onNodeWithTag("settings-section-home-screen-summary", useUnmergedTree = true)
-            .assertTextEquals("Избранное: скрыто · Меню: иконки с надписями")
+            .assertTextEquals("Избранное выкл · подписи вкл")
 
         composeRule.onNodeWithTag("settings-section-home-screen")
             .performSemanticsAction(SemanticsActions.OnClick)
 
-        composeRule.onNodeWithTag("settings-home-favorites-hide").assertIsSelected()
-        composeRule.onNodeWithTag("settings-home-favorites-show")
+        composeRule.onNodeWithTag("settings-home-favorites-toggle")
             .performSemanticsAction(SemanticsActions.OnClick)
 
         assertEquals(listOf(true), selectedValues)
@@ -370,13 +369,13 @@ class SettingsScreenTest {
         }
 
         composeRule.onNodeWithTag("settings-section-home-screen-summary", useUnmergedTree = true)
-            .assertTextEquals("Избранное: показывается · Меню: иконки с надписями")
+            .assertTextEquals("Избранное вкл · подписи вкл")
 
         composeRule.onNodeWithTag("settings-section-home-screen")
             .performSemanticsAction(SemanticsActions.OnClick)
 
-        composeRule.onNodeWithTag("settings-home-favorites-show").assertIsSelected()
-        composeRule.onNodeWithTag("settings-home-favorites-hide").assertExists()
+        composeRule.onNodeWithTag("settings-home-favorites-toggle").assertIsSelected()
+        composeRule.onNodeWithTag("settings-home-favorites-toggle").assertExists()
     }
 
     @Test
@@ -432,7 +431,7 @@ class SettingsScreenTest {
             }
         }
 
-        composeRule.onNodeWithTag("settings-section-quality").assertIsSelected()
+        composeRule.onNodeWithTag("settings-section-playback").assertIsSelected()
         composeRule.onNodeWithTag("settings-quality-1080").assertExists()
         composeRule.onNodeWithTag("settings-quality-720").assertExists()
         composeRule.onNodeWithTag("settings-quality-480").assertExists()
@@ -460,7 +459,7 @@ class SettingsScreenTest {
             }
         }
 
-        composeRule.onNodeWithTag("settings-section-quality").assertExists()
+        composeRule.onNodeWithTag("settings-section-playback").assertExists()
         composeRule.onNodeWithTag("settings-section-updates").assertExists()
         composeRule.onNodeWithTag("settings-section-channel").assertExists()
         composeRule.onNodeWithTag("settings-section-home-screen").assertExists()
@@ -490,7 +489,7 @@ class SettingsScreenTest {
             }
         }
 
-        composeRule.onNodeWithTag("settings-section-quality")
+        composeRule.onNodeWithTag("settings-section-playback")
             .performSemanticsAction(SemanticsActions.OnClick)
 
         composeRule.onNodeWithTag("settings-quality-1080").assertExists()

@@ -80,6 +80,18 @@ interface ReleaseDao {
     @Query("DELETE FROM page_cache_metadata WHERE fetchedAt < :threshold")
     suspend fun deleteExpiredPageMetadata(threshold: Long)
 
+    @Query("DELETE FROM page_cache_metadata WHERE pageNumber = :pageNumber")
+    suspend fun deletePageMetadata(pageNumber: Int)
+
+    @Query("DELETE FROM release_summaries")
+    suspend fun deleteAllSummaries()
+
+    @Query("DELETE FROM release_details")
+    suspend fun deleteAllDetails()
+
+    @Query("DELETE FROM page_cache_metadata")
+    suspend fun deleteAllPageMetadata()
+
     @Transaction
     suspend fun replacePage(
         pageNumber: Int,
@@ -96,5 +108,12 @@ interface ReleaseDao {
         deleteExpiredSummaries(threshold)
         deleteExpiredDetails(threshold)
         deleteExpiredPageMetadata(threshold)
+    }
+
+    @Transaction
+    suspend fun deleteAllCachedReleaseData() {
+        deleteAllSummaries()
+        deleteAllDetails()
+        deleteAllPageMetadata()
     }
 }

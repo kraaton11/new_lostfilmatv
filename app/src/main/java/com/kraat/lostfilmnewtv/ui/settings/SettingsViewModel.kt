@@ -39,6 +39,9 @@ class SettingsViewModel @Inject constructor(
     private val homeChannelBackgroundScheduler: HomeChannelBackgroundScheduler,
     private val appUpdateBackgroundScheduler: AppUpdateBackgroundScheduler,
     private val releaseApkLauncher: ReleaseApkLauncher,
+    private val torrServeEndpointChecker: TorrServeEndpointChecker,
+    private val settingsDataManager: SettingsDataManager,
+    private val diagnosticsRunner: SettingsDiagnosticsRunner,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
@@ -48,6 +51,9 @@ class SettingsViewModel @Inject constructor(
 
     private var activeRefreshJob: Job? = null
     private var installJob: Job? = null
+    private var torrServeCheckJob: Job? = null
+    private var dataActionJob: Job? = null
+    private var diagnosticsJob: Job? = null
     private var refreshRequestToken: Long = 0
     private var lastCheckTimestamp = 0L
 
@@ -61,6 +67,7 @@ class SettingsViewModel @Inject constructor(
             isHomeFavoritesRailEnabled = preferencesStore.readHomeFavoritesRailEnabled(),
             isHomeMenuLabelsEnabled = preferencesStore.readHomeMenuLabelsEnabled(),
             watchedMarkingMode = preferencesStore.readWatchedMarkingMode(),
+            torrServeBaseUrl = preferencesStore.readTorrServeBaseUrl(),
             installedVersionText = BuildConfig.VERSION_NAME,
             savedAppUpdate = initialSavedUpdate,
             installUrl = initialSavedUpdate?.apkUrl,
@@ -76,7 +83,14 @@ class SettingsViewModel @Inject constructor(
     init {
         viewModelScope.launch(ioDispatcher) {
             savedUpdateState.drop(1).collectLatest { savedUpdate ->
-                _uiState.update { it.copy(savedAppUpdate = savedUpdate, installUrl = savedUpdate?.apkUrl, isDownloadingUpdate = false) }
+                _uiState.update {
+                    it.copy(
+                        savedAppUpdate = savedUpdate,
+                        installUrl = savedUpdate?.apkUrl,
+                        isDownloadingUpdate = false,
+                        installDownloadProgress = null,
+                    )
+                }
             }
         }
     }
@@ -90,11 +104,12 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun onSectionBack() {
-        _uiState.update { it.copy(currentSection = SettingsSection.QUALITY) }
+        _uiState.update { it.copy(currentSection = SettingsSection.PLAYBACK) }
     }
 
     fun onDeepLinkSection(sectionName: String) {
-        val section = SettingsSection.entries.firstOrNull { it.name == sectionName } ?: return
+        val section = SettingsSection.entries.firstOrNull { it.name == sectionName }
+            ?: if (sectionName == "QUALITY") SettingsSection.PLAYBACK else return
         _uiState.update { it.copy(currentSection = section) }
     }
 
@@ -141,6 +156,117 @@ class SettingsViewModel @Inject constructor(
         _uiState.update { it.copy(watchedMarkingMode = mode) }
     }
 
+    fun onTorrServeBaseUrlChanged(value: String) {
+        _uiState.update { it.copy(torrServeBaseUrl = value, torrServeStatusText = null) }
+    }
+
+    fun onSaveTorrServeBaseUrlClick() {
+        val normalized = normalizeTorrServeBaseUrl(_uiState.value.torrServeBaseUrl)
+        if (normalized == null) {
+            _uiState.update { it.copy(torrServeStatusText = "Неверный адрес TorrServe") }
+            return
+        }
+        preferencesStore.writeTorrServeBaseUrl(normalized)
+        _uiState.update {
+            it.copy(
+                torrServeBaseUrl = normalized,
+                torrServeStatusText = "Адрес сохранен",
+            )
+        }
+    }
+
+    fun onResetTorrServeBaseUrlClick() {
+        preferencesStore.resetTorrServeBaseUrl()
+        _uiState.update {
+            it.copy(
+                torrServeBaseUrl = preferencesStore.readTorrServeBaseUrl(),
+                torrServeStatusText = "Адрес сброшен",
+            )
+        }
+    }
+
+    fun onCheckTorrServeClick() {
+        if (torrServeCheckJob?.isActive == true) return
+        torrServeCheckJob = viewModelScope.launch(ioDispatcher) {
+            _uiState.update { it.copy(isCheckingTorrServe = true, torrServeStatusText = "Проверяем TorrServe...") }
+            val result = runCatching {
+                torrServeEndpointChecker.check(_uiState.value.torrServeBaseUrl)
+            }.getOrNull()
+            _uiState.update {
+                val message = when {
+                    result == null -> "Не удалось проверить TorrServe"
+                    result.normalizedBaseUrl == null -> "Неверный адрес TorrServe"
+                    result.isAppInstalled && result.isEndpointReachable -> "TorrServe доступен"
+                    result.isAppInstalled -> "Приложение найдено, HTTP недоступен"
+                    result.isEndpointReachable -> "HTTP доступен, приложение не найдено"
+                    else -> "TorrServe недоступен"
+                }
+                it.copy(
+                    torrServeBaseUrl = result?.normalizedBaseUrl ?: it.torrServeBaseUrl,
+                    torrServeStatusText = message,
+                    isCheckingTorrServe = false,
+                )
+            }
+        }
+    }
+
+    fun onRefreshDataClick() {
+        runDataAction(runningText = "Обновляем главную...") {
+            val success = settingsDataManager.refreshFirstPage()
+            if (success) "Главная обновлена" else "Не удалось обновить главную"
+        }
+    }
+
+    fun onClearReleaseCacheClick() {
+        runDataAction(runningText = "Очищаем кеш релизов...") {
+            settingsDataManager.clearReleaseCache()
+            "Кеш релизов очищен"
+        }
+    }
+
+    fun onClearPosterCacheClick() {
+        runDataAction(runningText = "Очищаем кеш постеров...") {
+            settingsDataManager.clearPosterCache()
+            "Кеш постеров очищен"
+        }
+    }
+
+    fun onClearNetworkCacheClick() {
+        runDataAction(runningText = "Очищаем сетевой кеш...") {
+            settingsDataManager.clearNetworkCache()
+            "Сетевой кеш очищен"
+        }
+    }
+
+    fun onRunDiagnosticsClick(isAuthenticated: Boolean) {
+        if (diagnosticsJob?.isActive == true) return
+        diagnosticsJob = viewModelScope.launch(ioDispatcher) {
+            _uiState.update {
+                it.copy(
+                    isRunningDiagnostics = true,
+                    diagnosticsStatusText = "Запускаем диагностику...",
+                    diagnosticResults = emptyList(),
+                )
+            }
+            val result = runCatching {
+                diagnosticsRunner.run(_uiState.value.torrServeBaseUrl)
+            }.getOrElse {
+                listOf(SettingsDiagnosticResult("Диагностика", "Ошибка запуска", isOk = false))
+            }
+            _uiState.update {
+                it.copy(
+                    isRunningDiagnostics = false,
+                    diagnosticsStatusText = "Диагностика завершена",
+                    diagnosticResults = result + SettingsDiagnosticResult(
+                        title = "Аккаунт",
+                        value = if (isAuthenticated) "Вход выполнен" else "Без входа",
+                        isOk = isAuthenticated,
+                    ),
+                )
+            }
+        }
+    }
+
     fun onCheckForUpdatesClick() {
         val now = System.currentTimeMillis()
         if (now - lastCheckTimestamp < debounceIntervalMs) return
@@ -149,23 +275,63 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun onInstallUpdateFailed() {
-        _uiState.update { it.copy(statusText = INSTALL_UPDATE_FAILED_MESSAGE, isDownloadingUpdate = false) }
+        _uiState.update {
+            it.copy(
+                statusText = INSTALL_UPDATE_FAILED_MESSAGE,
+                isDownloadingUpdate = false,
+                installDownloadProgress = null,
+            )
+        }
     }
 
     fun onInstallDownloadProgress(isDownloading: Boolean) {
-        _uiState.update { it.copy(isDownloadingUpdate = isDownloading) }
+        _uiState.update {
+            it.copy(
+                isDownloadingUpdate = isDownloading,
+                installDownloadProgress = if (isDownloading) it.installDownloadProgress else null,
+                statusText = if (isDownloading) DOWNLOADING_UPDATE_MESSAGE else it.statusText,
+            )
+        }
+    }
+
+    private fun onInstallDownloadProgress(progress: Int) {
+        _uiState.update {
+            it.copy(
+                isDownloadingUpdate = true,
+                installDownloadProgress = progress.coerceIn(0, 100),
+                statusText = "$DOWNLOADING_UPDATE_MESSAGE ${progress.coerceIn(0, 100)}%",
+            )
+        }
     }
 
     fun installUpdate(apkUrl: String) {
         if (installJob?.isActive == true) return
+        _uiState.update {
+            it.copy(
+                statusText = "$DOWNLOADING_UPDATE_MESSAGE 0%",
+                isDownloadingUpdate = true,
+                installDownloadProgress = 0,
+            )
+        }
         installJob = viewModelScope.launch(ioDispatcher) {
             try {
                 onInstallDownloadProgress(true)
                 val launched = releaseApkLauncher.launch(
                     apkUrl = apkUrl,
                     onDownloadingChange = { onInstallDownloadProgress(it) },
+                    onDownloadProgress = { onInstallDownloadProgress(it) },
                 )
-                if (!launched) onInstallUpdateFailed()
+                if (launched) {
+                    _uiState.update {
+                        it.copy(
+                            statusText = INSTALLER_OPENED_MESSAGE,
+                            isDownloadingUpdate = false,
+                            installDownloadProgress = null,
+                        )
+                    }
+                } else {
+                    onInstallUpdateFailed()
+                }
             } finally {
                 installJob = null
             }
@@ -175,12 +341,31 @@ class SettingsViewModel @Inject constructor(
     private fun refreshUpdateInfo() {
         val requestToken = ++refreshRequestToken
         activeRefreshJob?.cancel()
-        _uiState.update { it.copy(statusText = CHECKING_UPDATES_MESSAGE, isCheckingForUpdates = true, isDownloadingUpdate = false) }
+        _uiState.update {
+            it.copy(
+                statusText = CHECKING_UPDATES_MESSAGE,
+                isCheckingForUpdates = true,
+                isDownloadingUpdate = false,
+                installDownloadProgress = null,
+            )
+        }
         activeRefreshJob = viewModelScope.launch(ioDispatcher) {
             val result = appUpdateCoordinator.refreshSavedUpdateState()
             if (refreshRequestToken == requestToken) {
                 _uiState.update { it.toCheckedState(result) }
             }
+        }
+    }
+
+    private fun runDataAction(
+        runningText: String,
+        action: suspend () -> String,
+    ) {
+        if (dataActionJob?.isActive == true) return
+        dataActionJob = viewModelScope.launch(ioDispatcher) {
+            _uiState.update { it.copy(isDataActionRunning = true, dataStatusText = runningText) }
+            val message = runCatching { action() }.getOrElse { "Действие не выполнено" }
+            _uiState.update { it.copy(isDataActionRunning = false, dataStatusText = message) }
         }
     }
 
@@ -191,6 +376,9 @@ class SettingsViewModel @Inject constructor(
         homeChannelBackgroundScheduler: HomeChannelBackgroundScheduler,
         appUpdateBackgroundScheduler: AppUpdateBackgroundScheduler,
         releaseApkLauncher: ReleaseApkLauncher,
+        torrServeEndpointChecker: TorrServeEndpointChecker,
+        settingsDataManager: SettingsDataManager,
+        diagnosticsRunner: SettingsDiagnosticsRunner,
         ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
         debounceIntervalMs: Long,
     ) : this(
@@ -200,6 +388,9 @@ class SettingsViewModel @Inject constructor(
         homeChannelBackgroundScheduler = homeChannelBackgroundScheduler,
         appUpdateBackgroundScheduler = appUpdateBackgroundScheduler,
         releaseApkLauncher = releaseApkLauncher,
+        torrServeEndpointChecker = torrServeEndpointChecker,
+        settingsDataManager = settingsDataManager,
+        diagnosticsRunner = diagnosticsRunner,
         ioDispatcher = ioDispatcher,
     ) {
         this.debounceIntervalMs = debounceIntervalMs
@@ -210,24 +401,26 @@ private fun SettingsUiState.toCheckedState(result: AppUpdateRefreshResult): Sett
     is AppUpdateRefreshResult.UpToDate -> copy(
         installedVersionText = result.installedVersion, savedAppUpdate = null,
         latestVersionText = result.installedVersion, statusText = "Установлена последняя версия",
-        isCheckingForUpdates = false, isDownloadingUpdate = false, installUrl = null,
+        isCheckingForUpdates = false, isDownloadingUpdate = false, installDownloadProgress = null, installUrl = null,
     )
     is AppUpdateRefreshResult.UpdateSaved -> copy(
         savedAppUpdate = result.savedUpdate.copy(manuallyChecked = true),
         latestVersionText = result.savedUpdate.latestVersion, statusText = "Доступно обновление",
-        isCheckingForUpdates = false, isDownloadingUpdate = false, installUrl = result.savedUpdate.apkUrl,
+        isCheckingForUpdates = false, isDownloadingUpdate = false, installDownloadProgress = null, installUrl = result.savedUpdate.apkUrl,
     )
     is AppUpdateRefreshResult.FailedKeptPrevious -> copy(
         installedVersionText = result.installedVersion, statusText = result.message,
-        isCheckingForUpdates = false, isDownloadingUpdate = false,
+        isCheckingForUpdates = false, isDownloadingUpdate = false, installDownloadProgress = null,
     )
     is AppUpdateRefreshResult.FailedEmpty -> copy(
         installedVersionText = result.installedVersion, savedAppUpdate = null,
         latestVersionText = null, statusText = result.message,
-        isCheckingForUpdates = false, isDownloadingUpdate = false, installUrl = null,
+        isCheckingForUpdates = false, isDownloadingUpdate = false, installDownloadProgress = null, installUrl = null,
     )
 }
 
 private const val CHECKING_UPDATES_MESSAGE = "Проверяем обновления..."
+private const val DOWNLOADING_UPDATE_MESSAGE = "Скачивание обновления..."
+private const val INSTALLER_OPENED_MESSAGE = "Открыт установщик обновления"
 private const val INSTALL_UPDATE_FAILED_MESSAGE = "Не удалось открыть обновление."
 private const val DEFAULT_DEBOUNCE_INTERVAL_MS = 1000L
