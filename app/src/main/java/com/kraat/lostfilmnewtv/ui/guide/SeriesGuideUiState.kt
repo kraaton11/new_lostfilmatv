@@ -6,6 +6,7 @@ data class SeriesGuideUiState(
     val title: String = "",
     val posterUrl: String? = null,
     val seasons: List<SeriesGuideSeason> = emptyList(),
+    val selectedSeasonIndex: Int = 0,
     val selectedEpisodeDetailsUrl: String? = null,
     val isLoading: Boolean = false,
     val errorMessage: String? = null,

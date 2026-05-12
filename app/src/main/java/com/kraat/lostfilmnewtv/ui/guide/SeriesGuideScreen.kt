@@ -5,17 +5,21 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -29,6 +33,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -73,6 +78,7 @@ import kotlin.math.roundToInt
 fun SeriesGuideScreen(
     state: SeriesGuideUiState,
     onRetry: () -> Unit,
+    onSeasonSelected: (Int) -> Unit,
     onEpisodeClick: (String) -> Unit,
 ) {
     Box(
@@ -101,7 +107,9 @@ fun SeriesGuideScreen(
                     title = state.title,
                     posterUrl = state.posterUrl,
                     seasons = state.seasons,
+                    selectedSeasonIndex = state.selectedSeasonIndex,
                     selectedEpisodeDetailsUrl = state.selectedEpisodeDetailsUrl,
+                    onSeasonSelected = onSeasonSelected,
                     onEpisodeClick = onEpisodeClick,
                 )
             }
@@ -272,9 +280,16 @@ private fun GuideContent(
     title: String,
     posterUrl: String?,
     seasons: List<SeriesGuideSeason>,
+    selectedSeasonIndex: Int,
     selectedEpisodeDetailsUrl: String?,
+    onSeasonSelected: (Int) -> Unit,
     onEpisodeClick: (String) -> Unit,
 ) {
+    val activeSeasonIndex = selectedSeasonIndex.coerceIn(seasons.indices)
+    val activeSeason = seasons[activeSeasonIndex]
+    val activeEpisodeUrls = remember(activeSeason) {
+        activeSeason.episodes.map { episode -> episode.detailsUrl }.toSet()
+    }
     val episodes = remember(seasons) {
         seasons.flatMap { season -> season.episodes }
     }
@@ -282,10 +297,10 @@ private fun GuideContent(
         episodes.associate { episode -> episode.detailsUrl to FocusRequester() }
     }
 
-    LaunchedEffect(selectedEpisodeDetailsUrl, episodeFocusRequesters.keys) {
-        val selectedRequester = selectedEpisodeDetailsUrl
-            ?.let { episodeFocusRequesters[it] }
-            ?: return@LaunchedEffect
+    LaunchedEffect(selectedEpisodeDetailsUrl, activeEpisodeUrls, episodeFocusRequesters.keys) {
+        val selectedUrl = selectedEpisodeDetailsUrl ?: return@LaunchedEffect
+        if (selectedUrl !in activeEpisodeUrls) return@LaunchedEffect
+        val selectedRequester = episodeFocusRequesters[selectedUrl] ?: return@LaunchedEffect
         withFrameNanos { }
         selectedRequester.requestFocus()
     }
@@ -298,22 +313,68 @@ private fun GuideContent(
     ) {
         GuideHeroSection(title = title, posterUrl = posterUrl, seasons = seasons)
 
-        LazyColumn(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(0.dp),
         ) {
-            items(
-                items = seasons,
-                key = { season -> "season-${season.seasonNumber}" },
-            ) { season ->
-                SeasonSection(
-                    season = season,
-                    selectedEpisodeDetailsUrl = selectedEpisodeDetailsUrl,
-                    episodeFocusRequesters = episodeFocusRequesters,
-                    onEpisodeClick = onEpisodeClick,
-                )
+            LazyColumn(
+                modifier = Modifier
+                    .width(130.dp)
+                    .fillMaxHeight()
+                    .background(DetailsBackgroundMid)
+                    .padding(horizontal = 8.dp, vertical = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                itemsIndexed(
+                    items = seasons,
+                    key = { _, season -> "season-sidebar-${season.seasonNumber}" },
+                ) { index, season ->
+                    SeasonSidebarItem(
+                        season = season,
+                        isSelected = index == activeSeasonIndex,
+                        onClick = { onSeasonSelected(index) },
+                    )
+                }
+            }
+
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .fillMaxHeight()
+                    .background(DetailsBorderDefault),
+            )
+
+            LazyColumn(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .padding(start = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                item(key = "season-progress-${activeSeason.seasonNumber}") {
+                    SeasonProgressHeader(season = activeSeason)
+                }
+
+                itemsIndexed(
+                    items = activeSeason.episodes,
+                    key = { _, episode -> episode.detailsUrl },
+                ) { index, episode ->
+                    val focusRequester = episodeFocusRequesters[episode.detailsUrl]
+                    val prevEpisode = if (index > 0) activeSeason.episodes[index - 1] else null
+                    val nextEpisode = if (index < activeSeason.episodes.lastIndex) activeSeason.episodes[index + 1] else null
+
+                    EpisodeRow(
+                        episode = episode,
+                        isSelected = episode.detailsUrl == selectedEpisodeDetailsUrl,
+                        focusRequester = focusRequester,
+                        prevEpisodeUrl = prevEpisode?.detailsUrl,
+                        nextEpisodeUrl = nextEpisode?.detailsUrl,
+                        focusRequesterForUrl = { url -> episodeFocusRequesters[url] },
+                        onClick = { onEpisodeClick(episode.detailsUrl) },
+                    )
+                }
             }
         }
     }
@@ -406,34 +467,139 @@ private fun GuideInfoChip(text: String) {
 }
 
 @Composable
-private fun SeasonSection(
+private fun SeasonProgressHeader(
     season: SeriesGuideSeason,
-    selectedEpisodeDetailsUrl: String?,
-    episodeFocusRequesters: Map<String, FocusRequester>,
-    onEpisodeClick: (String) -> Unit,
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(
-            text = "Сезон ${season.seasonNumber} · ${season.episodes.size} серий",
-            color = TextPrimary,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(bottom = 2.dp),
+    val watchedCount = remember(season) { season.episodes.count { it.isWatched } }
+    val totalCount = season.episodes.size
+    val progress = if (totalCount == 0) 0f else watchedCount / totalCount.toFloat()
+    val percentage = (progress * 100).roundToInt()
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(DetailsSurfaceReadable.copy(alpha = 0.74f), RoundedCornerShape(16.dp))
+            .border(1.dp, DetailsBorderDefault.copy(alpha = 0.48f), RoundedCornerShape(16.dp))
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Сезон ${season.seasonNumber} · просмотрено $watchedCount из $totalCount",
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(end = 12.dp),
+                color = TextPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = "$percentage%",
+                color = DetailsAccentGold,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+            )
+        }
+
+        GuideProgressBar(
+            progress = progress,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(5.dp),
         )
+    }
+}
 
-        season.episodes.forEachIndexed { index, episode ->
-            val focusRequester = episodeFocusRequesters[episode.detailsUrl]
-            val prevEpisode = if (index > 0) season.episodes[index - 1] else null
-            val nextEpisode = if (index < season.episodes.lastIndex) season.episodes[index + 1] else null
+@Composable
+private fun SeasonSidebarItem(
+    season: SeriesGuideSeason,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+) {
+    val watchedCount = remember(season) { season.episodes.count { it.isWatched } }
+    val totalCount = season.episodes.size
+    val progress = if (totalCount == 0) 0f else watchedCount / totalCount.toFloat()
+    val shape = RoundedCornerShape(12.dp)
+    val textColor = if (isSelected) TextPrimary else DetailsTextSecondary
 
-            EpisodeRow(
-                episode = episode,
-                isSelected = episode.detailsUrl == selectedEpisodeDetailsUrl,
-                focusRequester = focusRequester,
-                prevEpisodeUrl = prevEpisode?.detailsUrl,
-                nextEpisodeUrl = nextEpisode?.detailsUrl,
-                focusRequesterForUrl = { url -> episodeFocusRequesters[url] },
-                onClick = { onEpisodeClick(episode.detailsUrl) },
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(if (isSelected) DetailsSurfaceSoft else Color.Transparent, shape)
+            .drawBehind {
+                if (isSelected) {
+                    drawRect(
+                        color = DetailsAccentGold,
+                        size = size.copy(width = 2.dp.toPx()),
+                    )
+                }
+            },
+    ) {
+        Button(
+            onClick = onClick,
+            shape = shape,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Color.Transparent,
+                contentColor = textColor,
+            ),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(5.dp),
+            ) {
+                Text(
+                    text = "Сезон ${season.seasonNumber}",
+                    color = if (isSelected) DetailsAccentGold else textColor,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = "$watchedCount / $totalCount серий",
+                    color = textColor,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                GuideProgressBar(
+                    progress = progress,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(4.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun GuideProgressBar(
+    progress: Float,
+    modifier: Modifier = Modifier,
+) {
+    val clampedProgress = progress.coerceIn(0f, 1f)
+    val shape = RoundedCornerShape(999.dp)
+
+    Box(
+        modifier = modifier
+            .background(DetailsBorderDefault.copy(alpha = 0.52f), shape),
+    ) {
+        Canvas(
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            drawRoundRect(
+                color = DetailsAccentGold,
+                size = size.copy(width = size.width * clampedProgress),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f, size.height / 2f),
             )
         }
     }
