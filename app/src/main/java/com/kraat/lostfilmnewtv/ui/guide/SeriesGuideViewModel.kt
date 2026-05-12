@@ -39,6 +39,10 @@ class SeriesGuideViewModel @Inject constructor(
 
     fun onRetry() = loadGuide()
 
+    fun onSeasonSelected(index: Int) {
+        _uiState.update { it.copy(selectedSeasonIndex = index) }
+    }
+
     private fun loadGuide() {
         val detailsUrl = savedStateHandle.get<String>(AppDestination.SeriesGuide.detailsUrlArg).orEmpty()
         val requestToken = ++loadRequestToken

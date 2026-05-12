@@ -18,6 +18,7 @@ fun SeriesGuideRoute(
     SeriesGuideScreen(
         state = state.value,
         onRetry = routeViewModel::onRetry,
+        onSeasonSelected = routeViewModel::onSeasonSelected,
         onEpisodeClick = onOpenDetails,
     )
 }
