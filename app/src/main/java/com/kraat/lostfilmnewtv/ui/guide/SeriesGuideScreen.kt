@@ -548,7 +548,13 @@ private fun SeasonSidebarItem(
                 containerColor = Color.Transparent,
                 contentColor = textColor,
             ),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .onFocusChanged { focusState ->
+                    if (focusState.isFocused) {
+                        onClick()
+                    }
+                },
         ) {
             Column(
                 modifier = Modifier.fillMaxWidth(),
