@@ -31,7 +31,7 @@ class Settings(BaseSettings):
     create_pairing_rate_limit_window_seconds: int = 60
     pairing_action_rate_limit_max_requests: int = 120
     pairing_action_rate_limit_window_seconds: int = 60
-    proxy_rate_limit_max_requests: int = 60
+    proxy_rate_limit_max_requests: int = 240
     proxy_rate_limit_window_seconds: int = 60
     cleanup_interval_seconds: int = 60
     upstream_timeout_seconds: float = 10.0
@@ -172,6 +172,11 @@ class Settings(BaseSettings):
         if parsed.path or parsed.params or parsed.query or parsed.fragment:
             raise ValueError("public_base_domain must not include path, query, or fragment")
         return parsed.hostname.lower().rstrip(".")
+
+    @property
+    def public_base_host(self) -> str:
+        parsed = urlparse(self.public_base_url)
+        return parsed.hostname or parsed.netloc or self.public_base_url
 
     @property
     def wildcard_base_domain(self) -> str:

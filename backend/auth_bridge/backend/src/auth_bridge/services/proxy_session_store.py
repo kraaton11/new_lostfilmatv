@@ -14,6 +14,7 @@ class ProxySessionState:
     lock: RLock = field(default_factory=RLock)
     login_succeeded: bool = False
     remember_device: bool = False
+    trusted_cookie_reissued: bool = False
 
 
 class ProxySessionStore:

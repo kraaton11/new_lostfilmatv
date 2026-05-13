@@ -28,7 +28,7 @@ class PairingsApiTest(unittest.TestCase):
         self.assertIn("phoneVerifier", payload)
         self.assertIn("verificationUrl", payload)
         self.assertRegex(payload["userCode"], r"^[A-Z0-9]{6}$")
-        self.assertEqual(payload["verificationUrl"], f"https://{payload['phoneVerifier']}.auth.example.test/")
+        self.assertEqual(payload["verificationUrl"], f"https://auth.example.test/pair/{payload['phoneVerifier']}")
 
     def test_poll_requires_pairing_secret(self) -> None:
         pairing = self.client.post("/api/pairings").json()

@@ -126,7 +126,7 @@ def create_app() -> FastAPI:
         db_path=settings.trusted_device_db_path,
         secret=settings.trusted_device_secret,
         cookie_name=settings.trusted_device_cookie_name,
-        cookie_domain=settings.trusted_device_cookie_domain or settings.wildcard_base_domain,
+        cookie_domain=settings.trusted_device_cookie_domain or settings.public_base_host,
         ttl_seconds=settings.trusted_device_ttl_seconds,
         lostfilm_base_url=settings.lostfilm_base_url,
         auth_detector=lostfilm_auth_detector,

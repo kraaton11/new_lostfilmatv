@@ -19,6 +19,7 @@ class LostFilmAuthDetector:
     _REQUIRED_COOKIE_NAMES = {"lf_session"}
 
     _POST_LOGIN_ROOT_COOKIE_NAMES = {"lf_session", "lf_udv"}
+    _LOGIN_ENDPOINT_PATH = "/ajaxik.users.php"
 
     def is_authenticated(
         self,
@@ -40,9 +41,16 @@ class LostFilmAuthDetector:
             and normalized_path == "/"
             and self._POST_LOGIN_ROOT_COOKIE_NAMES.issubset(normalized_cookie_names)
         )
+        has_login_endpoint_session = (
+            login_succeeded
+            and normalized_path == self._LOGIN_ENDPOINT_PATH
+            and self._REQUIRED_COOKIE_NAMES.issubset(normalized_cookie_names)
+        )
 
         if not self._REQUIRED_COOKIE_NAMES.issubset(normalized_cookie_names):
             return False
+        if has_login_endpoint_session:
+            return True
         if has_profile_markers:
             return True
         if has_post_login_root_cookies and has_home_markers and has_avatar_marker:

@@ -18,7 +18,7 @@ class PhoneFlowCompatibilityTest(unittest.TestCase):
         app.state.pairing_action_rate_limiter.clear()
         app.state.proxy_rate_limiter.clear()
 
-    def test_pair_route_redirects_to_wildcard_host_for_active_pairing(self) -> None:
+    def test_pair_route_sets_stable_host_cookie_for_active_pairing(self) -> None:
         pairing = self.client.post("/api/pairings").json()
 
         response = self.client.get(
@@ -27,16 +27,14 @@ class PhoneFlowCompatibilityTest(unittest.TestCase):
         )
 
         self.assertEqual(response.status_code, 307)
-        self.assertEqual(
-            response.headers["location"],
-            f"https://{pairing['phoneVerifier']}.auth.example.test/",
-        )
+        self.assertEqual(response.headers["location"], "/")
+        self.assertIn("auth_bridge_pairing=", response.headers["set-cookie"])
+        self.assertIn("Domain=auth.example.test", response.headers["set-cookie"])
 
-    def test_qr_contract_no_longer_points_to_legacy_pair_path(self) -> None:
+    def test_qr_contract_points_to_stable_pair_path(self) -> None:
         pairing = self.client.post("/api/pairings").json()
 
-        self.assertEqual(pairing["verificationUrl"], f"https://{pairing['phoneVerifier']}.auth.example.test/")
-        self.assertNotIn(f"/pair/{pairing['phoneVerifier']}", pairing["verificationUrl"])
+        self.assertEqual(pairing["verificationUrl"], f"https://auth.example.test/pair/{pairing['phoneVerifier']}")
 
     def test_pair_route_returns_404_for_unknown_pairing(self) -> None:
         response = self.client.get("/pair/missing", follow_redirects=False)

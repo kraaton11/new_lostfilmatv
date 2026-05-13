@@ -14,7 +14,12 @@ from auth_bridge.middleware.rate_limit import (
     build_proxy_rate_limit_keys,
     extract_client_ip,
 )
-from auth_bridge.services.pairing_service import PairingExpiredError, PairingNotFoundError, PairingService
+from auth_bridge.services.pairing_service import (
+    PHONE_FLOW_COOKIE_NAME,
+    PairingExpiredError,
+    PairingNotFoundError,
+    PairingService,
+)
 from auth_bridge.services.lostfilm_proxy_service import UpstreamProxyError
 from auth_bridge.services.trusted_device_service import TrustedDeviceSession
 
@@ -38,9 +43,10 @@ def attach_wildcard_proxy_router(app, pairing_service: PairingService) -> None:
         except PairingExpiredError:
             return secure_html_response("Pairing expired.", status_code=status.HTTP_410_GONE)
 
-        trusted_session = _trusted_device_session_for_request(app, request)
-        if pairing.session_payload is None and trusted_session is not None and _proxy_access_allowed(pairing):
-            return _render_trusted_device_response(pairing, trusted_session)
+        if pairing.session_payload is None:
+            trusted_session = _trusted_device_session_for_request(app, request)
+            if trusted_session is not None and _proxy_access_allowed(pairing):
+                return _render_trusted_device_response(pairing, trusted_session)
 
         proxy_state = app.state.proxy_session_store.get(pairing.pairing_id)
         if pairing.session_payload is None and proxy_state is None and _proxy_access_allowed(pairing):
@@ -52,7 +58,9 @@ def attach_wildcard_proxy_router(app, pairing_service: PairingService) -> None:
                 return secure_html_response("Too many requests. Please try again later.", status_code=status.HTTP_429_TOO_MANY_REQUESTS)
             return await _proxy_request(app, pairing_service, pairing, request, "/", wildcard_host)
 
-        return _render_phone_shell_response(pairing)
+        response = _render_phone_shell_response(pairing)
+        _reissue_trusted_cookie_after_confirm(app, pairing, response)
+        return response
 
     @router.api_route("/{proxy_path:path}", methods=["GET", "POST"])
     async def wildcard_proxy(request: Request, proxy_path: str) -> Response:
@@ -94,9 +102,10 @@ def attach_wildcard_proxy_router(app, pairing_service: PairingService) -> None:
             return response
 
         if request.method == "GET" and proxy_path == "login":
-            trusted_session = _trusted_device_session_for_request(app, request)
-            if pairing.session_payload is None and trusted_session is not None:
-                return _render_trusted_device_response(pairing, trusted_session)
+            if pairing.session_payload is None:
+                trusted_session = _trusted_device_session_for_request(app, request)
+                if trusted_session is not None:
+                    return _render_trusted_device_response(pairing, trusted_session)
 
         return await _proxy_request(app, pairing_service, pairing, request, f"/{proxy_path}", wildcard_host)
 
@@ -104,9 +113,17 @@ def attach_wildcard_proxy_router(app, pairing_service: PairingService) -> None:
 
 
 def _open_phone_flow_for_request(pairing_service: PairingService, request: Request):
-    wildcard_host = pairing_service.normalize_wildcard_host(request.headers.get("host", ""))
-    pairing = pairing_service.open_phone_flow_for_host(wildcard_host)
-    return pairing, wildcard_host
+    host = request.headers.get("host", "")
+    try:
+        wildcard_host = pairing_service.normalize_wildcard_host(host)
+        pairing = pairing_service.open_phone_flow_for_host(wildcard_host)
+        return pairing, wildcard_host
+    except PairingNotFoundError:
+        phone_verifier = request.cookies.get(PHONE_FLOW_COOKIE_NAME, "")
+        if not phone_verifier:
+            raise
+        pairing = pairing_service.open_phone_flow(phone_verifier)
+        return pairing, host
 
 
 async def _proxy_request(app, pairing_service: PairingService, pairing, request: Request, path: str, wildcard_host: str) -> Response:
@@ -162,6 +179,16 @@ def _render_template(template_name: str, **context: object) -> str:
     return _template_env.get_template(template_name).render(**context)
 
 
+def _reissue_trusted_cookie_after_confirm(app, pairing, response: Response) -> None:
+    if pairing.session_payload is None:
+        return
+    proxy_state = app.state.proxy_session_store.get(pairing.pairing_id)
+    if proxy_state is None or not proxy_state.remember_device or proxy_state.trusted_cookie_reissued:
+        return
+    app.state.trusted_device_service.remember(response, pairing.session_payload)
+    proxy_state.trusted_cookie_reissued = True
+
+
 def _get_proxy_rate_limiter(app) -> SlidingWindowRateLimiter | None:
     return getattr(app.state, "proxy_rate_limiter", None)
 
@@ -174,7 +201,9 @@ def _check_proxy_rate_limit_for_request(app, pairing_service: PairingService, re
     try:
         phone_verifier = pairing_service.resolve_phone_verifier_from_host(request.headers.get("host", ""))
     except PairingNotFoundError:
-        return
+        phone_verifier = request.cookies.get(PHONE_FLOW_COOKIE_NAME, "")
+        if not phone_verifier:
+            return
 
     client_ip = extract_client_ip(
         headers=request.headers,
