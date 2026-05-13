@@ -65,5 +65,6 @@ def _check_translation_rate_limit(request: Request) -> None:
     client_ip = extract_client_ip(
         headers=request.headers,
         client_host=request.client.host if request.client is not None else None,
+        trusted_proxies=getattr(request.app.state, "trusted_proxy_networks", ()),
     )
     limiter.check(f"translation:ip:{client_ip}")

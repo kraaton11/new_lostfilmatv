@@ -184,6 +184,7 @@ class LostFilmProxyServiceTest(unittest.TestCase):
             query_string="return=%2Fmy%3Fcheck%3D1",
             headers={"accept": "text/html"},
             body=b"",
+            user_code=pairing.user_code,
         )
         html = response.content.decode("utf-8")
 
@@ -192,6 +193,8 @@ class LostFilmProxyServiceTest(unittest.TestCase):
         self.assertIn("<body>", html)
         self.assertIn('<form id="auth-bridge-login-form"', html)
         self.assertIn('id="auth-bridge-login-rewrite"', html)
+        self.assertIn('id="pairing-code-block"', html)
+        self.assertIn('id="pairing-code-value">ABC123</div>', html)
         self.assertIn('name="mail"', html)
         self.assertIn('name="pass"', html)
         self.assertIn('name="captcha"', html)

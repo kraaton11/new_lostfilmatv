@@ -6,6 +6,8 @@
 build/
 captures/
 local.properties
+.env
+**/.env
 .venv/
 .venv_local/
 __pycache__/

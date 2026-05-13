@@ -10,5 +10,6 @@ interface AuthRepositoryContract {
     suspend fun startPairing(): PairingSession
     suspend fun pollPairingStatus(): PairingSession?
     suspend fun claimAndPersistSession(): AuthCompletionResult
+    suspend fun cancelPairing()
     suspend fun logout()
 }

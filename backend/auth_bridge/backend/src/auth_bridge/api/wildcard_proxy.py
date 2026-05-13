@@ -6,6 +6,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 from starlette.concurrency import run_in_threadpool
 
+from auth_bridge.api.security_headers import apply_security_headers, secure_html_response
 from auth_bridge.logging_utils import mask_token
 from auth_bridge.middleware.rate_limit import (
     RateLimitExceeded,
@@ -32,9 +33,9 @@ def attach_wildcard_proxy_router(app, pairing_service: PairingService) -> None:
         try:
             pairing, wildcard_host = _open_phone_flow_for_request(pairing_service, request)
         except PairingNotFoundError:
-            return HTMLResponse("Pairing session was not found.", status_code=status.HTTP_404_NOT_FOUND)
+            return secure_html_response("Pairing session was not found.", status_code=status.HTTP_404_NOT_FOUND)
         except PairingExpiredError:
-            return HTMLResponse("Pairing expired.", status_code=status.HTTP_410_GONE)
+            return secure_html_response("Pairing expired.", status_code=status.HTTP_410_GONE)
 
         proxy_state = app.state.proxy_session_store.get(pairing.pairing_id)
         if pairing.session_payload is None and proxy_state is None and _proxy_access_allowed(pairing):
@@ -43,7 +44,7 @@ def attach_wildcard_proxy_router(app, pairing_service: PairingService) -> None:
             try:
                 _check_proxy_rate_limit_for_request(app, pairing_service, request)
             except RateLimitExceeded:
-                return HTMLResponse("Too many requests. Please try again later.", status_code=status.HTTP_429_TOO_MANY_REQUESTS)
+                return secure_html_response("Too many requests. Please try again later.", status_code=status.HTTP_429_TOO_MANY_REQUESTS)
             return await _proxy_request(app, pairing_service, pairing, request, "/", wildcard_host)
 
         return _render_phone_shell_response(pairing)
@@ -57,14 +58,14 @@ def attach_wildcard_proxy_router(app, pairing_service: PairingService) -> None:
             try:
                 _check_proxy_rate_limit_for_request(app, pairing_service, request)
             except RateLimitExceeded:
-                return HTMLResponse("Too many requests. Please try again later.", status_code=status.HTTP_429_TOO_MANY_REQUESTS)
+                return secure_html_response("Too many requests. Please try again later.", status_code=status.HTTP_429_TOO_MANY_REQUESTS)
 
         try:
             pairing, wildcard_host = _open_phone_flow_for_request(pairing_service, request)
         except PairingNotFoundError:
-            return HTMLResponse("Pairing session was not found.", status_code=status.HTTP_404_NOT_FOUND)
+            return secure_html_response("Pairing session was not found.", status_code=status.HTTP_404_NOT_FOUND)
         except PairingExpiredError:
-            return HTMLResponse("Pairing expired.", status_code=status.HTTP_410_GONE)
+            return secure_html_response("Pairing expired.", status_code=status.HTTP_410_GONE)
 
         if not _proxy_access_allowed(pairing):
             return _render_phone_shell_response(pairing)
@@ -91,10 +92,11 @@ async def _proxy_request(app, pairing_service: PairingService, pairing, request:
             request.url.query,
             dict(request.headers),
             await request.body(),
+            user_code=pairing.user_code,
         )
     except UpstreamProxyError:
         logger.warning("Upstream proxy unavailable pairing_id=%s path=%s", mask_token(pairing.pairing_id), path)
-        return HTMLResponse("LostFilm is temporarily unavailable. Please try again later.", status_code=502)
+        return secure_html_response("LostFilm is temporarily unavailable. Please try again later.", status_code=502)
     if pairing.session_payload is None and "text/html" in proxied_response.headers.get("content-type", "").lower():
         proxy_state = app.state.proxy_session_store.get(pairing.pairing_id)
         cookie_names = [cookie.name for cookie in proxy_state.cookie_jar.jar] if proxy_state is not None else []
@@ -115,11 +117,14 @@ async def _proxy_request(app, pairing_service: PairingService, pairing, request:
         )
         if is_authenticated and proxy_state is not None:
             pairing_service.confirm_pairing_from_proxy_session(pairing.pairing_id, proxy_state.cookie_jar)
-    return Response(
+    response = Response(
         content=proxied_response.content,
         status_code=proxied_response.status_code,
         headers=proxied_response.headers,
     )
+    if "text/html" in proxied_response.headers.get("content-type", "").lower():
+        apply_security_headers(response)
+    return response
 
 
 def _render_template(template_name: str, **context: object) -> str:
@@ -143,6 +148,7 @@ def _check_proxy_rate_limit_for_request(app, pairing_service: PairingService, re
     client_ip = extract_client_ip(
         headers=request.headers,
         client_host=request.client.host if request.client is not None else None,
+        trusted_proxies=getattr(request.app.state, "trusted_proxy_networks", ()),
     )
     keys = build_proxy_rate_limit_keys(
         client_ip=client_ip,
@@ -172,7 +178,7 @@ def _proxy_access_allowed(pairing) -> bool:
 
 
 def _render_phone_shell_response(pairing) -> HTMLResponse:
-    return HTMLResponse(
+    return secure_html_response(
         _render_template(
             "phone_shell.html",
             confirmed=pairing.session_payload is not None,

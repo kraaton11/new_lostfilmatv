@@ -491,6 +491,7 @@ private class FakeAuthRepository : AuthRepositoryContract {
     override suspend fun startPairing(): PairingSession = error("Not used in this test")
     override suspend fun pollPairingStatus(): PairingSession? = null
     override suspend fun claimAndPersistSession() = AuthCompletionResult.RecoverableFailure()
+    override suspend fun cancelPairing() = Unit
     override suspend fun logout() = Unit
 }
 

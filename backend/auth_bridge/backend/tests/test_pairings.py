@@ -277,3 +277,27 @@ class PairingsApiTest(unittest.TestCase):
 
         self.assertEqual(release.status_code, 204)
         self.assertIsNone(app.state.proxy_session_store.get(pairing["pairingId"]))
+
+    def test_cancel_marks_pairing_failed_and_clears_proxy_session_state(self) -> None:
+        pairing = self.client.post("/api/pairings").json()
+        app.state.proxy_session_store.get_or_create(pairing["pairingId"]).cookie_jar.set(
+            "lf_session",
+            "proxy-cookie",
+            domain=".lostfilm.today",
+            path="/",
+        )
+
+        cancel = self.client.post(
+            f"/api/pairings/{pairing['pairingId']}/cancel",
+            headers={"X-Pairing-Secret": pairing["pairingSecret"]},
+        )
+        status_response = self.client.get(
+            f"/api/pairings/{pairing['pairingId']}",
+            headers={"X-Pairing-Secret": pairing["pairingSecret"]},
+        )
+
+        self.assertEqual(cancel.status_code, 204)
+        self.assertIsNone(app.state.proxy_session_store.get(pairing["pairingId"]))
+        self.assertEqual(status_response.status_code, 200)
+        self.assertEqual(status_response.json()["status"], "failed")
+        self.assertEqual(status_response.json()["failureReason"], "cancelled")

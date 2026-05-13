@@ -1,4 +1,5 @@
 from functools import lru_cache
+from ipaddress import ip_network
 from urllib.parse import urlparse
 
 from pydantic import AliasChoices, Field, field_validator
@@ -44,6 +45,7 @@ class Settings(BaseSettings):
     translation_cache_max_entries: int = 1000
     translation_cache_ttl_seconds: int = 7 * 24 * 60 * 60
     log_format: str = "text"
+    trusted_proxy_ips: str = ""
 
     @field_validator("pairing_ttl_seconds", "pairing_poll_interval_seconds", "claim_lease_ttl_seconds")
     @classmethod
@@ -93,6 +95,17 @@ class Settings(BaseSettings):
             raise ValueError("log_format must be either 'text' or 'json'")
         return normalized
 
+    @field_validator("trusted_proxy_ips")
+    @classmethod
+    def validate_trusted_proxy_ips(cls, value: str) -> str:
+        entries = [entry.strip() for entry in value.split(",") if entry.strip()]
+        for entry in entries:
+            try:
+                ip_network(entry, strict=False)
+            except ValueError as exc:
+                raise ValueError("trusted_proxy_ips must contain IP addresses or CIDR ranges") from exc
+        return ",".join(entries)
+
     @field_validator("public_base_url")
     @classmethod
     def validate_public_base_url(cls, value: str) -> str:
@@ -140,6 +153,10 @@ class Settings(BaseSettings):
             return self.public_base_domain
         parsed = urlparse(self.public_base_url)
         return parsed.netloc or self.public_base_url
+
+    @property
+    def trusted_proxy_networks(self) -> tuple[str, ...]:
+        return tuple(entry for entry in self.trusted_proxy_ips.split(",") if entry)
 
 
 @lru_cache

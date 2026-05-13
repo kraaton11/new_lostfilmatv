@@ -87,5 +87,6 @@ class TestFakeAuthRepository : AuthRepositoryContract {
     override suspend fun pollPairingStatus(): PairingSession? = pairingSession
     override suspend fun claimAndPersistSession() =
         com.kraat.lostfilmnewtv.data.auth.AuthCompletionResult.RecoverableFailure()
+    override suspend fun cancelPairing() { pairingSession = null }
     override suspend fun logout() { authState = AuthState(isAuthenticated = false, session = null) }
 }

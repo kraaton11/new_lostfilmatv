@@ -294,7 +294,7 @@ class AuthRepositoryTest {
     }
 
     @Test
-    fun claimAndPersistSession_returnsNetworkError_whenFinalizeFails_withoutRelease() = runTest {
+    fun claimAndPersistSession_keepsSavedSession_whenFinalizeFails() = runTest {
         val bridgeServer = MockWebServer()
         val verifierServer = MockWebServer()
         bridgeServer.enqueue(pairingCreateResponse())
@@ -321,8 +321,8 @@ class AuthRepositoryTest {
             repository.startPairing()
             val result = repository.claimAndPersistSession()
 
-            assertEquals(AuthCompletionResult.NetworkError, result)
-            assertNull(sessionStore.session)
+            assertEquals(AuthCompletionResult.Authenticated, result)
+            assertNotNull(sessionStore.session)
             assertEquals("/api/pairings", bridgeServer.takeRequest().path)
             assertEquals("/api/pairings/pair-123/claim", bridgeServer.takeRequest().path)
             assertEquals("/api/pairings/pair-123/finalize", bridgeServer.takeRequest().path)
@@ -336,7 +336,7 @@ class AuthRepositoryTest {
     }
 
     @Test
-    fun claimAndPersistSession_returnsRecoverableFailure_whenFinalizeDoesNotComplete() = runTest {
+    fun claimAndPersistSession_keepsSavedSession_whenFinalizeDoesNotComplete() = runTest {
         val bridgeServer = MockWebServer()
         val verifierServer = MockWebServer()
         bridgeServer.enqueue(pairingCreateResponse())
@@ -361,8 +361,8 @@ class AuthRepositoryTest {
             repository.startPairing()
             val result = repository.claimAndPersistSession()
 
-            assertEquals(AuthCompletionResult.RecoverableFailure(), result)
-            assertNull(sessionStore.session)
+            assertEquals(AuthCompletionResult.Authenticated, result)
+            assertNotNull(sessionStore.session)
             assertEquals("/api/pairings", bridgeServer.takeRequest().path)
             assertEquals("/api/pairings/pair-123/claim", bridgeServer.takeRequest().path)
             assertEquals("/api/pairings/pair-123/finalize", bridgeServer.takeRequest().path)
@@ -370,6 +370,73 @@ class AuthRepositoryTest {
         } finally {
             bridgeServer.shutdown()
             verifierServer.shutdown()
+        }
+    }
+
+    @Test
+    fun claimAndPersistSession_returnsRecoverableFailure_whenLocalSaveFails() = runTest {
+        val bridgeServer = MockWebServer()
+        val verifierServer = MockWebServer()
+        bridgeServer.enqueue(pairingCreateResponse())
+        bridgeServer.enqueue(claimResponse())
+        verifierServer.enqueue(authenticatedProbeResponse())
+        bridgeServer.start()
+        verifierServer.start()
+        try {
+            val sessionStore = FakeSessionStore(failOnSave = true)
+            val repository = AuthRepository(
+                authBridgeClient = AuthBridgeClient(baseUrl(bridgeServer), OkHttpClient()),
+                sessionStore = sessionStore,
+                sessionVerifier = LostFilmSessionVerifier(
+                    probeUrl = verifierServer.url("/").toString(),
+                    okHttpClient = OkHttpClient(),
+                ),
+                verificationMaxAttempts = 3,
+                verificationRetryDelayMillis = 1L,
+            )
+
+            repository.startPairing()
+            val result = repository.claimAndPersistSession()
+
+            assertEquals(AuthCompletionResult.RecoverableFailure(), result)
+            assertNull(sessionStore.session)
+            assertEquals("/api/pairings", bridgeServer.takeRequest().path)
+            assertEquals("/api/pairings/pair-123/claim", bridgeServer.takeRequest().path)
+            assertEquals(2, bridgeServer.requestCount)
+        } finally {
+            bridgeServer.shutdown()
+            verifierServer.shutdown()
+        }
+    }
+
+    @Test
+    fun cancelPairing_postsCancelAndClearsCurrentPairing() = runTest {
+        val bridgeServer = MockWebServer()
+        bridgeServer.enqueue(pairingCreateResponse())
+        bridgeServer.enqueue(MockResponse().setResponseCode(204))
+        bridgeServer.start()
+        try {
+            val repository = AuthRepository(
+                authBridgeClient = AuthBridgeClient(baseUrl(bridgeServer), OkHttpClient()),
+                sessionStore = FakeSessionStore(),
+                sessionVerifier = LostFilmSessionVerifier(
+                    probeUrl = "https://unused.example.test/",
+                    okHttpClient = OkHttpClient(),
+                ),
+                verificationMaxAttempts = 1,
+                verificationRetryDelayMillis = 1L,
+            )
+
+            repository.startPairing()
+            repository.cancelPairing()
+            val afterCancel = repository.pollPairingStatus()
+
+            assertNull(afterCancel)
+            assertEquals("/api/pairings", bridgeServer.takeRequest().path)
+            assertEquals("/api/pairings/pair-123/cancel", bridgeServer.takeRequest().path)
+            assertEquals(2, bridgeServer.requestCount)
+        } finally {
+            bridgeServer.shutdown()
         }
     }
 
@@ -425,12 +492,16 @@ class AuthRepositoryTest {
     private class FakeSessionStore(
         var session: LostFilmSession? = null,
         var expired: Boolean = false,
+        private val failOnSave: Boolean = false,
     ) : SessionStore {
         private val changesFlow = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
         override suspend fun read(): LostFilmSession? = session
 
         override suspend fun save(session: LostFilmSession) {
+            if (failOnSave) {
+                throw IllegalStateException("save failed")
+            }
             this.session = session
             expired = false
             changesFlow.tryEmit(Unit)

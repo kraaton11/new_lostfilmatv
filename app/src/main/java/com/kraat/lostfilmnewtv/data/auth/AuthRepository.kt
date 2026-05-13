@@ -111,7 +111,7 @@ class AuthRepository(
         }
 
         return when (verifyClaimedSessionWithRetries(session)) {
-            VerificationResult.AUTHENTICATED -> finalizeVerifiedSession(pairing, session)
+            VerificationResult.AUTHENTICATED -> persistVerifiedSessionAndFinalizeBestEffort(pairing, session)
             VerificationResult.UNAUTHENTICATED -> {
                 releaseClaimBestEffort(pairing)
                 AuthCompletionResult.VerificationFailed
@@ -146,45 +146,46 @@ class AuthRepository(
         return VerificationResult.NETWORK_ERROR
     }
 
-    private suspend fun finalizeVerifiedSession(
+    private suspend fun persistVerifiedSessionAndFinalizeBestEffort(
         pairing: PairingSession,
         session: LostFilmSession,
     ): AuthCompletionResult {
+        try {
+            sessionStore.save(session)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            return AuthCompletionResult.RecoverableFailure()
+        }
+
         val attempts = verificationMaxAttempts.coerceAtLeast(1)
         repeat(attempts) { attempt ->
             try {
                 val finalized = authBridgeClient.finalizeClaim(pairing)
-                if (!finalized) {
-                    return AuthCompletionResult.RecoverableFailure()
+                if (finalized) {
+                    return AuthCompletionResult.Authenticated
                 }
-                sessionStore.save(session)
                 return AuthCompletionResult.Authenticated
             } catch (e: AuthBridgeHttpException) {
-                if (e.isExpired()) {
-                    return AuthCompletionResult.Expired
-                }
-
                 if (e.isRetryable()) {
                     if (attempt == attempts - 1) {
-                        return AuthCompletionResult.NetworkError
+                        return AuthCompletionResult.Authenticated
                     }
                     delay(verificationRetryDelayMillis)
-                } else {
-                    return AuthCompletionResult.RecoverableFailure()
                 }
             } catch (_: IOException) {
                 if (attempt == attempts - 1) {
-                    return AuthCompletionResult.NetworkError
+                    return AuthCompletionResult.Authenticated
                 }
                 delay(verificationRetryDelayMillis)
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Exception) {
-                return AuthCompletionResult.RecoverableFailure()
+                return AuthCompletionResult.Authenticated
             }
         }
 
-        return AuthCompletionResult.NetworkError
+        return AuthCompletionResult.Authenticated
     }
 
     private suspend fun releaseClaimBestEffort(pairing: PairingSession) {
@@ -194,6 +195,18 @@ class AuthRepository(
             throw e
         } catch (_: Exception) {
             // Release is best-effort after a failed local handoff.
+        }
+    }
+
+    override suspend fun cancelPairing() {
+        val pairing = currentPairing ?: return
+        currentPairing = null
+        try {
+            authBridgeClient.cancelPairing(pairing)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            // Cancellation from the TV should close local state even if the bridge is unreachable.
         }
     }
 

@@ -43,6 +43,9 @@ class PhoneFlowCompatibilityTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 404)
         self.assertIn("Pairing session was not found.", response.text)
+        self.assertEqual(response.headers["cache-control"], "no-store")
+        self.assertEqual(response.headers["referrer-policy"], "no-referrer")
+        self.assertIn("frame-ancestors 'none'", response.headers["content-security-policy"])
 
     def test_expired_pair_route_returns_410(self) -> None:
         pairing = self.client.post("/api/pairings").json()
@@ -56,6 +59,7 @@ class PhoneFlowCompatibilityTest(unittest.TestCase):
 
         self.assertEqual(response.status_code, 410)
         self.assertIn("Pairing expired", response.text)
+        self.assertEqual(response.headers["cache-control"], "no-store")
 
     def test_legacy_login_post_endpoint_is_not_supported(self) -> None:
         pairing = self.client.post("/api/pairings").json()

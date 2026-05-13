@@ -51,6 +51,7 @@ class AuthScreenTest {
 
         composeRule.onNodeWithText("1. Откройте QR на телефоне\n2. Войдите в LostFilm\n3. Вернитесь к телевизору, экран обновится сам").assertIsDisplayed()
         composeRule.onNodeWithText("Откройте ссылку на телефоне").assertIsDisplayed()
+        composeRule.onNodeWithText("Отменить").assertIsDisplayed()
     }
 
     @Test
@@ -120,6 +121,8 @@ class AuthScreenTest {
         }
 
         override suspend fun claimAndPersistSession(): AuthCompletionResult = completionResult.await()
+
+        override suspend fun cancelPairing() = Unit
 
         override suspend fun logout() {
             authStateFlow.value = AuthState()

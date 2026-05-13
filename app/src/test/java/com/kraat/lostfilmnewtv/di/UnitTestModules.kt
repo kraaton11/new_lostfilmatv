@@ -98,5 +98,6 @@ class UnitTestFakeAuthRepository : AuthRepositoryContract {
     override suspend fun startPairing(): PairingSession = error("Not configured")
     override suspend fun pollPairingStatus(): PairingSession? = null
     override suspend fun claimAndPersistSession() = AuthCompletionResult.RecoverableFailure()
+    override suspend fun cancelPairing() = Unit
     override suspend fun logout() { authState = AuthState(isAuthenticated = false, session = null) }
 }
