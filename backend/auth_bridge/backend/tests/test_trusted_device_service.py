@@ -14,16 +14,17 @@ from auth_bridge.services.lostfilm_auth_detector import LostFilmAuthDetector
 from auth_bridge.services.trusted_device_service import TrustedDeviceService
 
 
-class TrustedDeviceServiceTest(unittest.TestCase):
-    def test_remember_stores_encrypted_payload_and_resolves_valid_session(self) -> None:
+class TrustedDeviceServiceTest(unittest.IsolatedAsyncioTestCase):
+    async def test_remember_stores_encrypted_payload_and_resolves_valid_session(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             service = _service(temp_dir, authenticated=True)
             response = Response()
             payload = _payload()
 
-            service.remember(response, payload)
+            await service.initialize()
+            await service.remember(response, payload)
             token = _cookie_value(response.headers["set-cookie"], service.cookie_name)
-            resolved = service.resolve(_request_with_cookie(service.cookie_name, token))
+            resolved = await service.resolve(_request_with_cookie(service.cookie_name, token))
 
             self.assertIsNotNone(resolved)
             self.assertEqual(resolved.payload.accountId, "42")
@@ -31,19 +32,20 @@ class TrustedDeviceServiceTest(unittest.TestCase):
             db_bytes = Path(temp_dir, "trusted.sqlite3").read_bytes()
             self.assertNotIn(b"cookie-1", db_bytes)
 
-    def test_resolve_revokes_cookie_when_lostfilm_session_is_invalid(self) -> None:
+    async def test_resolve_revokes_cookie_when_lostfilm_session_is_invalid(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             service = _service(temp_dir, authenticated=False)
             response = Response()
-            service.remember(response, _payload())
+            await service.initialize()
+            await service.remember(response, _payload())
             token = _cookie_value(response.headers["set-cookie"], service.cookie_name)
 
-            resolved = service.resolve(_request_with_cookie(service.cookie_name, token))
-            second_resolved = service.resolve(_request_with_cookie(service.cookie_name, token))
+            resolved = await service.resolve(_request_with_cookie(service.cookie_name, token))
+            second_resolved = await service.resolve(_request_with_cookie(service.cookie_name, token))
 
             self.assertIsNone(resolved)
             self.assertIsNone(second_resolved)
-            self.assertEqual(service.count(), 0)
+            self.assertEqual(await service.count(), 0)
 
 
 def _service(temp_dir: str, *, authenticated: bool) -> TrustedDeviceService:

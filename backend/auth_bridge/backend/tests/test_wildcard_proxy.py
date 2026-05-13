@@ -1,3 +1,4 @@
+import asyncio
 import sys
 import tempfile
 import unittest
@@ -282,7 +283,7 @@ class WildcardProxyRouterTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             trusted_service = _trusted_service(temp_dir)
             seed_response = Response()
-            trusted_service.remember(seed_response, _trusted_payload())
+            asyncio.run(trusted_service.remember(seed_response, _trusted_payload()))
             token = _cookie_value(seed_response.headers["set-cookie"], trusted_service.cookie_name)
             app.state.trusted_device_service = trusted_service
 
@@ -315,7 +316,7 @@ class WildcardProxyRouterTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             trusted_service = _service_rejecting_trusted_resolution(temp_dir)
             seed_response = Response()
-            trusted_service.remember(seed_response, payload)
+            asyncio.run(trusted_service.remember(seed_response, payload))
             token = _cookie_value(seed_response.headers["set-cookie"], trusted_service.cookie_name)
             app.state.trusted_device_service = trusted_service
 
@@ -331,7 +332,7 @@ class WildcardProxyRouterTest(unittest.TestCase):
                 app.state.trusted_device_service = original_trusted_service
 
             self.assertEqual(response.status_code, 200)
-            self.assertEqual(trusted_service.count(), 1)
+            self.assertEqual(asyncio.run(trusted_service.count()), 1)
 
     def test_confirmed_pairing_reissues_trusted_cookie_on_top_level_page(self) -> None:
         pairing = self.client.post("/api/pairings").json()
@@ -352,7 +353,7 @@ class WildcardProxyRouterTest(unittest.TestCase):
                     "/",
                     headers={"host": f"{pairing['phoneVerifier']}.auth.example.test"},
                 )
-                trusted_count = app.state.trusted_device_service.count()
+                trusted_count = asyncio.run(app.state.trusted_device_service.count())
             finally:
                 app.state.trusted_device_service = original_trusted_service
 
@@ -586,7 +587,7 @@ def _trusted_service(temp_dir: str) -> TrustedDeviceService:
             text='<html><body><a href="/logout">Logout</a></body></html>',
         )
 
-    return TrustedDeviceService(
+    service = TrustedDeviceService(
         db_path=str(Path(temp_dir, "trusted.sqlite3")),
         secret="test-secret",
         cookie_name="auth_bridge_session",
@@ -596,13 +597,15 @@ def _trusted_service(temp_dir: str) -> TrustedDeviceService:
         auth_detector=LostFilmAuthDetector(),
         transport=httpx.MockTransport(handler),
     )
+    asyncio.run(service.initialize())
+    return service
 
 
 def _service_rejecting_trusted_resolution(temp_dir: str) -> TrustedDeviceService:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, headers={"content-type": "text/html"}, text="<html><body>Login</body></html>")
 
-    return TrustedDeviceService(
+    service = TrustedDeviceService(
         db_path=str(Path(temp_dir, "trusted.sqlite3")),
         secret="test-secret",
         cookie_name="auth_bridge_session",
@@ -612,6 +615,8 @@ def _service_rejecting_trusted_resolution(temp_dir: str) -> TrustedDeviceService
         auth_detector=LostFilmAuthDetector(),
         transport=httpx.MockTransport(handler),
     )
+    asyncio.run(service.initialize())
+    return service
 
 
 def _trusted_payload() -> SessionPayload:
