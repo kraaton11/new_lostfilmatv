@@ -60,10 +60,10 @@
       <p>Доверенное устройство уже входило в LostFilm как {{ account_label }}.</p>
       <p>TV code</p>
       <div class="code">{{ user_code }}</div>
-      <form method="post" action="/auth-bridge/trusted/authorize">
+      <form method="post" action="/auth-bridge/trusted/authorize{% if device_id %}?device_id={{ device_id }}{% endif %}">
         <button type="submit">Авторизовать Android TV</button>
       </form>
-      <form method="post" action="/auth-bridge/trusted/revoke">
+      <form method="post" action="/auth-bridge/trusted/revoke{% if device_id %}?device_id={{ device_id }}{% endif %}">
         <button class="secondary" type="submit">Войти другим аккаунтом</button>
       </form>
     </main>

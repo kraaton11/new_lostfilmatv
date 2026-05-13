@@ -1,11 +1,13 @@
 package com.kraat.lostfilmnewtv.ui.auth
 
+import android.provider.Settings
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -19,6 +21,10 @@ fun AuthScreen(
     onNavigateBack: () -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val deviceId = remember(context) {
+        Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
+    }
 
     LaunchedEffect(autoStart) {
         if (autoStart && uiState is AuthUiState.Idle) {
@@ -77,8 +83,15 @@ fun AuthScreen(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
-                val qrBitmap = remember(pairing?.verificationUrl) {
-                    pairing?.verificationUrl?.let { QrCodeGenerator.generateImageBitmap(it, 360) }
+                val qrUrl = remember(pairing?.verificationUrl, deviceId) {
+                    pairing?.verificationUrl?.let { url ->
+                        val separator = if (url.contains("?")) "&" else "?"
+                        "$url${separator}device_id=$deviceId"
+                    }
+                }
+
+                val qrBitmap = remember(qrUrl) {
+                    qrUrl?.let { QrCodeGenerator.generateImageBitmap(it, 360) }
                 }
 
                 qrBitmap?.let {

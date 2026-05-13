@@ -61,6 +61,7 @@ async def _lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger = logging.getLogger(__name__)
     settings = get_settings()
     logger.info("Auth Bridge starting up")
+    await app.state.trusted_device_service.initialize()
     cleanup_task = asyncio.create_task(_run_cleanup_loop(app, settings.cleanup_interval_seconds))
     try:
         yield
@@ -82,13 +83,14 @@ async def _run_cleanup_loop(app: FastAPI, interval_seconds: int) -> None:
         await asyncio.sleep(interval)
         try:
             app.state.pairing_service.prune_expired()
+            trusted_count = await app.state.trusted_device_service.count()
             logger.debug(
                 "Pairing cleanup completed: active_pairings=%d proxy_sessions=%d trusted_devices=%d",
                 app.state.pairing_service.active_pairing_count(),
                 app.state.proxy_session_store.count(),
-                app.state.trusted_device_service.count(),
+                trusted_count,
             )
-            app.state.trusted_device_service.prune_expired()
+            await app.state.trusted_device_service.prune_expired()
         except Exception:
             logger.exception("Pairing cleanup failed")
 

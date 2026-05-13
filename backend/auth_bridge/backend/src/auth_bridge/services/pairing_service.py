@@ -16,7 +16,7 @@ from auth_bridge.services.pairing_store import InMemoryPairingStore, PairingReco
 logger = logging.getLogger(__name__)
 
 ALLOWED_SESSION_COOKIE_NAMES = {"lf_session", "lf_udv", "uid"}
-ALLOWED_SESSION_COOKIE_DOMAINS = {"lostfilm.today", ".lostfilm.today"}
+ALLOWED_SESSION_COOKIE_DOMAINS = {"lostfilm.today", ".lostfilm.today", "www.lostfilm.today"}
 PHONE_FLOW_COOKIE_NAME = "auth_bridge_pairing"
 
 

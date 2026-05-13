@@ -44,7 +44,8 @@ def attach_wildcard_proxy_router(app, pairing_service: PairingService) -> None:
             return secure_html_response("Pairing expired.", status_code=status.HTTP_410_GONE)
 
         if pairing.session_payload is None:
-            trusted_session = _trusted_device_session_for_request(app, request)
+            device_id = request.query_params.get("device_id")
+            trusted_session = await _trusted_device_session_for_request(app, request, device_id=device_id)
             if trusted_session is not None and _proxy_access_allowed(pairing):
                 return _render_trusted_device_response(pairing, trusted_session)
 
@@ -59,7 +60,7 @@ def attach_wildcard_proxy_router(app, pairing_service: PairingService) -> None:
             return await _proxy_request(app, pairing_service, pairing, request, "/", wildcard_host)
 
         response = _render_phone_shell_response(pairing)
-        _reissue_trusted_cookie_after_confirm(app, pairing, response)
+        await _reissue_trusted_cookie_after_confirm(app, pairing, response)
         return response
 
     @router.api_route("/{proxy_path:path}", methods=["GET", "POST"])
@@ -84,18 +85,19 @@ def attach_wildcard_proxy_router(app, pairing_service: PairingService) -> None:
             return _render_phone_shell_response(pairing)
 
         if request.method == "POST" and proxy_path == "auth-bridge/trusted/authorize":
-            trusted_session = _trusted_device_session_for_request(app, request)
+            device_id = request.query_params.get("device_id")
+            trusted_session = await _trusted_device_session_for_request(app, request, device_id=device_id)
             if trusted_session is None:
                 return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
             pairing_service.confirm_pairing(pairing.pairing_id, trusted_session.payload)
             response = _render_phone_shell_response(pairing)
-            app.state.trusted_device_service.remember(response, trusted_session.payload, previous_token=trusted_session.token)
+            await app.state.trusted_device_service.remember(response, trusted_session.payload, previous_token=trusted_session.token)
             return response
 
         if request.method == "POST" and proxy_path == "auth-bridge/trusted/revoke":
             trusted_service = getattr(app.state, "trusted_device_service", None)
             if trusted_service is not None:
-                trusted_service.revoke_token(request.cookies.get(trusted_service.cookie_name, ""))
+                await trusted_service.revoke_token(request.cookies.get(trusted_service.cookie_name, ""))
             response = RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
             if trusted_service is not None:
                 trusted_service.forget_response_cookie(response)
@@ -103,9 +105,10 @@ def attach_wildcard_proxy_router(app, pairing_service: PairingService) -> None:
 
         if request.method == "GET" and proxy_path == "login":
             if pairing.session_payload is None:
-                trusted_session = _trusted_device_session_for_request(app, request)
+                device_id = request.query_params.get("device_id")
+                trusted_session = await _trusted_device_session_for_request(app, request, device_id=device_id)
                 if trusted_session is not None:
-                    return _render_trusted_device_response(pairing, trusted_session)
+                    return _render_trusted_device_response(pairing, trusted_session, device_id=device_id)
 
         return await _proxy_request(app, pairing_service, pairing, request, f"/{proxy_path}", wildcard_host)
 
@@ -169,7 +172,7 @@ async def _proxy_request(app, pairing_service: PairingService, pairing, request:
         headers=proxied_response.headers,
     )
     if confirmed_payload is not None and proxy_state is not None and proxy_state.remember_device:
-        app.state.trusted_device_service.remember(response, confirmed_payload)
+        await app.state.trusted_device_service.remember(response, confirmed_payload)
     if "text/html" in proxied_response.headers.get("content-type", "").lower():
         apply_security_headers(response)
     return response
@@ -179,13 +182,13 @@ def _render_template(template_name: str, **context: object) -> str:
     return _template_env.get_template(template_name).render(**context)
 
 
-def _reissue_trusted_cookie_after_confirm(app, pairing, response: Response) -> None:
+async def _reissue_trusted_cookie_after_confirm(app, pairing, response: Response) -> None:
     if pairing.session_payload is None:
         return
     proxy_state = app.state.proxy_session_store.get(pairing.pairing_id)
     if proxy_state is None or not proxy_state.remember_device or proxy_state.trusted_cookie_reissued:
         return
-    app.state.trusted_device_service.remember(response, pairing.session_payload)
+    await app.state.trusted_device_service.remember(response, pairing.session_payload)
     proxy_state.trusted_cookie_reissued = True
 
 
@@ -237,20 +240,21 @@ def _proxy_access_allowed(pairing) -> bool:
     )
 
 
-def _trusted_device_session_for_request(app, request: Request) -> TrustedDeviceSession | None:
+async def _trusted_device_session_for_request(app, request: Request, device_id: str | None = None) -> TrustedDeviceSession | None:
     trusted_service = getattr(app.state, "trusted_device_service", None)
     if trusted_service is None:
         return None
-    return trusted_service.resolve(request)
+    return await trusted_service.resolve(request, device_id=device_id)
 
 
-def _render_trusted_device_response(pairing, trusted_session: TrustedDeviceSession) -> HTMLResponse:
+def _render_trusted_device_response(pairing, trusted_session: TrustedDeviceSession, device_id: str | None = None) -> HTMLResponse:
     account_label = trusted_session.payload.accountId or "LostFilm"
     return secure_html_response(
         _render_template(
             "trusted_device.html",
             user_code=pairing.user_code,
             account_label=account_label,
+            device_id=device_id or "",
         )
     )
 
