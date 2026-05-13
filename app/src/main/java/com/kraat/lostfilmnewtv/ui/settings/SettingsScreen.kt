@@ -1,6 +1,8 @@
 package com.kraat.lostfilmnewtv.ui.settings
 
 import androidx.activity.compose.BackHandler
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
@@ -33,6 +35,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import com.kraat.lostfilmnewtv.BuildConfig
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.playback.WatchedMarkingMode
@@ -123,6 +126,7 @@ fun SettingsScreen(
             put(SettingsFocusTarget.CheckForUpdates.toTag(), FocusRequester())
             put(SettingsFocusTarget.InstallUpdate.toTag(), FocusRequester())
             put(SettingsFocusTarget.AccountAuth.toTag(), FocusRequester())
+            put(SettingsFocusTarget.AboutGitHubLink.toTag(), FocusRequester())
         }
     }
     var contentHasFocus by remember { mutableStateOf(false) }
@@ -718,12 +722,41 @@ fun SettingsScreen(
 
                         SettingsSection.ABOUT -> {
                             SettingsOptionsSection {
+                                val context = LocalContext.current
                                 SettingsOverviewCard(
                                     title = "О приложении",
                                     subtitle = "Неофициальный клиент LostFilm для Android TV.",
                                     modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(14.dp)),
                                 ) {
                                     SettingsOverviewValue(text = "Версия: ${BuildConfig.VERSION_NAME} (сборка ${BuildConfig.VERSION_CODE})")
+                                }
+                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    val gitHubTag = SettingsFocusTarget.AboutGitHubLink.toTag()
+                                    SettingsRowButton(
+                                        title = "Исходный код на GitHub",
+                                        description = "Репозиторий kraaton11/new_lostfilmatv",
+                                        value = "Открыть",
+                                        onClick = {
+                                            context.startActivity(
+                                                Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/kraaton11/new_lostfilmatv")).apply {
+                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                },
+                                            )
+                                        },
+                                        tag = gitHubTag,
+                                        onFocused = {
+                                            rememberedActionBySection = rememberedActionBySection + (
+                                                SettingsSection.ABOUT.name to SettingsFocusTarget.AboutGitHubLink
+                                            )
+                                        },
+                                        modifier = Modifier
+                                            .focusRequester(contentRequesters.getValue(gitHubTag))
+                                            .focusProperties {
+                                                left = railRequesters.getValue(SettingsSection.ABOUT)
+                                                up = railRequesters.getValue(SettingsSection.ABOUT)
+                                                down = FocusRequester.Default
+                                            },
+                                    )
                                 }
                             }
                         }
@@ -982,7 +1015,7 @@ private fun targetContentTag(
         section == SettingsSection.DIAGNOSTICS -> SettingsFocusTarget.DiagnosticsRun
         section == SettingsSection.UPDATES -> SettingsFocusTarget.UpdateChannel(selectedUpdateMode)
         section == SettingsSection.ACCOUNT -> SettingsFocusTarget.AccountAuth
-        section == SettingsSection.ABOUT -> null
+        section == SettingsSection.ABOUT -> SettingsFocusTarget.AboutGitHubLink
         else -> SettingsFocusTarget.PlaybackQuality(selectedQuality)
     }
 }
