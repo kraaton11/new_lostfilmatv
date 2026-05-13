@@ -718,13 +718,12 @@ private fun HomeLoadingSkeleton(modifier: Modifier = Modifier) {
     )
 
     Column(
-        modifier = modifier
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(7.dp),
     ) {
         Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(11.dp),
+            modifier = Modifier.padding(start = 2.dp, end = 280.dp),
+            verticalArrangement = Arrangement.spacedBy(9.dp),
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 repeat(3) { index ->
@@ -749,7 +748,7 @@ private fun HomeLoadingSkeleton(modifier: Modifier = Modifier) {
             repeat(3) { index ->
                 ShimmerSkeletonBox(
                     brush = shimmerBrush,
-                    modifier = Modifier.size(width = listOf(560.dp, 520.dp, 440.dp)[index], height = 15.dp),
+                    modifier = Modifier.size(width = listOf(560.dp, 520.dp, 440.dp)[index], height = 22.dp),
                     shape = RoundedCornerShape(8.dp),
                 )
             }
@@ -758,7 +757,7 @@ private fun HomeLoadingSkeleton(modifier: Modifier = Modifier) {
         ShimmerSkeletonBox(
             brush = shimmerBrush,
             modifier = Modifier
-                .padding(top = 9.dp, start = 0.dp)
+                .padding(start = 2.dp)
                 .size(width = 128.dp, height = 18.dp),
             shape = RoundedCornerShape(9.dp),
         )
@@ -770,7 +769,7 @@ private fun HomeLoadingSkeleton(modifier: Modifier = Modifier) {
             repeat(8) {
                 ShimmerSkeletonBox(
                     brush = shimmerBrush,
-                    modifier = Modifier.size(width = 108.dp, height = 162.dp),
+                    modifier = Modifier.size(width = 112.dp, height = 172.dp),
                     shape = RoundedCornerShape(14.dp),
                     borderColor = HomePanelBorder.copy(alpha = 0.22f),
                 )
