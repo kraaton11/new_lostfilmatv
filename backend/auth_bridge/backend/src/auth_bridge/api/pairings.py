@@ -123,6 +123,31 @@ def build_pairings_router(pairing_service: PairingService) -> APIRouter:
         except PairingForbiddenError as exc:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Pairing secret is invalid.") from exc
 
+    @router.post("/{pairing_id}/cancel", status_code=status.HTTP_204_NO_CONTENT)
+    def cancel_pairing(
+        pairing_id: str,
+        request: Request,
+        x_pairing_secret: str | None = Header(default=None),
+    ) -> Response:
+        try:
+            _check_pairing_action_rate_limit(request, pairing_id)
+            pairing_service.cancel_pairing(pairing_id, x_pairing_secret or "")
+            request.app.state.proxy_session_store.clear(pairing_id)
+            return Response(status_code=status.HTTP_204_NO_CONTENT)
+        except RateLimitExceeded as exc:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many pairing requests. Please try again later.",
+            ) from exc
+        except PairingNotFoundError as exc:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pairing session was not found.") from exc
+        except PairingForbiddenError as exc:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Pairing secret is invalid.") from exc
+        except PairingExpiredError as exc:
+            raise HTTPException(status_code=status.HTTP_410_GONE, detail="Pairing session has expired.") from exc
+        except PairingAlreadyClaimedError as exc:
+            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Pairing session has already been claimed.") from exc
+
     return router
 
 
@@ -142,6 +167,7 @@ def _check_create_pairing_rate_limit(request: Request) -> None:
     client_ip = extract_client_ip(
         headers=request.headers,
         client_host=request.client.host if request.client is not None else None,
+        trusted_proxies=getattr(request.app.state, "trusted_proxy_networks", ()),
     )
     limiter.check_many(build_pairing_creation_rate_limit_keys(client_ip))
 
@@ -154,5 +180,6 @@ def _check_pairing_action_rate_limit(request: Request, pairing_id: str) -> None:
     client_ip = extract_client_ip(
         headers=request.headers,
         client_host=request.client.host if request.client is not None else None,
+        trusted_proxies=getattr(request.app.state, "trusted_proxy_networks", ()),
     )
     limiter.check_many(build_pairing_action_rate_limit_keys(client_ip, pairing_id))

@@ -75,19 +75,19 @@ fun AuthScreen(
                     text = "Вход в LostFilm",
                     style = MaterialTheme.typography.titleLarge
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 val qrBitmap = remember(pairing?.verificationUrl) {
-                    pairing?.verificationUrl?.let { QrCodeGenerator.generateImageBitmap(it, 420) }
+                    pairing?.verificationUrl?.let { QrCodeGenerator.generateImageBitmap(it, 360) }
                 }
 
                 qrBitmap?.let {
                     Image(
                         bitmap = it,
                         contentDescription = "QR code for LostFilm login",
-                        modifier = Modifier.size(200.dp),
+                        modifier = Modifier.size(172.dp),
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                 }
 
                 Text(
@@ -98,18 +98,18 @@ fun AuthScreen(
                     text = pairing?.userCode ?: "",
                     style = MaterialTheme.typography.headlineLarge,
                     color = MaterialTheme.colorScheme.primary,
-                    fontSize = 40.sp,
-                    lineHeight = 44.sp,
+                    fontSize = 36.sp,
+                    lineHeight = 40.sp,
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "1. Откройте QR на телефоне\n2. Войдите в LostFilm\n3. Вернитесь к телевизору, экран обновится сам",
                     textAlign = TextAlign.Start,
-                    style = MaterialTheme.typography.bodyLarge
+                    style = MaterialTheme.typography.bodyMedium
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = when (state) {
                         is AuthUiState.WaitingForPhoneOpen -> "Откройте ссылку на телефоне"
@@ -119,6 +119,14 @@ fun AuthScreen(
                     },
                     style = MaterialTheme.typography.bodyLarge,
                 )
+
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedButton(onClick = {
+                    viewModel.cancelAuth()
+                    onNavigateBack()
+                }) {
+                    Text("Отменить")
+                }
             }
 
             is AuthUiState.Expired -> {

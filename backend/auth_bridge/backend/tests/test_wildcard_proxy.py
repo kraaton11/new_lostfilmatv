@@ -54,11 +54,16 @@ class WildcardProxyRouterTest(unittest.TestCase):
         self.assertEqual(r2.status_code, 200)
         self.assertEqual(r3.status_code, 200)
         self.assertIn('id="auth-bridge-login-form"', r3.text)
+        self.assertIn(f'id="pairing-code-value">{pairing["userCode"]}</div>', r3.text)
+        self.assertEqual(r3.headers["cache-control"], "no-store")
+        self.assertEqual(r3.headers["referrer-policy"], "no-referrer")
+        self.assertIn("frame-ancestors 'none'", r3.headers["content-security-policy"])
 
     def test_unknown_wildcard_host_returns_404(self) -> None:
         response = self.client.get("/", headers={"host": "missing.auth.example.test"})
 
         self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.headers["cache-control"], "no-store")
 
     def test_unknown_wildcard_host_rate_limit_blocks_after_max_requests(self) -> None:
         original_limiter = getattr(app.state, "proxy_rate_limiter", None)

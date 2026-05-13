@@ -139,6 +139,19 @@ class AuthBridgeClient(
         }
     }
 
+    suspend fun cancelPairing(pairing: PairingSession): Boolean = withContext(Dispatchers.IO) {
+        val url = "$baseUrl/api/pairings/${pairing.pairingId}/cancel"
+        val request = Request.Builder()
+            .url(url)
+            .header("X-Pairing-Secret", pairing.pairingSecret)
+            .post(FormBody.Builder().build())
+            .build()
+        httpClient.newCall(request).execute().use {
+            it.requireSuccess(url)
+            it.code == 204
+        }
+    }
+
     private fun Response.requireSuccess(url: String) {
         if (!isSuccessful) {
             throw AuthBridgeHttpException(code, url, body?.string())

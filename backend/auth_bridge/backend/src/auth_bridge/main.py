@@ -140,6 +140,7 @@ def create_app() -> FastAPI:
     app.state.pairing_action_rate_limiter = pairing_action_rate_limiter
     app.state.proxy_rate_limiter = proxy_rate_limiter
     app.state.translation_rate_limiter = translation_rate_limiter
+    app.state.trusted_proxy_networks = settings.trusted_proxy_networks
     app.state.lostfilm_auth_detector = lostfilm_auth_detector
     app.state.lostfilm_proxy_service = lostfilm_proxy_service
     app.state.translation_service = translation_service

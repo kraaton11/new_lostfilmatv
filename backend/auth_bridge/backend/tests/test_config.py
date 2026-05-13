@@ -83,6 +83,7 @@ class SettingsTest(unittest.TestCase):
             translation_cache_ttl_seconds=3600,
             translation_rate_limit_max_requests=20,
             translation_rate_limit_window_seconds=30,
+            trusted_proxy_ips="10.0.0.1, 192.0.2.0/24",
             log_format="json",
         )
 
@@ -95,6 +96,7 @@ class SettingsTest(unittest.TestCase):
         self.assertEqual(settings.translation_cache_ttl_seconds, 3600)
         self.assertEqual(settings.translation_rate_limit_max_requests, 20)
         self.assertEqual(settings.translation_rate_limit_window_seconds, 30)
+        self.assertEqual(settings.trusted_proxy_networks, ("10.0.0.1", "192.0.2.0/24"))
         self.assertEqual(settings.log_format, "json")
 
     def test_runtime_stability_settings_reject_invalid_values(self) -> None:
@@ -103,3 +105,6 @@ class SettingsTest(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             Settings(public_base_url="https://auth.bazuka.pp.ua", log_format="xml")
+
+        with self.assertRaises(ValueError):
+            Settings(public_base_url="https://auth.bazuka.pp.ua", trusted_proxy_ips="not-an-ip")

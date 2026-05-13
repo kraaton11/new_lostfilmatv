@@ -110,6 +110,27 @@ class AuthViewModelTest {
     }
 
     @Test
+    fun cancelAuth_closesPairingAndReturnsToIdle() = runTest(dispatcher) {
+        val repository = FakeAuthRepository(
+            startPairingResult = pairing(status = PairingStatus.PENDING),
+            pollBehavior = FakePollBehavior.Suspend,
+        )
+        val viewModel = AuthViewModel(
+            authRepository = repository,
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.startAuth()
+        advanceUntilIdle()
+
+        viewModel.cancelAuth()
+        advanceUntilIdle()
+
+        assertEquals(AuthUiState.Idle, viewModel.uiState.value)
+        assertEquals(1, repository.cancelPairingCalls)
+    }
+
+    @Test
     fun observedAuthExpiry_switchesAuthenticatedStateBackToIdle() = runTest(dispatcher) {
         val repository = FakeAuthRepository(
             authState = AuthState(isAuthenticated = true),
@@ -143,6 +164,8 @@ class AuthViewModelTest {
             set(value) {
                 authStateFlow.value = value
             }
+        var cancelPairingCalls = 0
+            private set
 
         override suspend fun getAuthState(): AuthState = authStateFlow.value
         override fun observeAuthState(): Flow<AuthState> = authStateFlow
@@ -162,6 +185,10 @@ class AuthViewModelTest {
         }
 
         override suspend fun claimAndPersistSession(): AuthCompletionResult = completionResult.await()
+
+        override suspend fun cancelPairing() {
+            cancelPairingCalls += 1
+        }
 
         override suspend fun logout() {
             authState = AuthState()

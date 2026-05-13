@@ -73,10 +73,29 @@ class SlidingWindowRateLimiterTest(unittest.TestCase):
 
 
 class RateLimitKeyTest(unittest.TestCase):
-    def test_extract_client_ip_prefers_first_forwarded_for_ip(self) -> None:
+    def test_extract_client_ip_prefers_first_forwarded_for_ip_from_trusted_proxy(self) -> None:
         client_ip = extract_client_ip(
             headers={"X-Forwarded-For": "203.0.113.7, 10.0.0.5"},
             client_host="10.0.0.1",
+            trusted_proxies=("10.0.0.1",),
+        )
+
+        self.assertEqual(client_ip, "203.0.113.7")
+
+    def test_extract_client_ip_ignores_forwarded_for_from_untrusted_client(self) -> None:
+        client_ip = extract_client_ip(
+            headers={"X-Forwarded-For": "203.0.113.7"},
+            client_host="198.51.100.24",
+            trusted_proxies=("10.0.0.0/24",),
+        )
+
+        self.assertEqual(client_ip, "198.51.100.24")
+
+    def test_extract_client_ip_accepts_trusted_proxy_cidr(self) -> None:
+        client_ip = extract_client_ip(
+            headers={"X-Forwarded-For": "203.0.113.7"},
+            client_host="10.0.0.42",
+            trusted_proxies=("10.0.0.0/24",),
         )
 
         self.assertEqual(client_ip, "203.0.113.7")

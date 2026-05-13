@@ -122,6 +122,15 @@ class AuthViewModel @Inject constructor(
         }
     }
 
+    fun cancelAuth() {
+        authJob?.cancel()
+        authJob = null
+        viewModelScope.launch(ioDispatcher) {
+            authRepository.cancelPairing()
+            _uiState.value = AuthUiState.Idle
+        }
+    }
+
     fun logout() {
         authJob?.cancel()
         viewModelScope.launch(ioDispatcher) {
@@ -139,6 +148,7 @@ class AuthViewModel @Inject constructor(
     private fun String.toUserMessage(): String = when (this) {
         "lease_expired" -> "Код входа истек. Получите новый код."
         "session_invalid" -> "Не удалось подтвердить вход. Получите новый код."
+        "cancelled" -> "Вход отменен."
         else -> "Не удалось завершить вход. Получите новый код."
     }
 }

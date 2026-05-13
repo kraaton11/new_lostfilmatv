@@ -15,6 +15,9 @@ from auth_bridge.services.pairing_store import InMemoryPairingStore, PairingReco
 
 logger = logging.getLogger(__name__)
 
+ALLOWED_SESSION_COOKIE_NAMES = {"lf_session", "lf_udv", "uid"}
+ALLOWED_SESSION_COOKIE_DOMAINS = {"lostfilm.today", ".lostfilm.today"}
+
 
 class PairingNotFoundError(Exception):
     pass
@@ -173,6 +176,22 @@ class PairingService:
             record.failure_reason = "session_invalid"
             logger.info("Claim released (session invalid) for pairing_id=%s", mask_token(pairing_id))
 
+    def cancel_pairing(self, pairing_id: str, pairing_secret: str) -> None:
+        with self._lock:
+            record = self._require_record(pairing_id)
+            self._require_secret(record, pairing_secret)
+            if record.is_expired():
+                raise PairingExpiredError
+            if record.finalized:
+                raise PairingAlreadyClaimedError
+            record.lease_active = False
+            record.claim_lease_expires_at = None
+            record.session_payload = None
+            record.phone_flow_status = PairingStatus.FAILED
+            record.retryable = False
+            record.failure_reason = "cancelled"
+            logger.info("Pairing cancelled: pairing_id=%s", mask_token(pairing_id))
+
     def confirm_pairing(self, pairing_id: str, session_payload: dict | SessionPayload) -> None:
         with self._lock:
             record = self._require_record(pairing_id)
@@ -256,9 +275,21 @@ class PairingService:
                 "path": cookie.path or "/",
             }
             for cookie in cookie_jar.jar
+            if _is_allowed_session_cookie(cookie)
         ]
-        account_cookie = next((cookie for cookie in cookie_jar.jar if cookie.name == "uid"), None)
+        account_cookie = next((cookie for cookie in cookie_jar.jar if _is_allowed_account_cookie(cookie)), None)
         return SessionPayload(cookies=cookies, accountId=account_cookie.value if account_cookie is not None else None)
+
+
+def _is_allowed_session_cookie(cookie) -> bool:
+    return (
+        cookie.name.lower() in ALLOWED_SESSION_COOKIE_NAMES
+        and (cookie.domain or "").lower() in ALLOWED_SESSION_COOKIE_DOMAINS
+    )
+
+
+def _is_allowed_account_cookie(cookie) -> bool:
+    return cookie.name.lower() == "uid" and _is_allowed_session_cookie(cookie)
 
 
 def _normalize_host_header(host: str) -> str:

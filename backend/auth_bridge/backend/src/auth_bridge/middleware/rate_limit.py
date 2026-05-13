@@ -7,7 +7,7 @@ Used to protect pairing creation and wildcard proxy endpoints from abuse.
 from collections import deque
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
-from ipaddress import ip_address
+from ipaddress import ip_address, ip_network
 from threading import RLock
 from typing import Iterable, Mapping
 import logging
@@ -100,20 +100,25 @@ class SlidingWindowRateLimiter:
             self._buckets.clear()
 
 
-def extract_client_ip(headers: Mapping[str, str], client_host: str | None) -> str:
+def extract_client_ip(
+    headers: Mapping[str, str],
+    client_host: str | None,
+    trusted_proxies: Iterable[str] = (),
+) -> str:
     """
     Derive the client IP for rate limiting.
 
-    If X-Forwarded-For is present, we trust only the first syntactically valid IP.
-    This assumes a trusted reverse proxy overwrites the header before requests reach
-    the app. When the header is absent or invalid, fall back to the connected client.
+    Trust X-Forwarded-For only when the connected client is a configured proxy.
+    When the header is absent, invalid, or sent by an untrusted client, fall back
+    to the connected client.
     """
-    forwarded_for = headers.get("x-forwarded-for") or headers.get("X-Forwarded-For") or ""
-    forwarded_ip = _extract_first_ip(forwarded_for)
-    if forwarded_ip is not None:
-        return forwarded_ip
-
     normalized_client_host = _normalize_ip_token(client_host)
+    forwarded_for = headers.get("x-forwarded-for") or headers.get("X-Forwarded-For") or ""
+    if _is_trusted_proxy(normalized_client_host, trusted_proxies):
+        forwarded_ip = _extract_first_ip(forwarded_for)
+        if forwarded_ip is not None:
+            return forwarded_ip
+
     if normalized_client_host is not None:
         return normalized_client_host
 
@@ -166,3 +171,20 @@ def _normalize_ip_token(value: str | None) -> str | None:
         return str(ip_address(candidate))
     except ValueError:
         return None
+
+
+def _is_trusted_proxy(client_ip: str | None, trusted_proxies: Iterable[str]) -> bool:
+    if client_ip is None:
+        return False
+    try:
+        parsed_client_ip = ip_address(client_ip)
+    except ValueError:
+        return False
+
+    for proxy in trusted_proxies:
+        try:
+            if parsed_client_ip in ip_network(proxy, strict=False):
+                return True
+        except ValueError:
+            continue
+    return False

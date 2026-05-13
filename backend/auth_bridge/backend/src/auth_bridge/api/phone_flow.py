@@ -4,6 +4,7 @@ from fastapi import APIRouter, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from auth_bridge.api.security_headers import secure_html_response
 from auth_bridge.services.pairing_service import PairingExpiredError, PairingNotFoundError, PairingService
 
 _templates_dir = Path(__file__).resolve().parents[1] / "templates"
@@ -26,7 +27,7 @@ def attach_phone_flow_router(
         except PairingNotFoundError:
             return _render_error_response("Pairing session was not found.", status.HTTP_404_NOT_FOUND)
         except PairingExpiredError:
-            return HTMLResponse(_render_template("expired.html", user_code=""), status_code=410)
+            return secure_html_response(_render_template("expired.html", user_code=""), status_code=410)
 
         return RedirectResponse(
             url=pairing_service.build_verification_url(pairing.phone_verifier),
@@ -41,4 +42,4 @@ def _render_template(template_name: str, **context: str) -> str:
 
 
 def _render_error_response(message: str, status_code: int) -> HTMLResponse:
-    return HTMLResponse(_render_template("error.html", message=message, retry_url=""), status_code=status_code)
+    return secure_html_response(_render_template("error.html", message=message, retry_url=""), status_code=status_code)

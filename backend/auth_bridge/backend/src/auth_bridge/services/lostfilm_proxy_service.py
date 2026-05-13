@@ -38,19 +38,33 @@ body {
     color: #ffffff;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
-#auth-bridge-login-form {
-    width: min(460px, calc(100vw - 32px));
-    display: grid;
-    gap: 14px;
+    #auth-bridge-login-form {
+        width: min(460px, calc(100vw - 32px));
+        display: grid;
+        gap: 14px;
     padding: 28px;
     border-radius: 18px;
     background: rgba(20, 27, 34, 0.92);
     box-shadow: 0 24px 64px rgba(0, 0, 0, 0.3);
-    box-sizing: border-box;
-}
-#auth-bridge-login-form input,
-#auth-bridge-login-form button {
-    width: 100%;
+        box-sizing: border-box;
+    }
+    #pairing-code-block {
+        display: grid;
+        gap: 6px;
+        margin-bottom: 2px;
+    }
+    #pairing-code-label {
+        color: rgba(255, 255, 255, 0.72);
+        font-size: 14px;
+    }
+    #pairing-code-value {
+        font-size: 28px;
+        font-weight: 800;
+        letter-spacing: 0.12em;
+    }
+    #auth-bridge-login-form input,
+    #auth-bridge-login-form button {
+        width: 100%;
     box-sizing: border-box;
     min-height: 54px;
     border-radius: 12px;
@@ -160,6 +174,7 @@ body {
         query_string: str,
         headers: Mapping[str, str],
         body: bytes,
+        user_code: str = "",
     ) -> ProxyResponse:
         if path in self._BLOCKED_SOCIAL_AUTH_PATHS:
             return ProxyResponse(
@@ -171,7 +186,7 @@ body {
             return ProxyResponse(
                 status_code=200,
                 headers={"content-type": "text/html; charset=utf-8"},
-                content=self._render_local_login_page(query_string).encode("utf-8"),
+                content=self._render_local_login_page(query_string, user_code=user_code).encode("utf-8"),
             )
 
         session_state = self._proxy_session_store.get_or_create(pairing_id)
@@ -330,7 +345,7 @@ body {
         rewritten_html = html.replace(f"{self._base_url}/auth/", "/auth/")
         return self._SOCIAL_AUTH_REFERENCE_RE.sub("/login", rewritten_html)
 
-    def _render_local_login_page(self, query_string: str) -> str:
+    def _render_local_login_page(self, query_string: str, *, user_code: str = "") -> str:
         params = parse_qs(query_string, keep_blank_values=True)
         return_url = next(
             (
@@ -342,17 +357,27 @@ body {
             "",
         )
         escaped_return_url = escape(return_url, quote=True)
+        escaped_user_code = escape(user_code.strip(), quote=True)
+        pairing_code_block = (
+            f"""
+          <div id="pairing-code-block">
+            <div id="pairing-code-label">TV code</div>
+            <div id="pairing-code-value">{escaped_user_code}</div>
+          </div>"""
+            if escaped_user_code
+            else ""
+        )
         return f"""<!DOCTYPE html>
-<html lang="ru">
+    <html lang="ru">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>LostFilm Login</title>
     <style id="auth-bridge-login-rewrite">{self._LOCAL_LOGIN_PAGE_STYLE}</style>
-  </head>
-  <body>
-    <form id="auth-bridge-login-form" autocomplete="on">
-      <input type="email" name="mail" placeholder="Ваш e-mail" autocomplete="username" />
+      </head>
+      <body>
+        <form id="auth-bridge-login-form" autocomplete="on">{pairing_code_block}
+          <input type="email" name="mail" placeholder="Ваш e-mail" autocomplete="username" />
       <input type="password" name="pass" placeholder="Ваш пароль" autocomplete="current-password" />
       <div id="captcha-block" hidden>
         <img src="/simple_captcha.php" id="captcha-image" alt="Captcha" />
