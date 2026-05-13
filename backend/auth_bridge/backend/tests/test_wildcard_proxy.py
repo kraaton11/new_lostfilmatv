@@ -38,6 +38,21 @@ class WildcardProxyRouterTest(unittest.TestCase):
         self.assertEqual(response.status_code, 307)
         self.assertEqual(response.headers["location"], "/login")
 
+    def test_stable_host_root_redirects_to_login_when_pairing_cookie_is_present(self) -> None:
+        pairing = self.client.post("/api/pairings").json()
+
+        response = self.client.get(
+            "/",
+            headers={
+                "host": "auth.example.test",
+                "cookie": f"auth_bridge_pairing={pairing['phoneVerifier']}",
+            },
+            follow_redirects=False,
+        )
+
+        self.assertEqual(response.status_code, 307)
+        self.assertEqual(response.headers["location"], "/login")
+
     def test_wildcard_root_login_redirect_is_not_rate_limited_before_proxy_session_exists(self) -> None:
         pairing = self.client.post("/api/pairings").json()
         original_limiter = getattr(app.state, "proxy_rate_limiter", None)
@@ -291,6 +306,61 @@ class WildcardProxyRouterTest(unittest.TestCase):
         self.assertEqual(authorize.status_code, 200)
         self.assertEqual(status_response.json()["status"], "confirmed")
 
+    def test_confirmed_pairing_does_not_resolve_trusted_cookie_again(self) -> None:
+        pairing = self.client.post("/api/pairings").json()
+        payload = _trusted_payload()
+        app.state.pairing_service.confirm_pairing(pairing["pairingId"], payload)
+
+        original_trusted_service = app.state.trusted_device_service
+        with tempfile.TemporaryDirectory() as temp_dir:
+            trusted_service = _service_rejecting_trusted_resolution(temp_dir)
+            seed_response = Response()
+            trusted_service.remember(seed_response, payload)
+            token = _cookie_value(seed_response.headers["set-cookie"], trusted_service.cookie_name)
+            app.state.trusted_device_service = trusted_service
+
+            try:
+                response = self.client.get(
+                    "/",
+                    headers={
+                        "host": f"{pairing['phoneVerifier']}.auth.example.test",
+                        "cookie": f"{trusted_service.cookie_name}={token}",
+                    },
+                )
+            finally:
+                app.state.trusted_device_service = original_trusted_service
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(trusted_service.count(), 1)
+
+    def test_confirmed_pairing_reissues_trusted_cookie_on_top_level_page(self) -> None:
+        pairing = self.client.post("/api/pairings").json()
+        payload = _trusted_payload()
+        app.state.pairing_service.confirm_pairing(pairing["pairingId"], payload)
+        proxy_state = app.state.proxy_session_store.get_or_create(pairing["pairingId"])
+        proxy_state.remember_device = True
+
+        original_trusted_service = app.state.trusted_device_service
+        with tempfile.TemporaryDirectory() as temp_dir:
+            app.state.trusted_device_service = _trusted_service(temp_dir)
+            try:
+                first_response = self.client.get(
+                    "/",
+                    headers={"host": f"{pairing['phoneVerifier']}.auth.example.test"},
+                )
+                second_response = self.client.get(
+                    "/",
+                    headers={"host": f"{pairing['phoneVerifier']}.auth.example.test"},
+                )
+                trusted_count = app.state.trusted_device_service.count()
+            finally:
+                app.state.trusted_device_service = original_trusted_service
+
+        self.assertEqual(first_response.status_code, 200)
+        self.assertIn("auth_bridge_session=", first_response.headers["set-cookie"])
+        self.assertNotIn("set-cookie", second_response.headers)
+        self.assertEqual(trusted_count, 1)
+
     def test_authenticated_proxy_page_confirms_pairing(self) -> None:
         pairing = self.client.post("/api/pairings").json()
         proxy_state = app.state.proxy_session_store.get_or_create(pairing["pairingId"])
@@ -307,6 +377,35 @@ class WildcardProxyRouterTest(unittest.TestCase):
         )
         try:
             response = self.client.get("/my", headers={"host": f"{pairing['phoneVerifier']}.auth.example.test"})
+            status_response = self.client.get(
+                f"/api/pairings/{pairing['pairingId']}",
+                headers={"X-Pairing-Secret": pairing["pairingSecret"]},
+            )
+        finally:
+            app.state.lostfilm_proxy_service = original_proxy_service
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(status_response.json()["status"], "confirmed")
+
+    def test_successful_ajax_login_confirms_pairing(self) -> None:
+        pairing = self.client.post("/api/pairings").json()
+        proxy_state = app.state.proxy_session_store.get_or_create(pairing["pairingId"])
+        proxy_state.cookie_jar.set("lf_session", "cookie-1", domain=".lostfilm.today", path="/")
+        proxy_state.login_succeeded = True
+
+        original_proxy_service = app.state.lostfilm_proxy_service
+        app.state.lostfilm_proxy_service = SimpleNamespace(
+            proxy=lambda *args, **kwargs: SimpleNamespace(
+                status_code=200,
+                headers={"content-type": "text/html; charset=utf-8"},
+                content=b'{"success":true,"result":"ok"}',
+            )
+        )
+        try:
+            response = self.client.post(
+                "/ajaxik.users.php",
+                headers={"host": f"{pairing['phoneVerifier']}.auth.example.test"},
+            )
             status_response = self.client.get(
                 f"/api/pairings/{pairing['pairingId']}",
                 headers={"X-Pairing-Secret": pairing["pairingSecret"]},
@@ -486,6 +585,22 @@ def _trusted_service(temp_dir: str) -> TrustedDeviceService:
             headers={"content-type": "text/html"},
             text='<html><body><a href="/logout">Logout</a></body></html>',
         )
+
+    return TrustedDeviceService(
+        db_path=str(Path(temp_dir, "trusted.sqlite3")),
+        secret="test-secret",
+        cookie_name="auth_bridge_session",
+        cookie_domain="auth.example.test",
+        ttl_seconds=3600,
+        lostfilm_base_url="https://www.lostfilm.today",
+        auth_detector=LostFilmAuthDetector(),
+        transport=httpx.MockTransport(handler),
+    )
+
+
+def _service_rejecting_trusted_resolution(temp_dir: str) -> TrustedDeviceService:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, headers={"content-type": "text/html"}, text="<html><body>Login</body></html>")
 
     return TrustedDeviceService(
         db_path=str(Path(temp_dir, "trusted.sqlite3")),

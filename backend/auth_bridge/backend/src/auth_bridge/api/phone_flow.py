@@ -5,7 +5,12 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 from auth_bridge.api.security_headers import secure_html_response
-from auth_bridge.services.pairing_service import PairingExpiredError, PairingNotFoundError, PairingService
+from auth_bridge.services.pairing_service import (
+    PHONE_FLOW_COOKIE_NAME,
+    PairingExpiredError,
+    PairingNotFoundError,
+    PairingService,
+)
 
 _templates_dir = Path(__file__).resolve().parents[1] / "templates"
 _template_env = Environment(
@@ -29,10 +34,18 @@ def attach_phone_flow_router(
         except PairingExpiredError:
             return secure_html_response(_render_template("expired.html", user_code=""), status_code=410)
 
-        return RedirectResponse(
-            url=pairing_service.build_verification_url(pairing.phone_verifier),
-            status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+        response = RedirectResponse(url="/", status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+        response.set_cookie(
+            key=PHONE_FLOW_COOKIE_NAME,
+            value=pairing.phone_verifier,
+            max_age=pairing.expires_in(),
+            secure=True,
+            httponly=True,
+            samesite="lax",
+            path="/",
+            domain=pairing_service.phone_flow_cookie_domain(),
         )
+        return response
 
     app.include_router(router)
 

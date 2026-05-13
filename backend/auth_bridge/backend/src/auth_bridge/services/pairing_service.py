@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 
 ALLOWED_SESSION_COOKIE_NAMES = {"lf_session", "lf_udv", "uid"}
 ALLOWED_SESSION_COOKIE_DOMAINS = {"lostfilm.today", ".lostfilm.today"}
+PHONE_FLOW_COOKIE_NAME = "auth_bridge_pairing"
 
 
 class PairingNotFoundError(Exception):
@@ -113,7 +114,10 @@ class PairingService:
         return self.open_phone_flow(self.resolve_phone_verifier_from_host(host))
 
     def build_verification_url(self, phone_verifier: str) -> str:
-        return f"https://{phone_verifier}.{self._wildcard_base_domain()}/"
+        return f"{self._settings.public_base_url.rstrip('/')}/pair/{phone_verifier}"
+
+    def phone_flow_cookie_domain(self) -> str:
+        return self._settings.public_base_host.strip().lower().rstrip(".")
 
     def normalize_wildcard_host(self, host: str) -> str:
         normalized_host = _normalize_host_header(host)

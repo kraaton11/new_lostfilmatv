@@ -22,6 +22,30 @@ class LostFilmAuthDetectorTest(unittest.TestCase):
 
         self.assertFalse(self.detector.is_authenticated(html, ["lf_session", "lf_udv"]))
 
+    def test_detector_accepts_successful_ajax_login_with_session_cookie(self) -> None:
+        html = '{"success":true,"result":"ok"}'
+
+        self.assertTrue(
+            self.detector.is_authenticated(
+                html,
+                ["lf_session", "PHPSESSID"],
+                path="/ajaxik.users.php",
+                login_succeeded=True,
+            )
+        )
+
+    def test_detector_rejects_successful_ajax_login_without_session_cookie(self) -> None:
+        html = '{"success":true,"result":"ok"}'
+
+        self.assertFalse(
+            self.detector.is_authenticated(
+                html,
+                ["PHPSESSID"],
+                path="/ajaxik.users.php",
+                login_succeeded=True,
+            )
+        )
+
     def test_detector_accepts_authenticated_profile_page(self) -> None:
         html = """
         <html>
