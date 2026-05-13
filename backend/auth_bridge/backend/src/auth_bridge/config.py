@@ -46,6 +46,11 @@ class Settings(BaseSettings):
     translation_cache_ttl_seconds: int = 7 * 24 * 60 * 60
     log_format: str = "text"
     trusted_proxy_ips: str = ""
+    trusted_device_secret: str = ""
+    trusted_device_cookie_name: str = "auth_bridge_session"
+    trusted_device_cookie_domain: str | None = None
+    trusted_device_ttl_seconds: int = 365 * 24 * 60 * 60
+    trusted_device_db_path: str = "/data/trusted_devices.sqlite3"
 
     @field_validator("pairing_ttl_seconds", "pairing_poll_interval_seconds", "claim_lease_ttl_seconds")
     @classmethod
@@ -66,6 +71,7 @@ class Settings(BaseSettings):
         "translation_cache_max_entries",
         "translation_cache_ttl_seconds",
         "cleanup_interval_seconds",
+        "trusted_device_ttl_seconds",
     )
     @classmethod
     def validate_non_negative_int(cls, value: int) -> int:
@@ -105,6 +111,26 @@ class Settings(BaseSettings):
             except ValueError as exc:
                 raise ValueError("trusted_proxy_ips must contain IP addresses or CIDR ranges") from exc
         return ",".join(entries)
+
+    @field_validator("trusted_device_cookie_name")
+    @classmethod
+    def validate_trusted_device_cookie_name(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized or any(char in normalized for char in " ;,\r\n\t"):
+            raise ValueError("trusted_device_cookie_name must be a valid cookie name")
+        return normalized
+
+    @field_validator("trusted_device_cookie_domain")
+    @classmethod
+    def validate_trusted_device_cookie_domain(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        normalized = value.strip().lower().lstrip(".").rstrip(".")
+        if not normalized:
+            return None
+        if "/" in normalized or ":" in normalized or " " in normalized:
+            raise ValueError("trusted_device_cookie_domain must be a bare domain")
+        return normalized
 
     @field_validator("public_base_url")
     @classmethod
