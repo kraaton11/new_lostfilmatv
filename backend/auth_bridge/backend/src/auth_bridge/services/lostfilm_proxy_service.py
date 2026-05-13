@@ -5,7 +5,7 @@ import logging
 import re
 import time
 from typing import Mapping
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, parse_qsl, urlencode, urlparse
 
 import httpx
 
@@ -111,6 +111,17 @@ body {
     color: #ff8f8f;
     font-size: 14px;
 }
+#remember-device-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: rgba(255, 255, 255, 0.82);
+    font-size: 14px;
+}
+#remember-device-label input {
+    width: auto;
+    min-height: auto;
+}
 """.strip()
     _BLOCKED_SOCIAL_AUTH_PATHS = {
         "/auth/vk",
@@ -190,6 +201,9 @@ body {
             )
 
         session_state = self._proxy_session_store.get_or_create(pairing_id)
+        body_to_forward = body
+        if path == "/ajaxik.users.php" and method.upper() == "POST":
+            body_to_forward = self._capture_trusted_device_preference(session_state, body)
         upstream_url = f"{self._base_url}{path}"
         if query_string:
             upstream_url = f"{upstream_url}?{query_string}"
@@ -206,7 +220,7 @@ body {
                     method=method,
                     url=upstream_url,
                     headers=self._build_forward_headers(headers),
-                    body=body,
+                    body=body_to_forward,
                 )
                 session_state.cookie_jar = client.cookies
 
@@ -345,6 +359,24 @@ body {
         rewritten_html = html.replace(f"{self._base_url}/auth/", "/auth/")
         return self._SOCIAL_AUTH_REFERENCE_RE.sub("/login", rewritten_html)
 
+    def _capture_trusted_device_preference(self, session_state, body: bytes) -> bytes:
+        try:
+            fields = parse_qsl(body.decode("utf-8"), keep_blank_values=True)
+        except UnicodeDecodeError:
+            return body
+        filtered_fields: list[tuple[str, str]] = []
+        remember_device = False
+        for key, value in fields:
+            if key == "auth_bridge_remember":
+                remember_device = value == "1"
+                continue
+            filtered_fields.append((key, value))
+        if remember_device:
+            session_state.remember_device = True
+        if len(filtered_fields) == len(fields):
+            return body
+        return urlencode(filtered_fields).encode("utf-8")
+
     def _render_local_login_page(self, query_string: str, *, user_code: str = "") -> str:
         params = parse_qs(query_string, keep_blank_values=True)
         return_url = next(
@@ -386,6 +418,10 @@ body {
       </div>
       <input type="hidden" name="return_url" value="{escaped_return_url}" />
       <input type="hidden" name="need_captcha" value="" />
+      <label id="remember-device-label">
+        <input type="checkbox" name="auth_bridge_remember" value="1" checked />
+        Запомнить это устройство
+      </label>
       <button type="submit" id="submit-button">Войти</button>
       <div id="status" aria-live="polite"></div>
     </form>
@@ -438,6 +474,9 @@ body {
             body.append("pass", encodeURIComponent(pass));
             body.append("need_captcha", encodeURIComponent(needCaptcha));
             body.append("captcha", encodeURIComponent(captcha));
+            if (form.elements.auth_bridge_remember.checked) {{
+              body.append("auth_bridge_remember", "1");
+            }}
             body.append("rem", "0");
 
             const response = await fetch("/ajaxik.users.php", {{

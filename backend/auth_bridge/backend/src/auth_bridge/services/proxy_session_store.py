@@ -13,6 +13,7 @@ class ProxySessionState:
     last_seen_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     lock: RLock = field(default_factory=RLock)
     login_succeeded: bool = False
+    remember_device: bool = False
 
 
 class ProxySessionStore:

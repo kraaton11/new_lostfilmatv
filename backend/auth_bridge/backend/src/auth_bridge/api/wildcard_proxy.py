@@ -16,6 +16,7 @@ from auth_bridge.middleware.rate_limit import (
 )
 from auth_bridge.services.pairing_service import PairingExpiredError, PairingNotFoundError, PairingService
 from auth_bridge.services.lostfilm_proxy_service import UpstreamProxyError
+from auth_bridge.services.trusted_device_service import TrustedDeviceSession
 
 logger = logging.getLogger(__name__)
 _templates_dir = Path(__file__).resolve().parents[1] / "templates"
@@ -36,6 +37,10 @@ def attach_wildcard_proxy_router(app, pairing_service: PairingService) -> None:
             return secure_html_response("Pairing session was not found.", status_code=status.HTTP_404_NOT_FOUND)
         except PairingExpiredError:
             return secure_html_response("Pairing expired.", status_code=status.HTTP_410_GONE)
+
+        trusted_session = _trusted_device_session_for_request(app, request)
+        if pairing.session_payload is None and trusted_session is not None and _proxy_access_allowed(pairing):
+            return _render_trusted_device_response(pairing, trusted_session)
 
         proxy_state = app.state.proxy_session_store.get(pairing.pairing_id)
         if pairing.session_payload is None and proxy_state is None and _proxy_access_allowed(pairing):
@@ -70,6 +75,29 @@ def attach_wildcard_proxy_router(app, pairing_service: PairingService) -> None:
         if not _proxy_access_allowed(pairing):
             return _render_phone_shell_response(pairing)
 
+        if request.method == "POST" and proxy_path == "auth-bridge/trusted/authorize":
+            trusted_session = _trusted_device_session_for_request(app, request)
+            if trusted_session is None:
+                return RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+            pairing_service.confirm_pairing(pairing.pairing_id, trusted_session.payload)
+            response = _render_phone_shell_response(pairing)
+            app.state.trusted_device_service.remember(response, trusted_session.payload, previous_token=trusted_session.token)
+            return response
+
+        if request.method == "POST" and proxy_path == "auth-bridge/trusted/revoke":
+            trusted_service = getattr(app.state, "trusted_device_service", None)
+            if trusted_service is not None:
+                trusted_service.revoke_token(request.cookies.get(trusted_service.cookie_name, ""))
+            response = RedirectResponse(url="/login", status_code=status.HTTP_303_SEE_OTHER)
+            if trusted_service is not None:
+                trusted_service.forget_response_cookie(response)
+            return response
+
+        if request.method == "GET" and proxy_path == "login":
+            trusted_session = _trusted_device_session_for_request(app, request)
+            if pairing.session_payload is None and trusted_session is not None:
+                return _render_trusted_device_response(pairing, trusted_session)
+
         return await _proxy_request(app, pairing_service, pairing, request, f"/{proxy_path}", wildcard_host)
 
     app.include_router(router)
@@ -97,6 +125,7 @@ async def _proxy_request(app, pairing_service: PairingService, pairing, request:
     except UpstreamProxyError:
         logger.warning("Upstream proxy unavailable pairing_id=%s path=%s", mask_token(pairing.pairing_id), path)
         return secure_html_response("LostFilm is temporarily unavailable. Please try again later.", status_code=502)
+    confirmed_payload = None
     if pairing.session_payload is None and "text/html" in proxied_response.headers.get("content-type", "").lower():
         proxy_state = app.state.proxy_session_store.get(pairing.pairing_id)
         cookie_names = [cookie.name for cookie in proxy_state.cookie_jar.jar] if proxy_state is not None else []
@@ -116,12 +145,14 @@ async def _proxy_request(app, pairing_service: PairingService, pairing, request:
             sorted({cookie_name.lower() for cookie_name in cookie_names}),
         )
         if is_authenticated and proxy_state is not None:
-            pairing_service.confirm_pairing_from_proxy_session(pairing.pairing_id, proxy_state.cookie_jar)
+            confirmed_payload = pairing_service.confirm_pairing_from_proxy_session(pairing.pairing_id, proxy_state.cookie_jar)
     response = Response(
         content=proxied_response.content,
         status_code=proxied_response.status_code,
         headers=proxied_response.headers,
     )
+    if confirmed_payload is not None and proxy_state is not None and proxy_state.remember_device:
+        app.state.trusted_device_service.remember(response, confirmed_payload)
     if "text/html" in proxied_response.headers.get("content-type", "").lower():
         apply_security_headers(response)
     return response
@@ -174,6 +205,24 @@ def _proxy_access_allowed(pairing) -> bool:
         not pairing.is_expired()
         and pairing.failure_reason is None
         and not pairing.finalized
+    )
+
+
+def _trusted_device_session_for_request(app, request: Request) -> TrustedDeviceSession | None:
+    trusted_service = getattr(app.state, "trusted_device_service", None)
+    if trusted_service is None:
+        return None
+    return trusted_service.resolve(request)
+
+
+def _render_trusted_device_response(pairing, trusted_session: TrustedDeviceSession) -> HTMLResponse:
+    account_label = trusted_session.payload.accountId or "LostFilm"
+    return secure_html_response(
+        _render_template(
+            "trusted_device.html",
+            user_code=pairing.user_code,
+            account_label=account_label,
+        )
     )
 
 

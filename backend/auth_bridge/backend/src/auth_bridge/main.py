@@ -19,6 +19,7 @@ from auth_bridge.services.lostfilm_proxy_service import LostFilmProxyService
 from auth_bridge.services.pairing_service import PairingService
 from auth_bridge.services.pairing_store import InMemoryPairingStore
 from auth_bridge.services.proxy_session_store import ProxySessionStore
+from auth_bridge.services.trusted_device_service import TrustedDeviceService
 from auth_bridge.services.translation_service import DeeplTranslationService
 
 
@@ -82,10 +83,12 @@ async def _run_cleanup_loop(app: FastAPI, interval_seconds: int) -> None:
         try:
             app.state.pairing_service.prune_expired()
             logger.debug(
-                "Pairing cleanup completed: active_pairings=%d proxy_sessions=%d",
+                "Pairing cleanup completed: active_pairings=%d proxy_sessions=%d trusted_devices=%d",
                 app.state.pairing_service.active_pairing_count(),
                 app.state.proxy_session_store.count(),
+                app.state.trusted_device_service.count(),
             )
+            app.state.trusted_device_service.prune_expired()
         except Exception:
             logger.exception("Pairing cleanup failed")
 
@@ -119,6 +122,16 @@ def create_app() -> FastAPI:
         window_seconds=settings.translation_rate_limit_window_seconds,
     )
     lostfilm_auth_detector = LostFilmAuthDetector()
+    trusted_device_service = TrustedDeviceService(
+        db_path=settings.trusted_device_db_path,
+        secret=settings.trusted_device_secret,
+        cookie_name=settings.trusted_device_cookie_name,
+        cookie_domain=settings.trusted_device_cookie_domain or settings.wildcard_base_domain,
+        ttl_seconds=settings.trusted_device_ttl_seconds,
+        lostfilm_base_url=settings.lostfilm_base_url,
+        auth_detector=lostfilm_auth_detector,
+        timeout_seconds=settings.upstream_timeout_seconds,
+    )
     lostfilm_proxy_service = LostFilmProxyService(
         base_url=settings.lostfilm_base_url,
         proxy_session_store=proxy_session_store,
@@ -142,6 +155,7 @@ def create_app() -> FastAPI:
     app.state.translation_rate_limiter = translation_rate_limiter
     app.state.trusted_proxy_networks = settings.trusted_proxy_networks
     app.state.lostfilm_auth_detector = lostfilm_auth_detector
+    app.state.trusted_device_service = trusted_device_service
     app.state.lostfilm_proxy_service = lostfilm_proxy_service
     app.state.translation_service = translation_service
 
