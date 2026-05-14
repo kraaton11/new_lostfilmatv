@@ -24,6 +24,7 @@ private const val TMDB_CACHE_TTL_MS = 7L * 24 * 60 * 60 * 1000
 private const val YEAR_AWARE_MATCHING_CACHE_MIN_FETCHED_AT_MS = 1777852800000L // 2026-05-04
 private const val SERIES_YEAR_HINT_FIX_CACHE_MIN_FETCHED_AT_MS = 1777867930731L // 2026-05-04
 private const val TMDB_RATING_CACHE_MIN_FETCHED_AT_MS = 1778025600000L // 2026-05-06
+private const val TMDB_BEST_IMAGE_CACHE_MIN_FETCHED_AT_MS = 1778716800000L // 2026-05-14
 private const val MEMORY_CACHE_MAX_SIZE = 500
 private val seasonNumberRegex = Regex("""/season_(\d+)/""")
 private val episodeNumberRegex = Regex("""/episode_(\d+)/?""")
@@ -194,6 +195,10 @@ class TmdbPosterResolverImpl(
     ): Boolean {
         // Trust complete TMDB mappings for the full TTL to avoid a validation request per cached poster.
         if (cached.isExpired(clock)) {
+            return false
+        }
+
+        if (cached.fetchedAt < TMDB_BEST_IMAGE_CACHE_MIN_FETCHED_AT_MS) {
             return false
         }
 

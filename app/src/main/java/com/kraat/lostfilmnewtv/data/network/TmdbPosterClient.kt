@@ -131,8 +131,8 @@ open class TmdbPosterClient(
             val body = response.body?.string() ?: return null
             val json = JSONObject(body)
 
-            val posterPath = extractBestImagePath(json.optJSONArray("posters"))
-            val backdropPath = extractBestImagePath(json.optJSONArray("backdrops"))
+            val posterPath = extractBestImagePath(json.optJSONArray("posters"), preferredLanguage = language)
+            val backdropPath = extractBestImagePath(json.optJSONArray("backdrops"), preferredLanguage = language)
 
             if (posterPath == null && backdropPath == null) return null
 
@@ -143,13 +143,20 @@ open class TmdbPosterClient(
         }
     }
 
-    private fun extractBestImagePath(array: JSONArray?): String? {
+    private fun extractBestImagePath(array: JSONArray?, preferredLanguage: String?): String? {
         if (array == null || array.length() == 0) return null
-        for (i in 0 until array.length()) {
-            val path = array.getJSONObject(i).optString("file_path", "")
-            if (path.isNotBlank()) return path
-        }
-        return null
+        return (0 until array.length())
+            .asSequence()
+            .map { array.getJSONObject(it) }
+            .filter { it.optString("file_path", "").isNotBlank() }
+            .maxWithOrNull(
+                compareBy<JSONObject> {
+                    if (preferredLanguage != null && it.optString("iso_639_1", "") == preferredLanguage) 1 else 0
+                }.thenBy { it.optDouble("vote_average", 0.0) }
+                    .thenBy { it.optInt("vote_count", 0) }
+                    .thenBy { it.optInt("width", 0) * it.optInt("height", 0) },
+            )
+            ?.optString("file_path", "")
     }
 
     private fun TmdbImageUrls?.hasPosterAndBackdrop(): Boolean {
