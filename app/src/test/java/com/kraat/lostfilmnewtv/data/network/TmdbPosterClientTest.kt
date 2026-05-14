@@ -205,6 +205,53 @@ class TmdbPosterClientTest {
     }
 
     @Test
+    fun getPosterAndBackdrop_prefersBestRatedRussianPoster() = runTest {
+        val client = TmdbPosterClient(
+            okHttpClient = OkHttpClient.Builder()
+                .addInterceptor(Interceptor { chain ->
+                    val body = """
+                        {
+                          "posters": [
+                            {
+                              "file_path": "/first-ru-poster.jpg",
+                              "iso_639_1": "ru",
+                              "vote_average": 5.0,
+                              "vote_count": 2,
+                              "width": 1000,
+                              "height": 1500
+                            },
+                            {
+                              "file_path": "/best-ru-poster.jpg",
+                              "iso_639_1": "ru",
+                              "vote_average": 8.0,
+                              "vote_count": 5,
+                              "width": 1000,
+                              "height": 1500
+                            }
+                          ],
+                          "backdrops": [{"file_path": "/ru-backdrop.jpg"}]
+                        }
+                    """.trimIndent()
+
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body(body.toResponseBody())
+                        .build()
+                })
+                .build(),
+            apiKey = "test",
+        )
+
+        val result = client.getPosterAndBackdrop(123, TmdbMediaType.TV)
+
+        requireNotNull(result)
+        assertEquals("https://image.tmdb.org/t/p/w780/best-ru-poster.jpg", result.posterUrl)
+    }
+
+    @Test
     fun getEpisodeOverviewRu_usesEnglishFallback_whenRussianOverviewMissing() = runTest {
         val requestedUrls = mutableListOf<String>()
         val client = TmdbPosterClient(
