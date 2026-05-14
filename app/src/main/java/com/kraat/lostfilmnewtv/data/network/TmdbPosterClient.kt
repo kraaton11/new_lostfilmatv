@@ -15,7 +15,7 @@ import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 
-private const val TMDB_BASE_URL = "https://api.themoviedb.org/3"
+private const val DEFAULT_TMDB_BASE_URL = "https://api.themoviedb.org/3"
 private const val TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/"
 private const val POSTER_SIZE = "w780"
 private const val BACKDROP_SIZE = "w1280"
@@ -25,6 +25,7 @@ open class TmdbPosterClient(
     private val apiKey: String,
     private val bearerToken: String = "",
     private val englishToRussianTranslator: (suspend (String) -> String?)? = null,
+    private val baseUrl: String = DEFAULT_TMDB_BASE_URL,
 ) {
     open suspend fun searchByTitle(
         query: String,
@@ -39,7 +40,7 @@ open class TmdbPosterClient(
             TmdbMediaType.TV -> year?.let { "&first_air_date_year=$it" }.orEmpty()
             TmdbMediaType.MOVIE -> year?.let { "&release_year=$it" }.orEmpty()
         }
-        val url = "$TMDB_BASE_URL$endpoint?query=${query.encodeUrl()}&include_adult=true$yearParam"
+        val url = "${baseUrl.trimEnd('/')}$endpoint?query=${query.encodeUrl()}&include_adult=true$yearParam"
             .withTmdbApiKey()
 
         val request = Request.Builder()
@@ -98,20 +99,20 @@ open class TmdbPosterClient(
             TmdbMediaType.MOVIE -> "/movie/$tmdbId/images"
         }
 
-        val baseUrl = "$TMDB_BASE_URL$endpoint"
-        val russianImages = fetchImages(baseUrl, language = "ru")
+        val imagesBaseUrl = "${baseUrl.trimEnd('/')}$endpoint"
+        val russianImages = fetchImages(imagesBaseUrl, language = "ru")
         if (russianImages.hasPosterAndBackdrop()) {
             return@withContext russianImages
         }
 
         val englishImages = if (russianImages.needsEnglishFallback()) {
-            fetchImages(baseUrl, language = "en")
+            fetchImages(imagesBaseUrl, language = "en")
         } else {
             null
         }
 
         mergeImages(russianImages, englishImages)
-            ?: fetchImages(baseUrl, language = null)
+            ?: fetchImages(imagesBaseUrl, language = null)
     }
 
     private fun fetchImages(baseUrl: String, language: String?): TmdbImageUrls? {
@@ -194,13 +195,13 @@ open class TmdbPosterClient(
         seasonNumber: Int,
         episodeNumber: Int,
     ): TmdbEpisodeOverview? = withContext(Dispatchers.IO) {
-        val baseUrl = "$TMDB_BASE_URL/tv/$tmdbId/season/$seasonNumber/episode/$episodeNumber"
-        fetchOverview("$baseUrl?language=ru-RU")?.let { russianOverview ->
+        val episodeBaseUrl = "${baseUrl.trimEnd('/')}/tv/$tmdbId/season/$seasonNumber/episode/$episodeNumber"
+        fetchOverview("$episodeBaseUrl?language=ru-RU")?.let { russianOverview ->
             TmdbEpisodeOverview(
                 text = russianOverview,
                 source = TmdbEpisodeOverviewSource.TMDB_RU,
             )
-        } ?: fetchOverview("$baseUrl?language=en-US")?.let { englishOverview ->
+        } ?: fetchOverview("$episodeBaseUrl?language=en-US")?.let { englishOverview ->
             translateEnglishOverview(englishOverview)?.let { translatedOverview ->
                 TmdbEpisodeOverview(
                     text = translatedOverview,
@@ -237,7 +238,7 @@ open class TmdbPosterClient(
     }
 
     open suspend fun getSeriesOverviewRu(tmdbId: Int): String? = withContext(Dispatchers.IO) {
-        val url = "$TMDB_BASE_URL/tv/$tmdbId?language=ru-RU".withTmdbApiKey()
+        val url = "${baseUrl.trimEnd('/')}/tv/$tmdbId?language=ru-RU".withTmdbApiKey()
         val request = Request.Builder()
             .url(url)
             .tmdbHeaders()
@@ -253,7 +254,7 @@ open class TmdbPosterClient(
     }
 
     open suspend fun getMovieOverviewRu(tmdbId: Int): String? = withContext(Dispatchers.IO) {
-        val url = "$TMDB_BASE_URL/movie/$tmdbId?language=ru-RU".withTmdbApiKey()
+        val url = "${baseUrl.trimEnd('/')}/movie/$tmdbId?language=ru-RU".withTmdbApiKey()
         val request = Request.Builder()
             .url(url)
             .tmdbHeaders()
@@ -276,7 +277,7 @@ open class TmdbPosterClient(
             TmdbMediaType.TV -> "/tv/$tmdbId"
             TmdbMediaType.MOVIE -> "/movie/$tmdbId"
         }
-        val url = "$TMDB_BASE_URL$endpoint".withTmdbApiKey()
+        val url = "${baseUrl.trimEnd('/')}$endpoint".withTmdbApiKey()
         val request = Request.Builder()
             .url(url)
             .tmdbHeaders()

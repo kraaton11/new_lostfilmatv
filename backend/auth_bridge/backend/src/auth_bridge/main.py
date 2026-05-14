@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from auth_bridge.api.health import build_health_router
 from auth_bridge.api.pairings import build_pairings_router
 from auth_bridge.api.phone_flow import attach_phone_flow_router
+from auth_bridge.api.tmdb import build_tmdb_router
 from auth_bridge.api.translation import build_translation_router
 from auth_bridge.api.wildcard_proxy import attach_wildcard_proxy_router
 from auth_bridge.config import get_settings
@@ -20,6 +21,7 @@ from auth_bridge.services.pairing_service import PairingService
 from auth_bridge.services.pairing_store import InMemoryPairingStore
 from auth_bridge.services.proxy_session_store import ProxySessionStore
 from auth_bridge.services.trusted_device_service import TrustedDeviceService
+from auth_bridge.services.tmdb_proxy_service import TmdbProxyService
 from auth_bridge.services.translation_service import DeeplTranslationService
 
 
@@ -123,6 +125,10 @@ def create_app() -> FastAPI:
         max_requests=settings.translation_rate_limit_max_requests,
         window_seconds=settings.translation_rate_limit_window_seconds,
     )
+    tmdb_rate_limiter = SlidingWindowRateLimiter(
+        max_requests=settings.tmdb_rate_limit_max_requests,
+        window_seconds=settings.tmdb_rate_limit_window_seconds,
+    )
     lostfilm_auth_detector = LostFilmAuthDetector()
     trusted_device_service = TrustedDeviceService(
         db_path=settings.trusted_device_db_path,
@@ -148,6 +154,17 @@ def create_app() -> FastAPI:
         cache_max_entries=settings.translation_cache_max_entries,
         cache_ttl_seconds=settings.translation_cache_ttl_seconds,
     )
+    tmdb_proxy_service = TmdbProxyService(
+        api_key=settings.tmdb_api_key,
+        bearer_token=settings.tmdb_bearer_token,
+        base_url=settings.tmdb_api_base_url,
+        timeout_seconds=settings.tmdb_timeout_seconds,
+        cache_max_entries=settings.tmdb_cache_max_entries,
+        cache_ttl_search_seconds=settings.tmdb_cache_ttl_search_seconds,
+        cache_ttl_images_seconds=settings.tmdb_cache_ttl_images_seconds,
+        cache_ttl_details_seconds=settings.tmdb_cache_ttl_details_seconds,
+        cache_ttl_negative_seconds=settings.tmdb_cache_ttl_negative_seconds,
+    )
 
     app.state.pairing_service = pairing_service
     app.state.proxy_session_store = proxy_session_store
@@ -155,14 +172,17 @@ def create_app() -> FastAPI:
     app.state.pairing_action_rate_limiter = pairing_action_rate_limiter
     app.state.proxy_rate_limiter = proxy_rate_limiter
     app.state.translation_rate_limiter = translation_rate_limiter
+    app.state.tmdb_rate_limiter = tmdb_rate_limiter
     app.state.trusted_proxy_networks = settings.trusted_proxy_networks
     app.state.lostfilm_auth_detector = lostfilm_auth_detector
     app.state.trusted_device_service = trusted_device_service
     app.state.lostfilm_proxy_service = lostfilm_proxy_service
     app.state.translation_service = translation_service
+    app.state.tmdb_proxy_service = tmdb_proxy_service
 
     app.include_router(build_health_router(pairing_service))
     app.include_router(build_pairings_router(pairing_service))
+    app.include_router(build_tmdb_router())
     app.include_router(build_translation_router())
     attach_phone_flow_router(app, pairing_service)
     attach_wildcard_proxy_router(app, pairing_service)

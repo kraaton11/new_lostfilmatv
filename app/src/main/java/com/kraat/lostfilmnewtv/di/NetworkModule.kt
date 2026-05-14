@@ -1,7 +1,6 @@
 package com.kraat.lostfilmnewtv.di
 
 import android.content.Context
-import com.kraat.lostfilmnewtv.BuildConfig
 import com.kraat.lostfilmnewtv.data.auth.EncryptedSessionStore
 import com.kraat.lostfilmnewtv.data.network.AuthBridgeClient
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
@@ -69,9 +68,10 @@ object NetworkModule {
     ): TmdbPosterClient =
         TmdbPosterClient(
             okHttpClient = okHttpClient,
-            apiKey = BuildConfig.TMDB_API_KEY,
-            bearerToken = BuildConfig.TMDB_BEARER_TOKEN,
+            apiKey = "",
+            bearerToken = "",
             englishToRussianTranslator = authBridgeClient::translateEnglishToRussian,
+            baseUrl = "$AUTH_BRIDGE_BASE_URL/api/tmdb",
         )
 
     private const val AUTH_BRIDGE_BASE_URL = "https://auth.bazuka.pp.ua"
