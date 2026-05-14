@@ -40,4 +40,14 @@ def build_health_router(pairing_service: PairingService) -> APIRouter:
             raise HTTPException(status_code=503, detail="Translation service is not available.")
         return service.snapshot().to_dict()
 
+    @router.get("/tmdb")
+    def tmdb(request: Request) -> dict[str, int | bool]:
+        """
+        TMDB proxy health and counters. Does not call TMDB and does not expose secrets.
+        """
+        service = getattr(request.app.state, "tmdb_proxy_service", None)
+        if service is None:
+            raise HTTPException(status_code=503, detail="TMDB proxy service is not available.")
+        return service.snapshot().to_dict()
+
     return router

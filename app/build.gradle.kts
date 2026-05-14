@@ -1,5 +1,4 @@
 import java.util.Base64
-import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -17,21 +16,6 @@ val releaseKeystoreBase64Provider = providers.environmentVariable("ANDROID_KEYST
 val releaseKeystorePasswordProvider = providers.environmentVariable("ANDROID_KEYSTORE_PASSWORD")
 val releaseKeyAliasProvider = providers.environmentVariable("ANDROID_KEY_ALIAS")
 val releaseKeyPasswordProvider = providers.environmentVariable("ANDROID_KEY_PASSWORD")
-val localProperties = Properties().apply {
-    val localPropertiesFile = rootProject.file("local.properties")
-    if (localPropertiesFile.exists()) {
-        localPropertiesFile.inputStream().use(::load)
-    }
-}
-val tmdbApiKeyProvider = providers
-    .gradleProperty("tmdbApiKey")
-    .orElse(providers.environmentVariable("TMDB_API_KEY"))
-    .orElse(localProperties.getProperty("tmdbApiKey") ?: "")
-val tmdbBearerTokenProvider = providers
-    .gradleProperty("tmdbBearerToken")
-    .orElse(providers.environmentVariable("TMDB_BEARER_TOKEN"))
-    .orElse(localProperties.getProperty("tmdbBearerToken") ?: "")
-
 fun decodeReleaseKeystore(): File? {
     val explicitPath = releaseKeystorePathProvider.orNull
     if (!explicitPath.isNullOrBlank()) {
@@ -66,8 +50,6 @@ android {
         versionCode = releaseVersionCodeProvider.get().toInt()
         versionName = releaseVersionNameProvider.get()
         testInstrumentationRunner = "com.kraat.lostfilmnewtv.HiltTestRunner"
-        buildConfigField("String", "TMDB_API_KEY", "\"${tmdbApiKeyProvider.get()}\"")
-        buildConfigField("String", "TMDB_BEARER_TOKEN", "\"${tmdbBearerTokenProvider.get()}\"")
     }
 
     signingConfigs {

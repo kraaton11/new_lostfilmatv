@@ -9,6 +9,7 @@ import okhttp3.Protocol
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -16,6 +17,36 @@ import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class TmdbPosterClientTest {
+    @Test
+    fun searchByTitle_usesConfiguredProxyBaseUrl_withoutTmdbSecret() = runTest {
+        var requestedUrl = ""
+        var authorizationHeader: String? = "unexpected"
+        val client = TmdbPosterClient(
+            okHttpClient = OkHttpClient.Builder()
+                .addInterceptor(Interceptor { chain ->
+                    requestedUrl = chain.request().url.toString()
+                    authorizationHeader = chain.request().header("Authorization")
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body("""{"results": [], "total_results": 0}""".toResponseBody())
+                        .build()
+                })
+                .build(),
+            apiKey = "",
+            bearerToken = "",
+            baseUrl = "https://auth.example.test/api/tmdb",
+        )
+
+        client.searchByTitle("Новобранец", year = 2026, type = TmdbMediaType.TV)
+
+        assertTrue(requestedUrl.startsWith("https://auth.example.test/api/tmdb/search/tv?"))
+        assertFalse(requestedUrl.contains("api_key="))
+        assertEquals(null, authorizationHeader)
+    }
+
     @Test
     fun searchByTitle_usesApiKeyAsQueryParameter_notBearerHeader() = runTest {
         var requestedUrl = ""
