@@ -73,6 +73,8 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
             val savedAppUpdate by homeViewModel.savedAppUpdate.collectAsStateWithLifecycle()
             val selectedNavItem by homeViewModel.selectedNavItem.collectAsStateWithLifecycle()
             var updateInstallJob by remember { mutableStateOf<Job?>(null) }
+            var isUpdateDownloading by remember { mutableStateOf(false) }
+            var updateDownloadProgress by remember { mutableStateOf<Int?>(null) }
 
             LaunchedEffect(Unit) {
                 homeViewModel.onNavItemSelected(NavItem.HOME)
@@ -140,8 +142,21 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                     if (!apkUrl.isNullOrBlank() && updateInstallJob?.isActive != true) {
                         updateInstallJob = scope.launch {
                             try {
-                                appGraphEntryPoint.releaseApkLauncher().launch(apkUrl)
+                                appGraphEntryPoint.releaseApkLauncher().launch(
+                                    apkUrl = apkUrl,
+                                    onDownloadingChange = { isDownloading ->
+                                        isUpdateDownloading = isDownloading
+                                        if (isDownloading) {
+                                            updateDownloadProgress = null
+                                        }
+                                    },
+                                    onDownloadProgress = { progress ->
+                                        updateDownloadProgress = progress
+                                    },
+                                )
                             } finally {
+                                isUpdateDownloading = false
+                                updateDownloadProgress = null
                                 updateInstallJob = null
                             }
                         }
@@ -149,6 +164,8 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                 },
                 isAuthenticated = isAuthenticated,
                 savedAppUpdate = savedAppUpdate,
+                isUpdateDownloading = isUpdateDownloading,
+                updateDownloadProgress = updateDownloadProgress,
             )
         }
 
