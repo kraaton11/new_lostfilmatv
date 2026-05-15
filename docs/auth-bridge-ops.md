@@ -1,106 +1,189 @@
-# Auth Bridge Ops Notes
+# Auth Bridge: операционные заметки
 
-This file captures the current deployment state for the LostFilm auth bridge so the setup does not need to be rediscovered from scratch.
+Этот документ фиксирует рабочее состояние LostFilm Auth Bridge, чтобы при следующем обслуживании не восстанавливать детали деплоя заново.
 
-## Repository State
+Подробная инструкция установки находится в [auth-bridge-server-install.md](auth-bridge-server-install.md).
 
-- Primary GitHub repo: `https://github.com/kraaton11/new_lostfilmatv.git`
-- Backup remote kept locally: `origin-lostfilmtv -> https://github.com/kraaton11/lostfilmtv.git`
-- Main feature branch that delivered the app and backend scaffold: `codex/lostfilm-android-tv`
-- PR merged to `main`: `#1`
-- Merge commit on `main`: `133053588dc425169f535248fbf227376dab06e9`
+## Репозиторий
 
-## Android App Notes
+- Основной GitHub repo: `https://github.com/kraaton11/new_lostfilmatv.git`
+- Резервный remote в локальном checkout: `origin-lostfilmtv -> https://github.com/kraaton11/lostfilmtv.git`
+- Backend в репозитории: `backend/auth_bridge/`
+- FastAPI entry point: `backend/auth_bridge/backend/src/auth_bridge/main.py`
+- Compose file: `backend/auth_bridge/docker-compose.yml`
+- Workflow сборки Docker image: `.github/workflows/auth-bridge-image.yml`
+- Публикуемый image: `ghcr.io/kraaton11/lostfilm-auth-bridge`
+
+## Android-клиент
 
 - Package name: `com.kraat.lostfilmnewtv`
-- Minimum Android version: `API 26` / Android 8.0
-- Manual install target previously used: `192.168.2.246:5555`
-- Successful emulator/device checks included:
-  - `.\gradlew.bat testDebugUnitTest lint assembleDebug`
-  - `ANDROID_SERIAL=emulator-5554 .\gradlew.bat :app:connectedDebugAndroidTest`
+- Минимальная версия Android: `API 26` / Android 8.0
+- Auth bridge base URL в приложении: `https://auth.bazuka.pp.ua`
+- TMDB proxy base URL в приложении: `https://auth.bazuka.pp.ua/api/tmdb`
+- Основная проверка клиента:
 
-## Auth Bridge Source Layout
+```bash
+./gradlew testDebugUnitTest lint assembleDebug
+```
 
-- Backend root in repo: `backend/auth_bridge/`
-- FastAPI app entry point: `backend/auth_bridge/backend/src/auth_bridge/main.py`
-- Server compose file: `backend/auth_bridge/docker-compose.yml`
-- GitHub image workflow: `.github/workflows/auth-bridge-image.yml`
+Instrumented UI-тесты требуют подключенного Android TV эмулятора или устройства:
 
-## Server Layout
+```bash
+./gradlew :app:connectedDebugAndroidTest
+```
 
-- Server: `ubuntu@1.alpo.pp.ua`
-- Hostname observed on server: `baza-1`
-- Public auth domain: `https://auth.bazuka.pp.ua`
-- Existing API domain kept working alongside it: `https://lf.bazuka.pp.ua`
-- Deploy directory on server: `/home/ubuntu/lostfilm-auth-bridge`
-- Compose stack names:
-  - `lostfilm-auth-bridge-auth-backend-1`
-  - `lostfilm-auth-bridge-auth-postgres-1`
+## Сервер
 
-## Reverse Proxy State
+- Сервер: `ubuntu@1.alpo.pp.ua`
+- Наблюдавшийся hostname: `baza-1`
+- Каталог деплоя: `/home/ubuntu/lostfilm-auth-bridge`
+- Публичный auth-домен: `https://auth.bazuka.pp.ua`
+- Телефонный QR-flow использует wildcard hosts: `https://<phone_verifier>.auth.bazuka.pp.ua/`
+- Старый API-домен `https://lf.bazuka.pp.ua` обслуживается отдельно и не является частью auth bridge.
 
-- Reverse proxy is not the Docker `proxy` service.
-- Real proxy is host-level Caddy service: `hysteria-caddy`
-- Systemd unit: `/etc/systemd/system/hysteria-caddy.service`
-- Active Caddy config: `/etc/hysteria/core/scripts/webpanel/Caddyfile`
+## Runtime-состав
 
-Current Caddyfile shape:
+Текущая версия auth bridge поднимает один контейнер:
 
-```caddy
-# Global configuration
-{
-    admin off
-    auto_https disable_redirects
-}
+- `auth-backend`
 
-lf.bazuka.pp.ua:443 {
-    tls internal
+Внутри контейнера FastAPI слушает порт `8000`. Docker публикует его только на loopback хоста:
+
+```text
+127.0.0.1:${BACKEND_PORT}:8000
+```
+
+По умолчанию в репозитории:
+
+```dotenv
+BACKEND_PORT=18015
+```
+
+На production-сервере может использоваться порт `3001`, если так настроен reverse proxy:
+
+```dotenv
+BACKEND_PORT=3001
+```
+
+Postgres в текущей версии не используется. Доверенные телефоны хранятся в SQLite базе внутри Docker volume:
+
+```text
+trusted-devices -> /data/trusted_devices.sqlite3
+```
+
+## Ключевые переменные `.env`
+
+Обязательные публичные значения:
+
+```dotenv
+AUTH_BRIDGE_PUBLIC_BASE_URL=https://auth.bazuka.pp.ua
+AUTH_BRIDGE_PUBLIC_BASE_DOMAIN=auth.bazuka.pp.ua
+AUTH_BACKEND_IMAGE=ghcr.io/kraaton11/lostfilm-auth-bridge:latest
+BACKEND_PORT=18015
+```
+
+Рекомендуемые значения для сервера за reverse proxy:
+
+```dotenv
+AUTH_BRIDGE_TRUSTED_PROXY_IPS=127.0.0.1
+AUTH_BRIDGE_TRUSTED_DEVICE_COOKIE_DOMAIN=auth.bazuka.pp.ua
+AUTH_BRIDGE_TRUSTED_DEVICE_DB_PATH=/data/trusted_devices.sqlite3
+AUTH_BRIDGE_TRUSTED_DEVICE_TTL_SECONDS=31536000
+AUTH_BRIDGE_LOG_FORMAT=json
+```
+
+Если образ фиксируется по commit-тегу, значение выглядит так:
+
+```dotenv
+AUTH_BACKEND_IMAGE=ghcr.io/kraaton11/lostfilm-auth-bridge:sha-<commit>
+```
+
+Опциональный DeepL-перевод включается только при наличии ключа:
+
+```dotenv
+AUTH_BRIDGE_DEEPL_API_KEY=<secret>
+```
+
+Если ключ пустой, `/api/translate` возвращает `503`, что является штатным поведением.
+
+## Reverse proxy
+
+Reverse proxy работает на уровне хоста, а не как Docker service.
+
+Наблюдавшаяся конфигурация:
+
+- systemd service: `hysteria-caddy`
+- unit: `/etc/systemd/system/hysteria-caddy.service`
+- Caddyfile: `/etc/hysteria/core/scripts/webpanel/Caddyfile`
+
+Для текущего wildcard-flow proxy должен принимать оба host:
+
+- `auth.bazuka.pp.ua`
+- `*.auth.bazuka.pp.ua`
+
+Минимальная форма Caddy-конфига:
+
+```caddyfile
+auth.bazuka.pp.ua, *.auth.bazuka.pp.ua {
     encode gzip zstd
-    reverse_proxy http://127.0.0.1:3000
-}
-
-auth.bazuka.pp.ua:443 {
-    tls internal
-    encode gzip zstd
-    reverse_proxy http://127.0.0.1:3001
+    reverse_proxy 127.0.0.1:18015
 }
 ```
 
-Important operational note:
+Если на сервере используется `BACKEND_PORT=3001`, upstream должен быть `127.0.0.1:3001`.
 
-- `systemctl reload hysteria-caddy` is currently broken because the unit uses `caddy reload`, but the Caddyfile has `admin off`.
-- The observed failure is a post to `http://localhost:2019/load` with `connection refused`.
-- Use `sudo systemctl restart hysteria-caddy` to apply config changes unless the unit/config is redesigned.
+Операционная заметка по `hysteria-caddy`: ранее `systemctl reload hysteria-caddy` был ненадежен из-за `admin off` и `ExecReload`, который вызывает `caddy reload`. Для применения изменений использовался restart:
 
-## Current Runtime Configuration
+```bash
+sudo systemctl restart hysteria-caddy
+```
 
-- Backend binds through Docker to `127.0.0.1:3001`
-- Public traffic path is `auth.bazuka.pp.ua -> host Caddy -> 127.0.0.1:3001 -> auth-backend container`
-- Postgres stays internal to the compose network
-- Current deployed image reference in `/home/ubuntu/lostfilm-auth-bridge/.env`:
-  - `AUTH_BACKEND_IMAGE=ghcr.io/kraaton11/lostfilm-auth-bridge:sha-1330535`
+Перед restart конфиг стоит проверить:
 
-## GHCR State
+```bash
+sudo caddy validate --config /etc/hysteria/core/scripts/webpanel/Caddyfile
+```
 
-- Published container image: `ghcr.io/kraaton11/lostfilm-auth-bridge`
-- Confirmed tags during setup:
-  - `latest`
-  - `sha-1330535`
-- Working server update flow now:
-  - `docker compose pull auth-backend`
-  - `docker compose up -d auth-backend`
+## GHCR и обновления
 
-## Docker Credential Storage On Server
+Workflow `.github/workflows/auth-bridge-image.yml` собирает и публикует `linux/amd64` image в GHCR.
 
-Docker credentials were migrated away from plain `config.json` auth storage.
+Ожидаемые теги:
 
-Current state:
+- `latest` для `main`
+- `sha-*` для commit-based deploy
+- `v*` для tag-based release
 
-- Installed packages:
-  - `pass`
-  - `golang-docker-credential-helpers`
-- Docker config for user `ubuntu`: `/home/ubuntu/.docker/config.json`
-- Current content is only:
+Обновление на сервере:
+
+```bash
+ssh ubuntu@1.alpo.pp.ua
+cd /home/ubuntu/lostfilm-auth-bridge
+docker compose pull auth-backend
+docker compose up -d auth-backend
+docker compose logs --tail=100 auth-backend
+```
+
+Если используется фиксированный `sha-*` тег:
+
+```bash
+grep ^AUTH_BACKEND_IMAGE= .env
+sed -i 's#^AUTH_BACKEND_IMAGE=.*#AUTH_BACKEND_IMAGE=ghcr.io/kraaton11/lostfilm-auth-bridge:sha-<commit>#' .env
+docker compose pull auth-backend
+docker compose up -d auth-backend
+```
+
+GHCR pull для приватного образа требует Docker login с токеном, у которого есть `read:packages`.
+
+## Docker credentials на сервере
+
+Docker credentials были перенесены из plain `config.json` в credential store.
+
+Наблюдавшееся состояние:
+
+- установлены `pass` и `golang-docker-credential-helpers`;
+- Docker config пользователя `ubuntu`: `/home/ubuntu/.docker/config.json`;
+- содержимое config:
 
 ```json
 {
@@ -108,44 +191,127 @@ Current state:
 }
 ```
 
-- Password store path: `/home/ubuntu/.password-store`
-- GPG fingerprint created for Docker credential storage:
-  - `EC909B77956C9854BA8B756E33DB71DD2D8289F6`
-- Plain backup `config.json.bak.*` files were shredded and removed after migration.
+- password store: `/home/ubuntu/.password-store`;
+- GPG fingerprint для Docker credential storage:
 
-## Health Checks That Were Confirmed
+```text
+EC909B77956C9854BA8B756E33DB71DD2D8289F6
+```
 
-- Local backend on server:
-  - `curl http://127.0.0.1:3001/health/live`
-- Public backend:
-  - `curl -k https://auth.bazuka.pp.ua/health/live`
-- Existing API after auth deploy:
-  - `curl -k https://lf.bazuka.pp.ua/health`
+Старые plain backup-файлы `config.json.bak.*` были удалены после миграции.
 
-Expected successful responses observed:
+## Проверки здоровья
 
-- `auth.bazuka.pp.ua/health/live` -> `{"status":"ok"}`
-- `lf.bazuka.pp.ua/health` -> `{"status":"ok","database_configured":true,"database_ok":true}`
+Локально на сервере:
 
-## Known Gotchas
+```bash
+curl -fsS http://127.0.0.1:18015/health/live
+curl -fsS http://127.0.0.1:18015/health/ready
+```
 
-- The server default shell behavior made some inline SSH commands flaky. Simpler one-shot commands and uploaded scripts were more reliable.
-- `hysteria-caddy` reload failures were not caused by the new auth domain; the root cause was the `admin off` plus `ExecReload` mismatch.
-- GHCR pulls require a token with `read:packages`.
-- Ubuntu package install for `golang-docker-credential-helpers` pulled many GUI-related dependencies. This did not break the deploy, but it is expected.
+Если production использует `BACKEND_PORT=3001`, замените порт:
 
-## Next-Time Checklist
+```bash
+curl -fsS http://127.0.0.1:3001/health/ready
+```
 
-If this stack needs to be touched again, start here:
+Публично:
 
-1. Confirm server health:
-   - `curl -k https://auth.bazuka.pp.ua/health/live`
-   - `curl -k https://lf.bazuka.pp.ua/health`
-2. Confirm running image:
-   - `ssh ubuntu@1.alpo.pp.ua 'grep ^AUTH_BACKEND_IMAGE= /home/ubuntu/lostfilm-auth-bridge/.env'`
-3. Pull and restart auth backend:
-   - `ssh ubuntu@1.alpo.pp.ua 'cd /home/ubuntu/lostfilm-auth-bridge && docker compose pull auth-backend && docker compose up -d auth-backend'`
-4. If Caddy config changes are needed:
-   - edit `/etc/hysteria/core/scripts/webpanel/Caddyfile`
-   - validate with `sudo caddy validate --config /etc/hysteria/core/scripts/webpanel/Caddyfile`
-   - apply with `sudo systemctl restart hysteria-caddy`
+```bash
+curl -fsS https://auth.bazuka.pp.ua/health/live
+curl -fsS https://auth.bazuka.pp.ua/health/ready
+curl -fsS https://auth.bazuka.pp.ua/health/translation
+curl -fsS https://auth.bazuka.pp.ua/health/tmdb
+```
+
+Ожидаемые ответы для базовых endpoints:
+
+```json
+{"status":"ok"}
+```
+
+`/health/translation` и `/health/tmdb` возвращают counters/config status без секретов и без внешних запросов к DeepL/TMDB.
+
+## Проверка QR-flow
+
+Создать pairing:
+
+```bash
+curl -fsS -X POST https://auth.bazuka.pp.ua/api/pairings
+```
+
+Ответ должен содержать:
+
+- `pairingId`
+- `pairingSecret`
+- `phoneVerifier`
+- `userCode`
+- `verificationUrl`
+- `expiresIn`
+- `pollInterval`
+- `status`
+
+`verificationUrl` должен быть wildcard URL:
+
+```text
+https://<phone_verifier>.auth.bazuka.pp.ua/
+```
+
+Проверить статус:
+
+```bash
+curl -fsS \
+  -H "X-Pairing-Secret: <pairingSecret>" \
+  https://auth.bazuka.pp.ua/api/pairings/<pairingId>
+```
+
+Важно: текущий API требует `X-Pairing-Secret` для `status`, `claim`, `finalize`, `release` и `cancel`.
+
+## Известные нюансы
+
+- Для wildcard QR-flow нужны DNS и TLS для `*.auth.bazuka.pp.ua`.
+- Если Caddy matcher включает только `auth.bazuka.pp.ua`, публичный health может работать, а телефонный wildcard-flow будет попадать не туда.
+- `AUTH_BRIDGE_PUBLIC_BASE_URL` должен быть HTTPS origin без path/query.
+- `AUTH_BRIDGE_PUBLIC_BASE_DOMAIN` должен быть bare domain, без схемы и порта.
+- `AUTH_BRIDGE_TRUSTED_PROXY_IPS` должен соответствовать реальному IP reverse proxy, иначе rate limiting будет видеть proxy вместо клиента или проигнорирует `X-Forwarded-For`.
+- `AUTH_BRIDGE_TRUSTED_DEVICE_SECRET`, если задан, нельзя менять без понимания последствий: старые trusted-device cookies перестанут проверяться.
+- Установка `golang-docker-credential-helpers` на Ubuntu может подтянуть GUI-зависимости; это ожидаемо для пакета и не ломает deploy.
+
+## Чеклист следующего обслуживания
+
+1. Проверить, что рабочее дерево на сервере соответствует ожидаемому compose:
+
+```bash
+ssh ubuntu@1.alpo.pp.ua 'cd /home/ubuntu/lostfilm-auth-bridge && docker compose ps'
+```
+
+2. Проверить текущий image:
+
+```bash
+ssh ubuntu@1.alpo.pp.ua 'grep ^AUTH_BACKEND_IMAGE= /home/ubuntu/lostfilm-auth-bridge/.env'
+```
+
+3. Проверить health:
+
+```bash
+curl -fsS https://auth.bazuka.pp.ua/health/ready
+```
+
+4. Обновить backend:
+
+```bash
+ssh ubuntu@1.alpo.pp.ua 'cd /home/ubuntu/lostfilm-auth-bridge && docker compose pull auth-backend && docker compose up -d auth-backend'
+```
+
+5. Проверить логи:
+
+```bash
+ssh ubuntu@1.alpo.pp.ua 'cd /home/ubuntu/lostfilm-auth-bridge && docker compose logs --tail=100 auth-backend'
+```
+
+6. Если менялся reverse proxy:
+
+```bash
+sudo caddy validate --config /etc/hysteria/core/scripts/webpanel/Caddyfile
+sudo systemctl restart hysteria-caddy
+```
