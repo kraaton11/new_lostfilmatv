@@ -184,4 +184,3 @@ scripts/                Вспомогательные скрипты
 - [docs/github-setup.md](docs/github-setup.md)
 - [docs/auth-bridge-server-install.md](docs/auth-bridge-server-install.md)
 - [docs/auth-bridge-ops.md](docs/auth-bridge-ops.md)
-- [docs/google-signin-example.md](docs/google-signin-example.md)
