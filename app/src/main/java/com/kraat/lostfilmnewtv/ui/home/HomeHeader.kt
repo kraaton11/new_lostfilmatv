@@ -272,6 +272,8 @@ fun HomeHeader(
                         },
                 )
             }
+            Spacer(modifier = Modifier.weight(1f))
+            MenuDivider()
             HomeHeaderActionButton(
                 label = "Настройки",
                 subtitle = "Приложение",
@@ -298,8 +300,6 @@ fun HomeHeader(
                         right = downTarget ?: FocusRequester.Default
                     },
             )
-            Spacer(modifier = Modifier.weight(1f))
-            MenuDivider()
             HomeHeaderActionButton(
                 label = if (showLabels) "Скрыть меню" else "Показать меню",
                 subtitle = "",
