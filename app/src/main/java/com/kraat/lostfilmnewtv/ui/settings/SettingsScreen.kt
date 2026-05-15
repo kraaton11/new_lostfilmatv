@@ -61,19 +61,6 @@ fun SettingsScreen(
     isHomeMenuLabelsEnabled: Boolean = true,
     selectedWatchedMarkingMode: WatchedMarkingMode = WatchedMarkingMode.AUTO,
     onWatchedMarkingModeSelected: (WatchedMarkingMode) -> Unit = {},
-    torrServeBaseUrl: String = "http://127.0.0.1:8090",
-    torrServeStatusText: String? = null,
-    isCheckingTorrServe: Boolean = false,
-    onTorrServeBaseUrlChanged: (String) -> Unit = {},
-    onSaveTorrServeBaseUrlClick: () -> Unit = {},
-    onCheckTorrServeClick: () -> Unit = {},
-    onResetTorrServeBaseUrlClick: () -> Unit = {},
-    dataStatusText: String? = null,
-    isDataActionRunning: Boolean = false,
-    onRefreshDataClick: () -> Unit = {},
-    onClearReleaseCacheClick: () -> Unit = {},
-    onClearPosterCacheClick: () -> Unit = {},
-    onClearNetworkCacheClick: () -> Unit = {},
     diagnosticResults: List<SettingsDiagnosticResult> = emptyList(),
     diagnosticsStatusText: String? = null,
     isRunningDiagnostics: Boolean = false,
@@ -112,16 +99,8 @@ fun SettingsScreen(
             updateModes.forEach { put(it.buttonTag(), FocusRequester()) }
             channelModes.forEach { put(it.buttonTag(), FocusRequester()) }
             put(SettingsFocusTarget.WatchedMarkingToggle.toTag(), FocusRequester())
-            put(SettingsFocusTarget.TorrServeBaseUrl.toTag(), FocusRequester())
-            put(SettingsFocusTarget.TorrServeSave.toTag(), FocusRequester())
-            put(SettingsFocusTarget.TorrServeCheck.toTag(), FocusRequester())
-            put(SettingsFocusTarget.TorrServeReset.toTag(), FocusRequester())
             put(SettingsFocusTarget.HomeFavoritesToggle.toTag(), FocusRequester())
             put(SettingsFocusTarget.HomeMenuLabelsToggle.toTag(), FocusRequester())
-            put(SettingsFocusTarget.DataRefreshHome.toTag(), FocusRequester())
-            put(SettingsFocusTarget.DataClearReleases.toTag(), FocusRequester())
-            put(SettingsFocusTarget.DataClearPosters.toTag(), FocusRequester())
-            put(SettingsFocusTarget.DataClearNetwork.toTag(), FocusRequester())
             put(SettingsFocusTarget.DiagnosticsRun.toTag(), FocusRequester())
             put(SettingsFocusTarget.CheckForUpdates.toTag(), FocusRequester())
             put(SettingsFocusTarget.InstallUpdate.toTag(), FocusRequester())
@@ -134,10 +113,8 @@ fun SettingsScreen(
         mutableStateOf(
             mapOf(
                 SettingsSection.PLAYBACK.name to SettingsFocusTarget.PlaybackQuality(selectedQuality),
-                SettingsSection.TORRSERVE.name to SettingsFocusTarget.TorrServeBaseUrl,
                 SettingsSection.HOME_SCREEN.name to SettingsFocusTarget.HomeFavoritesToggle,
                 SettingsSection.CHANNEL.name to SettingsFocusTarget.ChannelMode(selectedChannelMode),
-                SettingsSection.DATA.name to SettingsFocusTarget.DataRefreshHome,
                 SettingsSection.DIAGNOSTICS.name to SettingsFocusTarget.DiagnosticsRun,
                 SettingsSection.UPDATES.name to SettingsFocusTarget.UpdateChannel(selectedUpdateMode),
                 SettingsSection.ACCOUNT.name to SettingsFocusTarget.AccountAuth,
@@ -164,11 +141,6 @@ fun SettingsScreen(
     val qualitySummary = selectedQuality.shortLabel()
     val watchedSummary = if (selectedWatchedMarkingMode == WatchedMarkingMode.AUTO) "Авто" else "Выкл"
     val playbackSummary = "$qualitySummary · отметка $watchedSummary"
-    val torrServeSummary = when {
-        isCheckingTorrServe -> "Проверяем..."
-        !torrServeStatusText.isNullOrBlank() -> torrServeStatusText
-        else -> torrServeBaseUrl
-    }
     val updateSummary = updateSummary(
         selectedUpdateMode = selectedUpdateMode,
         statusText = statusText,
@@ -182,11 +154,6 @@ fun SettingsScreen(
         "Избранное ${if (isHomeFavoritesRailEnabled) "вкл" else "выкл"}",
         "подписи ${if (isHomeMenuLabelsEnabled) "вкл" else "выкл"}",
     ).joinToString(" · ")
-    val dataSummary = when {
-        isDataActionRunning -> "Выполняется..."
-        !dataStatusText.isNullOrBlank() -> dataStatusText
-        else -> "Кеш и обновление"
-    }
     val diagnosticsSummary = when {
         isRunningDiagnostics -> "Проверяем..."
         !diagnosticsStatusText.isNullOrBlank() -> diagnosticsStatusText
@@ -217,11 +184,9 @@ fun SettingsScreen(
             SettingsSectionRail(
                 selectedSection = selectedSection,
                 playbackSummary = playbackSummary,
-                torrServeSummary = torrServeSummary,
                 updateSummary = updateSummary,
                 channelSummary = channelSummary,
                 homeScreenSummary = homeScreenSummary,
-                dataSummary = dataSummary,
                 diagnosticsSummary = diagnosticsSummary,
                 accountSummary = accountSummary,
                 aboutSummary = aboutSummary,
@@ -332,101 +297,6 @@ fun SettingsScreen(
                             }
                         }
 
-                        SettingsSection.TORRSERVE -> {
-                            SettingsOptionsSection {
-                                SettingsOverviewCard(
-                                    title = "TorrServe",
-                                    subtitle = "Адрес локального сервера и быстрая проверка подключения.",
-                                    modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(14.dp)),
-                                ) {
-                                    SettingsOverviewValue(text = "Адрес: $torrServeBaseUrl")
-                                    SettingsOverviewValue(text = torrServeStatusText ?: "По умолчанию: http://127.0.0.1:8090")
-                                }
-                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    val urlTag = SettingsFocusTarget.TorrServeBaseUrl.toTag()
-                                    val saveTag = SettingsFocusTarget.TorrServeSave.toTag()
-                                    val checkTag = SettingsFocusTarget.TorrServeCheck.toTag()
-                                    val resetTag = SettingsFocusTarget.TorrServeReset.toTag()
-                                    SettingsTextField(
-                                        value = torrServeBaseUrl,
-                                        onValueChange = onTorrServeBaseUrlChanged,
-                                        label = "Адрес TorrServe",
-                                        tag = urlTag,
-                                        onFocused = {
-                                            rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.TORRSERVE.name to SettingsFocusTarget.TorrServeBaseUrl
-                                            )
-                                        },
-                                        modifier = Modifier
-                                            .focusRequester(contentRequesters.getValue(urlTag))
-                                            .focusProperties {
-                                                left = railRequesters.getValue(SettingsSection.TORRSERVE)
-                                                up = railRequesters.getValue(SettingsSection.TORRSERVE)
-                                                down = contentRequesters.getValue(saveTag)
-                                            },
-                                    )
-                                    SettingsRowButton(
-                                        title = "Сохранить адрес",
-                                        description = "Нормализует адрес и сохраняет его для проверок.",
-                                        value = "Сохранить",
-                                        onClick = onSaveTorrServeBaseUrlClick,
-                                        tag = saveTag,
-                                        onFocused = {
-                                            rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.TORRSERVE.name to SettingsFocusTarget.TorrServeSave
-                                            )
-                                        },
-                                        modifier = Modifier
-                                            .focusRequester(contentRequesters.getValue(saveTag))
-                                            .focusProperties {
-                                                left = railRequesters.getValue(SettingsSection.TORRSERVE)
-                                                up = contentRequesters.getValue(urlTag)
-                                                down = contentRequesters.getValue(checkTag)
-                                            },
-                                    )
-                                    SettingsRowButton(
-                                        title = "Проверить TorrServe",
-                                        description = "Проверяет приложение и HTTP endpoint /echo.",
-                                        value = if (isCheckingTorrServe) "Проверяем..." else "Проверить",
-                                        onClick = onCheckTorrServeClick,
-                                        enabled = !isCheckingTorrServe,
-                                        tag = checkTag,
-                                        onFocused = {
-                                            rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.TORRSERVE.name to SettingsFocusTarget.TorrServeCheck
-                                            )
-                                        },
-                                        modifier = Modifier
-                                            .focusRequester(contentRequesters.getValue(checkTag))
-                                            .focusProperties {
-                                                left = railRequesters.getValue(SettingsSection.TORRSERVE)
-                                                up = contentRequesters.getValue(saveTag)
-                                                down = contentRequesters.getValue(resetTag)
-                                            },
-                                    )
-                                    SettingsRowButton(
-                                        title = "Сбросить адрес",
-                                        description = "Вернуть http://127.0.0.1:8090.",
-                                        value = "Сбросить",
-                                        onClick = onResetTorrServeBaseUrlClick,
-                                        tag = resetTag,
-                                        onFocused = {
-                                            rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.TORRSERVE.name to SettingsFocusTarget.TorrServeReset
-                                            )
-                                        },
-                                        modifier = Modifier
-                                            .focusRequester(contentRequesters.getValue(resetTag))
-                                            .focusProperties {
-                                                left = railRequesters.getValue(SettingsSection.TORRSERVE)
-                                                up = contentRequesters.getValue(checkTag)
-                                                down = FocusRequester.Default
-                                            },
-                                    )
-                                }
-                            }
-                        }
-
                         SettingsSection.HOME_SCREEN -> {
                             SettingsOptionsSection {
                                 SettingsOverviewCard(
@@ -521,104 +391,6 @@ fun SettingsScreen(
                                                 },
                                         )
                                     }
-                                }
-                            }
-                        }
-
-                        SettingsSection.DATA -> {
-                            SettingsOptionsSection {
-                                SettingsOverviewCard(
-                                    title = "Данные",
-                                    subtitle = "Очистка кешей и ручное обновление главной ленты.",
-                                    modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(14.dp)),
-                                ) {
-                                    SettingsOverviewValue(text = dataStatusText ?: "Кеш релизов, постеров и сетевых ответов.")
-                                }
-                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    val refreshTag = SettingsFocusTarget.DataRefreshHome.toTag()
-                                    val clearReleasesTag = SettingsFocusTarget.DataClearReleases.toTag()
-                                    val clearPostersTag = SettingsFocusTarget.DataClearPosters.toTag()
-                                    val clearNetworkTag = SettingsFocusTarget.DataClearNetwork.toTag()
-                                    SettingsRowButton(
-                                        title = "Обновить главную",
-                                        description = "Заново загрузить первую страницу релизов.",
-                                        value = if (isDataActionRunning) "Ждите" else "Обновить",
-                                        onClick = onRefreshDataClick,
-                                        enabled = !isDataActionRunning,
-                                        tag = refreshTag,
-                                        onFocused = {
-                                            rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.DATA.name to SettingsFocusTarget.DataRefreshHome
-                                            )
-                                        },
-                                        modifier = Modifier
-                                            .focusRequester(contentRequesters.getValue(refreshTag))
-                                            .focusProperties {
-                                                left = railRequesters.getValue(SettingsSection.DATA)
-                                                up = railRequesters.getValue(SettingsSection.DATA)
-                                                down = contentRequesters.getValue(clearReleasesTag)
-                                            },
-                                    )
-                                    SettingsRowButton(
-                                        title = "Очистить кеш релизов",
-                                        description = "Удаляет сохраненные списки и карточки релизов.",
-                                        value = "Очистить",
-                                        onClick = onClearReleaseCacheClick,
-                                        enabled = !isDataActionRunning,
-                                        tag = clearReleasesTag,
-                                        onFocused = {
-                                            rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.DATA.name to SettingsFocusTarget.DataClearReleases
-                                            )
-                                        },
-                                        modifier = Modifier
-                                            .focusRequester(contentRequesters.getValue(clearReleasesTag))
-                                            .focusProperties {
-                                                left = railRequesters.getValue(SettingsSection.DATA)
-                                                up = contentRequesters.getValue(refreshTag)
-                                                down = contentRequesters.getValue(clearPostersTag)
-                                            },
-                                    )
-                                    SettingsRowButton(
-                                        title = "Очистить кеш постеров",
-                                        description = "Удаляет TMDB mappings и локальный image cache.",
-                                        value = "Очистить",
-                                        onClick = onClearPosterCacheClick,
-                                        enabled = !isDataActionRunning,
-                                        tag = clearPostersTag,
-                                        onFocused = {
-                                            rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.DATA.name to SettingsFocusTarget.DataClearPosters
-                                            )
-                                        },
-                                        modifier = Modifier
-                                            .focusRequester(contentRequesters.getValue(clearPostersTag))
-                                            .focusProperties {
-                                                left = railRequesters.getValue(SettingsSection.DATA)
-                                                up = contentRequesters.getValue(clearReleasesTag)
-                                                down = contentRequesters.getValue(clearNetworkTag)
-                                            },
-                                    )
-                                    SettingsRowButton(
-                                        title = "Очистить сетевой кеш",
-                                        description = "Очищает OkHttp cache без выхода из аккаунта.",
-                                        value = "Очистить",
-                                        onClick = onClearNetworkCacheClick,
-                                        enabled = !isDataActionRunning,
-                                        tag = clearNetworkTag,
-                                        onFocused = {
-                                            rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.DATA.name to SettingsFocusTarget.DataClearNetwork
-                                            )
-                                        },
-                                        modifier = Modifier
-                                            .focusRequester(contentRequesters.getValue(clearNetworkTag))
-                                            .focusProperties {
-                                                left = railRequesters.getValue(SettingsSection.DATA)
-                                                up = contentRequesters.getValue(clearPostersTag)
-                                                down = FocusRequester.Default
-                                            },
-                                    )
                                 }
                             }
                         }
@@ -773,10 +545,8 @@ enum class SettingsSection(
     val summaryTag: String,
 ) {
     PLAYBACK("Воспроизведение", "settings-section-playback", "settings-section-playback-summary"),
-    TORRSERVE("TorrServe", "settings-section-torrserve", "settings-section-torrserve-summary"),
     HOME_SCREEN("Главный экран", "settings-section-home-screen", "settings-section-home-screen-summary"),
     CHANNEL("Android TV", "settings-section-channel", "settings-section-channel-summary"),
-    DATA("Данные", "settings-section-data", "settings-section-data-summary"),
     DIAGNOSTICS("Диагностика", "settings-section-diagnostics", "settings-section-diagnostics-summary"),
     UPDATES("Обновления", "settings-section-updates", "settings-section-updates-summary"),
     ACCOUNT("Аккаунт", "settings-section-account", "settings-section-account-summary"),
@@ -794,11 +564,9 @@ enum class SettingsSection(
 private fun SettingsSectionRail(
     selectedSection: SettingsSection,
     playbackSummary: String,
-    torrServeSummary: String,
     updateSummary: String,
     channelSummary: String,
     homeScreenSummary: String,
-    dataSummary: String,
     diagnosticsSummary: String,
     accountSummary: String,
     aboutSummary: String,
@@ -820,10 +588,8 @@ private fun SettingsSectionRail(
                 text = section.railTitle,
                 summary = when (section) {
                     SettingsSection.PLAYBACK -> playbackSummary
-                    SettingsSection.TORRSERVE -> torrServeSummary
                     SettingsSection.HOME_SCREEN -> homeScreenSummary
                     SettingsSection.CHANNEL -> channelSummary
-                    SettingsSection.DATA -> dataSummary
                     SettingsSection.DIAGNOSTICS -> diagnosticsSummary
                     SettingsSection.UPDATES -> updateSummary
                     SettingsSection.ACCOUNT -> accountSummary
@@ -1008,10 +774,8 @@ private fun targetContentTag(
     return when {
         rememberedTarget != null && isActionAvailable(rememberedTarget, installUrl) -> rememberedTarget
         section == SettingsSection.PLAYBACK -> SettingsFocusTarget.PlaybackQuality(selectedQuality)
-        section == SettingsSection.TORRSERVE -> SettingsFocusTarget.TorrServeBaseUrl
         section == SettingsSection.HOME_SCREEN -> SettingsFocusTarget.HomeFavoritesToggle
         section == SettingsSection.CHANNEL -> SettingsFocusTarget.ChannelMode(selectedChannelMode)
-        section == SettingsSection.DATA -> SettingsFocusTarget.DataRefreshHome
         section == SettingsSection.DIAGNOSTICS -> SettingsFocusTarget.DiagnosticsRun
         section == SettingsSection.UPDATES -> SettingsFocusTarget.UpdateChannel(selectedUpdateMode)
         section == SettingsSection.ACCOUNT -> SettingsFocusTarget.AccountAuth
