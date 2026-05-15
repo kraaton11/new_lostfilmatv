@@ -708,9 +708,9 @@ private fun HomeLoadingSkeleton(modifier: Modifier = Modifier) {
     val shimmerBrush = rememberShimmerSkeletonBrush(
         label = "homeSkeleton",
         baseColor = HomePanelSurfaceStrong,
-        highlightColor = HomePanelBorder,
-        baseAlpha = 0.58f,
-        highlightAlpha = 0.72f,
+        highlightColor = Color.White,
+        baseAlpha = 0.72f,
+        highlightAlpha = 0.10f,
         startOffset = -520f,
         endOffset = 1_160f,
         shimmerWidth = 440f,
@@ -722,33 +722,44 @@ private fun HomeLoadingSkeleton(modifier: Modifier = Modifier) {
         verticalArrangement = Arrangement.spacedBy(7.dp),
     ) {
         Column(
-            modifier = Modifier.padding(start = 2.dp, end = 280.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(252.dp)
+                .background(
+                    Brush.horizontalGradient(
+                        0f to BackgroundPrimary.copy(alpha = 0.68f),
+                        0.54f to BackgroundPrimary.copy(alpha = 0.22f),
+                        1f to Color.Transparent,
+                    ),
+                )
+                .padding(start = 2.dp, top = 4.dp, end = 280.dp, bottom = 8.dp),
             verticalArrangement = Arrangement.spacedBy(9.dp),
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                repeat(3) { index ->
+                repeat(4) { index ->
                     ShimmerSkeletonBox(
                         brush = shimmerBrush,
-                        modifier = Modifier.size(width = if (index == 0) 72.dp else 64.dp, height = 24.dp),
+                        modifier = Modifier.size(width = listOf(64.dp, 58.dp, 74.dp, 68.dp)[index], height = 23.dp),
                         shape = RoundedCornerShape(999.dp),
-                        borderColor = HomePanelBorder.copy(alpha = 0.34f),
+                        baseColor = HomePanelSurface.copy(alpha = 0.46f),
+                        borderColor = HomePanelBorder.copy(alpha = 0.46f),
                     )
                 }
             }
             ShimmerSkeletonBox(
                 brush = shimmerBrush,
-                modifier = Modifier.size(width = 500.dp, height = 38.dp),
-                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.size(width = 650.dp, height = 40.dp),
+                shape = RoundedCornerShape(10.dp),
             )
             ShimmerSkeletonBox(
                 brush = shimmerBrush,
-                modifier = Modifier.size(width = 360.dp, height = 22.dp),
-                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.size(width = 410.dp, height = 22.dp),
+                shape = RoundedCornerShape(8.dp),
             )
-            repeat(3) { index ->
+            repeat(5) { index ->
                 ShimmerSkeletonBox(
                     brush = shimmerBrush,
-                    modifier = Modifier.size(width = listOf(560.dp, 520.dp, 440.dp)[index], height = 22.dp),
+                    modifier = Modifier.size(width = listOf(760.dp, 735.dp, 710.dp, 690.dp, 520.dp)[index], height = 16.dp),
                     shape = RoundedCornerShape(8.dp),
                 )
             }
@@ -770,8 +781,9 @@ private fun HomeLoadingSkeleton(modifier: Modifier = Modifier) {
                 ShimmerSkeletonBox(
                     brush = shimmerBrush,
                     modifier = Modifier.size(width = 112.dp, height = 172.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    borderColor = HomePanelBorder.copy(alpha = 0.22f),
+                    shape = RoundedCornerShape(12.dp),
+                    baseColor = HomePanelSurfaceStrong,
+                    borderColor = HomePanelBorder.copy(alpha = 0.14f),
                 )
             }
         }

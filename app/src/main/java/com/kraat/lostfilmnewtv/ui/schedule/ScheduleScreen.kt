@@ -203,17 +203,28 @@ fun ScheduleScreen(
 
 @Composable
 private fun ColumnScope.ScheduleLoadingSkeleton() {
-    val brush = rememberShimmerSkeletonBrush(label = "schedule-loading")
+    val brush = rememberShimmerSkeletonBrush(
+        label = "schedule-loading",
+        baseColor = DetailsSurfaceReadable,
+        highlightColor = Color.White,
+        baseAlpha = 0.72f,
+        highlightAlpha = 0.10f,
+        startOffset = -560f,
+        endOffset = 1_360f,
+        shimmerWidth = 520f,
+        verticalOffset = 180f,
+        durationMillis = 1_350,
+    )
     LazyColumn(
         modifier = Modifier
             .fillMaxWidth()
             .weight(1f)
             .testTag("schedule-loading"),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         items(5) { index ->
             Column(
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -222,9 +233,9 @@ private fun ColumnScope.ScheduleLoadingSkeleton() {
                     ShimmerSkeletonBox(
                         brush = brush,
                         modifier = Modifier
-                            .width(86.dp)
+                            .width(92.dp)
                             .height(22.dp),
-                        shape = RoundedCornerShape(7.dp),
+                        shape = RoundedCornerShape(8.dp),
                     )
                     ShimmerSkeletonBox(
                         brush = brush,
@@ -235,14 +246,54 @@ private fun ColumnScope.ScheduleLoadingSkeleton() {
                     )
                 }
                 repeat(if (index == 0) 3 else 2) { rowIndex ->
-                    ShimmerSkeletonBox(
-                        brush = brush,
+                    Row(
                         modifier = Modifier
-                            .fillMaxWidth(if (rowIndex == 1) 0.88f else 1f)
-                            .height(48.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        borderColor = HomePanelBorder,
-                    )
+                            .fillMaxWidth(if (rowIndex == 1) 0.96f else 1f)
+                            .height(82.dp)
+                            .clip(ScheduleRowShape)
+                            .background(DetailsSurfaceReadable)
+                            .border(1.dp, HomePanelBorder, ScheduleRowShape)
+                            .padding(start = 8.dp, end = 22.dp, top = 6.dp, bottom = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(22.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        ShimmerSkeletonBox(
+                            brush = brush,
+                            modifier = Modifier
+                                .width(224.dp)
+                                .fillMaxHeight(),
+                            shape = RoundedCornerShape(6.dp),
+                            baseColor = Color(0xFF172636),
+                        )
+                        ShimmerSkeletonBox(
+                            brush = brush,
+                            modifier = Modifier
+                                .width(72.dp)
+                                .height(36.dp),
+                            shape = EpisodeChipShape,
+                            baseColor = Color(0xFF3B277E),
+                        )
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.Center,
+                        ) {
+                            ShimmerSkeletonBox(
+                                brush = brush,
+                                modifier = Modifier
+                                    .fillMaxWidth(if (rowIndex == 0) 0.54f else 0.46f)
+                                    .height(25.dp),
+                                shape = RoundedCornerShape(8.dp),
+                            )
+                            ShimmerSkeletonBox(
+                                brush = brush,
+                                modifier = Modifier
+                                    .padding(top = 5.dp)
+                                    .width(72.dp)
+                                    .height(18.dp),
+                                shape = RoundedCornerShape(7.dp),
+                            )
+                        }
+                    }
                 }
             }
         }
