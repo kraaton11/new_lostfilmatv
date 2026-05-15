@@ -97,6 +97,8 @@ fun HomeScreen(
     onNavItemLongClick: (NavItem) -> Unit = {},
     isAuthenticated: Boolean = false,
     savedAppUpdate: SavedAppUpdate? = null,
+    isUpdateDownloading: Boolean = false,
+    updateDownloadProgress: Int? = null,
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val activeModeStateState = remember(state.selectedMode, state.allNewModeState, state.favoritesModeState, state.moviesModeState, state.seriesModeState) {
@@ -288,6 +290,8 @@ fun HomeScreen(
                 onNavItemSelected = onNavItemSelected,
                 onNavItemLongClick = onNavItemLongClick,
                 updateVersionText = savedAppUpdate?.latestVersion,
+                isUpdateDownloading = isUpdateDownloading,
+                updateDownloadProgress = updateDownloadProgress,
                 modeFocusRequesters = modeFocusRequesters,
                 searchFocusRequester = searchRequester,
                 scheduleFocusRequester = scheduleRequester,

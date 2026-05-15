@@ -90,6 +90,8 @@ fun HomeHeader(
     onNavItemSelected: (NavItem) -> Unit,
     onNavItemLongClick: (NavItem) -> Unit = {},
     updateVersionText: String?,
+    isUpdateDownloading: Boolean,
+    updateDownloadProgress: Int?,
     modeFocusRequesters: Map<HomeFeedMode, FocusRequester>,
     searchFocusRequester: FocusRequester,
     scheduleFocusRequester: FocusRequester,
@@ -113,6 +115,16 @@ fun HomeHeader(
     val firstModeRequester = if (hasModeToggle) modeFocusRequesters[visibleModes.first()] else null
     val lastModeRequester = if (hasModeToggle) modeFocusRequesters[visibleModes.last()] else null
     val hasUpdate = !updateVersionText.isNullOrBlank()
+    val updateActionLabel = when {
+        isUpdateDownloading && updateDownloadProgress != null -> "Скачивание $updateDownloadProgress%"
+        isUpdateDownloading -> "Скачивание"
+        else -> "Обновить"
+    }
+    val updateStatusLabel = when {
+        isUpdateDownloading && updateDownloadProgress != null -> "Загрузка $updateDownloadProgress%"
+        isUpdateDownloading -> "Загрузка"
+        else -> "Можно обновить"
+    }
     val initialFocusRequester = firstModeRequester ?: searchFocusRequester
 
     LaunchedEffect(Unit) {
@@ -233,9 +245,9 @@ fun HomeHeader(
             )
             if (hasUpdate) {
                 HomeHeaderActionButton(
-                    label = "Обновить",
+                    label = updateActionLabel,
                     subtitle = updateVersionText.orEmpty(),
-                    statusLabel = "Можно обновить",
+                    statusLabel = updateStatusLabel,
                     leadingIcon = HeaderActionIcon.Refresh,
                     onClick = {
                         onNavItemSelected(NavItem.UPDATE)
