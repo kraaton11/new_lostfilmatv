@@ -213,7 +213,7 @@ internal fun posterTag(railId: String, detailsUrl: String): String = "poster:$ra
 
 @Composable
 private fun HomePagingPosterSkeleton(modifier: Modifier = Modifier) {
-    val shape = RoundedCornerShape(8.dp)
+    val shape = RoundedCornerShape(12.dp)
     val shimmerBrush = rememberShimmerSkeletonBrush(
         label = "homePagingSkeleton",
         baseColor = HomePanelSurfaceStrong,
@@ -229,9 +229,10 @@ private fun HomePagingPosterSkeleton(modifier: Modifier = Modifier) {
 
     ShimmerSkeletonBox(
         brush = shimmerBrush,
-            modifier = modifier
+        modifier = modifier
             .size(width = 112.dp, height = 172.dp),
         shape = shape,
+        baseColor = HomePanelSurfaceStrong,
         borderColor = HomePanelBorder.copy(alpha = 0.20f),
     )
 }

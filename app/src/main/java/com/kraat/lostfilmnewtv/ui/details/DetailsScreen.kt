@@ -200,7 +200,7 @@ private fun LoadingState() {
                     brush = shimmerBrush,
                     modifier = Modifier.size(width = 242.dp, height = 360.dp),
                     shape = RoundedCornerShape(22.dp),
-                    borderColor = DetailsBorderDefault.copy(alpha = 0.48f),
+                    borderColor = DetailsBorderDefault.copy(alpha = 0.74f),
                 )
                 Column(
                     modifier = Modifier.padding(top = 46.dp),
@@ -208,30 +208,41 @@ private fun LoadingState() {
                 ) {
                     ShimmerSkeletonBox(
                         brush = shimmerBrush,
-                        modifier = Modifier.size(width = 540.dp, height = 34.dp),
-                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier.size(width = 540.dp, height = 32.dp),
+                        shape = RoundedCornerShape(10.dp),
                     )
                     ShimmerSkeletonBox(
                         brush = shimmerBrush,
-                        modifier = Modifier.size(width = 360.dp, height = 26.dp),
-                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.size(width = 360.dp, height = 25.dp),
+                        shape = RoundedCornerShape(8.dp),
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         repeat(4) { index ->
                             ShimmerSkeletonBox(
                                 brush = shimmerBrush,
-                                modifier = Modifier.size(width = listOf(78.dp, 72.dp, 92.dp, 64.dp)[index], height = 29.dp),
+                                modifier = Modifier.size(width = listOf(78.dp, 72.dp, 92.dp, 64.dp)[index], height = 27.dp),
                                 shape = RoundedCornerShape(999.dp),
-                                borderColor = DetailsBorderDefault.copy(alpha = 0.30f),
+                                borderColor = DetailsBorderDefault.copy(alpha = 0.58f),
                             )
                         }
                     }
                     repeat(2) { index ->
-                        ShimmerSkeletonBox(
-                            brush = shimmerBrush,
-                            modifier = Modifier.size(width = if (index == 0) 390.dp else 330.dp, height = 22.dp),
-                            shape = RoundedCornerShape(10.dp),
-                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            ShimmerSkeletonBox(
+                                brush = shimmerBrush,
+                                modifier = Modifier.size(22.dp),
+                                shape = RoundedCornerShape(8.dp),
+                                borderColor = DetailsBorderDefault.copy(alpha = 0.45f),
+                            )
+                            ShimmerSkeletonBox(
+                                brush = shimmerBrush,
+                                modifier = Modifier.size(width = if (index == 0) 310.dp else 250.dp, height = 16.dp),
+                                shape = RoundedCornerShape(8.dp),
+                            )
+                        }
                     }
                     ShimmerSkeletonBox(
                         brush = shimmerBrush,
@@ -241,7 +252,7 @@ private fun LoadingState() {
                     repeat(4) { index ->
                         ShimmerSkeletonBox(
                             brush = shimmerBrush,
-                            modifier = Modifier.size(width = listOf(660.dp, 620.dp, 590.dp, 420.dp)[index], height = 15.dp),
+                            modifier = Modifier.size(width = listOf(660.dp, 640.dp, 610.dp, 470.dp)[index], height = 16.dp),
                             shape = RoundedCornerShape(8.dp),
                         )
                     }
@@ -256,15 +267,15 @@ private fun LoadingState() {
                 ShimmerSkeletonBox(
                     brush = shimmerBrush,
                     modifier = Modifier.size(width = 242.dp, height = 56.dp),
-                    shape = RoundedCornerShape(18.dp),
-                    borderColor = DetailsBorderDefault.copy(alpha = 0.34f),
+                    shape = RoundedCornerShape(12.dp),
+                    borderColor = DetailsAccentGold.copy(alpha = 0.70f),
                 )
                 repeat(4) { index ->
                     ShimmerSkeletonBox(
                         brush = shimmerBrush,
                         modifier = Modifier.size(width = listOf(118.dp, 104.dp, 128.dp, 152.dp)[index], height = 48.dp),
-                        shape = RoundedCornerShape(16.dp),
-                        borderColor = DetailsBorderDefault.copy(alpha = 0.30f),
+                        shape = RoundedCornerShape(10.dp),
+                        borderColor = DetailsBorderDefault,
                     )
                 }
             }
