@@ -1,226 +1,374 @@
-# LostFilm Auth Bridge Server Install
+# Установка LostFilm Auth Bridge на сервер
 
-## Goal
+Документ описывает актуальную установку `backend/auth_bridge`: FastAPI-сервис для QR-авторизации Android TV приложения. Сервис запускается в Docker, принимает pairing-запросы от телевизора на `auth.bazuka.pp.ua` и ведет телефонный браузер через wildcard-домены вида `https://<phone_verifier>.auth.bazuka.pp.ua/`.
 
-Deploy the QR auth backend in Docker so that TV pairings generate wildcard phone URLs like `https://<phone_verifier>.auth.bazuka.pp.ua/` and the phone browser flow stays on `*.auth.bazuka.pp.ua`.
+## Что разворачивается
 
-## Prerequisites
+- Один контейнер `auth-backend`.
+- FastAPI приложение внутри контейнера слушает порт `8000`.
+- Docker публикует его только на loopback хоста: `127.0.0.1:${BACKEND_PORT}`.
+- TLS и публичные домены обслуживает внешний reverse proxy, например Caddy.
+- Доверенные телефоны хранятся в SQLite базе в Docker volume `trusted-devices`.
 
-- Ubuntu server with Docker Engine and Docker Compose plugin installed
-- DNS control for `bazuka.pp.ua`
-- Wildcard DNS for `*.auth.bazuka.pp.ua`
-- Wildcard TLS certificate for `*.auth.bazuka.pp.ua`
-- Reverse proxy or Caddy in front of the backend
+Postgres в текущей версии не нужен.
 
-Important:
+## Требования
 
-- a wildcard hostname is required for the QR flow
-- a normal single-host certificate for only `auth.bazuka.pp.ua` is not enough
-- wildcard TLS usually requires a DNS challenge, not plain HTTP validation
+- Ubuntu-сервер с Docker Engine и Docker Compose plugin.
+- Доступ к DNS-зоне `bazuka.pp.ua`.
+- DNS-записи для:
+  - `auth.bazuka.pp.ua`
+  - `*.auth.bazuka.pp.ua`
+- TLS-сертификат, покрывающий и обычный, и wildcard-домен.
+- Reverse proxy перед backend-контейнером.
+- Для GHCR-образа: Docker login с правом `read:packages`, если образ приватный.
 
-## Files To Upload
+Важно:
 
-### Option A: install from a prebuilt image tarball
+- wildcard-домен обязателен для текущего QR-flow;
+- сертификата только на `auth.bazuka.pp.ua` недостаточно;
+- wildcard TLS обычно выпускается через DNS challenge, а не через обычную HTTP-проверку.
 
-Copy these files to the server:
+## Варианты установки
+
+### Вариант A: использовать готовый Docker image
+
+Основной вариант для сервера: брать образ из GHCR.
+
+Пример значения:
+
+```dotenv
+AUTH_BACKEND_IMAGE=ghcr.io/kraaton11/lostfilm-auth-bridge:latest
+```
+
+Для более предсказуемого деплоя лучше использовать `sha-*` тег из GitHub Actions, например:
+
+```dotenv
+AUTH_BACKEND_IMAGE=ghcr.io/kraaton11/lostfilm-auth-bridge:sha-<commit>
+```
+
+На сервер нужны только:
 
 - `backend/auth_bridge/docker-compose.yml`
 - `backend/auth_bridge/.env.example`
-- backend image tarball
+- файл `.env`, созданный из `.env.example`
 
-Suggested target directory:
+Рекомендуемый каталог:
 
 ```bash
 mkdir -p ~/lostfilm-auth-bridge
 cd ~/lostfilm-auth-bridge
 ```
 
-### Option B: build on the server from source
+### Вариант B: собрать образ на сервере
 
-Do not upload only `docker-compose.yml` and `.env.example`.
-
-For this path, clone or upload the full repository so the server has:
+Если образ собирается прямо на сервере, нужен полный checkout репозитория или как минимум:
 
 - `backend/auth_bridge/docker-compose.yml`
 - `backend/auth_bridge/.env.example`
 - `backend/auth_bridge/backend/Dockerfile`
 - `backend/auth_bridge/backend/src/...`
+- `backend/auth_bridge/backend/pyproject.toml`
 
-## Create The Runtime Env File
-
-Use the example as the starting point:
-
-```bash
-cp .env.example .env
-```
-
-Required values for this deployment:
-
-```dotenv
-AUTH_BRIDGE_PUBLIC_BASE_URL=https://auth.bazuka.pp.ua
-AUTH_BRIDGE_PUBLIC_BASE_DOMAIN=auth.bazuka.pp.ua
-AUTH_BACKEND_IMAGE=lostfilm-auth-bridge:auth-bazuka-pp-ua-amd64
-BACKEND_PORT=18015
-```
-
-Notes:
-
-- `AUTH_BRIDGE_PUBLIC_BASE_URL` is the canonical public origin
-- `AUTH_BRIDGE_PUBLIC_BASE_DOMAIN` is what the backend uses to mint `https://<phone_verifier>.auth.bazuka.pp.ua/`
-- both values are required by `docker compose`; the stack should fail fast if either one is missing
-- keep `BACKEND_PORT` bound only to `127.0.0.1`; TLS should terminate at the reverse proxy
-
-## Load The Docker Image
-
-If you are installing from a prebuilt tarball:
-
-```bash
-docker load -i lostfilm-auth-bridge-auth-bazuka-pp-ua-amd64.tar
-```
-
-If you are building on the server from the repository root instead:
+Сборка из корня репозитория:
 
 ```bash
 docker build -t lostfilm-auth-bridge:auth-bazuka-pp-ua-amd64 backend/auth_bridge/backend
 ```
 
-## Start The Backend
+Тогда в `.env` можно оставить локальный образ:
 
-If you installed from a prebuilt tarball, run from the directory that contains `docker-compose.yml` and `.env`:
+```dotenv
+AUTH_BACKEND_IMAGE=lostfilm-auth-bridge:auth-bazuka-pp-ua-amd64
+```
+
+## Настройка `.env`
+
+Создайте файл окружения рядом с `docker-compose.yml`:
 
 ```bash
+cp .env.example .env
+```
+
+Минимальные обязательные значения:
+
+```dotenv
+AUTH_BRIDGE_PUBLIC_BASE_URL=https://auth.bazuka.pp.ua
+AUTH_BRIDGE_PUBLIC_BASE_DOMAIN=auth.bazuka.pp.ua
+AUTH_BACKEND_IMAGE=ghcr.io/kraaton11/lostfilm-auth-bridge:latest
+BACKEND_PORT=18015
+```
+
+Для текущего production-сервера может использоваться другой loopback-порт, например `3001`. Главное, чтобы reverse proxy проксировал на тот же порт:
+
+```dotenv
+BACKEND_PORT=3001
+```
+
+Рекомендуемые значения для работы за reverse proxy:
+
+```dotenv
+AUTH_BRIDGE_TRUSTED_PROXY_IPS=127.0.0.1
+AUTH_BRIDGE_TRUSTED_DEVICE_COOKIE_DOMAIN=auth.bazuka.pp.ua
+AUTH_BRIDGE_TRUSTED_DEVICE_DB_PATH=/data/trusted_devices.sqlite3
+AUTH_BRIDGE_TRUSTED_DEVICE_TTL_SECONDS=31536000
+AUTH_BRIDGE_LOG_FORMAT=json
+```
+
+Если reverse proxy ходит в backend не с `127.0.0.1`, укажите его IP или CIDR в `AUTH_BRIDGE_TRUSTED_PROXY_IPS`. Это нужно, чтобы rate limiting корректно учитывал `X-Forwarded-For` только от доверенного proxy.
+
+Опциональные интеграции:
+
+```dotenv
+AUTH_BRIDGE_DEEPL_API_KEY=
+AUTH_BRIDGE_DEEPL_API_URL=https://api-free.deepl.com/v2/translate
+AUTH_BRIDGE_TRANSLATION_RATE_LIMIT_MAX_REQUESTS=120
+AUTH_BRIDGE_TRANSLATION_RATE_LIMIT_WINDOW_SECONDS=60
+```
+
+Если `AUTH_BRIDGE_DEEPL_API_KEY` пустой, endpoint `/api/translate` останется доступен, но будет возвращать `503 Translation is not configured`.
+
+## Запуск backend
+
+Из каталога, где лежат `docker-compose.yml` и `.env`:
+
+```bash
+docker compose pull auth-backend
 docker compose up -d
 docker compose ps
 docker compose logs --tail=100 auth-backend
 ```
 
-If you are working from the repository checkout, run from `backend/auth_bridge`:
+Если используется локально собранный образ, `docker compose pull auth-backend` не нужен.
 
-```bash
-cd backend/auth_bridge
-docker compose up -d
-docker compose ps
-docker compose logs --tail=100 auth-backend
-```
+Ожидаемый результат:
 
-Expected result:
+- контейнер `auth-backend` запущен;
+- healthcheck переходит в `healthy`;
+- backend доступен на `127.0.0.1:${BACKEND_PORT}`;
+- Docker volume `trusted-devices` создан и подключен в `/data`.
 
-- one `auth-backend` container
-- status becomes `healthy`
-- backend listens on `127.0.0.1:18015`
+## Reverse proxy и wildcard TLS
 
-## Reverse Proxy And Wildcard TLS
-
-The backend must receive both:
+Backend должен получать запросы с обоих host:
 
 - `auth.bazuka.pp.ua`
 - `*.auth.bazuka.pp.ua`
 
-Example Caddy shape once a wildcard certificate is already available:
+Минимальная форма Caddy-конфига, если wildcard-сертификат уже доступен:
 
 ```caddyfile
 auth.bazuka.pp.ua, *.auth.bazuka.pp.ua {
+    encode gzip zstd
     reverse_proxy 127.0.0.1:18015
 }
 ```
 
-If Caddy is responsible for obtaining the wildcard certificate, configure a DNS challenge provider for your DNS host. Do not rely on plain HTTP challenge for the wildcard name.
+Если `BACKEND_PORT=3001`, proxy должен указывать на `127.0.0.1:3001`.
 
-## Validation Checklist
+Если Caddy сам выпускает wildcard-сертификат, настройте DNS challenge provider для вашего DNS-провайдера. Обычный HTTP challenge не выпустит сертификат для `*.auth.bazuka.pp.ua`.
 
-### 1. Local container health
+## Проверка установки
+
+### 1. Локальная готовность контейнера
 
 ```bash
 curl -fsS http://127.0.0.1:18015/health/ready
 ```
 
-Expected:
+Ожидаемый ответ:
 
 ```json
 {"status":"ok"}
 ```
 
-### 2. Public HTTPS health
+Если backend опубликован на другом порту, замените `18015` на значение `BACKEND_PORT`.
+
+### 2. Публичная готовность
 
 ```bash
 curl -fsS https://auth.bazuka.pp.ua/health/ready
 ```
 
-Expected:
+Ожидаемый ответ:
 
 ```json
 {"status":"ok"}
 ```
 
-### 3. Pairing contract now uses wildcard hosts
+Дополнительные health endpoints:
+
+```bash
+curl -fsS https://auth.bazuka.pp.ua/health/live
+curl -fsS https://auth.bazuka.pp.ua/health/translation
+curl -fsS https://auth.bazuka.pp.ua/health/tmdb
+```
+
+`/health/translation` и `/health/tmdb` не раскрывают секреты и не делают внешние запросы.
+
+### 3. Контракт создания pairing
 
 ```bash
 curl -fsS -X POST https://auth.bazuka.pp.ua/api/pairings
 ```
 
-Expected:
+Ожидаемый ответ содержит:
 
-- response contains `phoneVerifier`
-- `verificationUrl` matches `https://<phone_verifier>.auth.bazuka.pp.ua/`
-- `verificationUrl` does not contain `/pair/`
-- the TV should treat `verificationUrl` as an opaque URL and render it directly into the QR code
+- `pairingId`
+- `pairingSecret`
+- `phoneVerifier`
+- `userCode`
+- `verificationUrl`
+- `expiresIn`
+- `pollInterval`
+- `status`
 
-### 4. Wildcard host reaches the backend
+`verificationUrl` должен иметь вид:
 
-Open the returned `verificationUrl` on a phone or desktop browser.
-
-Expected:
-
-- page shows `Connect your TV`
-- page contains a `Continue in LostFilm` link
-- after login, the backend should capture the upstream LostFilm cookie jar and later expose it to the TV only through `/api/pairings/{pairingId}/claim`
-
-### 5. Legacy pair links only redirect into the wildcard flow
-
-If you still have an old URL like `https://auth.bazuka.pp.ua/pair/<phone_verifier>`, open it in a browser.
-
-Expected:
-
-- the backend returns a temporary redirect to `https://<phone_verifier>.auth.bazuka.pp.ua/`
-- the backend does not render a standalone login form on `/pair/...`
-
-## Troubleshooting
-
-### `verificationUrl` still points to `auth.example.test`
-
-Check:
-
-- `.env` was created next to `docker-compose.yml`
-- container was restarted after the env change
-- `AUTH_BRIDGE_PUBLIC_BASE_URL` and `AUTH_BRIDGE_PUBLIC_BASE_DOMAIN` are both set
-
-If `docker compose config` fails before startup, check that both variables are present in `.env` or exported in the shell.
-
-Then restart:
-
-```bash
-docker compose down
-docker compose up -d
+```text
+https://<phone_verifier>.auth.bazuka.pp.ua/
 ```
 
-### `verificationUrl` uses the correct domain but the wildcard page does not open
+Он не должен содержать старый путь `/pair/`. Android-приложение должно считать `verificationUrl` непрозрачной строкой и напрямую кодировать ее в QR.
 
-Check:
+### 4. Статус pairing
 
-- wildcard DNS exists for `*.auth.bazuka.pp.ua`
-- reverse proxy accepts both the apex host and wildcard hosts
-- wildcard TLS certificate is valid
-- if an old `/pair/...` link exists anywhere, it should redirect into the wildcard host instead of rendering its own login page
+Для статуса нужен `X-Pairing-Secret` из ответа создания pairing:
 
-### Public health works but wildcard pages return the wrong site
+```bash
+curl -fsS \
+  -H "X-Pairing-Secret: <pairingSecret>" \
+  https://auth.bazuka.pp.ua/api/pairings/<pairingId>
+```
 
-The reverse proxy is probably not routing wildcard hosts to the auth backend. Recheck the host matcher in the proxy config.
+Ожидаемый начальный статус:
 
-### TV QR flow still fails after backend deploy
+```json
+{
+  "pairingId": "<pairingId>",
+  "status": "pending",
+  "expiresIn": 600,
+  "retryable": null,
+  "failureReason": null
+}
+```
 
-Check both sides:
+### 5. Телефонный wildcard-flow
 
-- Android app must use `https://auth.bazuka.pp.ua`
-- pairing response must contain wildcard `verificationUrl`
-- phone browser must stay on `*.auth.bazuka.pp.ua` during login
-- the TV should receive cookies only by claiming `SessionPayload` from the auth bridge after confirmation
+Откройте `verificationUrl` из ответа `/api/pairings` на телефоне или в desktop-браузере.
+
+Ожидаемо:
+
+- открывается wildcard host `*.auth.bazuka.pp.ua`;
+- при отсутствии готовой trusted-device сессии пользователь уходит на `/login`;
+- вход идет через проксируемую страницу LostFilm;
+- после успешного входа backend подтверждает pairing;
+- телевизор получает cookies только через `POST /api/pairings/{pairingId}/claim`.
+
+### 6. Старые ссылки `/pair/...`
+
+Если где-то осталась старая ссылка вида:
+
+```text
+https://auth.bazuka.pp.ua/pair/<phone_verifier>
+```
+
+она должна временно редиректить на `/` с установкой cookie телефонного flow. Основной сценарий все равно должен использовать wildcard `verificationUrl`.
+
+## Обновление версии
+
+Для GHCR-образа:
+
+```bash
+cd ~/lostfilm-auth-bridge
+docker compose pull auth-backend
+docker compose up -d auth-backend
+docker compose logs --tail=100 auth-backend
+```
+
+Для фиксированного `sha-*` тега:
+
+1. Обновите `AUTH_BACKEND_IMAGE` в `.env`.
+2. Выполните:
+
+```bash
+docker compose pull auth-backend
+docker compose up -d auth-backend
+```
+
+Проверка после обновления:
+
+```bash
+docker compose ps
+curl -fsS https://auth.bazuka.pp.ua/health/ready
+```
+
+## Диагностика
+
+### `verificationUrl` указывает на `auth.example.test`
+
+Проверьте:
+
+- `.env` лежит рядом с `docker-compose.yml`;
+- контейнер перезапущен после изменения `.env`;
+- заданы оба значения:
+  - `AUTH_BRIDGE_PUBLIC_BASE_URL`
+  - `AUTH_BRIDGE_PUBLIC_BASE_DOMAIN`
+
+Полезная команда:
+
+```bash
+docker compose config
+```
+
+Если переменных нет, compose должен завершиться ошибкой еще до запуска.
+
+### Wildcard-страница не открывается
+
+Проверьте:
+
+- DNS-запись для `*.auth.bazuka.pp.ua`;
+- reverse proxy принимает wildcard host;
+- TLS-сертификат покрывает wildcard host;
+- proxy отправляет wildcard-запросы в тот же backend, что и `auth.bazuka.pp.ua`.
+
+### Публичный health работает, но wildcard host показывает не тот сайт
+
+Почти всегда причина в matcher-конфиге reverse proxy. В Caddy server block должен включать и `auth.bazuka.pp.ua`, и `*.auth.bazuka.pp.ua`.
+
+### Статус или claim возвращает `403 Pairing secret is invalid`
+
+Текущая версия защищает pairing-действия заголовком:
+
+```http
+X-Pairing-Secret: <pairingSecret>
+```
+
+Используйте `pairingSecret` из ответа `POST /api/pairings`.
+
+### Телефонный вход проходит, но TV не получает сессию
+
+Проверьте:
+
+- Android-приложение использует `https://auth.bazuka.pp.ua`;
+- pairing response содержит wildcard `verificationUrl`;
+- браузер телефона остается на `*.auth.bazuka.pp.ua` во время входа;
+- `POST /api/pairings/{pairingId}/claim` вызывается с правильным `X-Pairing-Secret`;
+- после успешной проверки на TV вызывается `POST /api/pairings/{pairingId}/finalize`.
+
+### Trusted device не сохраняется
+
+Проверьте:
+
+- volume `trusted-devices` подключен;
+- `AUTH_BRIDGE_TRUSTED_DEVICE_DB_PATH=/data/trusted_devices.sqlite3`;
+- `AUTH_BRIDGE_TRUSTED_DEVICE_COOKIE_DOMAIN=auth.bazuka.pp.ua`;
+- если задан `AUTH_BRIDGE_TRUSTED_DEVICE_SECRET`, он не меняется между рестартами.
+
+### `/api/translate` возвращает 503
+
+Это ожидаемо, если не задан `AUTH_BRIDGE_DEEPL_API_KEY`. Для включения перевода добавьте ключ в `.env` и перезапустите backend:
+
+```bash
+docker compose up -d auth-backend
+```
