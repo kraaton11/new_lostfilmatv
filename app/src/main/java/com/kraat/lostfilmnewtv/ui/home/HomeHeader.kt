@@ -340,7 +340,7 @@ private fun HomeMenuLogo(showLabels: Boolean) {
     ) {
         if (showLabels) {
             Text(
-                text = "LostFilm.TV",
+                text = "LF.Tv",
                 color = HomeAccentGold,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.Bold,
