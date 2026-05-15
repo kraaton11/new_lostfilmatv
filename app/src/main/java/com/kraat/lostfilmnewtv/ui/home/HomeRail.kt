@@ -45,6 +45,8 @@ import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 
 private const val HOME_PAGING_SKELETON_COUNT = 4
+private val HOME_RAIL_CARD_SPACING = 8.dp
+private val HOME_RAIL_HORIZONTAL_PADDING = 12.dp
 
 @Composable
 fun HomeRail(
@@ -128,8 +130,13 @@ fun HomeRail(
                 }
                 .focusable()
                 .height(218.dp),
-            horizontalArrangement = Arrangement.spacedBy(14.dp),
-            contentPadding = PaddingValues(start = 2.dp, top = 12.dp, end = 10.dp, bottom = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(HOME_RAIL_CARD_SPACING),
+            contentPadding = PaddingValues(
+                start = HOME_RAIL_HORIZONTAL_PADDING,
+                top = 12.dp,
+                end = 10.dp,
+                bottom = 20.dp,
+            ),
         ) {
             itemsIndexed(items = items, key = { _, item -> item.detailsUrl }) { index, item ->
                 val itemKey = homeItemKey(railId, item.detailsUrl)

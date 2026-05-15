@@ -775,7 +775,7 @@ private fun HomeLoadingSkeleton(modifier: Modifier = Modifier) {
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
         ) {
             repeat(8) {
                 ShimmerSkeletonBox(
