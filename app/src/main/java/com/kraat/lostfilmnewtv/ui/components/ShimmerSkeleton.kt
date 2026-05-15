@@ -18,6 +18,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import com.kraat.lostfilmnewtv.ui.theme.BackgroundSurface
 import com.kraat.lostfilmnewtv.ui.theme.DetailsBorderDefault
 import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceSoft
 
@@ -25,9 +26,9 @@ import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceSoft
 fun rememberShimmerSkeletonBrush(
     label: String,
     baseColor: Color = DetailsSurfaceSoft,
-    highlightColor: Color = DetailsBorderDefault,
-    baseAlpha: Float = 0.58f,
-    highlightAlpha: Float = 0.62f,
+    highlightColor: Color = Color.White,
+    baseAlpha: Float = 0.72f,
+    highlightAlpha: Float = 0.10f,
     startOffset: Float = -560f,
     endOffset: Float = 1_320f,
     shimmerWidth: Float = 520f,
@@ -46,10 +47,12 @@ fun rememberShimmerSkeletonBrush(
     )
 
     return Brush.linearGradient(
-        colors = listOf(
-            baseColor.copy(alpha = baseAlpha),
-            highlightColor.copy(alpha = highlightAlpha),
-            baseColor.copy(alpha = baseAlpha),
+        colorStops = arrayOf(
+            0f to baseColor.copy(alpha = baseAlpha),
+            0.38f to baseColor.copy(alpha = baseAlpha),
+            0.5f to highlightColor.copy(alpha = highlightAlpha),
+            0.62f to baseColor.copy(alpha = baseAlpha),
+            1f to baseColor.copy(alpha = baseAlpha),
         ),
         start = Offset(xOffset, 0f),
         end = Offset(xOffset + shimmerWidth, verticalOffset),
@@ -61,11 +64,13 @@ fun ShimmerSkeletonBox(
     brush: Brush,
     modifier: Modifier = Modifier,
     shape: RoundedCornerShape = RoundedCornerShape(12.dp),
+    baseColor: Color = BackgroundSurface.copy(alpha = 0.46f),
     borderColor: Color = Color.Transparent,
 ) {
     Box(
         modifier = modifier
             .clip(shape)
+            .background(baseColor)
             .background(brush)
             .then(
                 if (borderColor == Color.Transparent) {
