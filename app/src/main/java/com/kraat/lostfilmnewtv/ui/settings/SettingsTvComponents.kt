@@ -126,8 +126,11 @@ fun SettingsTvButton(
             .then(if (tag != null) Modifier.testTag(tag) else Modifier),
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 2.dp, vertical = 1.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 2.dp, vertical = 1.dp),
             verticalArrangement = Arrangement.spacedBy(3.dp),
+            horizontalAlignment = Alignment.Start,
         ) {
             Text(
                 text = text,
