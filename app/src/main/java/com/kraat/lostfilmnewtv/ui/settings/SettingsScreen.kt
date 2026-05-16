@@ -106,6 +106,7 @@ fun SettingsScreen(
             put(SettingsFocusTarget.InstallUpdate.toTag(), FocusRequester())
             put(SettingsFocusTarget.AccountAuth.toTag(), FocusRequester())
             put(SettingsFocusTarget.AboutGitHubLink.toTag(), FocusRequester())
+            put(SettingsFocusTarget.AboutTelegramLink.toTag(), FocusRequester())
         }
     }
     var contentHasFocus by remember { mutableStateOf(false) }
@@ -504,6 +505,7 @@ fun SettingsScreen(
                                 }
                                 Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                     val gitHubTag = SettingsFocusTarget.AboutGitHubLink.toTag()
+                                    val telegramTag = SettingsFocusTarget.AboutTelegramLink.toTag()
                                     SettingsRowButton(
                                         title = "Исходный код на GitHub",
                                         description = "Репозиторий kraaton11/new_lostfilmatv",
@@ -526,6 +528,31 @@ fun SettingsScreen(
                                             .focusProperties {
                                                 left = railRequesters.getValue(SettingsSection.ABOUT)
                                                 up = railRequesters.getValue(SettingsSection.ABOUT)
+                                                down = contentRequesters.getValue(telegramTag)
+                                            },
+                                    )
+                                    SettingsRowButton(
+                                        title = "Telegram-канал",
+                                        description = "Новости и обсуждение LostFilm New TV",
+                                        value = "Открыть",
+                                        onClick = {
+                                            context.startActivity(
+                                                Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/lostfilmatv_new")).apply {
+                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                                },
+                                            )
+                                        },
+                                        tag = telegramTag,
+                                        onFocused = {
+                                            rememberedActionBySection = rememberedActionBySection + (
+                                                SettingsSection.ABOUT.name to SettingsFocusTarget.AboutTelegramLink
+                                            )
+                                        },
+                                        modifier = Modifier
+                                            .focusRequester(contentRequesters.getValue(telegramTag))
+                                            .focusProperties {
+                                                left = railRequesters.getValue(SettingsSection.ABOUT)
+                                                up = contentRequesters.getValue(gitHubTag)
                                                 down = FocusRequester.Default
                                             },
                                     )
