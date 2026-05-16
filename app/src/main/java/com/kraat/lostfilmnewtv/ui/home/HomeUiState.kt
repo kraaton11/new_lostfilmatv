@@ -5,6 +5,7 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 data class HomeUiState(
     val items: List<ReleaseSummary> = emptyList(),
     val favoriteItems: List<ReleaseSummary> = emptyList(),
+    val favoriteSeriesItems: List<ReleaseSummary> = emptyList(),
     val movieItems: List<ReleaseSummary> = emptyList(),
     val seriesItems: List<ReleaseSummary> = emptyList(),
     val rails: List<HomeContentRail> = fallbackHomeRails(items),
@@ -12,8 +13,10 @@ data class HomeUiState(
     val availableModes: List<HomeFeedMode> = listOf(HomeFeedMode.AllNew),
     val allNewModeState: HomeModeContentState = HomeModeContentState.Loading,
     val favoritesModeState: HomeModeContentState = HomeModeContentState.Loading,
+    val favoriteSeriesModeState: HomeModeContentState = HomeModeContentState.Loading,
     val moviesModeState: HomeModeContentState = HomeModeContentState.Loading,
     val seriesModeState: HomeModeContentState = HomeModeContentState.Loading,
+    val favoriteSeriesCount: Int? = null,
     val rememberedItemKeyByMode: Map<HomeFeedMode, String> = emptyMap(),
     val selectedItem: ReleaseSummary? = null,
     val selectedItemKey: String? = null,
@@ -57,6 +60,7 @@ internal fun HomeUiState.itemsForMode(mode: HomeFeedMode): List<ReleaseSummary> 
     return when (mode) {
         HomeFeedMode.AllNew -> items
         HomeFeedMode.Favorites -> favoriteItems
+        HomeFeedMode.FavoriteSeries -> favoriteSeriesItems
         HomeFeedMode.Movies -> movieItems
         HomeFeedMode.Series -> seriesItems
     }

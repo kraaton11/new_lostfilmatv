@@ -101,11 +101,19 @@ fun HomeScreen(
     updateDownloadProgress: Int? = null,
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
-    val activeModeStateState = remember(state.selectedMode, state.allNewModeState, state.favoritesModeState, state.moviesModeState, state.seriesModeState) {
+    val activeModeStateState = remember(
+        state.selectedMode,
+        state.allNewModeState,
+        state.favoritesModeState,
+        state.favoriteSeriesModeState,
+        state.moviesModeState,
+        state.seriesModeState,
+    ) {
         derivedStateOf {
             when (state.selectedMode) {
                 HomeFeedMode.AllNew -> state.allNewModeState
                 HomeFeedMode.Favorites -> state.favoritesModeState
+                HomeFeedMode.FavoriteSeries -> state.favoriteSeriesModeState
                 HomeFeedMode.Movies -> state.moviesModeState
                 HomeFeedMode.Series -> state.seriesModeState
             }
@@ -119,6 +127,7 @@ fun HomeScreen(
         state.selectedMode,
         state.allNewModeState,
         state.favoritesModeState,
+        state.favoriteSeriesModeState,
         state.moviesModeState,
         state.seriesModeState,
     ) {
@@ -130,6 +139,7 @@ fun HomeScreen(
     val activeRailId = when (state.selectedMode) {
         HomeFeedMode.AllNew -> HOME_RAIL_ALL_NEW
         HomeFeedMode.Favorites -> HOME_RAIL_FAVORITES
+        HomeFeedMode.FavoriteSeries -> HOME_RAIL_FAVORITE_SERIES
         HomeFeedMode.Movies -> HOME_RAIL_MOVIES
         HomeFeedMode.Series -> HOME_RAIL_SERIES
     }
@@ -352,7 +362,10 @@ fun HomeScreen(
                                     item = focusedItem,
                                     modifier = Modifier.fillMaxWidth(),
                                 )
-                                HomeRailSectionHeader(selectedMode = state.selectedMode)
+                                HomeRailSectionHeader(
+                                    selectedMode = state.selectedMode,
+                                    favoriteSeriesCount = state.favoriteSeriesCount,
+                                )
                                 HomeRail(
                                     railId = activeRailId,
                                     items = activeModeState.items,
@@ -370,6 +383,7 @@ fun HomeScreen(
                                         HomeFeedMode.AllNew -> state.isPaging
                                         HomeFeedMode.Movies -> state.isMoviesPaging
                                         HomeFeedMode.Favorites -> state.isFavoritesPaging
+                                        HomeFeedMode.FavoriteSeries -> false
                                         HomeFeedMode.Series -> state.isSeriesPaging
                                     },
                                     onItemFocused = { detailsUrl ->
@@ -380,7 +394,9 @@ fun HomeScreen(
                                     onRailFocusChanged = { isFocused ->
                                         isContentRailFocused = isFocused
                                     },
-                                    onOpenDetails = if (state.selectedMode == HomeFeedMode.Series) {
+                                    onOpenDetails = if (state.selectedMode == HomeFeedMode.Series ||
+                                        state.selectedMode == HomeFeedMode.FavoriteSeries
+                                    ) {
                                         onOpenSeriesGuide
                                     } else {
                                         onOpenDetails
@@ -394,6 +410,7 @@ fun HomeScreen(
                                 HomeActionPanel(
                                     message = when (state.selectedMode) {
                                         HomeFeedMode.Favorites -> "Пока нет новых релизов в избранном"
+                                        HomeFeedMode.FavoriteSeries -> "Пока нет избранных сериалов"
                                         HomeFeedMode.Movies -> "Пока нет фильмов"
                                         HomeFeedMode.AllNew -> "Пока нет новых релизов"
                                         HomeFeedMode.Series -> "Пока нет сериалов"
@@ -433,6 +450,7 @@ fun HomeScreen(
                             HomeFeedMode.AllNew -> state.pagingErrorMessage
                             HomeFeedMode.Movies -> state.moviesPagingErrorMessage
                             HomeFeedMode.Favorites -> state.favoritesPagingErrorMessage
+                            HomeFeedMode.FavoriteSeries -> null
                             HomeFeedMode.Series -> state.seriesPagingErrorMessage
                         }
                         if (activePagingErrorMessage != null) {
@@ -609,21 +627,57 @@ private fun ReleaseSummary?.episodeOverviewSourceLabel(): String? {
 }
 
 @Composable
-private fun HomeRailSectionHeader(selectedMode: HomeFeedMode) {
+private fun HomeRailSectionHeader(
+    selectedMode: HomeFeedMode,
+    favoriteSeriesCount: Int?,
+) {
     val title = when (selectedMode) {
         HomeFeedMode.AllNew -> "Свежие релизы"
         HomeFeedMode.Favorites -> "Избранное"
+        HomeFeedMode.FavoriteSeries -> "Мои сериалы"
         HomeFeedMode.Movies -> "Фильмы"
         HomeFeedMode.Series -> "Сериалы"
     }
+    val countLabel = if (selectedMode == HomeFeedMode.Favorites) {
+        favoriteSeriesCount?.let { "${it.formatFavoriteSeriesCount()} в избранном" }
+    } else {
+        null
+    }
 
-    Text(
-        text = title,
-        color = TextPrimary,
-        fontSize = 20.sp,
-        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+    Row(
         modifier = Modifier.padding(start = 2.dp),
-    )
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = title,
+            color = TextPrimary,
+            fontSize = 20.sp,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
+        )
+        if (countLabel != null) {
+            Text(
+                text = countLabel,
+                color = HomeTextSecondary,
+                fontSize = 14.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+private fun Int.formatFavoriteSeriesCount(): String {
+    val absCount = kotlin.math.abs(this)
+    val lastTwoDigits = absCount % 100
+    val lastDigit = absCount % 10
+    val suffix = when {
+        lastTwoDigits in 11..14 -> "сериалов"
+        lastDigit == 1 -> "сериал"
+        lastDigit in 2..4 -> "сериала"
+        else -> "сериалов"
+    }
+    return "$this $suffix"
 }
 
 @Composable

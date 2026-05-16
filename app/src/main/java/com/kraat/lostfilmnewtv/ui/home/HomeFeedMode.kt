@@ -5,6 +5,7 @@ enum class HomeFeedMode(
 ) {
     AllNew("all_new"),
     Favorites("favorites"),
+    FavoriteSeries("favorite_series"),
     Movies("movies"),
     Series("series");
 

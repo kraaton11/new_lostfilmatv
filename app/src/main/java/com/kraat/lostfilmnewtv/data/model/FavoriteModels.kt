@@ -33,9 +33,20 @@ sealed interface FavoriteReleasesResult {
         val items: List<ReleaseSummary>,
         val pageNumber: Int = 1,
         val hasNextPage: Boolean = false,
+        val favoriteSeriesCount: Int? = null,
     ) : FavoriteReleasesResult
 
     data class Unavailable(
         val message: String? = null,
     ) : FavoriteReleasesResult
+}
+
+sealed interface FavoriteSeriesResult {
+    data class Success(
+        val items: List<ReleaseSummary>,
+    ) : FavoriteSeriesResult
+
+    data class Unavailable(
+        val message: String? = null,
+    ) : FavoriteSeriesResult
 }

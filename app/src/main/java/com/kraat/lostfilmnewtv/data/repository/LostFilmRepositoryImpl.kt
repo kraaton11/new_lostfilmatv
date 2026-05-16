@@ -7,6 +7,7 @@ import com.kraat.lostfilmnewtv.data.db.ReleaseSummaryEntity
 import com.kraat.lostfilmnewtv.data.model.FavoriteMetadata
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
+import com.kraat.lostfilmnewtv.data.model.FavoriteSeriesResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteToggleNetworkResult
 import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
 import com.kraat.lostfilmnewtv.data.model.PageState
@@ -20,6 +21,7 @@ import com.kraat.lostfilmnewtv.data.model.SeriesOverview
 import com.kraat.lostfilmnewtv.data.model.TmdbImageUrls
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.parser.BASE_URL
+import com.kraat.lostfilmnewtv.data.parser.FavoriteSeriesRef
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteSeriesParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmListParser
@@ -704,6 +706,7 @@ class LostFilmRepositoryImpl(
                     items = emptyList(),
                     pageNumber = normalizedPageNumber,
                     hasNextPage = false,
+                    favoriteSeriesCount = 0,
                 )
             }
 
@@ -812,10 +815,32 @@ class LostFilmRepositoryImpl(
                     items = enrichedItems,
                     pageNumber = normalizedPageNumber,
                     hasNextPage = allItems.size > pageOffset + FAVORITE_RELEASES_PAGE_SIZE,
+                    favoriteSeriesCount = favoriteSeries.size,
                 )
             }
         } catch (_: IOException) {
             FavoriteReleasesResult.Unavailable()
+        }
+    }
+
+    override suspend fun loadFavoriteSeries(): FavoriteSeriesResult {
+        if (!hasAuthenticatedSession()) {
+            return FavoriteSeriesResult.Unavailable("Войдите в LostFilm")
+        }
+
+        return try {
+            val fetchedAt = clock()
+            val favoritesHtml = httpClient.fetchAccountPage(favoriteSeriesRoute)
+            val items = favoriteSeriesParser.parse(favoritesHtml)
+                .mapIndexed { index, series -> series.toFavoriteSeriesSummary(index, fetchedAt) }
+            val enrichedItems = enrichSummaries(
+                items = items,
+                persistToCache = false,
+            )
+
+            FavoriteSeriesResult.Success(enrichedItems)
+        } catch (_: IOException) {
+            FavoriteSeriesResult.Unavailable()
         }
     }
 
@@ -1289,6 +1314,24 @@ class LostFilmRepositoryImpl(
 }
 
 private fun String.normalizeSearchQuery(): String = normalizeText().replace(searchWhitespaceRegex, " ")
+
+private fun FavoriteSeriesRef.toFavoriteSeriesSummary(
+    positionInPage: Int,
+    fetchedAt: Long,
+): ReleaseSummary = ReleaseSummary(
+    id = seriesUrl,
+    kind = ReleaseKind.SERIES,
+    titleRu = titleRu,
+    episodeTitleRu = null,
+    seasonNumber = null,
+    episodeNumber = null,
+    releaseDateRu = "",
+    posterUrl = posterUrl,
+    detailsUrl = seriesUrl,
+    pageNumber = 1,
+    positionInPage = positionInPage,
+    fetchedAt = fetchedAt,
+)
 
 private fun String.isLostFilmImageUrl(): Boolean {
     val normalized = lowercase()
