@@ -205,6 +205,42 @@ class DetailsViewModelTest {
     }
 
     @Test
+    fun onFavoriteClick_noOpStillSyncsUiToTargetFavoriteState() = runTest(dispatcher) {
+        val repository = FakeDetailsRepository(
+            detailsResult = DetailsResult.Success(
+                details = details(
+                    kind = ReleaseKind.MOVIE,
+                    titleRu = "Необратимость",
+                    seasonNumber = null,
+                    episodeNumber = null,
+                    releaseDateRu = "13 марта 2026",
+                ).copy(
+                    favoriteTargetId = 1080,
+                    isFavorite = false,
+                ),
+                isStale = false,
+            ),
+            favoriteResult = CompletableDeferred(FavoriteMutationResult.NoOp),
+        )
+        val viewModel = DetailsViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(AppDestination.Details.detailsUrlArg to "https://www.lostfilm.today/movies/Irreversible"),
+            ),
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+        viewModel.onFavoriteClick()
+        advanceUntilIdle()
+
+        assertEquals(true, viewModel.uiState.value.details?.isFavorite)
+        assertEquals("Убрать из избранного", viewModel.uiState.value.favoriteActionLabel)
+        assertEquals(false, viewModel.uiState.value.isFavoriteMutationInFlight)
+    }
+
+    @Test
     fun onStart_loadsWatchedStateFromSiteAndEnablesToggle() = runTest(dispatcher) {
         val repository = FakeDetailsRepository(
             detailsResult = DetailsResult.Success(
