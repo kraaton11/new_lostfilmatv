@@ -143,7 +143,11 @@ class DetailsViewModel @Inject constructor(
                     ).withFavoritePresentation()
                 }
                 FavoriteMutationResult.NoOp -> _uiState.update { state ->
-                    state.copy(isFavoriteMutationInFlight = false, favoriteStatusMessage = null).withFavoritePresentation()
+                    state.copy(
+                        details = state.details?.copy(isFavorite = targetFavorite),
+                        isFavoriteMutationInFlight = false,
+                        favoriteStatusMessage = null,
+                    ).withFavoritePresentation()
                 }
                 is FavoriteMutationResult.RequiresLogin -> {
                     hasValidSession = false
