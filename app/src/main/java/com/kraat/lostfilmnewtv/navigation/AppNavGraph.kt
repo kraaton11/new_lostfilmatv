@@ -295,6 +295,11 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                     homeViewModel.onHomeMenuLabelsVisibilityChanged(isVisible)
                 }
             }
+            LaunchedEffect(settingsViewModel, homeViewModel) {
+                settingsViewModel.homeModeVisibilityEvents.collect { (mode, isVisible) ->
+                    homeViewModel.onHomeModeVisibilityChanged(mode, isVisible)
+                }
+            }
 
             SettingsRoute(
                 viewModel = settingsViewModel,

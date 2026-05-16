@@ -58,6 +58,9 @@ fun SettingsScreen(
     selectedUpdateMode: UpdateCheckMode,
     selectedChannelMode: AndroidTvChannelMode,
     isHomeFavoritesRailEnabled: Boolean = false,
+    isHomeFavoriteSeriesEnabled: Boolean = true,
+    isHomeMoviesEnabled: Boolean = true,
+    isHomeSeriesEnabled: Boolean = true,
     isHomeMenuLabelsEnabled: Boolean = true,
     selectedWatchedMarkingMode: WatchedMarkingMode = WatchedMarkingMode.AUTO,
     onWatchedMarkingModeSelected: (WatchedMarkingMode) -> Unit = {},
@@ -77,6 +80,9 @@ fun SettingsScreen(
     onUpdateModeSelected: (UpdateCheckMode) -> Unit,
     onChannelModeSelected: (AndroidTvChannelMode) -> Unit,
     onHomeFavoritesRailVisibilitySelected: (Boolean) -> Unit = {},
+    onHomeFavoriteSeriesVisibilitySelected: (Boolean) -> Unit = {},
+    onHomeMoviesVisibilitySelected: (Boolean) -> Unit = {},
+    onHomeSeriesVisibilitySelected: (Boolean) -> Unit = {},
     onHomeMenuLabelsVisibilitySelected: (Boolean) -> Unit = {},
     onCheckForUpdatesClick: () -> Unit,
     onInstallUpdateClick: () -> Unit,
@@ -100,6 +106,9 @@ fun SettingsScreen(
             channelModes.forEach { put(it.buttonTag(), FocusRequester()) }
             put(SettingsFocusTarget.WatchedMarkingToggle.toTag(), FocusRequester())
             put(SettingsFocusTarget.HomeFavoritesToggle.toTag(), FocusRequester())
+            put(SettingsFocusTarget.HomeFavoriteSeriesToggle.toTag(), FocusRequester())
+            put(SettingsFocusTarget.HomeMoviesToggle.toTag(), FocusRequester())
+            put(SettingsFocusTarget.HomeSeriesToggle.toTag(), FocusRequester())
             put(SettingsFocusTarget.HomeMenuLabelsToggle.toTag(), FocusRequester())
             put(SettingsFocusTarget.DiagnosticsRun.toTag(), FocusRequester())
             put(SettingsFocusTarget.CheckForUpdates.toTag(), FocusRequester())
@@ -153,6 +162,9 @@ fun SettingsScreen(
     val channelSummary = selectedChannelMode.shortLabel()
     val homeScreenSummary = listOf(
         "Избранное ${if (isHomeFavoritesRailEnabled) "вкл" else "выкл"}",
+        "мои сериалы ${if (isHomeFavoriteSeriesEnabled) "вкл" else "выкл"}",
+        "фильмы ${if (isHomeMoviesEnabled) "вкл" else "выкл"}",
+        "сериалы ${if (isHomeSeriesEnabled) "вкл" else "выкл"}",
         "подписи ${if (isHomeMenuLabelsEnabled) "вкл" else "выкл"}",
     ).joinToString(" · ")
     val diagnosticsSummary = when {
@@ -325,6 +337,66 @@ fun SettingsScreen(
                                             .focusProperties {
                                                 left = railRequesters.getValue(SettingsSection.HOME_SCREEN)
                                                 up = railRequesters.getValue(SettingsSection.HOME_SCREEN)
+                                                down = contentRequesters.getValue(SettingsFocusTarget.HomeFavoriteSeriesToggle.toTag())
+                                            },
+                                    )
+                                    SettingsRowButton(
+                                        title = "Мои сериалы",
+                                        description = "Показывает отдельную вкладку с сериалами из избранного.",
+                                        value = if (isHomeFavoriteSeriesEnabled) "Вкл" else "Выкл",
+                                        onClick = { onHomeFavoriteSeriesVisibilitySelected(!isHomeFavoriteSeriesEnabled) },
+                                        isSelected = isHomeFavoriteSeriesEnabled,
+                                        tag = SettingsFocusTarget.HomeFavoriteSeriesToggle.toTag(),
+                                        onFocused = {
+                                            rememberedActionBySection = rememberedActionBySection + (
+                                                SettingsSection.HOME_SCREEN.name to SettingsFocusTarget.HomeFavoriteSeriesToggle
+                                            )
+                                        },
+                                        modifier = Modifier
+                                            .focusRequester(contentRequesters.getValue(SettingsFocusTarget.HomeFavoriteSeriesToggle.toTag()))
+                                            .focusProperties {
+                                                left = railRequesters.getValue(SettingsSection.HOME_SCREEN)
+                                                up = contentRequesters.getValue(SettingsFocusTarget.HomeFavoritesToggle.toTag())
+                                                down = contentRequesters.getValue(SettingsFocusTarget.HomeMoviesToggle.toTag())
+                                            },
+                                    )
+                                    SettingsRowButton(
+                                        title = "Фильмы",
+                                        description = "Показывает вкладку с фильмами LostFilm.",
+                                        value = if (isHomeMoviesEnabled) "Вкл" else "Выкл",
+                                        onClick = { onHomeMoviesVisibilitySelected(!isHomeMoviesEnabled) },
+                                        isSelected = isHomeMoviesEnabled,
+                                        tag = SettingsFocusTarget.HomeMoviesToggle.toTag(),
+                                        onFocused = {
+                                            rememberedActionBySection = rememberedActionBySection + (
+                                                SettingsSection.HOME_SCREEN.name to SettingsFocusTarget.HomeMoviesToggle
+                                            )
+                                        },
+                                        modifier = Modifier
+                                            .focusRequester(contentRequesters.getValue(SettingsFocusTarget.HomeMoviesToggle.toTag()))
+                                            .focusProperties {
+                                                left = railRequesters.getValue(SettingsSection.HOME_SCREEN)
+                                                up = contentRequesters.getValue(SettingsFocusTarget.HomeFavoriteSeriesToggle.toTag())
+                                                down = contentRequesters.getValue(SettingsFocusTarget.HomeSeriesToggle.toTag())
+                                            },
+                                    )
+                                    SettingsRowButton(
+                                        title = "Сериалы",
+                                        description = "Показывает вкладку общего каталога сериалов.",
+                                        value = if (isHomeSeriesEnabled) "Вкл" else "Выкл",
+                                        onClick = { onHomeSeriesVisibilitySelected(!isHomeSeriesEnabled) },
+                                        isSelected = isHomeSeriesEnabled,
+                                        tag = SettingsFocusTarget.HomeSeriesToggle.toTag(),
+                                        onFocused = {
+                                            rememberedActionBySection = rememberedActionBySection + (
+                                                SettingsSection.HOME_SCREEN.name to SettingsFocusTarget.HomeSeriesToggle
+                                            )
+                                        },
+                                        modifier = Modifier
+                                            .focusRequester(contentRequesters.getValue(SettingsFocusTarget.HomeSeriesToggle.toTag()))
+                                            .focusProperties {
+                                                left = railRequesters.getValue(SettingsSection.HOME_SCREEN)
+                                                up = contentRequesters.getValue(SettingsFocusTarget.HomeMoviesToggle.toTag())
                                                 down = contentRequesters.getValue(SettingsFocusTarget.HomeMenuLabelsToggle.toTag())
                                             },
                                     )
@@ -344,7 +416,7 @@ fun SettingsScreen(
                                             .focusRequester(contentRequesters.getValue(SettingsFocusTarget.HomeMenuLabelsToggle.toTag()))
                                             .focusProperties {
                                                 left = railRequesters.getValue(SettingsSection.HOME_SCREEN)
-                                                up = contentRequesters.getValue(SettingsFocusTarget.HomeFavoritesToggle.toTag())
+                                                up = contentRequesters.getValue(SettingsFocusTarget.HomeSeriesToggle.toTag())
                                                 down = FocusRequester.Default
                                             },
                                     )

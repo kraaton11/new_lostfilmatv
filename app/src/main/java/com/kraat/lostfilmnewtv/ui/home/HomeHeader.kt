@@ -110,7 +110,7 @@ fun HomeHeader(
             add(HomeFeedMode.FavoriteSeries)
             add(HomeFeedMode.Movies)
             add(HomeFeedMode.Series)
-        }.filter { mode -> mode == HomeFeedMode.Favorites || mode in availableModes }
+        }.filter { mode -> mode in availableModes }
     }
     val hasModeToggle = visibleModes.isNotEmpty()
     val firstModeRequester = if (hasModeToggle) modeFocusRequesters[visibleModes.first()] else null

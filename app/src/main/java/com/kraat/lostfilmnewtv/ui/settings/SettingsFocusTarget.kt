@@ -12,6 +12,9 @@ sealed class SettingsFocusTarget {
     data object TorrServeCheck : SettingsFocusTarget()
     data object TorrServeReset : SettingsFocusTarget()
     data object HomeFavoritesToggle : SettingsFocusTarget()
+    data object HomeFavoriteSeriesToggle : SettingsFocusTarget()
+    data object HomeMoviesToggle : SettingsFocusTarget()
+    data object HomeSeriesToggle : SettingsFocusTarget()
     data object HomeMenuLabelsToggle : SettingsFocusTarget()
     data object DataRefreshHome : SettingsFocusTarget()
     data object DataClearReleases : SettingsFocusTarget()
@@ -36,6 +39,9 @@ fun SettingsFocusTarget.toTag(): String = when (this) {
     SettingsFocusTarget.TorrServeCheck -> "settings-torrserve-check"
     SettingsFocusTarget.TorrServeReset -> "settings-torrserve-reset"
     SettingsFocusTarget.HomeFavoritesToggle -> "settings-home-favorites-toggle"
+    SettingsFocusTarget.HomeFavoriteSeriesToggle -> "settings-home-favorite-series-toggle"
+    SettingsFocusTarget.HomeMoviesToggle -> "settings-home-movies-toggle"
+    SettingsFocusTarget.HomeSeriesToggle -> "settings-home-series-toggle"
     SettingsFocusTarget.HomeMenuLabelsToggle -> "settings-home-menu-labels-toggle"
     SettingsFocusTarget.DataRefreshHome -> "settings-data-refresh-home"
     SettingsFocusTarget.DataClearReleases -> "settings-data-clear-releases"

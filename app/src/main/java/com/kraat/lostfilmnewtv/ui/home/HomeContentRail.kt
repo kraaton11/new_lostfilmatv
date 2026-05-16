@@ -44,6 +44,9 @@ internal fun buildHomeRails(
     movieItems: List<ReleaseSummary> = emptyList(),
     seriesItems: List<ReleaseSummary> = emptyList(),
     isFavoritesRailVisible: Boolean,
+    isFavoriteSeriesVisible: Boolean = true,
+    isMoviesVisible: Boolean = true,
+    isSeriesVisible: Boolean = true,
 ): List<HomeContentRail> {
     val rails = mutableListOf<HomeContentRail>()
     if (items.isNotEmpty()) {
@@ -60,21 +63,21 @@ internal fun buildHomeRails(
             items = favoriteItems,
         )
     }
-    if (favoriteSeriesItems.isNotEmpty()) {
+    if (isFavoriteSeriesVisible && favoriteSeriesItems.isNotEmpty()) {
         rails += HomeContentRail(
             id = HOME_RAIL_FAVORITE_SERIES,
             title = "Мои сериалы",
             items = favoriteSeriesItems,
         )
     }
-    if (movieItems.isNotEmpty()) {
+    if (isMoviesVisible && movieItems.isNotEmpty()) {
         rails += HomeContentRail(
             id = HOME_RAIL_MOVIES,
             title = "Фильмы",
             items = movieItems,
         )
     }
-    if (seriesItems.isNotEmpty()) {
+    if (isSeriesVisible && seriesItems.isNotEmpty()) {
         rails += HomeContentRail(
             id = HOME_RAIL_SERIES,
             title = "Сериалы",

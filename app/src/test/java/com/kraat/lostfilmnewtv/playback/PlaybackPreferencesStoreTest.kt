@@ -176,6 +176,26 @@ class PlaybackPreferencesStoreTest {
     }
 
     @Test
+    fun homeModeVisibilityPreferences_defaultToVisible_andPersistSelectedValues() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsName = "playback-store-home-mode-visibility"
+        context.deleteSharedPreferences(prefsName)
+        val store = PlaybackPreferencesStore(context, prefsName = prefsName)
+
+        assertEquals(true, store.readHomeFavoriteSeriesEnabled())
+        assertEquals(true, store.readHomeMoviesEnabled())
+        assertEquals(true, store.readHomeSeriesEnabled())
+
+        store.writeHomeFavoriteSeriesEnabled(false)
+        store.writeHomeMoviesEnabled(false)
+        store.writeHomeSeriesEnabled(false)
+
+        assertEquals(false, store.readHomeFavoriteSeriesEnabled())
+        assertEquals(false, store.readHomeMoviesEnabled())
+        assertEquals(false, store.readHomeSeriesEnabled())
+    }
+
+    @Test
     fun readHomeSelectedFeedMode_returnsAllNew_whenNothingWasSaved() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val prefsName = "playback-store-home-feed-mode-default"
