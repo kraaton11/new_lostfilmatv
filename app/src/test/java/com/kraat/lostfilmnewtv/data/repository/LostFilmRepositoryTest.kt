@@ -10,6 +10,7 @@ import com.kraat.lostfilmnewtv.data.db.ReleaseDetailsEntity
 import com.kraat.lostfilmnewtv.data.db.TmdbPosterDao
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
+import com.kraat.lostfilmnewtv.data.model.FavoriteSeriesResult
 import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
 import com.kraat.lostfilmnewtv.data.model.FavoriteTargetKind
 import com.kraat.lostfilmnewtv.data.model.FavoriteToggleNetworkResult
@@ -1114,7 +1115,87 @@ class LostFilmRepositoryTest {
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
         assertTrue(result.items.isEmpty())
+        assertEquals(0, result.favoriteSeriesCount)
         assertEquals(listOf("/my/type_1"), accountRequests)
+    }
+
+    @Test
+    fun loadFavoriteSeries_returnsSeriesRootsFromAccountPage() = runTest {
+        val accountRequests = mutableListOf<String>()
+        val tmdbRequests = mutableListOf<String>()
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            accountPageHandler = { path ->
+                accountRequests += path
+                when (path) {
+                    "/my/type_1" -> favoriteSeriesAccountPageHtml()
+                    else -> error("Unexpected account path $path")
+                }
+            },
+            isAuthenticated = true,
+            tmdbResolver = object : TmdbPosterResolver {
+                override suspend fun resolve(
+                    detailsUrl: String,
+                    titleRu: String,
+                    releaseDateRu: String,
+                    kind: ReleaseKind,
+                    originalReleaseYear: Int?,
+                ): TmdbImageUrls? {
+                    tmdbRequests += detailsUrl
+                    return TmdbImageUrls(
+                        posterUrl = "https://image.tmdb.org/t/p/w500/${titleRu.lowercase()}-poster.jpg",
+                        backdropUrl = "https://image.tmdb.org/t/p/w780/${titleRu.lowercase()}-backdrop.jpg",
+                        seriesOverviewRu = "Описание $titleRu из TMDB.",
+                    )
+                }
+            },
+        )
+
+        val result = repository.loadFavoriteSeries()
+
+        assertTrue(result is FavoriteSeriesResult.Success)
+        result as FavoriteSeriesResult.Success
+        assertEquals(listOf("/my/type_1"), accountRequests)
+        assertEquals(
+            listOf(
+                "https://www.lostfilm.today/series/alpha",
+                "https://www.lostfilm.today/series/beta",
+            ),
+            result.items.map { it.detailsUrl },
+        )
+        assertEquals(listOf("Alpha", "Beta"), result.items.map { it.titleRu })
+        assertEquals(
+            setOf(
+                "https://www.lostfilm.today/series/alpha",
+                "https://www.lostfilm.today/series/beta",
+            ),
+            tmdbRequests.toSet(),
+        )
+        assertEquals(
+            listOf(
+                "https://image.tmdb.org/t/p/w500/alpha-poster.jpg",
+                "https://image.tmdb.org/t/p/w500/beta-poster.jpg",
+            ),
+            result.items.map { it.posterUrl },
+        )
+        assertEquals(
+            listOf("Описание Alpha из TMDB.", "Описание Beta из TMDB."),
+            result.items.map { it.seriesOverviewRu },
+        )
+        assertEquals(listOf(0, 1), result.items.map { it.positionInPage })
+        assertTrue(result.items.all { it.fetchedAt == NOW && it.kind == ReleaseKind.SERIES })
+    }
+
+    @Test
+    fun loadFavoriteSeries_returnsUnavailable_withoutSession() = runTest {
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            isAuthenticated = false,
+        )
+
+        val result = repository.loadFavoriteSeries()
+
+        assertEquals(FavoriteSeriesResult.Unavailable("Войдите в LostFilm"), result)
     }
 
     @Test
@@ -1189,6 +1270,7 @@ class LostFilmRepositoryTest {
         )
         val feedDetails = result.items.map { it.detailsUrl }
         assertEquals(2, feedDetails.size)
+        assertEquals(2, result.favoriteSeriesCount)
         assertTrue(feedDetails.contains("https://www.lostfilm.today/series/alpha/season_1/episode_2/"))
         assertTrue(feedDetails.contains("https://www.lostfilm.today/series/beta/season_3/episode_1/"))
         assertEquals(listOf("Alpha", "Beta"), result.items.map { it.titleRu })

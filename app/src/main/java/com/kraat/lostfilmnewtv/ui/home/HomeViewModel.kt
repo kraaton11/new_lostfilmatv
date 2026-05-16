@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
+import com.kraat.lostfilmnewtv.data.model.FavoriteSeriesResult
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
@@ -62,6 +63,7 @@ class HomeViewModel @Inject constructor(
         } else {
             HomeModeContentState.Empty
         },
+        favoriteSeriesModeState = HomeModeContentState.Loading,
         seriesModeState = HomeModeContentState.Loading,
         isFavoritesRailVisible = initialFavoritesRailVisible,
         isHomeMenuLabelsEnabled = initialHomeMenuLabelsEnabled,
@@ -89,6 +91,7 @@ class HomeViewModel @Inject constructor(
     private var favoriteRequestToken = 0L
     private var allNewLoadJob: Job? = null
     private var favoriteLoadJob: Job? = null
+    private var favoriteSeriesLoadJob: Job? = null
     private var moviesLoadJob: Job? = null
     private var seriesLoadJob: Job? = null
     private var lastAllNewRefreshAt = 0L
@@ -106,6 +109,8 @@ class HomeViewModel @Inject constructor(
         loadMovies(pageNumber = 1, isPagingRequest = false)
         loadSeriesCatalog(pageNumber = 1, isPagingRequest = false)
         loadFavoriteReleases()
+        loadFavoriteSeries()
+        loadFavoriteSeries()
     }
 
     fun onResume() {
@@ -133,6 +138,10 @@ class HomeViewModel @Inject constructor(
             }
             HomeFeedMode.Movies -> {
                 loadMovies(pageNumber = 1, isPagingRequest = false)
+                return
+            }
+            HomeFeedMode.FavoriteSeries -> {
+                loadFavoriteSeries()
                 return
             }
             HomeFeedMode.Series -> {
@@ -168,6 +177,7 @@ class HomeViewModel @Inject constructor(
                 }
                 loadFavoriteReleases(pageNumber = state.favoritesNextPage, isPagingRequest = true)
             }
+            HomeFeedMode.FavoriteSeries -> Unit
             HomeFeedMode.Series -> {
                 if (state.seriesPagingErrorMessage == null || state.isSeriesPaging || !state.seriesHasNextPage) return
                 loadSeriesCatalog(pageNumber = state.seriesNextPage, isPagingRequest = true)
@@ -195,6 +205,7 @@ class HomeViewModel @Inject constructor(
                 }
                 loadFavoriteReleases(pageNumber = state.favoritesNextPage, isPagingRequest = true)
             }
+            HomeFeedMode.FavoriteSeries -> Unit
             HomeFeedMode.Series -> {
                 if (state.isSeriesPaging || !state.seriesHasNextPage || state.seriesModeState !is HomeModeContentState.Content) return
                 loadSeriesCatalog(pageNumber = state.seriesNextPage, isPagingRequest = true)
@@ -227,15 +238,18 @@ class HomeViewModel @Inject constructor(
         _uiState.update { state ->
             val updatedItems = state.items.updateWatched(detailsUrl, isWatched)
             val updatedFavoriteItems = state.favoriteItems.updateWatched(detailsUrl, isWatched)
+            val updatedFavoriteSeriesItems = state.favoriteSeriesItems.updateWatched(detailsUrl, isWatched)
             val updatedMovieItems = state.movieItems.updateWatched(detailsUrl, isWatched)
             val updatedSeriesItems = state.seriesItems.updateWatched(detailsUrl, isWatched)
             state.copy(
                 items = updatedItems,
                 favoriteItems = updatedFavoriteItems,
+                favoriteSeriesItems = updatedFavoriteSeriesItems,
                 movieItems = updatedMovieItems,
                 seriesItems = updatedSeriesItems,
                 allNewModeState = state.allNewModeState.updateItems(updatedItems),
                 favoritesModeState = state.favoritesModeState.updateItems(updatedFavoriteItems),
+                favoriteSeriesModeState = state.favoriteSeriesModeState.updateItems(updatedFavoriteSeriesItems),
                 moviesModeState = state.moviesModeState.updateItems(updatedMovieItems),
                 seriesModeState = state.seriesModeState.updateItems(updatedSeriesItems),
             ).resolveSelection()
@@ -245,6 +259,7 @@ class HomeViewModel @Inject constructor(
     fun onFavoritesRailVisibilityChanged(isVisible: Boolean) {
         if (_uiState.value.isFavoritesRailVisible == isVisible) return
         favoriteLoadJob?.cancel()
+        favoriteSeriesLoadJob?.cancel()
         val shouldPersistFallback = _uiState.value.selectedMode == HomeFeedMode.Favorites && !isVisible
         _uiState.update { state ->
             val selectedMode = if (state.selectedMode == HomeFeedMode.Favorites && !isVisible) HomeFeedMode.AllNew else state.selectedMode
@@ -260,6 +275,9 @@ class HomeViewModel @Inject constructor(
         if (started && isVisible && _uiState.value.favoritesModeState !is HomeModeContentState.Content) {
             loadFavoriteReleases()
         }
+        if (started && _uiState.value.favoriteSeriesModeState !is HomeModeContentState.Content) {
+            loadFavoriteSeries()
+        }
     }
 
     fun onHomeMenuLabelsVisibilityChanged(isVisible: Boolean) {
@@ -270,6 +288,7 @@ class HomeViewModel @Inject constructor(
     fun onFavoriteContentInvalidated() {
         if (!started) return
         loadFavoriteReleases()
+        loadFavoriteSeries()
     }
 
     fun onFavoriteStateChanged(detailsUrl: String, isFavorite: Boolean) {
@@ -287,6 +306,7 @@ class HomeViewModel @Inject constructor(
             ).resolveSelection()
         }
         loadFavoriteReleases(retainVisibleItemsOnFailure = true)
+        loadFavoriteSeries()
     }
 
     fun onModeSelected(mode: HomeFeedMode) {
@@ -397,6 +417,7 @@ class HomeViewModel @Inject constructor(
                         state.copy(
                             favoriteItems = updatedItems,
                             favoritesModeState = favoriteState,
+                            favoriteSeriesCount = result.favoriteSeriesCount,
                             isFavoritesPaging = false,
                             favoritesPagingErrorMessage = null,
                             favoritesNextPage = result.pageNumber + 1,
@@ -421,8 +442,49 @@ class HomeViewModel @Inject constructor(
                         state.copy(
                             favoriteItems = emptyList(),
                             favoritesModeState = favoriteState,
+                            favoriteSeriesCount = null,
                             isFavoritesPaging = false,
                             favoritesPagingErrorMessage = null,
+                        ).resolveSelection()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun loadFavoriteSeries() {
+        favoriteSeriesLoadJob?.cancel()
+        _uiState.update { state ->
+            state.copy(
+                favoriteSeriesModeState = HomeModeContentState.Loading,
+            )
+        }
+        favoriteSeriesLoadJob = viewModelScope.launch(ioDispatcher) {
+            when (val result = repository.loadFavoriteSeries()) {
+                is FavoriteSeriesResult.Success -> {
+                    val seriesState = if (result.items.isEmpty()) {
+                        HomeModeContentState.Empty
+                    } else {
+                        HomeModeContentState.Content(result.items)
+                    }
+                    _uiState.update { state ->
+                        state.copy(
+                            favoriteSeriesItems = result.items,
+                            favoriteSeriesModeState = seriesState,
+                            favoriteSeriesCount = result.items.size,
+                        ).resolveSelection()
+                    }
+                }
+                is FavoriteSeriesResult.Unavailable -> {
+                    val seriesState = when {
+                        result.message.isNullOrBlank() -> HomeModeContentState.Error("Не удалось загрузить избранные сериалы")
+                        result.message.contains("Войдите", ignoreCase = true) -> HomeModeContentState.LoginRequired(result.message)
+                        else -> HomeModeContentState.Error(result.message)
+                    }
+                    _uiState.update { state ->
+                        state.copy(
+                            favoriteSeriesItems = emptyList(),
+                            favoriteSeriesModeState = seriesState,
                         ).resolveSelection()
                     }
                 }
@@ -582,6 +644,7 @@ private fun HomeUiState.withResolvedHomeSelection(
         buildHomeRails(
             items = items,
             favoriteItems = favoriteItems,
+            favoriteSeriesItems = favoriteSeriesItems,
             movieItems = movieItems,
             seriesItems = seriesItems,
             isFavoritesRailVisible = isFavoritesRailVisible,
@@ -599,7 +662,7 @@ private fun HomeUiState.withResolvedHomeSelection(
         availableModes = availableModes(isFavoritesRailVisible),
         rails = resolvedRails,
         rememberedItemKeyByMode = focusState.rememberedItemKeyByMode
-            .withDefaultRememberedKeys(items, favoriteItems, movieItems, seriesItems),
+            .withDefaultRememberedKeys(items, favoriteItems, favoriteSeriesItems, movieItems, seriesItems),
         selectedItem = selectedItem,
         selectedItemKey = selectedItem?.detailsUrl,
     )
@@ -619,6 +682,9 @@ private fun List<HomeContentRail>.matchesHomeRailInputs(state: HomeUiState): Boo
         if (!matchesRail(index, HOME_RAIL_FAVORITES, state.favoriteItems)) return false
         if (state.favoriteItems.isNotEmpty()) index += 1
     }
+
+    if (!matchesRail(index, HOME_RAIL_FAVORITE_SERIES, state.favoriteSeriesItems)) return false
+    if (state.favoriteSeriesItems.isNotEmpty()) index += 1
 
     if (!matchesRail(index, HOME_RAIL_MOVIES, state.movieItems)) return false
     if (state.movieItems.isNotEmpty()) index += 1
@@ -650,7 +716,7 @@ private fun HomeModeContentState.optimisticallyUpdateFavoriteItems(items: List<R
 }
 
 private fun availableModes(isFavoritesVisible: Boolean) =
-    listOf(HomeFeedMode.AllNew, HomeFeedMode.Favorites, HomeFeedMode.Movies, HomeFeedMode.Series)
+    listOf(HomeFeedMode.AllNew, HomeFeedMode.Favorites, HomeFeedMode.FavoriteSeries, HomeFeedMode.Movies, HomeFeedMode.Series)
 
 private fun resolvedInitialMode(initialSelectedMode: HomeFeedMode, isFavoritesVisible: Boolean) =
     if (initialSelectedMode == HomeFeedMode.Favorites && !isFavoritesVisible) HomeFeedMode.AllNew else initialSelectedMode
@@ -660,6 +726,7 @@ private fun findItemForMode(state: HomeUiState, mode: HomeFeedMode, itemKey: Str
 
 private fun itemMode(state: HomeUiState, itemKey: String): HomeFeedMode = when (railIdFromItemKey(itemKey)) {
     HOME_RAIL_FAVORITES -> HomeFeedMode.Favorites
+    HOME_RAIL_FAVORITE_SERIES -> HomeFeedMode.FavoriteSeries
     HOME_RAIL_MOVIES -> HomeFeedMode.Movies
     HOME_RAIL_SERIES -> HomeFeedMode.Series
     HOME_RAIL_ALL_NEW -> HomeFeedMode.AllNew
@@ -677,12 +744,14 @@ private fun favoriteSeriesSlug(detailsUrl: String): String? =
 private fun Map<HomeFeedMode, String>.withDefaultRememberedKeys(
     items: List<ReleaseSummary>,
     favoriteItems: List<ReleaseSummary>,
+    favoriteSeriesItems: List<ReleaseSummary>,
     movieItems: List<ReleaseSummary>,
     seriesItems: List<ReleaseSummary>,
 ): Map<HomeFeedMode, String> {
     val current = toMutableMap()
     if (HomeFeedMode.AllNew !in current) items.firstOrNull()?.detailsUrl?.let { current[HomeFeedMode.AllNew] = it }
     if (HomeFeedMode.Favorites !in current) favoriteItems.firstOrNull()?.detailsUrl?.let { current[HomeFeedMode.Favorites] = it }
+    if (HomeFeedMode.FavoriteSeries !in current) favoriteSeriesItems.firstOrNull()?.detailsUrl?.let { current[HomeFeedMode.FavoriteSeries] = it }
     if (HomeFeedMode.Movies !in current) movieItems.firstOrNull()?.detailsUrl?.let { current[HomeFeedMode.Movies] = it }
     if (HomeFeedMode.Series !in current) seriesItems.firstOrNull()?.detailsUrl?.let { current[HomeFeedMode.Series] = it }
     return current

@@ -2,6 +2,7 @@ package com.kraat.lostfilmnewtv.data.repository
 
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
+import com.kraat.lostfilmnewtv.data.model.FavoriteSeriesResult
 import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
@@ -92,4 +93,7 @@ interface LostFilmRepository {
     suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult
 
     suspend fun loadFavoriteReleases(pageNumber: Int = 1): FavoriteReleasesResult
+
+    suspend fun loadFavoriteSeries(): FavoriteSeriesResult =
+        FavoriteSeriesResult.Unavailable()
 }

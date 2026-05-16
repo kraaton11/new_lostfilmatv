@@ -1548,23 +1548,27 @@ private fun homeStateWithModes(
     selectedMode: HomeFeedMode,
     allNewItems: List<ReleaseSummary>,
     favoriteItems: List<ReleaseSummary>,
+    favoriteSeriesItems: List<ReleaseSummary> = favoriteItems,
     movieItems: List<ReleaseSummary> = allNewItems.filter { it.kind == ReleaseKind.MOVIE }.ifEmpty { allNewItems },
     seriesItems: List<ReleaseSummary> = allNewItems.filter { it.kind == ReleaseKind.SERIES }.ifEmpty { allNewItems },
 ): HomeUiState {
     val selectedItem = when (selectedMode) {
         HomeFeedMode.AllNew -> allNewItems.first()
         HomeFeedMode.Favorites -> favoriteItems.first()
+        HomeFeedMode.FavoriteSeries -> favoriteSeriesItems.first()
         HomeFeedMode.Movies -> movieItems.first()
         HomeFeedMode.Series -> seriesItems.first()
     }
     return HomeUiState(
         items = allNewItems,
         favoriteItems = favoriteItems,
+        favoriteSeriesItems = favoriteSeriesItems,
         movieItems = movieItems,
         seriesItems = seriesItems,
         rails = buildHomeRails(
             items = allNewItems,
             favoriteItems = favoriteItems,
+            favoriteSeriesItems = favoriteSeriesItems,
             movieItems = movieItems,
             seriesItems = seriesItems,
             isFavoritesRailVisible = true,
@@ -1573,15 +1577,18 @@ private fun homeStateWithModes(
         availableModes = when (selectedMode) {
             HomeFeedMode.Movies -> listOf(HomeFeedMode.AllNew, HomeFeedMode.Favorites, HomeFeedMode.Movies)
             HomeFeedMode.Series -> listOf(HomeFeedMode.AllNew, HomeFeedMode.Favorites, HomeFeedMode.Movies, HomeFeedMode.Series)
+            HomeFeedMode.FavoriteSeries -> listOf(HomeFeedMode.AllNew, HomeFeedMode.Favorites, HomeFeedMode.FavoriteSeries)
             else -> listOf(HomeFeedMode.AllNew, HomeFeedMode.Favorites)
         },
         allNewModeState = HomeModeContentState.Content(allNewItems),
         favoritesModeState = HomeModeContentState.Content(favoriteItems),
+        favoriteSeriesModeState = HomeModeContentState.Content(favoriteSeriesItems),
         moviesModeState = HomeModeContentState.Content(movieItems),
         seriesModeState = HomeModeContentState.Content(seriesItems),
         rememberedItemKeyByMode = mapOf(
             HomeFeedMode.AllNew to allNewItems.first().detailsUrl,
             HomeFeedMode.Favorites to favoriteItems.first().detailsUrl,
+            HomeFeedMode.FavoriteSeries to favoriteSeriesItems.first().detailsUrl,
             HomeFeedMode.Movies to movieItems.first().detailsUrl,
             HomeFeedMode.Series to seriesItems.first().detailsUrl,
         ),

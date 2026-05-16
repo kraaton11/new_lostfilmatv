@@ -107,6 +107,7 @@ fun HomeHeader(
         buildList {
             add(HomeFeedMode.AllNew)
             add(HomeFeedMode.Favorites)
+            add(HomeFeedMode.FavoriteSeries)
             add(HomeFeedMode.Movies)
             add(HomeFeedMode.Series)
         }.filter { mode -> mode == HomeFeedMode.Favorites || mode in availableModes }
@@ -773,6 +774,7 @@ private fun HeaderModeIcon(mode: HomeFeedMode, color: Color) {
     when (mode) {
         HomeFeedMode.AllNew -> SparklesIcon(color = color)
         HomeFeedMode.Favorites -> HeartIcon(color = color)
+        HomeFeedMode.FavoriteSeries -> FavoriteSeriesIcon(color = color)
         HomeFeedMode.Movies -> ClapperIcon(color = color)
         HomeFeedMode.Series -> TvIcon(color = color)
     }
@@ -875,6 +877,45 @@ private fun TvIcon(color: Color) {
         drawLine(color, Offset(size.width * 0.50f, size.height * 0.72f), Offset(size.width * 0.50f, size.height * 0.84f), strokeWidth = 2.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
         drawLine(color, Offset(size.width * 0.38f, size.height * 0.22f), Offset(size.width * 0.50f, size.height * 0.30f), strokeWidth = 2.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
         drawLine(color, Offset(size.width * 0.62f, size.height * 0.22f), Offset(size.width * 0.50f, size.height * 0.30f), strokeWidth = 2.0f, cap = androidx.compose.ui.graphics.StrokeCap.Round)
+    }
+}
+
+@Composable
+private fun FavoriteSeriesIcon(color: Color) {
+    androidx.compose.foundation.Canvas(modifier = Modifier.size(24.dp)) {
+        val stroke = androidx.compose.ui.graphics.drawscope.Stroke(
+            width = 2.0f,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+            join = androidx.compose.ui.graphics.StrokeJoin.Round,
+        )
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(size.width * 0.20f, size.height * 0.18f),
+            size = androidx.compose.ui.geometry.Size(size.width * 0.42f, size.height * 0.64f),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f, 3f),
+            style = stroke,
+        )
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(size.width * 0.38f, size.height * 0.24f),
+            size = androidx.compose.ui.geometry.Size(size.width * 0.42f, size.height * 0.58f),
+            cornerRadius = androidx.compose.ui.geometry.CornerRadius(3f, 3f),
+            style = stroke,
+        )
+        drawLine(
+            color = color,
+            start = Offset(size.width * 0.46f, size.height * 0.42f),
+            end = Offset(size.width * 0.54f, size.height * 0.50f),
+            strokeWidth = 2.0f,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+        )
+        drawLine(
+            color = color,
+            start = Offset(size.width * 0.54f, size.height * 0.50f),
+            end = Offset(size.width * 0.72f, size.height * 0.34f),
+            strokeWidth = 2.0f,
+            cap = androidx.compose.ui.graphics.StrokeCap.Round,
+        )
     }
 }
 
@@ -1094,6 +1135,7 @@ private fun HomeFeedMode.segmentLabel(): String {
     return when (this) {
         HomeFeedMode.AllNew -> "Новые"
         HomeFeedMode.Favorites -> "Избранное"
+        HomeFeedMode.FavoriteSeries -> "Мои сериалы"
         HomeFeedMode.Movies -> "Фильмы"
         HomeFeedMode.Series -> "Сериалы"
     }

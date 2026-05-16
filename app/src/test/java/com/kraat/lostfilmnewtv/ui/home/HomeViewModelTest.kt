@@ -5,6 +5,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.test.core.app.ApplicationProvider
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
+import com.kraat.lostfilmnewtv.data.model.FavoriteSeriesResult
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
@@ -142,7 +143,13 @@ class HomeViewModelTest {
         )
 
         assertEquals(
-            listOf(HomeFeedMode.AllNew, HomeFeedMode.Favorites, HomeFeedMode.Movies, HomeFeedMode.Series),
+            listOf(
+                HomeFeedMode.AllNew,
+                HomeFeedMode.Favorites,
+                HomeFeedMode.FavoriteSeries,
+                HomeFeedMode.Movies,
+                HomeFeedMode.Series,
+            ),
             viewModel.uiState.value.availableModes,
         )
     }
@@ -969,6 +976,40 @@ class HomeViewModelTest {
         assertEquals(HomeFeedMode.AllNew, viewModel.uiState.value.selectedMode)
         assertEquals(HomeFeedMode.AllNew, checkNotNull(lastHomePreferencesStore).readHomeSelectedFeedMode())
     }
+
+    @Test
+    fun favoriteSeriesMode_loadsSeriesRoots_andStoresCount() = runTest(dispatcher) {
+        val favoriteSeries = listOf(
+            summary(
+                detailsUrl = "https://www.lostfilm.today/series/alpha",
+                titleRu = "Alpha",
+            ),
+            summary(
+                detailsUrl = "https://www.lostfilm.today/series/beta",
+                titleRu = "Beta",
+            ),
+        )
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(pageNumber = 1, items = emptyList(), hasNextPage = false, isStale = false),
+            ),
+            favoriteSeriesResults = mutableListOf(FavoriteSeriesResult.Success(favoriteSeries)),
+        )
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            initialSelectedMode = HomeFeedMode.FavoriteSeries,
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+
+        assertEquals(HomeFeedMode.FavoriteSeries, viewModel.uiState.value.selectedMode)
+        assertEquals(favoriteSeries, viewModel.uiState.value.favoriteSeriesItems)
+        assertEquals(HomeModeContentState.Content(favoriteSeries), viewModel.uiState.value.favoriteSeriesModeState)
+        assertEquals(2, viewModel.uiState.value.favoriteSeriesCount)
+    }
 }
 
 private class FakeLostFilmRepository(
@@ -978,6 +1019,9 @@ private class FakeLostFilmRepository(
     ),
     private val favoriteReleaseResults: MutableList<FavoriteReleasesResult> = mutableListOf(
         FavoriteReleasesResult.Unavailable(),
+    ),
+    private val favoriteSeriesResults: MutableList<FavoriteSeriesResult> = mutableListOf(
+        FavoriteSeriesResult.Unavailable(),
     ),
 ) : LostFilmRepository {
     val pageRequests = mutableListOf<Int>()
@@ -1031,6 +1075,10 @@ private class FakeLostFilmRepository(
         favoriteReleaseCalls += 1
         favoriteReleaseRequests += pageNumber
         return favoriteReleaseResults.removeFirstOrNull() ?: FavoriteReleasesResult.Unavailable()
+    }
+
+    override suspend fun loadFavoriteSeries(): FavoriteSeriesResult {
+        return favoriteSeriesResults.removeFirstOrNull() ?: FavoriteSeriesResult.Unavailable()
     }
 }
 
