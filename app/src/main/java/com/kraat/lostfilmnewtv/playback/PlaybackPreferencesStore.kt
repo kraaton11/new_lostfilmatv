@@ -98,6 +98,36 @@ class PlaybackPreferencesStore(
             .apply()
     }
 
+    fun readHomeFavoriteSeriesEnabled(): Boolean {
+        return prefs.getBoolean(KEY_HOME_FAVORITE_SERIES_ENABLED, true)
+    }
+
+    fun writeHomeFavoriteSeriesEnabled(value: Boolean) {
+        prefs.edit()
+            .putBoolean(KEY_HOME_FAVORITE_SERIES_ENABLED, value)
+            .apply()
+    }
+
+    fun readHomeMoviesEnabled(): Boolean {
+        return prefs.getBoolean(KEY_HOME_MOVIES_ENABLED, true)
+    }
+
+    fun writeHomeMoviesEnabled(value: Boolean) {
+        prefs.edit()
+            .putBoolean(KEY_HOME_MOVIES_ENABLED, value)
+            .apply()
+    }
+
+    fun readHomeSeriesEnabled(): Boolean {
+        return prefs.getBoolean(KEY_HOME_SERIES_ENABLED, true)
+    }
+
+    fun writeHomeSeriesEnabled(value: Boolean) {
+        prefs.edit()
+            .putBoolean(KEY_HOME_SERIES_ENABLED, value)
+            .apply()
+    }
+
     fun readHomeMenuLabelsEnabled(): Boolean {
         return prefs.getBoolean(KEY_HOME_MENU_LABELS_ENABLED, true)
     }
@@ -158,6 +188,9 @@ class PlaybackPreferencesStore(
         const val KEY_ANDROID_TV_CHANNEL_ID = "android_tv_channel_id"
         const val KEY_ANDROID_TV_FAVORITES_CHANNEL_ID = "android_tv_favorites_channel_id"
         const val KEY_HOME_FAVORITES_RAIL_ENABLED = "home_favorites_rail_enabled"
+        const val KEY_HOME_FAVORITE_SERIES_ENABLED = "home_favorite_series_enabled"
+        const val KEY_HOME_MOVIES_ENABLED = "home_movies_enabled"
+        const val KEY_HOME_SERIES_ENABLED = "home_series_enabled"
         const val KEY_HOME_MENU_LABELS_ENABLED = "home_menu_labels_enabled"
         const val KEY_HOME_SELECTED_FEED_MODE = "home_selected_feed_mode"
         const val KEY_WATCHED_MARKING_MODE = "watched_marking_mode"

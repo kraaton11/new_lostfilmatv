@@ -134,7 +134,7 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun initialState_keepsFavoritesInAvailableModes_whenFavoritesRailIsHidden() = runTest(dispatcher) {
+    fun initialState_hidesFavoritesInAvailableModes_whenFavoritesRailIsHidden() = runTest(dispatcher) {
         val viewModel = createViewModel(
             repository = FakeLostFilmRepository(pageResults = emptyMap()),
             savedStateHandle = SavedStateHandle(),
@@ -145,7 +145,6 @@ class HomeViewModelTest {
         assertEquals(
             listOf(
                 HomeFeedMode.AllNew,
-                HomeFeedMode.Favorites,
                 HomeFeedMode.FavoriteSeries,
                 HomeFeedMode.Movies,
                 HomeFeedMode.Series,
@@ -155,7 +154,7 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun onStart_loadsFavoritesMode_whenFavoritesRailIsHidden() = runTest(dispatcher) {
+    fun onStart_doesNotLoadFavoritesMode_whenFavoritesRailIsHidden() = runTest(dispatcher) {
         val favoriteItem = summary(
             detailsUrl = "https://www.lostfilm.today/series/favorite/season_4/episode_7/",
             titleRu = "Любимый сериал",
@@ -181,9 +180,9 @@ class HomeViewModelTest {
         viewModel.onStart()
         advanceUntilIdle()
 
-        assertEquals(1, repository.favoriteReleaseCalls)
-        assertEquals(listOf(favoriteItem), viewModel.uiState.value.favoriteItems)
-        assertEquals(HomeModeContentState.Content(listOf(favoriteItem)), viewModel.uiState.value.favoritesModeState)
+        assertEquals(0, repository.favoriteReleaseCalls)
+        assertEquals(emptyList<ReleaseSummary>(), viewModel.uiState.value.favoriteItems)
+        assertEquals(HomeModeContentState.Empty, viewModel.uiState.value.favoritesModeState)
         assertEquals(listOf(HOME_RAIL_ALL_NEW), viewModel.uiState.value.rails.map { it.id })
     }
 

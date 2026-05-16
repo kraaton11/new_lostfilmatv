@@ -9,6 +9,7 @@ import com.kraat.lostfilmnewtv.playback.WatchedMarkingMode
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelBackgroundScheduler
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelSyncManager
+import com.kraat.lostfilmnewtv.ui.home.HomeFeedMode
 import com.kraat.lostfilmnewtv.updates.AppUpdateBackgroundScheduler
 import com.kraat.lostfilmnewtv.updates.AppUpdateCoordinator
 import com.kraat.lostfilmnewtv.updates.ReleaseApkLauncher
@@ -65,6 +66,9 @@ class SettingsViewModel @Inject constructor(
             updateMode = preferencesStore.readUpdateCheckMode(),
             channelMode = preferencesStore.readAndroidTvChannelMode(),
             isHomeFavoritesRailEnabled = preferencesStore.readHomeFavoritesRailEnabled(),
+            isHomeFavoriteSeriesEnabled = preferencesStore.readHomeFavoriteSeriesEnabled(),
+            isHomeMoviesEnabled = preferencesStore.readHomeMoviesEnabled(),
+            isHomeSeriesEnabled = preferencesStore.readHomeSeriesEnabled(),
             isHomeMenuLabelsEnabled = preferencesStore.readHomeMenuLabelsEnabled(),
             watchedMarkingMode = preferencesStore.readWatchedMarkingMode(),
             torrServeBaseUrl = preferencesStore.readTorrServeBaseUrl(),
@@ -77,6 +81,8 @@ class SettingsViewModel @Inject constructor(
 
     private val _railVisibilityEvents = MutableSharedFlow<Boolean>(extraBufferCapacity = 1)
     val railVisibilityEvents: SharedFlow<Boolean> = _railVisibilityEvents.asSharedFlow()
+    private val _homeModeVisibilityEvents = MutableSharedFlow<Pair<HomeFeedMode, Boolean>>(extraBufferCapacity = 4)
+    val homeModeVisibilityEvents: SharedFlow<Pair<HomeFeedMode, Boolean>> = _homeModeVisibilityEvents.asSharedFlow()
     private val _homeMenuLabelsVisibilityEvents = MutableSharedFlow<Boolean>(extraBufferCapacity = 1)
     val homeMenuLabelsVisibilityEvents: SharedFlow<Boolean> = _homeMenuLabelsVisibilityEvents.asSharedFlow()
 
@@ -140,7 +146,29 @@ class SettingsViewModel @Inject constructor(
         if (enabled == _uiState.value.isHomeFavoritesRailEnabled) return
         preferencesStore.writeHomeFavoritesRailEnabled(enabled)
         _railVisibilityEvents.tryEmit(enabled)
+        _homeModeVisibilityEvents.tryEmit(HomeFeedMode.Favorites to enabled)
         _uiState.update { it.copy(isHomeFavoritesRailEnabled = enabled) }
+    }
+
+    fun onHomeFavoriteSeriesVisibilitySelected(enabled: Boolean) {
+        if (enabled == _uiState.value.isHomeFavoriteSeriesEnabled) return
+        preferencesStore.writeHomeFavoriteSeriesEnabled(enabled)
+        _homeModeVisibilityEvents.tryEmit(HomeFeedMode.FavoriteSeries to enabled)
+        _uiState.update { it.copy(isHomeFavoriteSeriesEnabled = enabled) }
+    }
+
+    fun onHomeMoviesVisibilitySelected(enabled: Boolean) {
+        if (enabled == _uiState.value.isHomeMoviesEnabled) return
+        preferencesStore.writeHomeMoviesEnabled(enabled)
+        _homeModeVisibilityEvents.tryEmit(HomeFeedMode.Movies to enabled)
+        _uiState.update { it.copy(isHomeMoviesEnabled = enabled) }
+    }
+
+    fun onHomeSeriesVisibilitySelected(enabled: Boolean) {
+        if (enabled == _uiState.value.isHomeSeriesEnabled) return
+        preferencesStore.writeHomeSeriesEnabled(enabled)
+        _homeModeVisibilityEvents.tryEmit(HomeFeedMode.Series to enabled)
+        _uiState.update { it.copy(isHomeSeriesEnabled = enabled) }
     }
 
     fun onHomeMenuLabelsVisibilitySelected(enabled: Boolean) {

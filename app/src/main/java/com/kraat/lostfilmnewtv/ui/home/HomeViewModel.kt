@@ -46,6 +46,15 @@ class HomeViewModel @Inject constructor(
     private val initialFavoritesRailVisible: Boolean
         get() = preferencesStore.readHomeFavoritesRailEnabled()
 
+    private val initialFavoriteSeriesModeVisible: Boolean
+        get() = preferencesStore.readHomeFavoriteSeriesEnabled()
+
+    private val initialMoviesModeVisible: Boolean
+        get() = preferencesStore.readHomeMoviesEnabled()
+
+    private val initialSeriesModeVisible: Boolean
+        get() = preferencesStore.readHomeSeriesEnabled()
+
     private val initialHomeMenuLabelsEnabled: Boolean
         get() = preferencesStore.readHomeMenuLabelsEnabled()
 
@@ -55,8 +64,16 @@ class HomeViewModel @Inject constructor(
         selectedMode = resolvedInitialMode(
             initialSelectedMode = initialSelectedMode,
             isFavoritesVisible = initialFavoritesRailVisible,
+            isFavoriteSeriesVisible = initialFavoriteSeriesModeVisible,
+            isMoviesVisible = initialMoviesModeVisible,
+            isSeriesVisible = initialSeriesModeVisible,
         ),
-        availableModes = availableModes(initialFavoritesRailVisible),
+        availableModes = availableModes(
+            isFavoritesVisible = initialFavoritesRailVisible,
+            isFavoriteSeriesVisible = initialFavoriteSeriesModeVisible,
+            isMoviesVisible = initialMoviesModeVisible,
+            isSeriesVisible = initialSeriesModeVisible,
+        ),
         allNewModeState = HomeModeContentState.Loading,
         favoritesModeState = if (initialFavoritesRailVisible) {
             HomeModeContentState.Loading
@@ -66,6 +83,9 @@ class HomeViewModel @Inject constructor(
         favoriteSeriesModeState = HomeModeContentState.Loading,
         seriesModeState = HomeModeContentState.Loading,
         isFavoritesRailVisible = initialFavoritesRailVisible,
+        isFavoriteSeriesModeVisible = initialFavoriteSeriesModeVisible,
+        isMoviesModeVisible = initialMoviesModeVisible,
+        isSeriesModeVisible = initialSeriesModeVisible,
         isHomeMenuLabelsEnabled = initialHomeMenuLabelsEnabled,
     ).withResolvedHomeSelection()
 
@@ -102,15 +122,14 @@ class HomeViewModel @Inject constructor(
             return
         }
         started = true
-        if (!initialFavoritesRailVisible && initialSelectedMode == HomeFeedMode.Favorites) {
+        if (initialSelectedMode !in _uiState.value.availableModes) {
             preferencesStore.writeHomeSelectedFeedMode(HomeFeedMode.AllNew)
         }
         loadPage(pageNumber = 1, isPagingRequest = false)
-        loadMovies(pageNumber = 1, isPagingRequest = false)
-        loadSeriesCatalog(pageNumber = 1, isPagingRequest = false)
-        loadFavoriteReleases()
-        loadFavoriteSeries()
-        loadFavoriteSeries()
+        if (_uiState.value.isMoviesModeVisible) loadMovies(pageNumber = 1, isPagingRequest = false)
+        if (_uiState.value.isSeriesModeVisible) loadSeriesCatalog(pageNumber = 1, isPagingRequest = false)
+        if (_uiState.value.isFavoritesRailVisible) loadFavoriteReleases()
+        if (_uiState.value.isFavoriteSeriesModeVisible) loadFavoriteSeries()
     }
 
     fun onResume() {
@@ -257,26 +276,53 @@ class HomeViewModel @Inject constructor(
     }
 
     fun onFavoritesRailVisibilityChanged(isVisible: Boolean) {
-        if (_uiState.value.isFavoritesRailVisible == isVisible) return
+        onHomeModeVisibilityChanged(HomeFeedMode.Favorites, isVisible)
+    }
+
+    fun onHomeModeVisibilityChanged(mode: HomeFeedMode, isVisible: Boolean) {
+        if (mode == HomeFeedMode.AllNew) return
+        if (isModeVisible(_uiState.value, mode) == isVisible) return
+
+        when (mode) {
+            HomeFeedMode.Favorites -> preferencesStore.writeHomeFavoritesRailEnabled(isVisible)
+            HomeFeedMode.FavoriteSeries -> preferencesStore.writeHomeFavoriteSeriesEnabled(isVisible)
+            HomeFeedMode.Movies -> preferencesStore.writeHomeMoviesEnabled(isVisible)
+            HomeFeedMode.Series -> preferencesStore.writeHomeSeriesEnabled(isVisible)
+            HomeFeedMode.AllNew -> Unit
+        }
+
         favoriteLoadJob?.cancel()
         favoriteSeriesLoadJob?.cancel()
-        val shouldPersistFallback = _uiState.value.selectedMode == HomeFeedMode.Favorites && !isVisible
+        if (mode == HomeFeedMode.Movies) moviesLoadJob?.cancel()
+        if (mode == HomeFeedMode.Series) seriesLoadJob?.cancel()
+        val shouldPersistFallback = _uiState.value.selectedMode == mode && !isVisible
         _uiState.update { state ->
-            val selectedMode = if (state.selectedMode == HomeFeedMode.Favorites && !isVisible) HomeFeedMode.AllNew else state.selectedMode
+            val selectedMode = if (state.selectedMode == mode && !isVisible) HomeFeedMode.AllNew else state.selectedMode
             state.copy(
                 selectedMode = selectedMode,
-                availableModes = availableModes(isVisible),
-                isFavoritesRailVisible = isVisible,
-                favoriteItems = if (isVisible) state.favoriteItems else emptyList(),
-                favoritesModeState = if (isVisible) state.favoritesModeState else HomeModeContentState.Empty,
+                isFavoritesRailVisible = if (mode == HomeFeedMode.Favorites) isVisible else state.isFavoritesRailVisible,
+                isFavoriteSeriesModeVisible = if (mode == HomeFeedMode.FavoriteSeries) isVisible else state.isFavoriteSeriesModeVisible,
+                isMoviesModeVisible = if (mode == HomeFeedMode.Movies) isVisible else state.isMoviesModeVisible,
+                isSeriesModeVisible = if (mode == HomeFeedMode.Series) isVisible else state.isSeriesModeVisible,
+                favoriteItems = if (mode == HomeFeedMode.Favorites && !isVisible) emptyList() else state.favoriteItems,
+                favoriteSeriesItems = if (mode == HomeFeedMode.FavoriteSeries && !isVisible) emptyList() else state.favoriteSeriesItems,
+                movieItems = if (mode == HomeFeedMode.Movies && !isVisible) emptyList() else state.movieItems,
+                seriesItems = if (mode == HomeFeedMode.Series && !isVisible) emptyList() else state.seriesItems,
+                favoritesModeState = if (mode == HomeFeedMode.Favorites && !isVisible) HomeModeContentState.Empty else state.favoritesModeState,
+                favoriteSeriesModeState = if (mode == HomeFeedMode.FavoriteSeries && !isVisible) HomeModeContentState.Empty else state.favoriteSeriesModeState,
+                moviesModeState = if (mode == HomeFeedMode.Movies && !isVisible) HomeModeContentState.Empty else state.moviesModeState,
+                seriesModeState = if (mode == HomeFeedMode.Series && !isVisible) HomeModeContentState.Empty else state.seriesModeState,
             ).resolveSelection()
         }
         if (shouldPersistFallback) preferencesStore.writeHomeSelectedFeedMode(HomeFeedMode.AllNew)
-        if (started && isVisible && _uiState.value.favoritesModeState !is HomeModeContentState.Content) {
-            loadFavoriteReleases()
-        }
-        if (started && _uiState.value.favoriteSeriesModeState !is HomeModeContentState.Content) {
-            loadFavoriteSeries()
+        if (started && isVisible) {
+            when (mode) {
+                HomeFeedMode.Favorites -> loadFavoriteReleases()
+                HomeFeedMode.FavoriteSeries -> loadFavoriteSeries()
+                HomeFeedMode.Movies -> loadMovies(pageNumber = 1, isPagingRequest = false)
+                HomeFeedMode.Series -> loadSeriesCatalog(pageNumber = 1, isPagingRequest = false)
+                HomeFeedMode.AllNew -> Unit
+            }
         }
     }
 
@@ -287,8 +333,8 @@ class HomeViewModel @Inject constructor(
 
     fun onFavoriteContentInvalidated() {
         if (!started) return
-        loadFavoriteReleases()
-        loadFavoriteSeries()
+        if (_uiState.value.isFavoritesRailVisible) loadFavoriteReleases()
+        if (_uiState.value.isFavoriteSeriesModeVisible) loadFavoriteSeries()
     }
 
     fun onFavoriteStateChanged(detailsUrl: String, isFavorite: Boolean) {
@@ -305,8 +351,8 @@ class HomeViewModel @Inject constructor(
                 favoritesModeState = state.favoritesModeState.optimisticallyUpdateFavoriteItems(updatedFavoriteItems),
             ).resolveSelection()
         }
-        loadFavoriteReleases(retainVisibleItemsOnFailure = true)
-        loadFavoriteSeries()
+        if (_uiState.value.isFavoritesRailVisible) loadFavoriteReleases(retainVisibleItemsOnFailure = true)
+        if (_uiState.value.isFavoriteSeriesModeVisible) loadFavoriteSeries()
     }
 
     fun onModeSelected(mode: HomeFeedMode) {
@@ -648,6 +694,9 @@ private fun HomeUiState.withResolvedHomeSelection(
             movieItems = movieItems,
             seriesItems = seriesItems,
             isFavoritesRailVisible = isFavoritesRailVisible,
+            isFavoriteSeriesVisible = isFavoriteSeriesModeVisible,
+            isMoviesVisible = isMoviesModeVisible,
+            isSeriesVisible = isSeriesModeVisible,
         )
     }
     val normalizedSelectedMode = if (selectedMode in availableModes) selectedMode else HomeFeedMode.AllNew
@@ -659,7 +708,12 @@ private fun HomeUiState.withResolvedHomeSelection(
     val selectedItem = activeItems.firstOrNull { it.detailsUrl == preferredKey } ?: activeItems.firstOrNull()
     return copy(
         selectedMode = normalizedSelectedMode,
-        availableModes = availableModes(isFavoritesRailVisible),
+        availableModes = availableModes(
+            isFavoritesVisible = isFavoritesRailVisible,
+            isFavoriteSeriesVisible = isFavoriteSeriesModeVisible,
+            isMoviesVisible = isMoviesModeVisible,
+            isSeriesVisible = isSeriesModeVisible,
+        ),
         rails = resolvedRails,
         rememberedItemKeyByMode = focusState.rememberedItemKeyByMode
             .withDefaultRememberedKeys(items, favoriteItems, favoriteSeriesItems, movieItems, seriesItems),
@@ -683,14 +737,20 @@ private fun List<HomeContentRail>.matchesHomeRailInputs(state: HomeUiState): Boo
         if (state.favoriteItems.isNotEmpty()) index += 1
     }
 
-    if (!matchesRail(index, HOME_RAIL_FAVORITE_SERIES, state.favoriteSeriesItems)) return false
-    if (state.favoriteSeriesItems.isNotEmpty()) index += 1
+    if (state.isFavoriteSeriesModeVisible) {
+        if (!matchesRail(index, HOME_RAIL_FAVORITE_SERIES, state.favoriteSeriesItems)) return false
+        if (state.favoriteSeriesItems.isNotEmpty()) index += 1
+    }
 
-    if (!matchesRail(index, HOME_RAIL_MOVIES, state.movieItems)) return false
-    if (state.movieItems.isNotEmpty()) index += 1
+    if (state.isMoviesModeVisible) {
+        if (!matchesRail(index, HOME_RAIL_MOVIES, state.movieItems)) return false
+        if (state.movieItems.isNotEmpty()) index += 1
+    }
 
-    if (!matchesRail(index, HOME_RAIL_SERIES, state.seriesItems)) return false
-    if (state.seriesItems.isNotEmpty()) index += 1
+    if (state.isSeriesModeVisible) {
+        if (!matchesRail(index, HOME_RAIL_SERIES, state.seriesItems)) return false
+        if (state.seriesItems.isNotEmpty()) index += 1
+    }
 
     return index == size
 }
@@ -715,11 +775,48 @@ private fun HomeModeContentState.optimisticallyUpdateFavoriteItems(items: List<R
     }
 }
 
-private fun availableModes(isFavoritesVisible: Boolean) =
-    listOf(HomeFeedMode.AllNew, HomeFeedMode.Favorites, HomeFeedMode.FavoriteSeries, HomeFeedMode.Movies, HomeFeedMode.Series)
+private fun availableModes(
+    isFavoritesVisible: Boolean,
+    isFavoriteSeriesVisible: Boolean,
+    isMoviesVisible: Boolean,
+    isSeriesVisible: Boolean,
+): List<HomeFeedMode> = buildList {
+    add(HomeFeedMode.AllNew)
+    if (isFavoritesVisible) add(HomeFeedMode.Favorites)
+    if (isFavoriteSeriesVisible) add(HomeFeedMode.FavoriteSeries)
+    if (isMoviesVisible) add(HomeFeedMode.Movies)
+    if (isSeriesVisible) add(HomeFeedMode.Series)
+}
 
-private fun resolvedInitialMode(initialSelectedMode: HomeFeedMode, isFavoritesVisible: Boolean) =
-    if (initialSelectedMode == HomeFeedMode.Favorites && !isFavoritesVisible) HomeFeedMode.AllNew else initialSelectedMode
+private fun resolvedInitialMode(
+    initialSelectedMode: HomeFeedMode,
+    isFavoritesVisible: Boolean,
+    isFavoriteSeriesVisible: Boolean,
+    isMoviesVisible: Boolean,
+    isSeriesVisible: Boolean,
+): HomeFeedMode {
+    return if (initialSelectedMode in availableModes(
+            isFavoritesVisible = isFavoritesVisible,
+            isFavoriteSeriesVisible = isFavoriteSeriesVisible,
+            isMoviesVisible = isMoviesVisible,
+            isSeriesVisible = isSeriesVisible,
+        )
+    ) {
+        initialSelectedMode
+    } else {
+        HomeFeedMode.AllNew
+    }
+}
+
+private fun isModeVisible(state: HomeUiState, mode: HomeFeedMode): Boolean {
+    return when (mode) {
+        HomeFeedMode.AllNew -> true
+        HomeFeedMode.Favorites -> state.isFavoritesRailVisible
+        HomeFeedMode.FavoriteSeries -> state.isFavoriteSeriesModeVisible
+        HomeFeedMode.Movies -> state.isMoviesModeVisible
+        HomeFeedMode.Series -> state.isSeriesModeVisible
+    }
+}
 
 private fun findItemForMode(state: HomeUiState, mode: HomeFeedMode, itemKey: String): HomeModeItemMatch? =
     state.itemsForMode(mode).firstOrNull { it.detailsUrl == itemKey }?.let { HomeModeItemMatch(mode, it) }

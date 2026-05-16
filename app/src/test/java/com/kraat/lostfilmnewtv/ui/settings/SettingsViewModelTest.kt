@@ -6,6 +6,7 @@ import androidx.work.Operation
 import androidx.work.WorkManager
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
+import com.kraat.lostfilmnewtv.ui.home.HomeFeedMode
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelBackgroundScheduler
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPreferences
@@ -27,6 +28,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -285,6 +287,44 @@ class SettingsViewModelTest {
         assertEquals(true, checkNotNull(lastSettingsPreferencesStore).readHomeFavoritesRailEnabled())
         assertEquals(true, event.await())
         assertEquals(true, viewModel.uiState.value.isHomeFavoritesRailEnabled)
+    }
+
+    @Test
+    fun onHomeModeVisibilitySelected_persistsState_andNotifiesCaller() = runTest(dispatcher) {
+        val viewModel = createViewModel(
+            installedVersion = "1.0.0",
+            initialPlaybackQuality = PlaybackQualityPreference.Q1080,
+            initialUpdateMode = UpdateCheckMode.MANUAL,
+            savedUpdateState = MutableStateFlow(null),
+            refreshSavedUpdateState = FakeUpdateRefresher()::invoke,
+            ioDispatcher = dispatcher,
+        )
+        val events = mutableListOf<Pair<HomeFeedMode, Boolean>>()
+        val eventJob = launch(start = CoroutineStart.UNDISPATCHED) {
+            viewModel.homeModeVisibilityEvents.collect { events += it }
+        }
+
+        viewModel.onHomeFavoriteSeriesVisibilitySelected(false)
+        viewModel.onHomeMoviesVisibilitySelected(false)
+        viewModel.onHomeSeriesVisibilitySelected(false)
+        advanceUntilIdle()
+
+        assertEquals(false, checkNotNull(lastSettingsPreferencesStore).readHomeFavoriteSeriesEnabled())
+        assertEquals(false, checkNotNull(lastSettingsPreferencesStore).readHomeMoviesEnabled())
+        assertEquals(false, checkNotNull(lastSettingsPreferencesStore).readHomeSeriesEnabled())
+        assertEquals(false, viewModel.uiState.value.isHomeFavoriteSeriesEnabled)
+        assertEquals(false, viewModel.uiState.value.isHomeMoviesEnabled)
+        assertEquals(false, viewModel.uiState.value.isHomeSeriesEnabled)
+        assertEquals(
+            listOf(
+                HomeFeedMode.FavoriteSeries to false,
+                HomeFeedMode.Movies to false,
+                HomeFeedMode.Series to false,
+            ),
+            events,
+        )
+
+        eventJob.cancel()
     }
 
     @Test

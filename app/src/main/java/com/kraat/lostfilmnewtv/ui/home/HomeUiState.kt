@@ -39,6 +39,9 @@ data class HomeUiState(
     val seriesNextPage: Int = 1,
     val seriesHasNextPage: Boolean = true,
     val isFavoritesRailVisible: Boolean = false,
+    val isFavoriteSeriesModeVisible: Boolean = true,
+    val isMoviesModeVisible: Boolean = true,
+    val isSeriesModeVisible: Boolean = true,
     val isHomeMenuLabelsEnabled: Boolean = true,
 )
 
