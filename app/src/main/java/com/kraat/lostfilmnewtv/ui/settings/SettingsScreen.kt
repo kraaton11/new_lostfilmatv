@@ -533,7 +533,7 @@ fun SettingsScreen(
                                     )
                                     SettingsRowButton(
                                         title = "Telegram-канал",
-                                        description = "Новости и обсуждение LostFilm New TV",
+                                        description = "t.me/lostfilmatv_new",
                                         value = "Открыть",
                                         onClick = {
                                             context.startActivity(
