@@ -1070,6 +1070,38 @@ class LostFilmRepositoryTest {
     }
 
     @Test
+    fun setFavorite_forSeriesFallsBackToEpisodePage_whenRootHasNoFavoriteButton() = runTest {
+        val detailsUrl = "https://www.lostfilm.today/series/New_Show/season_1/episode_1/"
+        val favoritePageUrl = "https://www.lostfilm.today/series/New_Show/"
+        seedDetails(detailsUrl = detailsUrl, fetchedAt = NOW - 1_000L)
+        val detailsRequests = mutableListOf<String>()
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            detailsHandler = { requestedUrl ->
+                detailsRequests += requestedUrl
+                when (requestedUrl) {
+                    favoritePageUrl -> seriesRootPageWithStatusHtml()
+                    detailsUrl -> seriesDetailsWithFavoriteState(isFavorite = false, includeSessionToken = true)
+                    else -> error("Unexpected details request: $requestedUrl")
+                }
+            },
+            favoriteToggleHandler = { refererUrl, favoriteTargetId, ajaxSessionToken ->
+                assertEquals(detailsUrl, refererUrl)
+                assertEquals(915, favoriteTargetId)
+                assertEquals("ajax-session-token", ajaxSessionToken)
+                FavoriteToggleNetworkResult.ToggledOn
+            },
+            isAuthenticated = true,
+        )
+
+        val result = repository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
+
+        assertEquals(FavoriteMutationResult.Updated, result)
+        assertEquals(listOf(favoritePageUrl, detailsUrl), detailsRequests)
+        assertTrue(releaseDao.getReleaseDetails(detailsUrl)?.toModel()?.isFavorite == true)
+    }
+
+    @Test
     fun setFavorite_returnsRequiresLogin_whenSessionMissing() = runTest {
         val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
         val repository = createRepository(

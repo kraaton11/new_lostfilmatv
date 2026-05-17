@@ -81,6 +81,12 @@ private val seriesRootUrlRegex = Regex("""${Regex.escape(BASE_URL)}/series/([^/]
 private val searchWhitespaceRegex = Regex("""\s+""")
 private val favoriteReleaseDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy")
 
+private data class FavoriteMetadataPage(
+    val url: String,
+    val html: String,
+    val metadata: FavoriteMetadata,
+)
+
 class LostFilmRepositoryImpl(
     private val httpClient: LostFilmHttpClient,
     private val releaseDao: ReleaseDao,
@@ -651,21 +657,20 @@ class LostFilmRepositoryImpl(
         }
 
         val normalizedDetailsUrl = resolveUrl(detailsUrl)
-        val favoritePageUrl = favoriteMetadataPageUrl(normalizedDetailsUrl)
         return try {
-            val favoritePageHtml = httpClient.fetchDetails(favoritePageUrl)
-            val favoriteMetadata = detailsParser.parseFavoriteMetadata(favoritePageHtml)
+            val favoritePage = fetchFavoriteMetadataPage(normalizedDetailsUrl)
                 ?: return FavoriteMutationResult.Error("Не удалось обновить избранное")
+            val favoriteMetadata = favoritePage.metadata
             persistFavoriteMetadata(normalizedDetailsUrl, favoriteMetadata)
 
             if (favoriteMetadata.isFavorite == targetFavorite) {
                 return FavoriteMutationResult.NoOp
             }
 
-            val ajaxSessionToken = detailsParser.parseAjaxSessionToken(favoritePageHtml)
+            val ajaxSessionToken = detailsParser.parseAjaxSessionToken(favoritePage.html)
                 ?: return FavoriteMutationResult.Error("Войдите в LostFilm")
             val toggleResult = httpClient.toggleFavorite(
-                refererUrl = favoritePageUrl,
+                refererUrl = favoritePage.url,
                 favoriteTargetId = favoriteMetadata.targetId,
                 ajaxSessionToken = ajaxSessionToken,
             )
@@ -674,7 +679,7 @@ class LostFilmRepositoryImpl(
                 FavoriteToggleNetworkResult.ToggledOn -> true
                 FavoriteToggleNetworkResult.ToggledOff -> false
                 FavoriteToggleNetworkResult.Unknown -> {
-                    val refreshedHtml = httpClient.fetchDetails(favoritePageUrl)
+                    val refreshedHtml = httpClient.fetchDetails(favoritePage.url)
                     detailsParser.parseFavoriteMetadata(refreshedHtml)?.isFavorite
                 }
             }
@@ -1169,25 +1174,30 @@ class LostFilmRepositoryImpl(
             return details
         }
 
-        val metadataPageUrl = when (details.kind) {
-            ReleaseKind.SERIES -> seriesRootUrl(details.detailsUrl)
-            ReleaseKind.MOVIE -> favoriteMetadataPageUrl(details.detailsUrl)
-        } ?: return details
+        val metadataPageUrls = favoriteMetadataPageUrls(details.detailsUrl, details.kind)
 
-        return try {
-            val metadataHtml = httpClient.fetchDetails(metadataPageUrl)
-            val enriched = favoriteMetadataIfAvailable(
-                details = details.withSeriesStatus(detailsParser.parseSeriesStatus(metadataHtml)),
-                metadataHtml = metadataHtml,
-                shouldParseFavorite = needsFavoriteMetadata,
-            )
-            if (enriched != details) {
-                releaseDao.upsertDetails(enriched.toEntity())
+        var enriched = details
+        for (metadataPageUrl in metadataPageUrls) {
+            val metadataHtml = try {
+                httpClient.fetchDetails(metadataPageUrl)
+            } catch (_: IOException) {
+                continue
             }
-            enriched
-        } catch (_: IOException) {
-            details
+            enriched = enriched.withSeriesStatus(detailsParser.parseSeriesStatus(metadataHtml))
+            if (needsFavoriteMetadata) {
+                val favoriteMetadata = detailsParser.parseFavoriteMetadata(metadataHtml)
+                if (favoriteMetadata != null) {
+                    enriched = enriched.withFavoriteMetadata(favoriteMetadata)
+                    break
+                }
+            } else {
+                break
+            }
         }
+        if (enriched != details) {
+            releaseDao.upsertDetails(enriched.toEntity())
+        }
+        return enriched
     }
 
     private fun hasNextPage(
@@ -1245,6 +1255,38 @@ class LostFilmRepositoryImpl(
         }
     }
 
+    private fun favoriteMetadataPageUrls(
+        detailsUrl: String,
+        kind: ReleaseKind? = null,
+    ): List<String> {
+        val normalizedDetailsUrl = resolveUrl(detailsUrl)
+        val primaryUrl = when (kind) {
+            ReleaseKind.SERIES -> seriesRootUrl(normalizedDetailsUrl) ?: favoriteMetadataPageUrl(normalizedDetailsUrl)
+            ReleaseKind.MOVIE -> favoriteMetadataPageUrl(normalizedDetailsUrl)
+            null -> favoriteMetadataPageUrl(normalizedDetailsUrl)
+        }
+        return listOf(primaryUrl, normalizedDetailsUrl).distinct()
+    }
+
+    private suspend fun fetchFavoriteMetadataPage(detailsUrl: String): FavoriteMetadataPage? {
+        var lastException: IOException? = null
+        for (candidateUrl in favoriteMetadataPageUrls(detailsUrl)) {
+            try {
+                val html = httpClient.fetchDetails(candidateUrl)
+                val metadata = detailsParser.parseFavoriteMetadata(html) ?: continue
+                return FavoriteMetadataPage(
+                    url = candidateUrl,
+                    html = html,
+                    metadata = metadata,
+                )
+            } catch (exception: IOException) {
+                lastException = exception
+            }
+        }
+        lastException?.let { throw it }
+        return null
+    }
+
     private fun ReleaseDetails.withFavoriteMetadata(
         favoriteMetadata: FavoriteMetadata,
     ): ReleaseDetails {
@@ -1261,18 +1303,6 @@ class LostFilmRepositoryImpl(
         } else {
             copy(seriesStatusRu = seriesStatusRu)
         }
-    }
-
-    private fun favoriteMetadataIfAvailable(
-        details: ReleaseDetails,
-        metadataHtml: String,
-        shouldParseFavorite: Boolean,
-    ): ReleaseDetails {
-        if (!shouldParseFavorite) {
-            return details
-        }
-        val favoriteMetadata = detailsParser.parseFavoriteMetadata(metadataHtml) ?: return details
-        return details.withFavoriteMetadata(favoriteMetadata)
     }
 
     private fun seriesRootUrl(detailsUrl: String): String? {
