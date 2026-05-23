@@ -153,6 +153,8 @@ fun HomeScreen(
     var startupContentFocusPending by rememberSaveable { mutableStateOf(true) }
     var contentReturnFocusRequestVersion by remember { mutableStateOf(0) }
     var isContentRailFocused by remember(activeRailId) { mutableStateOf(false) }
+    var isHomeMenuFocused by rememberSaveable { mutableStateOf(true) }
+    val shouldShowHomeMenuLabels = state.isHomeMenuLabelsEnabled || isHomeMenuFocused
 
     LaunchedEffect(externalSelectedItemKey, state.selectedItemKey, state.selectedMode, itemKeys) {
         val preferredKey = externalSelectedItemKey ?: state.selectedItemKey ?: itemKeys.firstOrNull()
@@ -270,13 +272,17 @@ fun HomeScreen(
                 availableModes = state.availableModes,
                 onModeActivated = { mode ->
                     startupContentFocusPending = false
+                    isHomeMenuFocused = true
                     onModeSelected(mode)
                     focusScope.launch {
                         withFrameNanos { }
                         requestFocusWhenReady(modeFocusRequesters.getValue(mode))
                     }
                 },
-                onHeaderInteraction = { startupContentFocusPending = false },
+                onHeaderInteraction = {
+                    startupContentFocusPending = false
+                    isHomeMenuFocused = true
+                },
                 onBackToContent = {
                     if (headerDownTarget == null) {
                         false
@@ -309,10 +315,11 @@ fun HomeScreen(
                 settingsFocusRequester = settingsRequester,
                 menuLabelsFocusRequester = menuLabelsRequester,
                 downTarget = headerDownTarget,
-                showLabels = state.isHomeMenuLabelsEnabled,
+                showLabels = shouldShowHomeMenuLabels,
+                menuLabelsEnabled = state.isHomeMenuLabelsEnabled,
                 onHomeMenuLabelsVisibilitySelected = onHomeMenuLabelsVisibilitySelected,
                 modifier = Modifier
-                    .width(if (state.isHomeMenuLabelsEnabled) 204.dp else 68.dp)
+                    .width(if (shouldShowHomeMenuLabels) 204.dp else 68.dp)
                     .fillMaxHeight(),
             )
 
@@ -388,11 +395,15 @@ fun HomeScreen(
                                     },
                                     onItemFocused = { detailsUrl ->
                                         startupContentFocusPending = false
+                                        isHomeMenuFocused = false
                                         focusedItemKey = detailsUrl
                                         onItemFocused(detailsUrl)
                                     },
                                     onRailFocusChanged = { isFocused ->
                                         isContentRailFocused = isFocused
+                                        if (isFocused) {
+                                            isHomeMenuFocused = false
+                                        }
                                     },
                                     onOpenDetails = if (state.selectedMode == HomeFeedMode.Series ||
                                         state.selectedMode == HomeFeedMode.FavoriteSeries

@@ -100,6 +100,7 @@ fun HomeHeader(
     menuLabelsFocusRequester: FocusRequester,
     downTarget: FocusRequester?,
     showLabels: Boolean,
+    menuLabelsEnabled: Boolean = showLabels,
     onHomeMenuLabelsVisibilitySelected: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -302,12 +303,12 @@ fun HomeHeader(
                     },
             )
             HomeHeaderActionButton(
-                label = if (showLabels) "Скрыть меню" else "Показать меню",
+                label = if (menuLabelsEnabled) "Скрыть меню" else "Показать меню",
                 subtitle = "",
-                leadingIcon = if (showLabels) HeaderActionIcon.MenuCollapse else HeaderActionIcon.MenuExpand,
+                leadingIcon = if (menuLabelsEnabled) HeaderActionIcon.MenuCollapse else HeaderActionIcon.MenuExpand,
                 onClick = {
                     onHeaderInteraction()
-                    onHomeMenuLabelsVisibilitySelected(!showLabels)
+                    onHomeMenuLabelsVisibilitySelected(!menuLabelsEnabled)
                 },
                 onLongClick = {},
                 onInteraction = onHeaderInteraction,
