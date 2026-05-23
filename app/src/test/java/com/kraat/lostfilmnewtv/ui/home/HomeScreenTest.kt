@@ -441,6 +441,29 @@ class HomeScreenTest {
     }
 
     @Test
+    fun homeScreen_expandsHiddenMenuOnlyWhileMenuHasFocus() {
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(
+                    state = seededState().copy(isHomeMenuLabelsEnabled = false),
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("home-action-schedule")
+            .performSemanticsAction(SemanticsActions.RequestFocus)
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithText("Расписание").assertExists()
+
+        composeRule.onNodeWithTag(posterTag(firstDetailsUrl))
+            .performSemanticsAction(SemanticsActions.RequestFocus)
+        composeRule.waitForIdle()
+
+        assertEquals(0, composeRule.onAllNodesWithText("Расписание").fetchSemanticsNodes().size)
+    }
+
+    @Test
     @OptIn(ExperimentalTestApi::class)
     fun homeScreen_railUpDownSwitchesModesAndKeepsFocusInRail() {
         val allModes = listOf(
