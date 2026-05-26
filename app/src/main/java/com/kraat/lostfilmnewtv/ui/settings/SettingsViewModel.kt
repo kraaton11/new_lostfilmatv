@@ -3,6 +3,7 @@ package com.kraat.lostfilmnewtv.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kraat.lostfilmnewtv.BuildConfig
+import com.kraat.lostfilmnewtv.data.network.normalizeProwlarrBaseUrl
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.playback.WatchedMarkingMode
@@ -72,6 +73,8 @@ class SettingsViewModel @Inject constructor(
             isHomeMenuLabelsEnabled = preferencesStore.readHomeMenuLabelsEnabled(),
             watchedMarkingMode = preferencesStore.readWatchedMarkingMode(),
             torrServeBaseUrl = preferencesStore.readTorrServeBaseUrl(),
+            prowlarrBaseUrl = preferencesStore.readProwlarrBaseUrl(),
+            prowlarrApiKey = preferencesStore.readProwlarrApiKey(),
             installedVersionText = BuildConfig.VERSION_NAME,
             savedAppUpdate = initialSavedUpdate,
             installUrl = initialSavedUpdate?.apkUrl,
@@ -209,6 +212,46 @@ class SettingsViewModel @Inject constructor(
             it.copy(
                 torrServeBaseUrl = preferencesStore.readTorrServeBaseUrl(),
                 torrServeStatusText = "Адрес сброшен",
+            )
+        }
+    }
+
+    fun onProwlarrBaseUrlChanged(value: String) {
+        _uiState.update { it.copy(prowlarrBaseUrl = value, prowlarrStatusText = null) }
+    }
+
+    fun onProwlarrApiKeyChanged(value: String) {
+        _uiState.update { it.copy(prowlarrApiKey = value.trim(), prowlarrStatusText = null) }
+    }
+
+    fun onSaveProwlarrClick() {
+        val normalized = normalizeProwlarrBaseUrl(_uiState.value.prowlarrBaseUrl)
+        if (normalized == null) {
+            _uiState.update { it.copy(prowlarrStatusText = "Неверный адрес Prowlarr") }
+            return
+        }
+        val apiKey = _uiState.value.prowlarrApiKey.trim()
+        if (apiKey.isBlank()) {
+            _uiState.update { it.copy(prowlarrStatusText = "Укажите API key") }
+            return
+        }
+        preferencesStore.writeProwlarrSettings(baseUrl = normalized, apiKey = apiKey)
+        _uiState.update {
+            it.copy(
+                prowlarrBaseUrl = normalized,
+                prowlarrApiKey = apiKey,
+                prowlarrStatusText = "Prowlarr сохранен",
+            )
+        }
+    }
+
+    fun onClearProwlarrClick() {
+        preferencesStore.clearProwlarrSettings()
+        _uiState.update {
+            it.copy(
+                prowlarrBaseUrl = "",
+                prowlarrApiKey = "",
+                prowlarrStatusText = "Prowlarr отключен",
             )
         }
     }

@@ -1,6 +1,7 @@
 package com.kraat.lostfilmnewtv.ui.details
 
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
+import com.kraat.lostfilmnewtv.data.network.ProwlarrSearchResult
 
 data class DetailsUiState(
     val details: ReleaseDetails? = null,
@@ -19,4 +20,9 @@ data class DetailsUiState(
     val favoriteActionLabel: String = "",
     val isFavoriteActionEnabled: Boolean = false,
     val favoriteContentVersion: Int = 0,
+    val isProwlarrConfigured: Boolean = false,
+    val isProwlarrSearching: Boolean = false,
+    val prowlarrResults: List<ProwlarrSearchResult> = emptyList(),
+    val prowlarrStatusMessage: String? = null,
+    val isProwlarrPanelVisible: Boolean = false,
 )
