@@ -11,6 +11,10 @@ sealed class SettingsFocusTarget {
     data object TorrServeSave : SettingsFocusTarget()
     data object TorrServeCheck : SettingsFocusTarget()
     data object TorrServeReset : SettingsFocusTarget()
+    data object ProwlarrBaseUrl : SettingsFocusTarget()
+    data object ProwlarrApiKey : SettingsFocusTarget()
+    data object ProwlarrSave : SettingsFocusTarget()
+    data object ProwlarrClear : SettingsFocusTarget()
     data object HomeFavoritesToggle : SettingsFocusTarget()
     data object HomeFavoriteSeriesToggle : SettingsFocusTarget()
     data object HomeMoviesToggle : SettingsFocusTarget()
@@ -38,6 +42,10 @@ fun SettingsFocusTarget.toTag(): String = when (this) {
     SettingsFocusTarget.TorrServeSave -> "settings-torrserve-save"
     SettingsFocusTarget.TorrServeCheck -> "settings-torrserve-check"
     SettingsFocusTarget.TorrServeReset -> "settings-torrserve-reset"
+    SettingsFocusTarget.ProwlarrBaseUrl -> "settings-prowlarr-base-url"
+    SettingsFocusTarget.ProwlarrApiKey -> "settings-prowlarr-api-key"
+    SettingsFocusTarget.ProwlarrSave -> "settings-prowlarr-save"
+    SettingsFocusTarget.ProwlarrClear -> "settings-prowlarr-clear"
     SettingsFocusTarget.HomeFavoritesToggle -> "settings-home-favorites-toggle"
     SettingsFocusTarget.HomeFavoriteSeriesToggle -> "settings-home-favorite-series-toggle"
     SettingsFocusTarget.HomeMoviesToggle -> "settings-home-movies-toggle"

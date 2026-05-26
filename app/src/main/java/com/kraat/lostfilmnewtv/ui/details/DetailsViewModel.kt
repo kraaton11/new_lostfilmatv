@@ -4,9 +4,12 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
+import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
+import com.kraat.lostfilmnewtv.data.network.ProwlarrClientFactory
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.navigation.AppDestination
+import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
@@ -23,6 +26,8 @@ class DetailsViewModel @Inject constructor(
     private val repository: LostFilmRepository,
     private val savedStateHandle: SavedStateHandle,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val preferencesStore: PlaybackPreferencesStore? = null,
+    private val prowlarrClientFactory: ProwlarrClientFactory? = null,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DetailsUiState())
@@ -36,6 +41,7 @@ class DetailsViewModel @Inject constructor(
     private var loadRequestToken = 0
     private var loadJob: Job? = null
     private var watchedStateJob: Job? = null
+    private var prowlarrSearchJob: Job? = null
     private var hasValidSession = isAuthenticated
 
     fun onStart() {
@@ -72,6 +78,63 @@ class DetailsViewModel @Inject constructor(
     }
 
     fun onRetry() = loadDetails()
+
+    fun onProwlarrSearchClick() {
+        val details = _uiState.value.details ?: return
+        val baseUrl = preferencesStore?.readProwlarrBaseUrl().orEmpty()
+        val apiKey = preferencesStore?.readProwlarrApiKey().orEmpty()
+        if (baseUrl.isBlank() || apiKey.isBlank()) {
+            _uiState.update {
+                it.copy(
+                    prowlarrStatusMessage = "Настройте Prowlarr в настройках",
+                    isProwlarrPanelVisible = true,
+                )
+            }
+            return
+        }
+        if (prowlarrSearchJob?.isActive == true) return
+
+        val query = buildProwlarrQuery(details)
+        prowlarrSearchJob = viewModelScope.launch(ioDispatcher) {
+            _uiState.update {
+                it.copy(
+                    isProwlarrSearching = true,
+                    prowlarrStatusMessage = "Ищем в Prowlarr...",
+                    prowlarrResults = emptyList(),
+                    isProwlarrPanelVisible = true,
+                )
+            }
+            val results = runCatching {
+                prowlarrClientFactory?.create(baseUrl = baseUrl, apiKey = apiKey)?.search(query).orEmpty()
+            }.getOrElse {
+                _uiState.update { state ->
+                    state.copy(
+                        isProwlarrSearching = false,
+                        prowlarrStatusMessage = "Не удалось выполнить поиск Prowlarr",
+                    )
+                }
+                return@launch
+            }
+            _uiState.update {
+                it.copy(
+                    isProwlarrSearching = false,
+                    prowlarrResults = results,
+                    prowlarrStatusMessage = if (results.isEmpty()) "Ничего не найдено" else null,
+                    isProwlarrPanelVisible = true,
+                )
+            }
+        }
+    }
+
+    fun onProwlarrPanelDismiss() {
+        prowlarrSearchJob?.cancel()
+        _uiState.update {
+            it.copy(
+                isProwlarrSearching = false,
+                isProwlarrPanelVisible = false,
+            )
+        }
+    }
 
     suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean =
         repository.setEpisodeWatched(detailsUrl, playEpisodeId, targetWatched = true) == true
@@ -188,6 +251,8 @@ class DetailsViewModel @Inject constructor(
                             isLoading = false,
                             showStaleBanner = result.isStale,
                             errorMessage = null,
+                            isProwlarrConfigured = preferencesStore?.readProwlarrBaseUrl().orEmpty().isNotBlank() &&
+                                preferencesStore?.readProwlarrApiKey().orEmpty().isNotBlank(),
                         ).withFavoritePresentation().withWatchedPresentation()
                     }
                     refreshWatchedState(
@@ -208,6 +273,17 @@ class DetailsViewModel @Inject constructor(
                     }
                 }
             }
+        }
+    }
+
+    private fun buildProwlarrQuery(details: ReleaseDetails): String {
+        val title = details.titleRu
+        val season = details.seasonNumber
+        val episode = details.episodeNumber
+        return if (season != null && episode != null) {
+            "$title S${season.toString().padStart(2, '0')}E${episode.toString().padStart(2, '0')}"
+        } else {
+            title
         }
     }
 

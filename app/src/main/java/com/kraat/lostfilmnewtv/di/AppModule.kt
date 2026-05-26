@@ -7,6 +7,7 @@ import com.kraat.lostfilmnewtv.data.auth.EncryptedSessionStore
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
 import com.kraat.lostfilmnewtv.data.db.TmdbPosterDao
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
+import com.kraat.lostfilmnewtv.data.network.ProwlarrClientFactory
 import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolver
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeActionHandler
@@ -112,6 +113,11 @@ object AppModule {
         probe: TorrServeAvailabilityProbe,
         launcher: TorrServeLauncher,
     ): TorrServeActionHandler = TorrServeActionHandler(linkBuilder, probe, launcher)
+
+    @Provides
+    @Singleton
+    fun provideProwlarrClientFactory(okHttpClient: OkHttpClient): ProwlarrClientFactory =
+        ProwlarrClientFactory(okHttpClient)
 
     // endregion
 

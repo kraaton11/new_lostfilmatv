@@ -63,6 +63,7 @@ import coil.request.ImageRequest
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.TmdbEpisodeOverviewSource
+import com.kraat.lostfilmnewtv.data.network.ProwlarrSearchResult
 import com.kraat.lostfilmnewtv.ui.components.ShimmerSkeletonBox
 import com.kraat.lostfilmnewtv.ui.components.rememberShimmerSkeletonBrush
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
@@ -94,6 +95,9 @@ fun DetailsScreen(
     onMovieOverviewClick: () -> Unit = {},
     onSeriesOverviewClick: () -> Unit = {},
     onSeriesGuideClick: () -> Unit = {},
+    onProwlarrSearchClick: () -> Unit = {},
+    onProwlarrResultClick: (ProwlarrSearchResult) -> Unit = {},
+    onProwlarrDismiss: () -> Unit = {},
     onAuthClick: () -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -113,6 +117,9 @@ fun DetailsScreen(
         onMovieOverviewClick = onMovieOverviewClick,
         onSeriesOverviewClick = onSeriesOverviewClick,
         onSeriesGuideClick = onSeriesGuideClick,
+        onProwlarrSearchClick = onProwlarrSearchClick,
+        onProwlarrResultClick = onProwlarrResultClick,
+        onProwlarrDismiss = onProwlarrDismiss,
         onAuthClick = onAuthClick,
         onOpenTorrServe = { _, url ->
             context.startActivity(
@@ -139,6 +146,9 @@ fun DetailsScreen(
     onMovieOverviewClick: () -> Unit = {},
     onSeriesOverviewClick: () -> Unit = {},
     onSeriesGuideClick: () -> Unit = {},
+    onProwlarrSearchClick: () -> Unit = {},
+    onProwlarrResultClick: (ProwlarrSearchResult) -> Unit = {},
+    onProwlarrDismiss: () -> Unit = {},
     onAuthClick: () -> Unit = {},
     onOpenTorrServe: (String, String) -> Unit,
 ) {
@@ -158,6 +168,9 @@ fun DetailsScreen(
             onMovieOverviewClick = onMovieOverviewClick,
             onSeriesOverviewClick = onSeriesOverviewClick,
             onSeriesGuideClick = onSeriesGuideClick,
+            onProwlarrSearchClick = onProwlarrSearchClick,
+            onProwlarrResultClick = onProwlarrResultClick,
+            onProwlarrDismiss = onProwlarrDismiss,
             onAuthClick = onAuthClick,
             onOpenTorrServe = onOpenTorrServe,
         )
@@ -326,6 +339,9 @@ private fun ContentState(
     onMovieOverviewClick: () -> Unit,
     onSeriesOverviewClick: () -> Unit,
     onSeriesGuideClick: () -> Unit,
+    onProwlarrSearchClick: () -> Unit,
+    onProwlarrResultClick: (ProwlarrSearchResult) -> Unit,
+    onProwlarrDismiss: () -> Unit,
     onAuthClick: () -> Unit,
     onOpenTorrServe: (String, String) -> Unit,
 ) {
@@ -367,11 +383,22 @@ private fun ContentState(
                 onMovieOverviewClick = onMovieOverviewClick,
                 onSeriesOverviewClick = onSeriesOverviewClick,
                 onSeriesGuideClick = onSeriesGuideClick,
+                onProwlarrSearchClick = onProwlarrSearchClick,
                 onAuthClick = onAuthClick,
                 onOpenTorrServe = {
                     val row = playbackRow ?: return@HeroStage
                     onOpenTorrServe(row.rowId, row.url)
                 },
+            )
+        }
+        if (state.isProwlarrPanelVisible) {
+            ProwlarrResultsPanel(
+                state = state,
+                onResultClick = onProwlarrResultClick,
+                onDismiss = onProwlarrDismiss,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(start = 44.dp, end = 48.dp, bottom = 34.dp),
             )
         }
     }
@@ -434,6 +461,7 @@ private fun HeroStage(
     onMovieOverviewClick: () -> Unit,
     onSeriesOverviewClick: () -> Unit,
     onSeriesGuideClick: () -> Unit,
+    onProwlarrSearchClick: () -> Unit,
     onAuthClick: () -> Unit,
     onOpenTorrServe: () -> Unit,
 ) {
@@ -560,6 +588,7 @@ private fun HeroStage(
                             onMovieOverviewClick = onMovieOverviewClick,
                             onSeriesOverviewClick = onSeriesOverviewClick,
                             onSeriesGuideClick = onSeriesGuideClick,
+                            onProwlarrSearchClick = onProwlarrSearchClick,
                         ),
                         modifier = detailsSecondaryActionModifier(action)
                             .focusProperties { canFocus = isLeadingActionFocusable }
@@ -582,6 +611,7 @@ private fun HeroStage(
                             onMovieOverviewClick = onMovieOverviewClick,
                             onSeriesOverviewClick = onSeriesOverviewClick,
                             onSeriesGuideClick = onSeriesGuideClick,
+                            onProwlarrSearchClick = onProwlarrSearchClick,
                         ),
                         modifier = detailsSecondaryActionModifier(action)
                             .focusRequester(secondaryActionRequesters.getValue(action.actionId))
@@ -603,9 +633,64 @@ private fun detailsSecondaryActionModifier(action: DetailsStageActionUiModel): M
         DetailsStageActionType.OPEN_SERIES_GUIDE -> 104.dp
         DetailsStageActionType.TOGGLE_FAVORITE -> 128.dp
         DetailsStageActionType.TOGGLE_WATCHED -> 152.dp
+        DetailsStageActionType.OPEN_PROWLARR_SEARCH -> 132.dp
         else -> 116.dp
     }
     return Modifier.width(width)
+}
+
+@Composable
+private fun ProwlarrResultsPanel(
+    state: DetailsUiState,
+    onResultClick: (ProwlarrSearchResult) -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .background(DetailsSurfaceCard.copy(alpha = 0.96f), RoundedCornerShape(14.dp))
+            .border(1.dp, DetailsBorderDefault, RoundedCornerShape(14.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Prowlarr",
+                color = TextPrimary,
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Button(onClick = onDismiss) {
+                Text(text = "Закрыть")
+            }
+        }
+        state.prowlarrStatusMessage?.let {
+            Text(text = it, color = DetailsTextSecondary, fontSize = 15.sp)
+        }
+        state.prowlarrResults.take(5).forEach { result ->
+            StageButton(
+                label = result.title,
+                subtitle = buildProwlarrResultSubtitle(result),
+                onClick = { onResultClick(result) },
+                modifier = Modifier.fillMaxWidth(),
+                isSecondary = true,
+                actionType = DetailsStageActionType.OPEN_TORRSERVE,
+            )
+        }
+    }
+}
+
+private fun buildProwlarrResultSubtitle(result: ProwlarrSearchResult): String {
+    return listOfNotNull(
+        result.indexer,
+        result.seeders?.let { "сидов $it" },
+        result.sizeBytes?.let { "${it / 1024 / 1024} MB" },
+    ).joinToString(" · ")
 }
 
 @Composable
@@ -1160,6 +1245,7 @@ private fun primaryActionTag(action: DetailsStageActionUiModel): String {
         DetailsStageActionType.OPEN_MOVIE_OVERVIEW -> "details-primary-action"
         DetailsStageActionType.OPEN_SERIES_OVERVIEW -> "details-primary-action"
         DetailsStageActionType.OPEN_SERIES_GUIDE -> "details-primary-action"
+        DetailsStageActionType.OPEN_PROWLARR_SEARCH -> "details-primary-action"
         DetailsStageActionType.NONE -> "details-primary-action"
     }
 }
@@ -1171,6 +1257,7 @@ private fun secondaryActionTag(action: DetailsStageActionUiModel): String {
         DetailsStageActionType.OPEN_MOVIE_OVERVIEW -> "details-movie-description-action"
         DetailsStageActionType.OPEN_SERIES_OVERVIEW -> "details-series-overview-action"
         DetailsStageActionType.OPEN_SERIES_GUIDE -> "details-series-guide-action"
+        DetailsStageActionType.OPEN_PROWLARR_SEARCH -> "details-prowlarr-action"
         DetailsStageActionType.OPEN_TORRSERVE -> "details-secondary-${action.actionId}"
         DetailsStageActionType.OPEN_AUTH -> "details-secondary-${action.actionId}"
         DetailsStageActionType.NONE -> "details-secondary-${action.actionId}"
@@ -1196,6 +1283,7 @@ private fun secondaryActionClickHandler(
     onMovieOverviewClick: () -> Unit,
     onSeriesOverviewClick: () -> Unit,
     onSeriesGuideClick: () -> Unit,
+    onProwlarrSearchClick: () -> Unit,
 ): () -> Unit {
     return when (action.actionType) {
         DetailsStageActionType.TOGGLE_WATCHED -> onWatchedClick
@@ -1203,6 +1291,7 @@ private fun secondaryActionClickHandler(
         DetailsStageActionType.OPEN_MOVIE_OVERVIEW -> onMovieOverviewClick
         DetailsStageActionType.OPEN_SERIES_OVERVIEW -> onSeriesOverviewClick
         DetailsStageActionType.OPEN_SERIES_GUIDE -> onSeriesGuideClick
+        DetailsStageActionType.OPEN_PROWLARR_SEARCH -> onProwlarrSearchClick
         DetailsStageActionType.OPEN_TORRSERVE,
         DetailsStageActionType.OPEN_AUTH,
         DetailsStageActionType.NONE,

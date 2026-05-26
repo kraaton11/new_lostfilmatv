@@ -163,6 +163,12 @@ fun DetailsRoute(
         onMovieOverviewClick = { onOpenMovieOverview(detailsUrl) },
         onSeriesOverviewClick = { onOpenSeriesOverview(detailsUrl) },
         onSeriesGuideClick = { onOpenSeriesGuide(detailsUrl) },
+        onProwlarrSearchClick = detailsViewModel::onProwlarrSearchClick,
+        onProwlarrResultClick = { result ->
+            handleOpenTorrServe("prowlarr-${result.sourceUrl.hashCode()}", result.sourceUrl)
+            detailsViewModel.onProwlarrPanelDismiss()
+        },
+        onProwlarrDismiss = detailsViewModel::onProwlarrPanelDismiss,
         onAuthClick = onAuthClick,
         onOpenTorrServe = handleOpenTorrServe,
     )

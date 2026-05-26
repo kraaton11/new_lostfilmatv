@@ -7,6 +7,7 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.work.WorkManager
 import com.kraat.lostfilmnewtv.di.AppModule
 import com.kraat.lostfilmnewtv.di.UnitTestAppOverrides
+import com.kraat.lostfilmnewtv.data.network.ProwlarrClientFactory
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
@@ -214,6 +215,10 @@ object MainActivityTestAppModule {
             )
         }
     }
+
+    @Provides
+    @Singleton
+    fun provideProwlarrClientFactory(): ProwlarrClientFactory = ProwlarrClientFactory(OkHttpClient())
 
     @Provides
     @Singleton

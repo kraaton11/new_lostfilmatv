@@ -262,6 +262,28 @@ class DetailsStageModelsTest {
 
         assertEquals("Сезон 1 • Серия 5", ui.heroMetaLine)
     }
+
+    @Test
+    fun buildStageUi_addsProwlarrSearchAction_whenConfigured() {
+        val ui = buildDetailsStageUi(
+            state = DetailsUiState(details = seriesDetails()),
+            isAuthenticated = true,
+            availableTorrentRowsCount = 1,
+            playbackRow = DetailsTorrentRowUiModel(
+                rowId = "row-0",
+                label = "1080p",
+                url = "https://example.com/1080",
+                isTorrServeSupported = true,
+            ),
+            activeTorrServeRowId = null,
+            isTorrServeBusy = false,
+            isProwlarrConfigured = true,
+        )
+
+        val action = ui.secondaryActions.first { it.actionType == DetailsStageActionType.OPEN_PROWLARR_SEARCH }
+        assertEquals("Prowlarr", action.label)
+        assertEquals("Искать раздачи", action.subtitle)
+    }
 }
 
 private fun seriesDetails(): ReleaseDetails = ReleaseDetails(
