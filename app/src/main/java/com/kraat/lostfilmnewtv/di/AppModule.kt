@@ -15,6 +15,7 @@ import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeAvailabilityProbe
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeConfig
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeLauncher
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeLinkBuilder
+import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeTorrentDownloader
 import com.kraat.lostfilmnewtv.tvchannel.AndroidHomeChannelPublisher
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelBackgroundRefreshRunner
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelBackgroundScheduler
@@ -108,11 +109,22 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideTorrServeTorrentDownloader(okHttpClient: OkHttpClient): TorrServeTorrentDownloader =
+        TorrServeTorrentDownloader(okHttpClient)
+
+    @Provides
+    @Singleton
     fun provideTorrServeActionHandler(
         linkBuilder: TorrServeLinkBuilder,
         probe: TorrServeAvailabilityProbe,
         launcher: TorrServeLauncher,
-    ): TorrServeActionHandler = TorrServeActionHandler(linkBuilder, probe, launcher)
+        torrentDownloader: TorrServeTorrentDownloader,
+    ): TorrServeActionHandler = TorrServeActionHandler(
+        builder = linkBuilder,
+        probe = probe,
+        launcher = launcher,
+        torrentDownloader = torrentDownloader,
+    )
 
     @Provides
     @Singleton
