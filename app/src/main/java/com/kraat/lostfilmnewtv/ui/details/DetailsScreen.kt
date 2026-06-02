@@ -466,14 +466,28 @@ private fun HeroStage(
     onOpenTorrServe: () -> Unit,
 ) {
     val primaryActionRequester = remember(stageUi.primaryAction.actionId) { FocusRequester() }
-    val secondaryActions = stageUi.secondaryActions
+    val overflowActions = stageUi.overflowActions
+    val moreAction = remember(overflowActions.map { it.actionId }) {
+        if (overflowActions.isNotEmpty()) {
+            DetailsStageActionUiModel(
+                actionId = "more-actions",
+                rowId = null,
+                label = "",
+                subtitle = "",
+                actionType = DetailsStageActionType.OPEN_MORE_ACTIONS,
+            )
+        } else {
+            null
+        }
+    }
+    val secondaryActions = stageUi.secondaryActions + listOfNotNull(moreAction)
     val leadingAction = secondaryActions.firstOrNull { it.actionType == DetailsStageActionType.OPEN_SERIES_OVERVIEW }
     val trailingActions = if (leadingAction == null) secondaryActions else secondaryActions.filterNot { it.actionId == leadingAction.actionId }
-    val useFlexibleActionWidth = secondaryActions.size >= 3
     var isPrimaryActionFocused by remember(stageUi.primaryAction.actionId, stageUi.title) { mutableStateOf(false) }
     var isLeadingActionFocusable by remember(stageUi.primaryAction.actionId, leadingAction?.actionId) {
         mutableStateOf(leadingAction == null)
     }
+    var isOverflowPanelVisible by remember(stageUi.title, overflowActions.map { it.actionId }) { mutableStateOf(false) }
     val secondaryActionRequesters = remember(secondaryActions.map { it.actionId }) {
         secondaryActions.associate { it.actionId to FocusRequester() }
     }
@@ -581,7 +595,7 @@ private fun HeroStage(
                     StageButton(
                         label = action.label,
                         subtitle = action.subtitle,
-                        onClick = secondaryActionClickHandler(
+                        onClick = detailsActionClickHandler(
                             action = action,
                             onWatchedClick = onWatchedClick,
                             onFavoriteClick = onFavoriteClick,
@@ -589,6 +603,7 @@ private fun HeroStage(
                             onSeriesOverviewClick = onSeriesOverviewClick,
                             onSeriesGuideClick = onSeriesGuideClick,
                             onProwlarrSearchClick = onProwlarrSearchClick,
+                            onMoreClick = { isOverflowPanelVisible = !isOverflowPanelVisible },
                         ),
                         modifier = detailsSecondaryActionModifier(action)
                             .focusProperties { canFocus = isLeadingActionFocusable }
@@ -604,7 +619,7 @@ private fun HeroStage(
                     StageButton(
                         label = action.label,
                         subtitle = action.subtitle,
-                        onClick = secondaryActionClickHandler(
+                        onClick = detailsActionClickHandler(
                             action = action,
                             onWatchedClick = onWatchedClick,
                             onFavoriteClick = onFavoriteClick,
@@ -612,6 +627,7 @@ private fun HeroStage(
                             onSeriesOverviewClick = onSeriesOverviewClick,
                             onSeriesGuideClick = onSeriesGuideClick,
                             onProwlarrSearchClick = onProwlarrSearchClick,
+                            onMoreClick = { isOverflowPanelVisible = !isOverflowPanelVisible },
                         ),
                         modifier = detailsSecondaryActionModifier(action)
                             .focusRequester(secondaryActionRequesters.getValue(action.actionId))
@@ -624,6 +640,27 @@ private fun HeroStage(
                 }
             }
         }
+        if (isOverflowPanelVisible && overflowActions.isNotEmpty()) {
+            DetailsOverflowActionsPanel(
+                actions = overflowActions,
+                onActionClick = { action ->
+                    isOverflowPanelVisible = false
+                    detailsActionClickHandler(
+                        action = action,
+                        onWatchedClick = onWatchedClick,
+                        onFavoriteClick = onFavoriteClick,
+                        onMovieOverviewClick = onMovieOverviewClick,
+                        onSeriesOverviewClick = onSeriesOverviewClick,
+                        onSeriesGuideClick = onSeriesGuideClick,
+                        onProwlarrSearchClick = onProwlarrSearchClick,
+                        onMoreClick = {},
+                    ).invoke()
+                },
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(start = 294.dp, end = 48.dp, bottom = 92.dp),
+            )
+        }
     }
 }
 
@@ -634,9 +671,47 @@ private fun detailsSecondaryActionModifier(action: DetailsStageActionUiModel): M
         DetailsStageActionType.TOGGLE_FAVORITE -> 128.dp
         DetailsStageActionType.TOGGLE_WATCHED -> 152.dp
         DetailsStageActionType.OPEN_PROWLARR_SEARCH -> 132.dp
+        DetailsStageActionType.OPEN_MORE_ACTIONS -> 56.dp
         else -> 116.dp
     }
     return Modifier.width(width)
+}
+
+@Composable
+private fun DetailsOverflowActionsPanel(
+    actions: List<DetailsStageActionUiModel>,
+    onActionClick: (DetailsStageActionUiModel) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .widthIn(min = 220.dp, max = 320.dp)
+            .background(DetailsSurfaceCard.copy(alpha = 0.96f), RoundedCornerShape(14.dp))
+            .border(1.dp, DetailsBorderDefault, RoundedCornerShape(14.dp))
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Text(
+            text = "Еще",
+            color = TextPrimary,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        actions.forEach { action ->
+            StageButton(
+                label = action.label,
+                subtitle = action.subtitle,
+                onClick = { onActionClick(action) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag(secondaryActionTag(action)),
+                enabled = action.enabled,
+                isHighlighted = action.isHighlighted,
+                isSecondary = true,
+                actionType = action.actionType,
+            )
+        }
+    }
 }
 
 @Composable
@@ -1028,6 +1103,7 @@ private fun StageButton(
         isHighlighted -> DetailsAccentGoldFocus
         else -> DetailsTextMuted
     }
+    val isIconOnly = !isPrimary && label.isBlank() && subtitle.isBlank()
 
     Button(
         onClick = {
@@ -1059,7 +1135,11 @@ private fun StageButton(
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = if (isPrimary) Arrangement.spacedBy(12.dp) else Arrangement.spacedBy(9.dp),
+            horizontalArrangement = when {
+                isIconOnly -> Arrangement.Center
+                isPrimary -> Arrangement.spacedBy(12.dp)
+                else -> Arrangement.spacedBy(9.dp)
+            },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             StageButtonIcon(
@@ -1067,29 +1147,31 @@ private fun StageButton(
                 isPrimary = isPrimary,
                 tint = if (enabled) textColor else DetailsTextMuted,
             )
-            Column(
-                verticalArrangement = Arrangement.spacedBy(if (isPrimary) 1.dp else 0.dp),
-                modifier = Modifier.requiredWidthIn(min = 0.dp),
-            ) {
-                Text(
-                    text = label,
-                    color = if (enabled) textColor else DetailsTextMuted,
-                    fontSize = if (isPrimary) 14.sp else 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    lineHeight = if (isPrimary) 17.sp else 15.sp,
-                    maxLines = if (isPrimary) 1 else 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (isPrimary && subtitle.isNotBlank()) {
+            if (!isIconOnly) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(if (isPrimary) 1.dp else 0.dp),
+                    modifier = Modifier.requiredWidthIn(min = 0.dp),
+                ) {
                     Text(
-                        text = subtitle,
-                        color = if (enabled) subtitleColor else DetailsTextMuted.copy(alpha = 0.8f),
-                        fontSize = if (isPrimary) 10.sp else 9.sp,
-                        fontWeight = FontWeight.Medium,
-                        letterSpacing = 0.sp,
-                        maxLines = 1,
+                        text = label,
+                        color = if (enabled) textColor else DetailsTextMuted,
+                        fontSize = if (isPrimary) 14.sp else 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        lineHeight = if (isPrimary) 17.sp else 15.sp,
+                        maxLines = if (isPrimary) 1 else 2,
                         overflow = TextOverflow.Ellipsis,
                     )
+                    if (isPrimary && subtitle.isNotBlank()) {
+                        Text(
+                            text = subtitle,
+                            color = if (enabled) subtitleColor else DetailsTextMuted.copy(alpha = 0.8f),
+                            fontSize = if (isPrimary) 10.sp else 9.sp,
+                            fontWeight = FontWeight.Medium,
+                            letterSpacing = 0.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
             }
         }
@@ -1112,6 +1194,7 @@ private fun StageButtonIcon(
             DetailsStageActionType.OPEN_SERIES_GUIDE -> EpisodeListIcon(tint = tint, modifier = modifier)
             DetailsStageActionType.TOGGLE_FAVORITE -> HeartIcon(tint = tint, modifier = modifier)
             DetailsStageActionType.TOGGLE_WATCHED -> WatchedIcon(tint = tint, modifier = modifier)
+            DetailsStageActionType.OPEN_MORE_ACTIONS -> MoreIcon(tint = tint, modifier = modifier)
             else -> InfoIcon(tint = tint, modifier = modifier)
         }
     }
@@ -1227,6 +1310,17 @@ private fun WatchedIcon(tint: Color, modifier: Modifier) {
     }
 }
 
+@Composable
+private fun MoreIcon(tint: Color, modifier: Modifier) {
+    Canvas(modifier = modifier) {
+        val radius = size.minDimension * 0.09f
+        val centerY = size.height * 0.5f
+        listOf(0.28f, 0.5f, 0.72f).forEach { centerX ->
+            drawCircle(color = tint, radius = radius, center = Offset(size.width * centerX, centerY))
+        }
+    }
+}
+
 private fun detailsBackgroundBrush(): Brush {
     return Brush.verticalGradient(
         0f to DetailsBackgroundTop,
@@ -1246,6 +1340,7 @@ private fun primaryActionTag(action: DetailsStageActionUiModel): String {
         DetailsStageActionType.OPEN_SERIES_OVERVIEW -> "details-primary-action"
         DetailsStageActionType.OPEN_SERIES_GUIDE -> "details-primary-action"
         DetailsStageActionType.OPEN_PROWLARR_SEARCH -> "details-primary-action"
+        DetailsStageActionType.OPEN_MORE_ACTIONS -> "details-primary-action"
         DetailsStageActionType.NONE -> "details-primary-action"
     }
 }
@@ -1258,6 +1353,7 @@ private fun secondaryActionTag(action: DetailsStageActionUiModel): String {
         DetailsStageActionType.OPEN_SERIES_OVERVIEW -> "details-series-overview-action"
         DetailsStageActionType.OPEN_SERIES_GUIDE -> "details-series-guide-action"
         DetailsStageActionType.OPEN_PROWLARR_SEARCH -> "details-prowlarr-action"
+        DetailsStageActionType.OPEN_MORE_ACTIONS -> "details-more-action"
         DetailsStageActionType.OPEN_TORRSERVE -> "details-secondary-${action.actionId}"
         DetailsStageActionType.OPEN_AUTH -> "details-secondary-${action.actionId}"
         DetailsStageActionType.NONE -> "details-secondary-${action.actionId}"
@@ -1276,7 +1372,7 @@ private fun primaryActionClickHandler(
     }
 }
 
-private fun secondaryActionClickHandler(
+private fun detailsActionClickHandler(
     action: DetailsStageActionUiModel,
     onWatchedClick: () -> Unit,
     onFavoriteClick: () -> Unit,
@@ -1284,6 +1380,7 @@ private fun secondaryActionClickHandler(
     onSeriesOverviewClick: () -> Unit,
     onSeriesGuideClick: () -> Unit,
     onProwlarrSearchClick: () -> Unit,
+    onMoreClick: () -> Unit,
 ): () -> Unit {
     return when (action.actionType) {
         DetailsStageActionType.TOGGLE_WATCHED -> onWatchedClick
@@ -1292,6 +1389,7 @@ private fun secondaryActionClickHandler(
         DetailsStageActionType.OPEN_SERIES_OVERVIEW -> onSeriesOverviewClick
         DetailsStageActionType.OPEN_SERIES_GUIDE -> onSeriesGuideClick
         DetailsStageActionType.OPEN_PROWLARR_SEARCH -> onProwlarrSearchClick
+        DetailsStageActionType.OPEN_MORE_ACTIONS -> onMoreClick
         DetailsStageActionType.OPEN_TORRSERVE,
         DetailsStageActionType.OPEN_AUTH,
         DetailsStageActionType.NONE,

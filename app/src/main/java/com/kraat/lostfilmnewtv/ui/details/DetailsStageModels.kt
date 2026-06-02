@@ -14,6 +14,7 @@ data class DetailsStageUiModel(
     val heroStatusLine: String,
     val primaryAction: DetailsStageActionUiModel,
     val secondaryActions: List<DetailsStageActionUiModel>,
+    val overflowActions: List<DetailsStageActionUiModel> = emptyList(),
 )
 
 data class DetailsStageActionUiModel(
@@ -162,7 +163,12 @@ fun buildDetailsStageUi(
         heroStatusLine = heroStatusLine,
         primaryAction = primaryAction,
         secondaryActions = if (isAuthenticated) {
-            listOfNotNull(movieDescriptionAction, overviewAction, guideAction, prowlarrAction, favoriteAction, watchedAction)
+            listOfNotNull(movieDescriptionAction, overviewAction, guideAction, favoriteAction, watchedAction)
+        } else {
+            emptyList()
+        },
+        overflowActions = if (isAuthenticated) {
+            listOfNotNull(prowlarrAction)
         } else {
             emptyList()
         },
@@ -250,5 +256,6 @@ enum class DetailsStageActionType {
     OPEN_SERIES_OVERVIEW,
     OPEN_SERIES_GUIDE,
     OPEN_PROWLARR_SEARCH,
+    OPEN_MORE_ACTIONS,
     NONE,
 }
