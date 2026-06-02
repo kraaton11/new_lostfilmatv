@@ -127,6 +127,32 @@ class DetailsStageModelsTest {
     }
 
     @Test
+    fun buildStageUi_keepsFavoriteActionOutsideOverflow() {
+        val ui = buildDetailsStageUi(
+            state = DetailsUiState(
+                details = seriesDetails().copy(
+                    favoriteTargetId = 915,
+                    isFavorite = false,
+                ),
+                favoriteActionLabel = "Добавить в избранное",
+                isFavoriteActionEnabled = true,
+            ),
+            isAuthenticated = true,
+            availableTorrentRowsCount = 1,
+            playbackRow = DetailsTorrentRowUiModel("row-0", "1080p", "https://example.com/1080"),
+            activeTorrServeRowId = null,
+            isTorrServeBusy = false,
+        )
+
+        val action = ui.secondaryActions.first { it.actionType == DetailsStageActionType.TOGGLE_FAVORITE }
+        assertEquals("В избранное", action.label)
+        assertEquals(
+            false,
+            ui.overflowActions.any { it.actionType == DetailsStageActionType.TOGGLE_FAVORITE },
+        )
+    }
+
+    @Test
     fun buildStageUi_exposesCompactHeroMetaLines() {
         val ui = buildDetailsStageUi(
             state = DetailsUiState(
@@ -280,7 +306,11 @@ class DetailsStageModelsTest {
             isProwlarrConfigured = true,
         )
 
-        val action = ui.secondaryActions.first { it.actionType == DetailsStageActionType.OPEN_PROWLARR_SEARCH }
+        assertEquals(
+            false,
+            ui.secondaryActions.any { it.actionType == DetailsStageActionType.OPEN_PROWLARR_SEARCH },
+        )
+        val action = ui.overflowActions.first { it.actionType == DetailsStageActionType.OPEN_PROWLARR_SEARCH }
         assertEquals("Prowlarr", action.label)
         assertEquals("Искать раздачи", action.subtitle)
     }

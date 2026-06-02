@@ -151,6 +151,7 @@ class HomeScreenTest {
                             selectedItem = when (state.selectedMode) {
                                 HomeFeedMode.AllNew -> state.items.find { it.detailsUrl == focusedKey }
                                 HomeFeedMode.Favorites -> state.favoriteItems.find { it.detailsUrl == focusedKey }
+                                HomeFeedMode.FavoriteSeries -> state.favoriteSeriesItems.find { it.detailsUrl == focusedKey }
                                 HomeFeedMode.Movies -> state.movieItems.find { it.detailsUrl == focusedKey }
                                 HomeFeedMode.Series -> state.seriesItems.find { it.detailsUrl == focusedKey }
                             },
@@ -162,12 +163,14 @@ class HomeScreenTest {
                             selectedItemKey = when (mode) {
                                 HomeFeedMode.AllNew -> firstDetailsUrl
                                 HomeFeedMode.Favorites -> favoriteDetailsUrl
+                                HomeFeedMode.FavoriteSeries -> state.favoriteSeriesItems.firstOrNull()?.detailsUrl ?: firstDetailsUrl
                                 HomeFeedMode.Movies -> firstDetailsUrl
                                 HomeFeedMode.Series -> firstDetailsUrl
                             },
                             selectedItem = when (mode) {
                                 HomeFeedMode.AllNew -> state.items.first()
                                 HomeFeedMode.Favorites -> state.favoriteItems.first()
+                                HomeFeedMode.FavoriteSeries -> state.favoriteSeriesItems.firstOrNull() ?: state.items.first()
                                 HomeFeedMode.Movies -> state.movieItems.firstOrNull() ?: state.items.first()
                                 HomeFeedMode.Series -> state.seriesItems.firstOrNull() ?: state.items.first()
                             },
