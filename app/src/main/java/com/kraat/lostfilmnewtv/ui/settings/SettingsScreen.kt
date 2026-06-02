@@ -93,18 +93,23 @@ fun SettingsScreen(
     onHomeMenuLabelsVisibilitySelected: (Boolean) -> Unit = {},
     onCheckForUpdatesClick: () -> Unit,
     onInstallUpdateClick: () -> Unit,
+    showDeveloperSections: Boolean = BuildConfig.DEBUG,
 ) {
-    var selectedSectionName by rememberSaveable { mutableStateOf(currentSection.name) }
-    LaunchedEffect(currentSection) {
-        selectedSectionName = currentSection.name
+    val visibleSections = remember(showDeveloperSections) {
+        SettingsSection.visibleSections(showDeveloperSections)
     }
-    val selectedSection = SettingsSection.fromName(selectedSectionName)
+    var selectedSectionName by rememberSaveable { mutableStateOf(currentSection.name) }
+    LaunchedEffect(currentSection, visibleSections) {
+        selectedSectionName = currentSection.takeIf { it in visibleSections }?.name ?: SettingsSection.PLAYBACK.name
+    }
+    val selectedSection = SettingsSection.fromName(selectedSectionName).takeIf { it in visibleSections }
+        ?: SettingsSection.PLAYBACK
     val qualityOptions = remember { listOf(PlaybackQualityPreference.Q1080, PlaybackQualityPreference.Q720, PlaybackQualityPreference.Q480) }
     val updateModes = remember { listOf(UpdateCheckMode.QUIET_CHECK, UpdateCheckMode.MANUAL) }
     val channelModes = remember { listOf(AndroidTvChannelMode.ALL_NEW, AndroidTvChannelMode.UNWATCHED, AndroidTvChannelMode.DISABLED) }
     val contentScrollState = rememberScrollState()
-    val railRequesters = remember {
-        SettingsSection.entries.associateWith { FocusRequester() }
+    val railRequesters = remember(visibleSections) {
+        visibleSections.associateWith { FocusRequester() }
     }
     val contentRequesters = remember {
         buildMap {
@@ -220,6 +225,7 @@ fun SettingsScreen(
                 prowlarrSummary = prowlarrSummary,
                 accountSummary = accountSummary,
                 aboutSummary = aboutSummary,
+                sections = visibleSections,
                 onSectionSelected = {
                     selectedSectionName = it.name
                     onSectionSelected(it)
@@ -744,6 +750,12 @@ enum class SettingsSection(
             return entries.firstOrNull { it.name == name }
                 ?: if (name == "QUALITY") PLAYBACK else PLAYBACK
         }
+
+        fun visibleSections(showDeveloperSections: Boolean): List<SettingsSection> {
+            return entries.filter { section ->
+                showDeveloperSections || (section != DIAGNOSTICS && section != PROWLARR)
+            }
+        }
     }
 }
 
@@ -758,6 +770,7 @@ private fun SettingsSectionRail(
     prowlarrSummary: String,
     accountSummary: String,
     aboutSummary: String,
+    sections: List<SettingsSection>,
     onSectionSelected: (SettingsSection) -> Unit,
     focusRequesterForSection: (SettingsSection) -> FocusRequester,
     contentRequesterForSection: (SettingsSection) -> FocusRequester,
@@ -770,7 +783,6 @@ private fun SettingsSectionRail(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        val sections = SettingsSection.entries
         sections.forEachIndexed { index, section ->
             SettingsTvButton(
                 text = section.railTitle,

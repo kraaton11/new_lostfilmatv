@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.ui.details
 
+import com.kraat.lostfilmnewtv.BuildConfig
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 
@@ -37,6 +38,7 @@ fun buildDetailsStageUi(
     isTorrServeBusy: Boolean,
     torrServeMessageText: String? = null,
     isProwlarrConfigured: Boolean = state.isProwlarrConfigured,
+    showDeveloperActions: Boolean = BuildConfig.DEBUG,
 ): DetailsStageUiModel {
     val details = state.details
     val isBusy = isTorrServeBusy && activeTorrServeRowId == playbackRow?.rowId
@@ -168,7 +170,7 @@ fun buildDetailsStageUi(
             emptyList()
         },
         overflowActions = if (isAuthenticated) {
-            listOfNotNull(prowlarrAction)
+            if (showDeveloperActions) listOfNotNull(prowlarrAction) else emptyList()
         } else {
             emptyList()
         },
