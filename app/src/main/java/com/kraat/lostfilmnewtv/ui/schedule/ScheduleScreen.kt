@@ -222,7 +222,7 @@ private fun ColumnScope.ScheduleLoadingSkeleton() {
             .testTag("schedule-loading"),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        items(5) { index ->
+        items(4) { index ->
             Column(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
@@ -233,19 +233,19 @@ private fun ColumnScope.ScheduleLoadingSkeleton() {
                     ShimmerSkeletonBox(
                         brush = brush,
                         modifier = Modifier
-                            .width(92.dp)
+                            .width(
+                                when (index) {
+                                    0 -> 86.dp
+                                    1 -> 132.dp
+                                    2 -> 184.dp
+                                    else -> 64.dp
+                                },
+                            )
                             .height(22.dp),
                         shape = RoundedCornerShape(8.dp),
                     )
-                    ShimmerSkeletonBox(
-                        brush = brush,
-                        modifier = Modifier
-                            .width(if (index == 0) 62.dp else 76.dp)
-                            .height(16.dp),
-                        shape = RoundedCornerShape(6.dp),
-                    )
                 }
-                repeat(if (index == 0) 3 else 2) { rowIndex ->
+                repeat(if (index == 0) 4 else if (index == 1) 3 else 2) { rowIndex ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth(if (rowIndex == 1) 0.96f else 1f)
@@ -254,42 +254,70 @@ private fun ColumnScope.ScheduleLoadingSkeleton() {
                             .background(DetailsSurfaceReadable)
                             .border(1.dp, HomePanelBorder, ScheduleRowShape)
                             .padding(start = 8.dp, end = 22.dp, top = 6.dp, bottom = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(22.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         ShimmerSkeletonBox(
                             brush = brush,
                             modifier = Modifier
-                                .width(224.dp)
-                                .fillMaxHeight(),
+                                .width(58.dp)
+                                .height(58.dp),
                             shape = RoundedCornerShape(6.dp),
                             baseColor = Color(0xFF172636),
                         )
-                        ShimmerSkeletonBox(
-                            brush = brush,
-                            modifier = Modifier
-                                .width(72.dp)
-                                .height(36.dp),
-                            shape = EpisodeChipShape,
-                            baseColor = Color(0xFF3B277E),
-                        )
                         Column(
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.width(178.dp),
                             verticalArrangement = Arrangement.Center,
                         ) {
                             ShimmerSkeletonBox(
                                 brush = brush,
                                 modifier = Modifier
-                                    .fillMaxWidth(if (rowIndex == 0) 0.54f else 0.46f)
-                                    .height(25.dp),
+                                    .fillMaxWidth(if (rowIndex == 0) 0.74f else 0.64f)
+                                    .height(20.dp),
                                 shape = RoundedCornerShape(8.dp),
                             )
                             ShimmerSkeletonBox(
                                 brush = brush,
                                 modifier = Modifier
                                     .padding(top = 5.dp)
-                                    .width(72.dp)
-                                    .height(18.dp),
+                                    .height(14.dp)
+                                    .fillMaxWidth(if (rowIndex == 0) 0.42f else 0.34f),
+                                shape = RoundedCornerShape(7.dp),
+                            )
+                        }
+                        ShimmerSkeletonBox(
+                            brush = brush,
+                            modifier = Modifier
+                                .width(92.dp)
+                                .height(34.dp),
+                            shape = EpisodeChipShape,
+                            baseColor = Color(0xFF3B277E),
+                        )
+                        ShimmerSkeletonBox(
+                            brush = brush,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(18.dp),
+                            shape = RoundedCornerShape(7.dp),
+                        )
+                        Column(
+                            modifier = Modifier.width(118.dp),
+                            horizontalAlignment = Alignment.End,
+                            verticalArrangement = Arrangement.Center,
+                        ) {
+                            ShimmerSkeletonBox(
+                                brush = brush,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(16.dp),
+                                shape = RoundedCornerShape(7.dp),
+                            )
+                            ShimmerSkeletonBox(
+                                brush = brush,
+                                modifier = Modifier
+                                    .padding(top = 5.dp)
+                                    .width(74.dp)
+                                    .height(13.dp),
                                 shape = RoundedCornerShape(7.dp),
                             )
                         }
@@ -355,9 +383,17 @@ private fun ScheduleDaySection(
 }
 
 private fun ScheduleDay.relativeDayLabel(todayDate: LocalDate): String? = when (date) {
-    todayDate -> "Сегодня"
-    todayDate.plusDays(1) -> "Завтра"
+    todayDate -> "Сегодня".takeUnless { dayHasSchedulePeriodLabel() }
+    todayDate.plusDays(1) -> "Завтра".takeUnless { dayHasSchedulePeriodLabel() }
     else -> null
+}
+
+private fun ScheduleDay.dayHasSchedulePeriodLabel(): Boolean {
+    val normalized = label.lowercase()
+    return normalized == "сегодня" ||
+        normalized == "на этой неделе" ||
+        normalized == "на следующей неделе" ||
+        normalized == "позже"
 }
 
 @Composable
@@ -405,18 +441,39 @@ private fun ScheduleItemRow(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(start = 8.dp, end = 22.dp, top = 6.dp, bottom = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(22.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             ScheduleItemImage(
                 item = item,
                 modifier = Modifier
-                    .width(224.dp)
-                    .fillMaxHeight(),
+                    .width(58.dp)
+                    .height(58.dp),
             )
+            Column(
+                modifier = Modifier.width(178.dp),
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Text(
+                    text = item.title,
+                    color = TextPrimary,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = kindLabel,
+                    color = DetailsTextSecondary,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
             Box(
                 modifier = Modifier
-                    .width(72.dp)
+                    .width(92.dp)
                     .height(36.dp)
                     .background(Color(0xFF3B277E), EpisodeChipShape)
                     .padding(horizontal = 8.dp),
@@ -431,26 +488,38 @@ private fun ScheduleItemRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Column(
+            Text(
+                text = item.episodeTitle?.takeIf { it.isNotBlank() } ?: kindLabel,
+                color = DetailsTextSecondary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
+            )
+            Column(
+                modifier = Modifier.width(118.dp),
+                horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.Center,
             ) {
                 Text(
-                    text = item.title,
-                    color = TextPrimary,
-                    fontSize = 21.sp,
+                    text = item.releaseDateLabel?.takeIf { it.isNotBlank() } ?: kindLabel,
+                    color = DetailsTextSecondary.copy(alpha = 0.88f),
+                    fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    text = kindLabel,
-                    color = DetailsTextSecondary,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                item.relativeDateLabel?.takeIf { it.isNotBlank() }?.let { relativeDateLabel ->
+                    Text(
+                        text = relativeDateLabel,
+                        color = DetailsAccentGold,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
         }
     }

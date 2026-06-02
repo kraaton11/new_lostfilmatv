@@ -45,4 +45,30 @@ class LostFilmScheduleParserTest {
         assertEquals(ReleaseKind.MOVIE, movie.kind)
         assertEquals("https://www.lostfilm.today/movies/Ringu", movie.targetUrl)
     }
+
+    @Test
+    fun parse_readsSectionsAndPostersFromScheduleList() {
+        val schedule = parser.parse(fixture("schedule-list.html"))
+
+        assertEquals("Расписание", schedule.title)
+        assertEquals(
+            listOf("Сегодня", "На этой неделе", "На следующей неделе", "Позже"),
+            schedule.days.map { it.label },
+        )
+
+        val today = schedule.days.first()
+        val firstItem = today.items.single()
+        assertTrue(today.isToday)
+        assertEquals(LocalDate.of(2026, 6, 2), today.date)
+        assertEquals("Безумцы", firstItem.title)
+        assertEquals("1х02", firstItem.episodeLabel)
+        assertEquals("Ladies Room", firstItem.episodeTitle)
+        assertEquals("Вт, 02.06.2026", firstItem.releaseDateLabel)
+        assertEquals("https://www.lostfilm.today/series/Mad_Men/season_1/episode_2/", firstItem.targetUrl)
+        assertEquals("https://www.lostfilm.today/Static/Images/1136/Posters/icon.jpg", firstItem.posterUrl)
+
+        val nextItem = schedule.days[1].items.single()
+        assertEquals("Бухта вдов", nextItem.title)
+        assertEquals("через 3 дня", nextItem.relativeDateLabel)
+    }
 }
