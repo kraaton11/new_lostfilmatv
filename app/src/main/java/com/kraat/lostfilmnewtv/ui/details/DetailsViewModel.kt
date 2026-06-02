@@ -1,11 +1,13 @@
 package com.kraat.lostfilmnewtv.ui.details
 
+import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.network.ProwlarrClientFactory
+import com.kraat.lostfilmnewtv.data.network.ProwlarrSearchResult
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.navigation.AppDestination
@@ -20,6 +22,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+private const val MAX_PROWLARR_RESULTS = 5
+private val prowlarrYearRegex = Regex("""\b((?:19|20)\d{2})\b""")
+private val prowlarrTitleSeparatorRegex = Regex("""[^a-z0-9а-я]+""")
+private val prowlarrSeasonEpisodeRegex = Regex("""(?i)\bS0*(\d{1,2})E0*(\d{1,3})\b""")
+private val prowlarrStopWords = setOf("the", "a", "an")
 
 @HiltViewModel
 class DetailsViewModel @Inject constructor(
@@ -94,7 +102,8 @@ class DetailsViewModel @Inject constructor(
         }
         if (prowlarrSearchJob?.isActive == true) return
 
-        val query = buildProwlarrQuery(details)
+        val queries = buildProwlarrSearchQueries(details)
+        val searchSpec = ProwlarrSearchSpec.from(details)
         prowlarrSearchJob = viewModelScope.launch(ioDispatcher) {
             _uiState.update {
                 it.copy(
@@ -105,8 +114,13 @@ class DetailsViewModel @Inject constructor(
                 )
             }
             val results = runCatching {
-                prowlarrClientFactory?.create(baseUrl = baseUrl, apiKey = apiKey)?.search(query).orEmpty()
-            }.getOrElse {
+                val client = prowlarrClientFactory?.create(baseUrl = baseUrl, apiKey = apiKey)
+                    ?: return@runCatching emptyList<ProwlarrSearchResult>()
+                queries
+                    .flatMap { query -> client.search(query) }
+                    .bestProwlarrResults(searchSpec)
+            }.getOrElse { error ->
+                Log.w(TAG, "Prowlarr search failed for $baseUrl", error)
                 _uiState.update { state ->
                     state.copy(
                         isProwlarrSearching = false,
@@ -276,15 +290,8 @@ class DetailsViewModel @Inject constructor(
         }
     }
 
-    private fun buildProwlarrQuery(details: ReleaseDetails): String {
-        val title = details.titleRu
-        val season = details.seasonNumber
-        val episode = details.episodeNumber
-        return if (season != null && episode != null) {
-            "$title S${season.toString().padStart(2, '0')}E${episode.toString().padStart(2, '0')}"
-        } else {
-            title
-        }
+    private companion object {
+        const val TAG = "DetailsViewModel"
     }
 
     private fun refreshWatchedState(
@@ -335,4 +342,125 @@ class DetailsViewModel @Inject constructor(
             null -> copy(watchedActionLabel = "Статус недоступен", isWatchedActionEnabled = false)
         }
     }
+}
+
+internal fun buildProwlarrSearchQueries(details: ReleaseDetails): List<String> {
+    val englishTitle = details.detailsUrl.extractLostFilmSlugTitle()
+    val russianTitle = details.titleRu.takeIf { it.isNotBlank() }
+
+    val yearSuffix = details.prowlarrReleaseYear()?.toString()
+
+    val englishQueries = englishTitle?.let { title ->
+        listOfNotNull(
+            yearSuffix?.let { "$title $it" },
+            title,
+        )
+    }.orEmpty()
+    val russianQueries = russianTitle?.let { title ->
+        listOf(title)
+    }.orEmpty()
+
+    return (englishQueries + russianQueries)
+        .distinct()
+}
+
+internal fun List<ProwlarrSearchResult>.bestProwlarrResults(searchSpec: ProwlarrSearchSpec): List<ProwlarrSearchResult> {
+    return filter { searchSpec.matches(it) }
+        .sortedWith(
+            compareByDescending<ProwlarrSearchResult> { searchSpec.score(it) }
+                .thenByDescending { it.seeders ?: 0 }
+                .thenByDescending { it.leechers ?: 0 },
+        )
+        .distinctBy { it.sourceUrl }
+        .take(MAX_PROWLARR_RESULTS)
+}
+
+internal data class ProwlarrSearchSpec(
+    val titleTokenGroups: List<Set<String>>,
+    val episodeCode: String?,
+    val releaseYear: Int?,
+    val requireYear: Boolean,
+) {
+    fun matches(result: ProwlarrSearchResult): Boolean {
+        val normalizedTitle = result.title.toProwlarrNormalizedText()
+        // Требуется хотя бы одно совпадение из любой группы токенов
+        if (
+            titleTokenGroups.isNotEmpty() &&
+            titleTokenGroups.none { tokens -> tokens.any { token -> normalizedTitle.containsToken(token) } }
+        ) {
+            return false
+        }
+        // Год не фильтруем строго — только влияем на сортировку
+        return true
+    }
+
+    fun score(result: ProwlarrSearchResult): Int {
+        val normalizedTitle = result.title.toProwlarrNormalizedText()
+        val yearScore = if (releaseYear != null && result.title.contains(releaseYear.toString())) 10_000 else 0
+        val episodeScore = if (episodeCode != null && normalizedTitle.hasEpisodeCode(episodeCode)) 5_000 else 0
+        return yearScore + episodeScore
+    }
+
+    companion object {
+        fun from(details: ReleaseDetails): ProwlarrSearchSpec {
+            val englishTitle = details.detailsUrl.extractLostFilmSlugTitle()
+            val releaseYear = details.prowlarrReleaseYear()
+            return ProwlarrSearchSpec(
+                titleTokenGroups = listOfNotNull(
+                    englishTitle?.toProwlarrTitleTokens(),
+                    details.titleRu.takeIf { it.isNotBlank() }?.toProwlarrTitleTokens(),
+                ).filter { it.isNotEmpty() },
+                episodeCode = null,
+                releaseYear = releaseYear,
+                requireYear = details.kind == com.kraat.lostfilmnewtv.data.model.ReleaseKind.MOVIE && releaseYear != null,
+            )
+        }
+    }
+}
+
+private fun String.extractLostFilmSlugTitle(): String? {
+    val slug = Regex("""/(?:series|movies)/([^/?#]+)""")
+        .find(this)
+        ?.groupValues
+        ?.getOrNull(1)
+        ?.replace(Regex("""[_-]+"""), " ")
+        ?.trim()
+        .orEmpty()
+    return slug.takeIf { value -> value.any { it in 'A'..'Z' || it in 'a'..'z' } }
+}
+
+private fun ReleaseDetails.prowlarrEpisodeCode(): String? {
+    val season = seasonNumber ?: return null
+    val episode = episodeNumber ?: return null
+    return "S${season.toString().padStart(2, '0')}E${episode.toString().padStart(2, '0')}"
+}
+
+private fun ReleaseDetails.prowlarrReleaseYear(): Int? {
+    return originalReleaseYear
+}
+
+private fun String.toProwlarrTitleTokens(): Set<String> {
+    return toProwlarrNormalizedText()
+        .split(' ')
+        .filter { it.length > 1 && it !in prowlarrStopWords }
+        .toSet()
+}
+
+private fun String.toProwlarrNormalizedText(): String {
+    return lowercase()
+        .replace(prowlarrSeasonEpisodeRegex) { match ->
+            val season = match.groupValues[1].toIntOrNull()?.toString()?.padStart(2, '0') ?: match.groupValues[1]
+            val episode = match.groupValues[2].toIntOrNull()?.toString()?.padStart(2, '0') ?: match.groupValues[2]
+            " s${season}e${episode} "
+        }
+        .replace(prowlarrTitleSeparatorRegex, " ")
+        .trim()
+}
+
+private fun String.containsToken(token: String): Boolean {
+    return split(' ').any { it == token }
+}
+
+private fun String.hasEpisodeCode(episodeCode: String): Boolean {
+    return contains(episodeCode.lowercase())
 }
