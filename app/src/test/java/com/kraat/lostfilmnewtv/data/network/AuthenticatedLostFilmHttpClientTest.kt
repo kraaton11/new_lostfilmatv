@@ -64,6 +64,63 @@ class AuthenticatedLostFilmHttpClientTest {
     }
 
     @Test
+    fun fetchSchedulePage_requestsFilteredSchedulePage() = runTest {
+        var capturedRequest: Request? = null
+        val client = AuthenticatedLostFilmHttpClient(
+            sessionStore = FakeSessionStore(null),
+            okHttpClient = recordingClient { request ->
+                capturedRequest = request
+                "ok"
+            },
+        )
+
+        client.fetchSchedulePage()
+
+        val request = requireNotNull(capturedRequest)
+        assertEquals("https://www.lostfilm.today/schedule/my_0/type_0", request.url.toString())
+    }
+
+    @Test
+    fun fetchMoviesPage_requestsMoviesSearchWithLatestSort() = runTest {
+        var capturedRequest: Request? = null
+        val client = AuthenticatedLostFilmHttpClient(
+            sessionStore = FakeSessionStore(null),
+            okHttpClient = recordingClient { request ->
+                capturedRequest = request
+                "ok"
+            },
+        )
+
+        client.fetchMoviesPage()
+
+        val request = requireNotNull(capturedRequest)
+        assertEquals("https://www.lostfilm.today/movies/?type=search&s=6&t=0", request.url.toString())
+    }
+
+    @Test
+    fun fetchSeriesCatalogPage_postsSeriesSearchWithLatestSort() = runTest {
+        var capturedRequest: Request? = null
+        val client = AuthenticatedLostFilmHttpClient(
+            sessionStore = FakeSessionStore(null),
+            okHttpClient = recordingClient { request ->
+                capturedRequest = request
+                "[]"
+            },
+        )
+
+        client.fetchSeriesCatalogPage()
+
+        val request = requireNotNull(capturedRequest)
+        assertEquals("https://www.lostfilm.today/ajaxik.php", request.url.toString())
+        assertEquals("https://www.lostfilm.today/series/", request.header("Referer"))
+        val requestBody = request.body
+        assertNotNull(requestBody)
+        val buffer = okio.Buffer()
+        requestBody!!.writeTo(buffer)
+        assertEquals("act=serial&type=search&o=0&s=6&t=0", buffer.readUtf8())
+    }
+
+    @Test
     fun fetchDetails_marksSessionExpired_whenCookieBackedRequestLooksAnonymous() = runTest {
         val sessionStore = FakeSessionStore(
             LostFilmSession(

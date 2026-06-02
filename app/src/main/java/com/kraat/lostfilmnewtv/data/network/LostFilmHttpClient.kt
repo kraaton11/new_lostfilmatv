@@ -13,6 +13,8 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
+private const val SCHEDULE_PAGE_URL = "$BASE_URL/schedule/my_0/type_0"
+
 interface LostFilmHttpClient {
     suspend fun fetchNewPage(pageNumber: Int): String
 
@@ -20,7 +22,7 @@ interface LostFilmHttpClient {
 
     suspend fun fetchSeriesCatalogPage(pageNumber: Int = 1): String = fetchDetails(seriesCatalogPageUrl(pageNumber))
 
-    suspend fun fetchSchedulePage(): String = fetchDetails("$BASE_URL/schedule/")
+    suspend fun fetchSchedulePage(): String = fetchDetails(SCHEDULE_PAGE_URL)
 
     suspend fun fetchDetails(detailsUrl: String): String
 
@@ -74,7 +76,7 @@ class OkHttpLostFilmHttpClient(
     }
 
     override suspend fun fetchSchedulePage(): String = withContext(Dispatchers.IO) {
-        executeLostFilm("$BASE_URL/schedule/")
+        executeLostFilm(SCHEDULE_PAGE_URL)
     }
 
     override suspend fun fetchDetails(detailsUrl: String): String = withContext(Dispatchers.IO) {
@@ -187,7 +189,7 @@ class OkHttpLostFilmHttpClient(
                     .add("act", "serial")
                     .add("type", "search")
                     .add("o", offset.toString())
-                    .add("s", "3")
+                    .add("s", "6")
                     .add("t", "0")
                     .build(),
             )
@@ -214,18 +216,18 @@ private const val SERIES_CATALOG_PAGE_SIZE = 20
 private fun moviesPageUrl(pageNumber: Int): String {
     val offset = ((pageNumber.coerceAtLeast(1) - 1) * 20).coerceAtLeast(0)
     return if (offset == 0) {
-        "$BASE_URL/movies/?type=search&s=3&t=0"
+        "$BASE_URL/movies/?type=search&s=6&t=0"
     } else {
-        "$BASE_URL/movies/?type=search&s=3&t=0&o=$offset"
+        "$BASE_URL/movies/?type=search&s=6&t=0&o=$offset"
     }
 }
 
 private fun seriesCatalogPageUrl(pageNumber: Int): String {
     val offset = ((pageNumber.coerceAtLeast(1) - 1) * SERIES_CATALOG_PAGE_SIZE).coerceAtLeast(0)
     return if (offset == 0) {
-        "$BASE_URL/series/?type=search&s=3&t=0"
+        "$BASE_URL/series/?type=search&s=6&t=0"
     } else {
-        "$BASE_URL/series/?type=search&s=3&t=0&o=$offset"
+        "$BASE_URL/series/?type=search&s=6&t=0&o=$offset"
     }
 }
 
