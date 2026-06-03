@@ -289,7 +289,7 @@ private fun ColumnScope.ScheduleLoadingSkeleton() {
                             brush = brush,
                             modifier = Modifier
                                 .width(92.dp)
-                                .height(34.dp),
+                                .height(36.dp),
                             shape = EpisodeChipShape,
                             baseColor = Color(0xFF3B277E),
                         )
