@@ -146,8 +146,8 @@ private fun GuideLoadingState() {
         ) {
             ShimmerSkeletonBox(
                 brush = shimmerBrush,
-                modifier = Modifier.size(width = 120.dp, height = 172.dp),
-                shape = RoundedCornerShape(20.dp),
+                modifier = Modifier.size(width = 104.dp, height = 150.dp),
+                shape = RoundedCornerShape(18.dp),
                 borderColor = DetailsBorderDefault.copy(alpha = 0.34f),
             )
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -185,7 +185,7 @@ private fun GuideLoadingState() {
                     brush = shimmerBrush,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(72.dp),
+                        .height(56.dp),
                     shape = RoundedCornerShape(18.dp),
                     borderColor = DetailsBorderDefault.copy(alpha = 0.24f),
                 )
