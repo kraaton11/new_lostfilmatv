@@ -440,18 +440,13 @@ class LostFilmRepositoryImpl(
                 .textOrEmpty()
                 .ifBlank { fallbackSeriesTitle(seriesRootUrl) }
 
-            val lostfilmPosterUrl = guideDocument
-                .selectFirst(".main_poster img, .movie-cover-box img.cover, .movie-cover-box img")
-                .absoluteUrl("src")
-                .ifBlank { null }
-
             val tmdbUrls = tmdbResolver.resolve(
                 detailsUrl = normalizedDetailsUrl,
                 titleRu = seriesTitleRu,
                 releaseDateRu = "",
                 kind = ReleaseKind.SERIES,
             )
-            val posterUrl = tmdbUrls?.posterUrl?.ifBlank { lostfilmPosterUrl } ?: lostfilmPosterUrl
+            val posterUrl = tmdbUrls?.posterUrl?.takeIf { it.isNotBlank() }.orEmpty()
 
             SeriesGuideResult.Success(
                 guide = SeriesGuide(
@@ -493,9 +488,7 @@ class LostFilmRepositoryImpl(
 
             SeriesOverviewResult.Success(
                 overview = parsedOverview.copy(
-                    posterUrl = tmdbUrls?.posterUrl?.ifBlank { parsedOverview.posterUrl.orEmpty() }
-                        ?.takeIf { it.isNotBlank() }
-                        ?: parsedOverview.posterUrl,
+                    posterUrl = tmdbUrls?.posterUrl?.takeIf { it.isNotBlank() },
                     backdropUrl = tmdbUrls?.backdropUrl?.takeIf { it.isNotBlank() } ?: parsedOverview.backdropUrl,
                     tmdbRating = tmdbUrls?.rating?.takeIf { it.isNotBlank() } ?: parsedOverview.tmdbRating,
                     descriptionRu = parsedOverview.descriptionRu

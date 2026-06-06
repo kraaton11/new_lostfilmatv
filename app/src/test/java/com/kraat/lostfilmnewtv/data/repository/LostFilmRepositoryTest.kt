@@ -2186,7 +2186,7 @@ private fun seriesRootPageWithStatusHtml(): String = """
 
 private fun expectedTedGuide(): SeriesGuide = SeriesGuide(
     seriesTitleRu = "Третий лишний",
-    posterUrl = "https://www.lostfilm.today/Static/Images/810/Posters/image.jpg",
+    posterUrl = "",
     selectedEpisodeDetailsUrl = "https://www.lostfilm.today/series/Ted/season_2/episode_8/",
     seasons = listOf(
         com.kraat.lostfilmnewtv.data.model.SeriesGuideSeason(

@@ -81,7 +81,7 @@ class LostFilmListParser {
         val detailsPaneValues = contentLink.select(".details-pane .alpha, .details-pane .beta")
             .map { it.text().normalizeText() }
 
-        val posterUrl = contentLink.selectFirst(".picture-box img.thumb").absoluteUrl("src")
+        val posterUrl = ""
         val isWatched = row.selectFirst(".haveseen-btn.checked") != null
         val releaseDateRu = detailsPaneValues
             .firstOrNull { it.startsWith("Дата выхода Ru:") }
