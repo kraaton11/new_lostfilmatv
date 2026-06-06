@@ -6,6 +6,6 @@ enum class UpdateCheckMode(val storageValue: String) {
 
     companion object {
         fun fromStorageValue(value: String?): UpdateCheckMode =
-            entries.firstOrNull { it.storageValue == value } ?: MANUAL
+            entries.firstOrNull { it.storageValue == value } ?: QUIET_CHECK
     }
 }

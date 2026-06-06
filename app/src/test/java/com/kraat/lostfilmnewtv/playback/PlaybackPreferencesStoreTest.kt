@@ -36,13 +36,13 @@ class PlaybackPreferencesStoreTest {
     }
 
     @Test
-    fun readUpdateCheckMode_returnsManual_whenNothingWasSaved() {
+    fun readUpdateCheckMode_returnsQuietCheck_whenNothingWasSaved() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val prefsName = "playback-store-update-default"
         context.deleteSharedPreferences(prefsName)
         val store = PlaybackPreferencesStore(context, prefsName = prefsName)
 
-        assertEquals(UpdateCheckMode.MANUAL, store.readUpdateCheckMode())
+        assertEquals(UpdateCheckMode.QUIET_CHECK, store.readUpdateCheckMode())
     }
 
     @Test
@@ -154,13 +154,13 @@ class PlaybackPreferencesStoreTest {
     }
 
     @Test
-    fun readHomeFavoritesRailEnabled_returnsFalse_whenNothingWasSaved() {
+    fun readHomeFavoritesRailEnabled_returnsTrue_whenNothingWasSaved() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val prefsName = "playback-store-home-favorites-default"
         context.deleteSharedPreferences(prefsName)
         val store = PlaybackPreferencesStore(context, prefsName = prefsName)
 
-        assertEquals(false, store.readHomeFavoritesRailEnabled())
+        assertEquals(true, store.readHomeFavoritesRailEnabled())
     }
 
     @Test
