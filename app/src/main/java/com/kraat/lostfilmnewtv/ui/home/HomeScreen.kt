@@ -982,7 +982,7 @@ internal suspend fun requestFocusWhenReady(requester: FocusRequester): Boolean {
     withTimeoutOrNull(1_000L) {
         while (!focusMoved) {
             withFrameNanos { }
-            focusMoved = runCatching { requester.requestFocus() }.getOrDefault(false)
+            focusMoved = runCatching { requester.requestFocus(); true }.getOrDefault(false)
         }
     }
     return focusMoved
