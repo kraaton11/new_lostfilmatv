@@ -72,7 +72,7 @@ class LostFilmSeriesCatalogParser {
         val detailsUrl = contentLink.absoluteUrl("href").takeIf { it.isNotBlank() } ?: return null
         val titleRu = contentLink.selectFirst(".name-ru").textOrEmpty().takeIf { it.isNotBlank() } ?: return null
         val titleEn = contentLink.selectFirst(".name-en").textOrEmpty().takeIf { it.isNotBlank() }
-        val posterUrl = null
+        val posterUrl = ""
         val availabilityLabel = contentLink.selectFirst(".picture-box .small-block")
             .textOrEmpty()
             .takeIf { it.isNotBlank() }
