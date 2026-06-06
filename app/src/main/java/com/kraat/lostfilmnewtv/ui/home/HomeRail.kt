@@ -119,11 +119,6 @@ fun HomeRail(
                 .focusProperties {
                     up = FocusRequester.Cancel
                     down = FocusRequester.Cancel
-                    onEnter = {
-                        if (shouldRequestFocus && targetRequester != null) {
-                            targetRequester.requestFocus()
-                        }
-                    }
                 }
                 .onPreviewKeyEvent { event ->
                     event.type == KeyEventType.KeyDown && handleVerticalNavigation(event.key)
