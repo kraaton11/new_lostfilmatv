@@ -89,7 +89,7 @@ class PlaybackPreferencesStore(
     }
 
     fun readHomeFavoritesRailEnabled(): Boolean {
-        return prefs.getBoolean(KEY_HOME_FAVORITES_RAIL_ENABLED, false)
+        return prefs.getBoolean(KEY_HOME_FAVORITES_RAIL_ENABLED, true)
     }
 
     fun writeHomeFavoritesRailEnabled(value: Boolean) {
