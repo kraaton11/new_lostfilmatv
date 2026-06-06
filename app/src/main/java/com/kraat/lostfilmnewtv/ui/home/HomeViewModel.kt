@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.stateIn
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelSyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -368,9 +369,99 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun loadPage(pageNumber: Int, isPagingRequest: Boolean) {
-        if (!isPagingRequest && pageNumber == 1) {
-            lastAllNewRefreshAt = clock()
+        // For page 1, use stale-while-revalidate: показать кэш из Room мгновенно, а сеть
+        // догрузить в фоне. На повторных запусках пользователь видит список за миллисекунды,
+        // а не ждёт ~3–10 сек полного сетевого roundtrip. Пагинация (page > 1) идёт напрямую —
+        // там кэш и так уже на экране, и нужна свежая догрузка.
+        if (pageNumber == 1 && !isPagingRequest) {
+            observeNewReleases()
+            return
         }
+        loadPageDirect(pageNumber, isPagingRequest)
+    }
+
+    /**
+     * Stale-while-revalidate для первой страницы: первая эмиссия [observeNewReleases] — кэш
+     * из Room (если есть) с `isStale=true`, вторая — свежий результат [loadPage]. Поведение
+     * в HomeScreen: кэш рендерится сразу, скелетон не показывается; если кэша нет, остаётся
+     * [HomeModeContentState.Loading] до свежей эмиссии.
+     */
+    private fun observeNewReleases() {
+        allNewLoadJob?.cancel()
+        _uiState.update { state ->
+            state.copy(
+                isInitialLoading = true,
+                isPaging = false,
+                fullScreenErrorMessage = null,
+                pagingErrorMessage = null,
+                allNewModeState = HomeModeContentState.Loading,
+            )
+        }
+        allNewLoadJob = viewModelScope.launch(ioDispatcher) {
+            // hadCacheEmission фиксирует, был ли показан кэш до ошибки сети. Если да —
+            // items не стираем, только показываем pagingErrorMessage. Если кэша не было —
+            // показываем fullScreenErrorMessage, как раньше.
+            var hadCacheEmission = false
+            try {
+                repository.observeNewReleases(1).collect { result ->
+                    when (result) {
+                        is PageState.Content -> {
+                            val isStale = result.isStale
+                            _uiState.update { state ->
+                                state.copy(
+                                    items = result.items,
+                                    isInitialLoading = false,
+                                    isPaging = false,
+                                    fullScreenErrorMessage = null,
+                                    pagingErrorMessage = result.pagingErrorMessage,
+                                    nextPage = result.pageNumber + 1,
+                                    hasNextPage = result.hasNextPage,
+                                    allNewModeState = HomeModeContentState.Content(result.items),
+                                ).resolveSelection()
+                            }
+                            if (isStale) {
+                                hadCacheEmission = true
+                            } else {
+                                // lastAllNewRefreshAt обновляем только после успешной сетевой
+                                // загрузки, не на stale — иначе 30-минутный троттлинг в onResume
+                                // будет сбрасываться при показе любого кэша.
+                                lastAllNewRefreshAt = clock()
+                                // syncNow() — на свежей эмиссии, не на stale: каналы должны
+                                // отражать актуальные данные, а не вчерашний кэш.
+                                homeChannelSyncManager.syncNow()
+                            }
+                        }
+                        is PageState.Error -> {
+                            if (hadCacheEmission) {
+                                // Кэш уже на экране — не стираем items, только сообщаем об ошибке.
+                                _uiState.update { state ->
+                                    state.copy(
+                                        isInitialLoading = false,
+                                        isPaging = false,
+                                        pagingErrorMessage = result.message,
+                                    ).resolveSelection()
+                                }
+                            } else {
+                                _uiState.update { state ->
+                                    state.copy(
+                                        isInitialLoading = false,
+                                        isPaging = false,
+                                        fullScreenErrorMessage = result.message,
+                                        pagingErrorMessage = null,
+                                        allNewModeState = HomeModeContentState.Error(result.message),
+                                    ).resolveSelection()
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (exception: CancellationException) {
+                throw exception
+            }
+        }
+    }
+
+    private fun loadPageDirect(pageNumber: Int, isPagingRequest: Boolean) {
         if (!isPagingRequest) {
             allNewLoadJob?.cancel()
         }

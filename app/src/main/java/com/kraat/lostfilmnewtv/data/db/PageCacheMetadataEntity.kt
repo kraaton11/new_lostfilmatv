@@ -12,4 +12,10 @@ data class PageCacheMetadataEntity(
     @PrimaryKey val pageNumber: Int,
     val fetchedAt: Long,
     val itemCount: Int,
+    /**
+     * Признак наличия следующей страницы, сохранённый последним успешным сетевым ответом.
+     * Используется для показа кэша без сетевого запроса (stale-while-revalidate):
+     * при наличии кэша в Room мы можем отдать `hasNextPage` из метаданных, не дожидаясь сети.
+     */
+    val hasNextPage: Boolean = true,
 )

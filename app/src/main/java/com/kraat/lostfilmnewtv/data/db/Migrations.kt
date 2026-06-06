@@ -180,6 +180,20 @@ val MIGRATION_17_18 = object : Migration(17, 18) {
     }
 }
 
+/**
+ * Миграция 18→19: кэш `hasNextPage` для stale-while-revalidate на главном экране.
+ * Колонка нужна, чтобы при показе кэша Room без сетевого запроса сохранить информацию
+ * о наличии следующей страницы. Значение по умолчанию 1 (true) — оптимистично,
+ * не ломаем существующий кэш, для которого ранее `hasNextPage` не сохранялся.
+ */
+val MIGRATION_18_19 = object : Migration(18, 19) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "ALTER TABLE `page_cache_metadata` ADD COLUMN `hasNextPage` INTEGER NOT NULL DEFAULT 1",
+        )
+    }
+}
+
 /** Список всех миграций для передачи в Room.databaseBuilder. */
 val ALL_MIGRATIONS = arrayOf(
     MIGRATION_5_6,
@@ -195,6 +209,7 @@ val ALL_MIGRATIONS = arrayOf(
     MIGRATION_15_16,
     MIGRATION_16_17,
     MIGRATION_17_18,
+    MIGRATION_18_19,
 )
 
 private fun SupportSQLiteDatabase.hasColumn(tableName: String, columnName: String): Boolean {

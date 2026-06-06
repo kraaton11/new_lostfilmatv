@@ -55,6 +55,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
@@ -127,6 +129,7 @@ class LostFilmRepositoryImpl(
                 hasAuthenticatedSession = hasAuthenticatedSession,
             )
 
+            val pageHasNext = hasNextPage(html, pageNumber, parsedItems.isNotEmpty())
             releaseDao.replacePage(
                 pageNumber = pageNumber,
                 summaries = itemsToPersist.toSummaryEntities(),
@@ -134,6 +137,7 @@ class LostFilmRepositoryImpl(
                     pageNumber = pageNumber,
                     fetchedAt = fetchedAt,
                     itemCount = parsedItems.size,
+                    hasNextPage = pageHasNext,
                 ),
             )
 
@@ -151,7 +155,7 @@ class LostFilmRepositoryImpl(
             PageState.Content(
                 pageNumber = pageNumber,
                 items = pageItems,
-                hasNextPage = hasNextPage(html, pageNumber, parsedItems.isNotEmpty()),
+                hasNextPage = pageHasNext,
                 isStale = false,
                 isAppend = pageNumber > 1,
             )
@@ -164,6 +168,29 @@ class LostFilmRepositoryImpl(
                 throw exception
             }
         }
+    }
+
+    override fun observeNewReleases(pageNumber: Int): Flow<PageState> = flow {
+        // 1. Сначала отдаём кэш из Room (если он есть), без обращения к сети.
+        //    Скелетон в HomeScreen не показывается, если items непустые и isInitialLoading=false —
+        //    поэтому в HomeViewModel на cache-эмиссии нужно одновременно сбросить этот флаг
+        //    и fullScreenErrorMessage, иначе UI решит, что данных нет.
+        val cachedItems = releaseDao.getSummariesUpToPage(pageNumber).toSummaryModels()
+        if (cachedItems.isNotEmpty()) {
+            val metadata = releaseDao.getPageMetadata(pageNumber)
+            emit(
+                PageState.Content(
+                    pageNumber = pageNumber,
+                    items = cachedItems,
+                    hasNextPage = metadata?.hasNextPage ?: true,
+                    isStale = true,
+                ),
+            )
+        }
+        // 2. Затем всегда запускаем свежую загрузку. Если сеть упала, а кэш был показан,
+        //    HomeViewModel сам решит не стирать items (retainVisibleItemsOnFailure-семантика).
+        //    Контекст исполнения приходит от коллектора (ViewModel запускает collect на ioDispatcher).
+        emit(loadPage(pageNumber))
     }
 
     override suspend fun loadMovies(pageNumber: Int): PageState {
@@ -974,11 +1001,25 @@ class LostFilmRepositoryImpl(
             return emptyList()
         }
 
+        // Skip TMDB lookup for items whose poster and backdrop are already resolved
+        // (cached in Room from a previous load). На повторных запусках это убирает 6+ параллельных HTTP
+        // и заметно ускоряет критический путь к отрисовке.
+        val needsEnrichment = items.filterNot { it.hasCompleteArt() }
+        if (needsEnrichment.isEmpty()) {
+            if (persistToCache) {
+                upsertChangedSummaries(items.toSummaryEntities())
+            }
+            return items
+        }
+
         // Cap TMDB enrichment fan-out so one page load cannot create dozens of simultaneous HTTP calls.
         val semaphore = Semaphore(6)
         val enrichedItems = coroutineScope {
             items.map { item ->
                 async {
+                    if (item.hasCompleteArt()) {
+                        return@async item
+                    }
                     val tmdbUrlsDeferred = tmdbEnrichCache.getOrPut(item.detailsUrl) {
                         async {
                             semaphore.withPermit {
@@ -1013,6 +1054,9 @@ class LostFilmRepositoryImpl(
 
         return enrichedItems
     }
+
+    private fun ReleaseSummary.hasCompleteArt(): Boolean =
+        posterUrl.isNotBlank() && !backdropUrl.isNullOrBlank()
 
     private suspend fun upsertChangedSummaries(entities: List<ReleaseSummaryEntity>) {
         if (entities.isEmpty()) return
