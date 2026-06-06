@@ -9,6 +9,8 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ScheduleMonth
 import com.kraat.lostfilmnewtv.data.model.SeriesGuide
 import com.kraat.lostfilmnewtv.data.model.SeriesOverview
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 
 sealed interface DetailsResult {
     data class Success(
@@ -66,6 +68,16 @@ sealed interface ScheduleResult {
 
 interface LostFilmRepository {
     suspend fun loadPage(pageNumber: Int): PageState
+
+    /**
+     * Stale-while-revalidate для главного экрана: первая эмиссия — кэш из Room
+     * (если он есть, с `isStale=true`), вторая — свежий результат [loadPage].
+     * Реализация по умолчанию эмитит только свежий результат — перекрывается в
+     * реальной реализации.
+     */
+    fun observeNewReleases(pageNumber: Int = 1): Flow<PageState> = flow {
+        emit(loadPage(pageNumber))
+    }
 
     suspend fun loadMovies(pageNumber: Int = 1): PageState =
         PageState.Error(pageNumber = pageNumber, message = "Фильмы недоступны")

@@ -25,13 +25,19 @@ import com.kraat.lostfilmnewtv.updates.AppUpdateCoordinator
 import com.kraat.lostfilmnewtv.updates.AppUpdateInfo
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -1009,6 +1015,176 @@ class HomeViewModelTest {
         assertEquals(HomeModeContentState.Content(favoriteSeries), viewModel.uiState.value.favoriteSeriesModeState)
         assertEquals(2, viewModel.uiState.value.favoriteSeriesCount)
     }
+
+    @Test
+    fun onStart_withCache_emitsStaleFirstThenFresh() = runTest(dispatcher) {
+        // SharedFlow даёт тесту контроль над таймингом эмиссий:
+        // сначала отправляем cache, проверяем промежуточное состояние,
+        // затем отправляем fresh и проверяем финальное.
+        val sharedFlow = MutableSharedFlow<PageState>(replay = 0, extraBufferCapacity = 4)
+        val cachedItem = summary(detailsUrl = "https://www.lostfilm.today/series/cached/season_1/episode_1/")
+        val freshItem = summary(detailsUrl = "https://www.lostfilm.today/series/fresh/season_1/episode_1/")
+        val repository = FakeLostFilmRepository(
+            pageResults = emptyMap(),
+            newReleasesFlows = mapOf(1 to sharedFlow),
+        )
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+
+        // 1. Cache-эмиссия: показываем stale-контент, скелетон НЕ показывается.
+        sharedFlow.tryEmit(
+            PageState.Content(
+                pageNumber = 1,
+                items = listOf(cachedItem),
+                hasNextPage = true,
+                isStale = true,
+            )
+        )
+        advanceUntilIdle()
+
+        val afterCache = viewModel.uiState.value
+        assertEquals(listOf(cachedItem), afterCache.items)
+        assertFalse(afterCache.isInitialLoading)
+        assertNull(afterCache.fullScreenErrorMessage)
+        assertTrue(afterCache.allNewModeState is HomeModeContentState.Content)
+        assertEquals(
+            HomeModeContentState.Content(listOf(cachedItem)),
+            afterCache.allNewModeState,
+        )
+        assertEquals(1, repository.observeNewReleasesCalls)
+
+        // 2. Fresh-эмиссия: заменяет items, lastAllNewRefreshAt обновляется.
+        sharedFlow.tryEmit(
+            PageState.Content(
+                pageNumber = 1,
+                items = listOf(freshItem),
+                hasNextPage = true,
+                isStale = false,
+            )
+        )
+        advanceUntilIdle()
+
+        val afterFresh = viewModel.uiState.value
+        assertEquals(listOf(freshItem), afterFresh.items)
+        assertFalse(afterFresh.isInitialLoading)
+        assertNull(afterFresh.fullScreenErrorMessage)
+        assertEquals(1, repository.observeNewReleasesCalls)
+    }
+
+    @Test
+    fun onStart_withEmptyCache_emitsOnlyFresh() = runTest(dispatcher) {
+        val freshItem = summary(detailsUrl = "https://www.lostfilm.today/series/fresh/season_1/episode_1/")
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(
+                    pageNumber = 1,
+                    items = listOf(freshItem),
+                    hasNextPage = true,
+                    isStale = false,
+                ),
+            ),
+        )
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+
+        // Без кастомного flow observeNewReleases fallback'ит на однократный loadPage —
+        // ведёт себя как до изменений: спиннер, потом данные.
+        assertEquals(listOf(freshItem), viewModel.uiState.value.items)
+        assertFalse(viewModel.uiState.value.isInitialLoading)
+        assertNull(viewModel.uiState.value.fullScreenErrorMessage)
+        assertEquals(listOf(1), repository.pageRequests)
+        assertEquals(1, repository.observeNewReleasesCalls)
+    }
+
+    @Test
+    fun onStart_whenNetworkFailsAfterCache_keepsCachedItems() = runTest(dispatcher) {
+        val cachedItem = summary(detailsUrl = "https://www.lostfilm.today/series/cached/season_1/episode_1/")
+        val repository = FakeLostFilmRepository(
+            pageResults = emptyMap(),
+            newReleasesEmissions = mapOf(
+                1 to listOf(
+                    PageState.Content(
+                        pageNumber = 1,
+                        items = listOf(cachedItem),
+                        hasNextPage = true,
+                        isStale = true,
+                    ),
+                    PageState.Error(pageNumber = 1, message = "Сеть недоступна"),
+                ),
+            ),
+        )
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        // Кэш остаётся на экране, fullScreenErrorMessage не выставляется
+        // (иначе UI решит, что данных нет), только pagingErrorMessage для индикации.
+        assertEquals(listOf(cachedItem), state.items)
+        assertFalse(state.isInitialLoading)
+        assertNull(state.fullScreenErrorMessage)
+        assertEquals("Сеть недоступна", state.pagingErrorMessage)
+        assertTrue(state.allNewModeState is HomeModeContentState.Content)
+    }
+
+    @Test
+    fun loadPage_paginationUsesDirectPath_notObserveNewReleases() = runTest(dispatcher) {
+        val firstPageItem = summary(detailsUrl = "https://www.lostfilm.today/series/page1/season_1/episode_1/")
+        val secondPageItem = summary(detailsUrl = "https://www.lostfilm.today/series/page2/season_1/episode_1/")
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(
+                    pageNumber = 1,
+                    items = listOf(firstPageItem),
+                    hasNextPage = true,
+                    isStale = false,
+                ),
+                2 to PageState.Content(
+                    pageNumber = 2,
+                    items = listOf(secondPageItem),
+                    hasNextPage = true,
+                    isStale = false,
+                    isAppend = true,
+                ),
+            ),
+        )
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+        // observeNewReleases был вызван для page=1 (onStart).
+        assertEquals(1, repository.observeNewReleasesCalls)
+        assertEquals(listOf(1), repository.pageRequests)
+
+        // Пагинация должна идти напрямую через loadPage, не через observeNewReleases.
+        viewModel.onEndReached()
+        advanceUntilIdle()
+
+        assertEquals(1, repository.observeNewReleasesCalls) // не увеличилось
+        assertEquals(listOf(1, 2), repository.pageRequests)
+        assertEquals(listOf(firstPageItem, secondPageItem), viewModel.uiState.value.items)
+    }
 }
 
 private class FakeLostFilmRepository(
@@ -1022,17 +1198,38 @@ private class FakeLostFilmRepository(
     private val favoriteSeriesResults: MutableList<FavoriteSeriesResult> = mutableListOf(
         FavoriteSeriesResult.Unavailable(),
     ),
+    /**
+     * Кастомные flow для [observeNewReleases] (для тестов stale-while-revalidate).
+     * Если для pageNumber нет записи, [observeNewReleases] возвращает однократный
+     * вызов [loadPage] (как default-метод интерфейса).
+     */
+    val newReleasesFlows: Map<Int, Flow<PageState>> = emptyMap(),
+    /**
+     * Список эмиссий для [observeNewReleases] (для простых тестов с фиксированной
+     * последовательностью cache → fresh). Удобнее [newReleasesFlows] когда не нужен
+     * контроль тайминга между эмиссиями.
+     */
+    val newReleasesEmissions: Map<Int, List<PageState>> = emptyMap(),
 ) : LostFilmRepository {
     val pageRequests = mutableListOf<Int>()
     val movieRequests = mutableListOf<Int>()
     val favoriteReleaseRequests = mutableListOf<Int>()
     var favoriteReleaseCalls = 0
+    var observeNewReleasesCalls = 0
 
     override suspend fun loadPage(pageNumber: Int): PageState {
         pageRequests += pageNumber
         return checkNotNull(pageResults[pageNumber]) {
             "Missing fake result for page $pageNumber"
         }
+    }
+
+    override fun observeNewReleases(pageNumber: Int): Flow<PageState> {
+        observeNewReleasesCalls += 1
+        newReleasesFlows[pageNumber]?.let { return it }
+        newReleasesEmissions[pageNumber]?.let { return it.asFlow() }
+        // Fallback: однократный вызов loadPage, имитируя default-метод интерфейса.
+        return flow { emit(loadPage(pageNumber)) }
     }
 
     override suspend fun loadMovies(pageNumber: Int): PageState {
