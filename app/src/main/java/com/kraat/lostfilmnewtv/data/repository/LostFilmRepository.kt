@@ -75,6 +75,12 @@ interface LostFilmRepository {
 
     suspend fun loadDetails(detailsUrl: String): DetailsResult
 
+    suspend fun loadDetailsPreview(detailsUrl: String): DetailsResult =
+        loadDetails(detailsUrl)
+
+    suspend fun refreshDetailsExtras(details: ReleaseDetails): DetailsResult =
+        DetailsResult.Success(details = details, isStale = false)
+
     suspend fun loadSeriesGuide(detailsUrl: String): SeriesGuideResult
 
     suspend fun loadSeriesOverview(detailsUrl: String): SeriesOverviewResult =

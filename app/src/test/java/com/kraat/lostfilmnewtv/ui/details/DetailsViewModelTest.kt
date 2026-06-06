@@ -280,6 +280,53 @@ class DetailsViewModelTest {
     }
 
     @Test
+    fun onStart_showsPreviewBeforeDetailsExtrasComplete() = runTest(dispatcher) {
+        val extrasResult = CompletableDeferred<DetailsResult>()
+        val repository = PreviewThenExtrasRepository(
+            previewResult = DetailsResult.Success(
+                details = details(
+                    kind = ReleaseKind.SERIES,
+                    titleRu = "Preview",
+                    seasonNumber = 9,
+                    episodeNumber = 13,
+                    releaseDateRu = "14 марта 2026",
+                ),
+                isStale = false,
+            ),
+            extrasResult = extrasResult,
+        )
+        val viewModel = DetailsViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(
+                mapOf(AppDestination.Details.detailsUrlArg to "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"),
+            ),
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        runCurrent()
+
+        assertEquals("Preview", viewModel.uiState.value.details?.titleRu)
+        assertEquals(false, viewModel.uiState.value.isLoading)
+
+        extrasResult.complete(
+            DetailsResult.Success(
+                details = details(
+                    kind = ReleaseKind.SERIES,
+                    titleRu = "Enriched",
+                    seasonNumber = 9,
+                    episodeNumber = 13,
+                    releaseDateRu = "14 марта 2026",
+                ),
+                isStale = false,
+            ),
+        )
+        advanceUntilIdle()
+
+        assertEquals("Enriched", viewModel.uiState.value.details?.titleRu)
+    }
+
+    @Test
     fun onFavoriteClick_setsBusyState_thenMarksFavoriteUpdated() = runTest(dispatcher) {
         val favoriteResult = CompletableDeferred<FavoriteMutationResult>()
         val repository = FakeDetailsRepository(
@@ -578,6 +625,37 @@ class DetailsViewModelTest {
         assertEquals(listOf(detailsUrl, detailsUrl), repository.loadedDetailsUrls)
         assertEquals("Добавить в избранное", viewModel.uiState.value.favoriteActionLabel)
         assertEquals(true, viewModel.uiState.value.isFavoriteActionEnabled)
+    }
+}
+
+private class PreviewThenExtrasRepository(
+    private val previewResult: DetailsResult,
+    private val extrasResult: CompletableDeferred<DetailsResult>,
+) : LostFilmRepository {
+    override suspend fun loadPage(pageNumber: Int): PageState {
+        error("Page loading is not used in details tests")
+    }
+
+    override suspend fun loadDetails(detailsUrl: String): DetailsResult = previewResult
+
+    override suspend fun loadDetailsPreview(detailsUrl: String): DetailsResult = previewResult
+
+    override suspend fun refreshDetailsExtras(details: ReleaseDetails): DetailsResult = extrasResult.await()
+
+    override suspend fun loadSeriesGuide(detailsUrl: String): com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult {
+        return com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult.Error("not needed")
+    }
+
+    override suspend fun loadWatchedState(detailsUrl: String): Boolean? = false
+
+    override suspend fun setEpisodeWatched(detailsUrl: String, playEpisodeId: String, targetWatched: Boolean): Boolean? = targetWatched
+
+    override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult {
+        return FavoriteMutationResult.RequiresLogin()
+    }
+
+    override suspend fun loadFavoriteReleases(pageNumber: Int): FavoriteReleasesResult {
+        return FavoriteReleasesResult.Unavailable()
     }
 }
 

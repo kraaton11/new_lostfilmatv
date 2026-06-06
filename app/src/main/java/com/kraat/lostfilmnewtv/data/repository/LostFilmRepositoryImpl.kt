@@ -329,6 +329,84 @@ class LostFilmRepositoryImpl(
         }
     }
 
+    override suspend fun loadDetailsPreview(detailsUrl: String): DetailsResult {
+        val normalizedDetailsUrl = resolveUrl(detailsUrl)
+        cleanupExpiredDataIfNeeded()
+        val cachedDetails = releaseDao.getReleaseDetails(normalizedDetailsUrl)
+        val now = clock()
+
+        if (cachedDetails != null && now - cachedDetails.fetchedAt < RETENTION_WINDOW_MS) {
+            return DetailsResult.Success(
+                details = enrichWithSummaryEpisodeTitle(cachedDetails.toModel()),
+                isStale = now - cachedDetails.fetchedAt > FRESH_WINDOW_MS,
+            )
+        }
+
+        return try {
+            val html = httpClient.fetchDetails(normalizedDetailsUrl)
+            val parsed = enrichWithSummaryEpisodeTitle(parseDetails(html, normalizedDetailsUrl, now))
+            releaseDao.upsertDetails(parsed.toEntity())
+            DetailsResult.Success(
+                details = parsed,
+                isStale = false,
+            )
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (exception: Exception) {
+            if (exception is IOException || exception is IllegalStateException) {
+                DetailsResult.Error(
+                    detailsUrl = normalizedDetailsUrl,
+                    message = exception.message ?: "Unable to load details",
+                )
+            } else {
+                throw exception
+            }
+        }
+    }
+
+    override suspend fun refreshDetailsExtras(details: ReleaseDetails): DetailsResult {
+        val normalizedDetailsUrl = resolveUrl(details.detailsUrl)
+        return try {
+            val enriched = coroutineScope {
+                val torrentDetails = async { refreshCachedTorrentLinksIfNeeded(details) }
+                val metadataDetails = async { refreshFavoriteMetadataIfNeeded(details) }
+                val tmdbUrls = async {
+                    tmdbResolver.resolve(
+                        detailsUrl = details.detailsUrl,
+                        titleRu = details.titleRu,
+                        releaseDateRu = details.releaseDateRu,
+                        kind = details.kind,
+                        originalReleaseYear = details.originalReleaseYear,
+                    )
+                }
+
+                TmdbPosterEnricher.enrichDetails(
+                    details
+                        .mergeTorrentLinksFrom(torrentDetails.await())
+                        .mergeFavoriteMetadataFrom(metadataDetails.await()),
+                    tmdbUrls.await(),
+                )
+            }
+            val withSummary = enrichWithSummaryEpisodeTitle(enriched)
+            releaseDao.upsertDetails(withSummary.toEntity())
+            DetailsResult.Success(
+                details = withSummary,
+                isStale = false,
+            )
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (exception: Exception) {
+            if (exception is IOException || exception is IllegalStateException) {
+                DetailsResult.Error(
+                    detailsUrl = normalizedDetailsUrl,
+                    message = exception.message ?: "Unable to refresh details",
+                )
+            } else {
+                throw exception
+            }
+        }
+    }
+
     override suspend fun loadSeriesGuide(detailsUrl: String): SeriesGuideResult {
         val normalizedDetailsUrl = resolveUrl(detailsUrl)
         val seriesRootUrl = seriesRootUrl(normalizedDetailsUrl)
@@ -1144,6 +1222,21 @@ class LostFilmRepositoryImpl(
         }
         return enriched
     }
+
+    private fun ReleaseDetails.mergeTorrentLinksFrom(other: ReleaseDetails): ReleaseDetails =
+        if (other.torrentLinks.isNotEmpty()) {
+            copy(torrentLinks = other.torrentLinks)
+        } else {
+            this
+        }
+
+    private fun ReleaseDetails.mergeFavoriteMetadataFrom(other: ReleaseDetails): ReleaseDetails =
+        copy(
+            seriesStatusRu = other.seriesStatusRu ?: seriesStatusRu,
+            favoriteTargetId = other.favoriteTargetId ?: favoriteTargetId,
+            favoriteTargetKind = other.favoriteTargetKind ?: favoriteTargetKind,
+            isFavorite = other.isFavorite ?: isFavorite,
+        )
 
     private suspend fun enrichWithSummaryEpisodeTitle(details: ReleaseDetails): ReleaseDetails {
         if (

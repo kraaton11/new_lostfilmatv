@@ -256,7 +256,7 @@ class DetailsViewModel @Inject constructor(
         }
 
         loadJob = viewModelScope.launch(ioDispatcher) {
-            when (val result = repository.loadDetails(detailsUrl)) {
+            when (val result = repository.loadDetailsPreview(detailsUrl)) {
                 is DetailsResult.Success -> {
                     if (loadRequestToken != requestToken) return@launch
                     _uiState.update {
@@ -274,6 +274,18 @@ class DetailsViewModel @Inject constructor(
                         detailsUrl = result.details.detailsUrl,
                         playEpisodeId = result.details.playEpisodeId,
                     )
+                    when (val enrichedResult = repository.refreshDetailsExtras(result.details)) {
+                        is DetailsResult.Success -> {
+                            if (loadRequestToken != requestToken) return@launch
+                            _uiState.update { state ->
+                                state.copy(
+                                    details = enrichedResult.details,
+                                    showStaleBanner = enrichedResult.isStale,
+                                ).withFavoritePresentation().withWatchedPresentation()
+                            }
+                        }
+                        is DetailsResult.Error -> Unit
+                    }
                 }
                 is DetailsResult.Error -> {
                     if (loadRequestToken != requestToken) return@launch
