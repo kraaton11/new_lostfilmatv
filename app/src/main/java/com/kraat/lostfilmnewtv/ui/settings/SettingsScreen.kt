@@ -276,7 +276,10 @@ fun SettingsScreen(
                                             title = quality.shortLabel(),
                                             description = quality.description(),
                                             value = if (quality == selectedQuality) "Выбрано" else "Выбрать",
-                                            onClick = { onQualitySelected(quality) },
+                                            onClick = {
+                                                onQualitySelected(quality)
+                                                contentRequesters.getValue(quality.buttonTag()).requestFocus()
+                                            },
                                             isSelected = quality == selectedQuality,
                                             tag = quality.buttonTag(),
                                             onFocused = {
@@ -313,6 +316,7 @@ fun SettingsScreen(
                                                     WatchedMarkingMode.AUTO
                                                 },
                                             )
+                                            contentRequesters.getValue(SettingsFocusTarget.WatchedMarkingToggle.toTag()).requestFocus()
                                         },
                                         isSelected = selectedWatchedMarkingMode == WatchedMarkingMode.AUTO,
                                         tag = SettingsFocusTarget.WatchedMarkingToggle.toTag(),
@@ -347,7 +351,10 @@ fun SettingsScreen(
                                         title = "Вкладка Избранное",
                                         description = "Показывает отдельную вкладку с сохраненными релизами.",
                                         value = if (isHomeFavoritesRailEnabled) "Вкл" else "Выкл",
-                                        onClick = { onHomeFavoritesRailVisibilitySelected(!isHomeFavoritesRailEnabled) },
+                                        onClick = {
+                                            onHomeFavoritesRailVisibilitySelected(!isHomeFavoritesRailEnabled)
+                                            contentRequesters.getValue(SettingsFocusTarget.HomeFavoritesToggle.toTag()).requestFocus()
+                                        },
                                         isSelected = isHomeFavoritesRailEnabled,
                                         tag = SettingsFocusTarget.HomeFavoritesToggle.toTag(),
                                         onFocused = {
@@ -367,7 +374,10 @@ fun SettingsScreen(
                                         title = "Мои сериалы",
                                         description = "Показывает отдельную вкладку с сериалами из избранного.",
                                         value = if (isHomeFavoriteSeriesEnabled) "Вкл" else "Выкл",
-                                        onClick = { onHomeFavoriteSeriesVisibilitySelected(!isHomeFavoriteSeriesEnabled) },
+                                        onClick = {
+                                            onHomeFavoriteSeriesVisibilitySelected(!isHomeFavoriteSeriesEnabled)
+                                            contentRequesters.getValue(SettingsFocusTarget.HomeFavoriteSeriesToggle.toTag()).requestFocus()
+                                        },
                                         isSelected = isHomeFavoriteSeriesEnabled,
                                         tag = SettingsFocusTarget.HomeFavoriteSeriesToggle.toTag(),
                                         onFocused = {
@@ -387,7 +397,10 @@ fun SettingsScreen(
                                         title = "Фильмы",
                                         description = "Показывает вкладку с фильмами LostFilm.",
                                         value = if (isHomeMoviesEnabled) "Вкл" else "Выкл",
-                                        onClick = { onHomeMoviesVisibilitySelected(!isHomeMoviesEnabled) },
+                                        onClick = {
+                                            onHomeMoviesVisibilitySelected(!isHomeMoviesEnabled)
+                                            contentRequesters.getValue(SettingsFocusTarget.HomeMoviesToggle.toTag()).requestFocus()
+                                        },
                                         isSelected = isHomeMoviesEnabled,
                                         tag = SettingsFocusTarget.HomeMoviesToggle.toTag(),
                                         onFocused = {
@@ -407,7 +420,10 @@ fun SettingsScreen(
                                         title = "Сериалы",
                                         description = "Показывает вкладку общего каталога сериалов.",
                                         value = if (isHomeSeriesEnabled) "Вкл" else "Выкл",
-                                        onClick = { onHomeSeriesVisibilitySelected(!isHomeSeriesEnabled) },
+                                        onClick = {
+                                            onHomeSeriesVisibilitySelected(!isHomeSeriesEnabled)
+                                            contentRequesters.getValue(SettingsFocusTarget.HomeSeriesToggle.toTag()).requestFocus()
+                                        },
                                         isSelected = isHomeSeriesEnabled,
                                         tag = SettingsFocusTarget.HomeSeriesToggle.toTag(),
                                         onFocused = {
@@ -427,7 +443,10 @@ fun SettingsScreen(
                                         title = "Подписи в меню",
                                         description = "Показывает текст рядом с иконками бокового меню.",
                                         value = if (isHomeMenuLabelsEnabled) "Вкл" else "Выкл",
-                                        onClick = { onHomeMenuLabelsVisibilitySelected(!isHomeMenuLabelsEnabled) },
+                                        onClick = {
+                                            onHomeMenuLabelsVisibilitySelected(!isHomeMenuLabelsEnabled)
+                                            contentRequesters.getValue(SettingsFocusTarget.HomeMenuLabelsToggle.toTag()).requestFocus()
+                                        },
                                         isSelected = isHomeMenuLabelsEnabled,
                                         tag = SettingsFocusTarget.HomeMenuLabelsToggle.toTag(),
                                         onFocused = {
@@ -462,7 +481,10 @@ fun SettingsScreen(
                                             title = mode.shortLabel(),
                                             description = mode.description(),
                                             value = if (mode == selectedChannelMode) "Выбрано" else "Выбрать",
-                                            onClick = { onChannelModeSelected(mode) },
+                                            onClick = {
+                                                onChannelModeSelected(mode)
+                                                contentRequesters.getValue(mode.buttonTag()).requestFocus()
+                                            },
                                             isSelected = mode == selectedChannelMode,
                                             tag = mode.buttonTag(),
                                             onFocused = {
