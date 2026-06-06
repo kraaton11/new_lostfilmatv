@@ -11,10 +11,10 @@ object TmdbPosterEnricher {
         tmdbUrls: TmdbImageUrls?,
     ): ReleaseSummary {
         if (tmdbUrls == null) {
-            return summary
+            return summary.copy(posterUrl = "")
         }
         return summary.copy(
-            posterUrl = tmdbUrls.posterUrl.ifBlank { summary.posterUrl },
+            posterUrl = tmdbUrls.posterUrl.ifBlank { "" },
             backdropUrl = tmdbUrls.backdropUrl.ifBlank { summary.backdropUrl },
             episodeOverviewRu = tmdbUrls.episodeOverviewRu?.ifBlank { null } ?: summary.episodeOverviewRu,
             episodeOverviewSource = tmdbUrls.episodeOverviewSource?.ifBlank { null } ?: summary.episodeOverviewSource,
@@ -29,10 +29,10 @@ object TmdbPosterEnricher {
         tmdbUrls: TmdbImageUrls?,
     ): ReleaseDetails {
         if (tmdbUrls == null) {
-            return details
+            return details.copy(posterUrl = "")
         }
         return details.copy(
-            posterUrl = tmdbUrls.posterUrl.ifBlank { details.posterUrl },
+            posterUrl = tmdbUrls.posterUrl.ifBlank { "" },
             backdropUrl = tmdbUrls.backdropUrl.ifBlank { null },
             episodeOverviewRu = tmdbUrls.episodeOverviewRu?.ifBlank { null }
                 ?: details.episodeOverviewRu

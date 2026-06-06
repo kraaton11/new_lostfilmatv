@@ -36,9 +36,7 @@ class LostFilmSeriesCatalogParser {
                 val detailsUrl = resolveUrl(item.stringValue("link")).takeIf { it.isNotBlank() } ?: return@forEachIndexed
                 val titleRu = item.stringValue("title").normalizeText().takeIf { it.isNotBlank() } ?: return@forEachIndexed
                 val titleEn = item.stringValue("title_orig").normalizeText().takeIf { it.isNotBlank() }
-                val posterUrl = item.stringValue("img").takeIf { item.booleanValue("has_image") }
-                    ?.let(::resolveUrl)
-                    .orEmpty()
+                val posterUrl = ""
                 val year = item.stringValue("date").extractYear()
 
                 add(

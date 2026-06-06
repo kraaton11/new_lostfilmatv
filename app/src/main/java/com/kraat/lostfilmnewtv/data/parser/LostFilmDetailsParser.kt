@@ -37,7 +37,7 @@ class LostFilmDetailsParser {
             seasonNumber = seasonNumber,
             episodeNumber = episodeNumber,
             releaseDateRu = document.releaseDateRu(),
-            posterUrl = document.posterUrl(),
+            posterUrl = "",
             fetchedAt = fetchedAt,
             playEpisodeId = document.playEpisodeId(),
             favoriteTargetId = favoriteMetadata?.targetId,
@@ -243,20 +243,7 @@ class LostFilmDetailsParser {
     }
 
     fun parsePosterUrl(html: String): String {
-        val document = Jsoup.parse(html, BASE_URL)
-        return document.posterUrl()
-            .ifBlank {
-                document.selectFirst(".movie-cover-box img.cover, .movie-cover-box img")
-                    .absoluteUrl("src")
-            }
-            .ifBlank {
-                document.selectFirst("meta[property=og:image]")
-                    .absoluteUrl("content")
-            }
-            .ifBlank {
-                document.selectFirst("link[rel=image_src]")
-                    .absoluteUrl("href")
-            }
+        return ""
     }
 }
 
