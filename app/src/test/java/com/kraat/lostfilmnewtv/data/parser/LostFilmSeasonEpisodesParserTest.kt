@@ -86,7 +86,7 @@ class LostFilmSeasonEpisodesParserTest {
             html = fixture("series-guide-ted-seasons.html"),
             series = FavoriteSeriesRef(
                 titleRu = "Третий лишний",
-                posterUrl = "https://www.lostfilm.today/Static/Images/810/Posters/image.jpg",
+                posterUrl = "",
                 seriesUrl = "https://www.lostfilm.today/series/Ted",
             ),
             fetchedAt = 1_773_576_000_000L,

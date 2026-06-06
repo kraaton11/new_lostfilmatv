@@ -77,7 +77,7 @@ class LostFilmDetailsParser {
             seasonNumber = null,
             episodeNumber = null,
             releaseDateRu = document.releaseDateRu(),
-            posterUrl = document.posterUrl(),
+            posterUrl = "",
             fetchedAt = fetchedAt,
             playEpisodeId = document.playEpisodeId(),
             favoriteTargetId = favoriteMetadata?.targetId,
@@ -246,9 +246,6 @@ class LostFilmDetailsParser {
         return ""
     }
 }
-
-private fun Document.posterUrl(): String =
-    selectFirst(".main_poster img[rel=image_src], .main_poster img").absoluteUrl("src")
 
 private fun Document.releaseDateRu(): String =
     select(".details-pane span[data-released]")

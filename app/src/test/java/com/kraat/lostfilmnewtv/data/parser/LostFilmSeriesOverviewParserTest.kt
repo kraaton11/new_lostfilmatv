@@ -1,6 +1,7 @@
 package com.kraat.lostfilmnewtv.data.parser
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -66,7 +67,7 @@ class LostFilmSeriesOverviewParserTest {
         assertEquals("Драма, Фантастика", overview.genresRu)
         assertEquals("По комиксам, Сверхспособности", overview.typesRu)
         assertEquals("https://www.amazon.com/dp/B07QQQ52B3", overview.officialSiteUrl)
-        assertTrue(overview.posterUrl?.endsWith("/Static/Images/442/Posters/poster.jpg") == true)
+        assertNull(overview.posterUrl)
         assertEquals("Сериал «Пацаны» выбивается из супергеройской волны.", overview.descriptionRu)
         assertEquals("Билли Мясник собирает команду против «Семерки».", overview.plotRu)
     }

@@ -34,10 +34,9 @@ class LostFilmFavoriteReleasesParser {
                     .ifBlank { element.selectFirst(".alpha")?.text().orEmpty() }
                     .normalizeText()
                 val episodeTitleRu = element.extractEpisodeTitle(titleRu)
-                val posterUrl = element.selectFirst("img")?.absUrl("src").orEmpty()
                 val releaseDateRu = element.selectFirst(".date")?.text().orEmpty().normalizeText()
 
-                if (titleRu.isBlank() || posterUrl.isBlank()) {
+                if (titleRu.isBlank()) {
                     return@mapNotNull null
                 }
 
@@ -49,7 +48,7 @@ class LostFilmFavoriteReleasesParser {
                     seasonNumber = match.groupValues[2].toIntOrNull(),
                     episodeNumber = match.groupValues[3].toIntOrNull(),
                     releaseDateRu = releaseDateRu,
-                    posterUrl = posterUrl,
+                    posterUrl = "",
                     detailsUrl = detailsUrl,
                     pageNumber = 0,
                     positionInPage = 0,
