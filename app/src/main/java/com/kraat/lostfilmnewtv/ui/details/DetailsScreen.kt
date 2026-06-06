@@ -1409,7 +1409,7 @@ private suspend fun requestDetailsFocusWhenReady(
     withTimeoutOrNull(1_000L) {
         while (!isFocused()) {
             withFrameNanos { }
-            focusMoved = runCatching { requester.requestFocus() }.getOrDefault(false)
+            focusMoved = runCatching { requester.requestFocus(); true }.getOrDefault(false)
         }
     }
     return focusMoved || isFocused()
