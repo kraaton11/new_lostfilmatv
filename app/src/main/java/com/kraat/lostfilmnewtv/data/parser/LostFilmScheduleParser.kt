@@ -211,9 +211,7 @@ class LostFilmScheduleParser {
                 ?.text()
                 ?.normalizeText()
                 ?.takeIf { it.isNotBlank() }
-            val posterUrl = cell.selectFirst("img")
-                .absoluteUrl("src")
-                .takeIf { it.isLostFilmScheduleImageUrl() }
+            val posterUrl = null
 
             ScheduleItem(
                 title = title,
