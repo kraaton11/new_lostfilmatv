@@ -20,6 +20,7 @@ import dagger.hilt.testing.TestInstallIn
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import okhttp3.OkHttpClient
 
 /**
  * Заменяет [DataModule] в Robolectric unit-тестах.
@@ -51,6 +52,10 @@ object UnitTestDataModule {
     replaces = [NetworkModule::class],
 )
 object UnitTestNetworkModule {
+
+    @Provides
+    @Singleton
+    fun provideOkHttpClient(): OkHttpClient = OkHttpClient()
 
     @Provides
     @Singleton
