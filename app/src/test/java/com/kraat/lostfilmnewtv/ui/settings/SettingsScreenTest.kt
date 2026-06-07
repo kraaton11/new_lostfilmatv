@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.ui.settings
 
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsFocused
@@ -10,7 +11,9 @@ import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.pressKey
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
@@ -134,6 +137,7 @@ class SettingsScreenTest {
     }
 
     @Test
+    @OptIn(androidx.compose.ui.test.ExperimentalTestApi::class)
     fun settingsScreen_qualityAndChannelSections_stillInvokeCallbacks() {
         val selectedQualities = mutableListOf<PlaybackQualityPreference>()
         val selectedChannelModes = mutableListOf<AndroidTvChannelMode>()
@@ -162,9 +166,23 @@ class SettingsScreenTest {
             .performSemanticsAction(SemanticsActions.OnClick)
         composeRule.onNodeWithTag("settings-quality-720")
             .performSemanticsAction(SemanticsActions.OnClick)
+        assertEquals(listOf(PlaybackQualityPreference.Q720), selectedQualities)
 
+        // Drive section selection through the focus + key input path instead of
+        // performSemanticsAction(OnClick) on a rail button. The content click above
+        // leaves focus in the content panel; clicking the rail button directly
+        // races with focus stealing under Robolectric and the OnClick never reaches
+        // the rail. Moving focus back to the rail via arrow keys and pressing
+        // Center reproduces the real TV remote interaction.
+        composeRule.onNodeWithTag("settings-quality-720")
+            .performKeyInput { pressKey(Key.DirectionLeft) }
+        composeRule.onNodeWithTag("settings-section-playback")
+            .performKeyInput { pressKey(Key.DirectionDown) }
+        composeRule.onNodeWithTag("settings-section-home-screen")
+            .performKeyInput { pressKey(Key.DirectionDown) }
         composeRule.onNodeWithTag("settings-section-channel")
-            .performSemanticsAction(SemanticsActions.OnClick)
+            .assertIsFocused()
+            .performKeyInput { pressKey(Key.DirectionCenter) }
         composeRule.onNodeWithTag("settings-tv-channel-unwatched")
             .performSemanticsAction(SemanticsActions.OnClick)
 
