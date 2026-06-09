@@ -302,7 +302,7 @@ private fun GuideContent(
         if (selectedUrl !in activeEpisodeUrls) return@LaunchedEffect
         val selectedRequester = episodeFocusRequesters[selectedUrl] ?: return@LaunchedEffect
         withFrameNanos { }
-        selectedRequester.requestFocus()
+        runCatching { selectedRequester.requestFocus() }
     }
 
     Column(

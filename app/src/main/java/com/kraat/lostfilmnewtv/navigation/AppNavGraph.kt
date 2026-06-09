@@ -129,6 +129,14 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                 onResume = homeViewModel::onResume,
                 selectedNavItem = selectedNavItem,
                 onNavItemSelected = homeViewModel::onNavItemSelected,
+                onNavItemLongClick = { navItem ->
+                    when (navItem) {
+                        NavItem.SEARCH -> navController.navigate(AppDestination.Search.route)
+                        NavItem.SCHEDULE -> navController.navigate(AppDestination.Schedule.route)
+                        NavItem.SETTINGS -> navController.navigate(AppDestination.Settings.createRoute())
+                        else -> Unit
+                    }
+                },
                 onAuthClick = {
                     if (isAuthenticated) authViewModel.logout()
                     else navController.navigate(AppDestination.Auth.createRoute())

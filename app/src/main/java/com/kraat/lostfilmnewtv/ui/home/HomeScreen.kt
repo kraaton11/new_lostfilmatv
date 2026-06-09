@@ -220,7 +220,7 @@ fun HomeScreen(
         val nextIndex = (currentIndex + offset + modeSwitchOrder.size) % modeSwitchOrder.size
         startupContentFocusPending = true
         contentReturnFocusRequestVersion += 1
-        contentEntryRequester.requestFocus()
+        focusScope.launch { requestFocusWhenReady(contentEntryRequester) }
         onModeSelected(modeSwitchOrder[nextIndex])
     }
 

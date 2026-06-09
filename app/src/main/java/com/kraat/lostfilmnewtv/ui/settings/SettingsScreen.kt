@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import com.kraat.lostfilmnewtv.BuildConfig
+import com.kraat.lostfilmnewtv.ui.home.requestFocusWhenReady
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.playback.WatchedMarkingMode
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
@@ -153,7 +154,7 @@ fun SettingsScreen(
         contentScrollState.scrollTo(0)
     }
     LaunchedEffect(Unit) {
-        railRequesters.getValue(selectedSection).requestFocus()
+        requestFocusWhenReady(railRequesters.getValue(selectedSection))
     }
     BackHandler {
         if (contentHasFocus) {
