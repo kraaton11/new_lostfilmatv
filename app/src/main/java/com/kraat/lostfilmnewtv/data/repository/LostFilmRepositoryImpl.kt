@@ -395,16 +395,38 @@ class LostFilmRepositoryImpl(
         val normalizedDetailsUrl = resolveUrl(details.detailsUrl)
         return try {
             val enriched = coroutineScope {
-                val torrentDetails = async { refreshCachedTorrentLinksIfNeeded(details) }
-                val metadataDetails = async { refreshFavoriteMetadataIfNeeded(details) }
+                val torrentDetails = async {
+                    try {
+                        refreshCachedTorrentLinksIfNeeded(details)
+                    } catch (exception: CancellationException) {
+                        throw exception
+                    } catch (_: Exception) {
+                        details
+                    }
+                }
+                val metadataDetails = async {
+                    try {
+                        refreshFavoriteMetadataIfNeeded(details)
+                    } catch (exception: CancellationException) {
+                        throw exception
+                    } catch (_: Exception) {
+                        details
+                    }
+                }
                 val tmdbUrls = async {
-                    tmdbResolver.resolve(
-                        detailsUrl = details.detailsUrl,
-                        titleRu = details.titleRu,
-                        releaseDateRu = details.releaseDateRu,
-                        kind = details.kind,
-                        originalReleaseYear = details.originalReleaseYear,
-                    )
+                    try {
+                        tmdbResolver.resolve(
+                            detailsUrl = details.detailsUrl,
+                            titleRu = details.titleRu,
+                            releaseDateRu = details.releaseDateRu,
+                            kind = details.kind,
+                            originalReleaseYear = details.originalReleaseYear,
+                        )
+                    } catch (exception: CancellationException) {
+                        throw exception
+                    } catch (_: Exception) {
+                        null
+                    }
                 }
 
                 TmdbPosterEnricher.enrichDetails(

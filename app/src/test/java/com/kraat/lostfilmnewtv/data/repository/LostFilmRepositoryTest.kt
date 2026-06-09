@@ -824,6 +824,46 @@ class LostFilmRepositoryTest {
     }
 
     @Test
+    fun refreshDetailsExtras_keepsTorrentLinksWhenTmdbResolveFails() = runTest {
+        val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        val previewDetails = LostFilmDetailsParser().parseSeries(
+            html = fixture("series-details.html"),
+            detailsUrl = detailsUrl,
+            fetchedAt = NOW - 1_000L,
+        )
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            detailsHandler = { requestedUrl ->
+                when (requestedUrl) {
+                    "https://www.lostfilm.today/series/9-1-1/" -> seriesRootPageWithStatusHtml()
+                    else -> error("Unexpected details request: $requestedUrl")
+                }
+            },
+            torrentHandler = { episodeId ->
+                assertEquals("362009013", episodeId)
+                fixture("torrent-redirect.html")
+            },
+            torrentPageHandler = { fixture("torrent-options-page.html") },
+            isAuthenticated = true,
+            tmdbResolver = object : TmdbPosterResolver {
+                override suspend fun resolve(
+                    detailsUrl: String,
+                    titleRu: String,
+                    releaseDateRu: String,
+                    kind: ReleaseKind,
+                    originalReleaseYear: Int?,
+                ): TmdbImageUrls? {
+                    throw IOException("tmdb offline")
+                }
+            },
+        )
+
+        val result = repository.refreshDetailsExtras(previewDetails) as DetailsResult.Success
+
+        assertEquals(listOf("SD", "1080p", "720p"), result.details.torrentLinks.map { it.label })
+    }
+
+    @Test
     fun markEpisodeWatched_updatesCachedSummaryWhenRemoteMarkSucceeds() = runTest {
         val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
         seedPage(pageNumber = 1, fetchedAt = NOW - 1_000L)
