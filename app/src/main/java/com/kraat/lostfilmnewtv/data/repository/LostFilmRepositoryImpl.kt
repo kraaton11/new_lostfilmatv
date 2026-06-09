@@ -40,6 +40,7 @@ import com.kraat.lostfilmnewtv.data.parser.toSummaryEntities
 import com.kraat.lostfilmnewtv.data.parser.toSummaryModels
 import com.kraat.lostfilmnewtv.data.poster.TmdbPosterEnricher
 import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolver
+import android.util.Log
 import java.io.IOException
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
@@ -1263,31 +1264,60 @@ class LostFilmRepositoryImpl(
     }
 
     private suspend fun refreshCachedTorrentLinksIfNeeded(details: ReleaseDetails): ReleaseDetails {
+        Log.d("REFRESH_TORRENT", "playEpisodeId=${details.playEpisodeId}, links=${details.torrentLinks.size}, hasAuth=${hasAuthenticatedSession()}, detailsUrl=${details.detailsUrl}")
         if (details.playEpisodeId == null) {
-            return details
+            if (!hasAuthenticatedSession()) {
+                Log.d("REFRESH_TORRENT", "early return: no playEpisodeId, no auth")
+                return details
+            }
+            Log.d("REFRESH_TORRENT", "playEpisodeId is null, re-fetching HTML")
+            val refreshed = try {
+                val html = httpClient.fetchDetails(resolveUrl(details.detailsUrl))
+                val pid = detailsParser.parsePlayEpisodeId(html)
+                if (pid != null) details.copy(playEpisodeId = pid) else null
+            } catch (_: Exception) { null }
+            if (refreshed == null) {
+                Log.d("REFRESH_TORRENT", "still no playEpisodeId after re-fetch")
+                return details
+            }
+            Log.d("REFRESH_TORRENT", "re-fetched playEpisodeId=${refreshed.playEpisodeId}")
+            releaseDao.upsertDetails(refreshed.toEntity())
+            val enriched = enrichWithTorrentLinks(refreshed)
+            Log.d("REFRESH_TORRENT", "enriched links=${enriched.torrentLinks.size}")
+            if (enriched.torrentLinks.isNotEmpty()) {
+                releaseDao.upsertDetails(enriched.toEntity())
+            }
+            return enriched
         }
 
         if (details.torrentLinks.isNotEmpty() && details.torrentLinks.none { it.label == "Вариант 1" }) {
+            Log.d("REFRESH_TORRENT", "early return: already has resolved links")
             return details
         }
 
         if (details.torrentLinks.isEmpty() && !hasAuthenticatedSession()) {
+            Log.d("REFRESH_TORRENT", "early return: no auth session")
             return details
         }
 
         val enriched = enrichWithTorrentLinks(details)
+        Log.d("REFRESH_TORRENT", "enriched links=${enriched.torrentLinks.size}")
         if (enriched.torrentLinks.isNotEmpty()) {
             releaseDao.upsertDetails(enriched.toEntity())
         }
         return enriched
     }
 
-    private fun ReleaseDetails.mergeTorrentLinksFrom(other: ReleaseDetails): ReleaseDetails =
+    private fun ReleaseDetails.mergeTorrentLinksFrom(other: ReleaseDetails): ReleaseDetails {
+        var merged = this
         if (other.torrentLinks.isNotEmpty()) {
-            copy(torrentLinks = other.torrentLinks)
-        } else {
-            this
+            merged = merged.copy(torrentLinks = other.torrentLinks)
         }
+        if (other.playEpisodeId != null) {
+            merged = merged.copy(playEpisodeId = other.playEpisodeId)
+        }
+        return merged
+    }
 
     private fun ReleaseDetails.mergeFavoriteMetadataFrom(other: ReleaseDetails): ReleaseDetails =
         copy(
