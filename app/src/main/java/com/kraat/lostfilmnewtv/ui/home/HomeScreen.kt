@@ -152,6 +152,7 @@ fun HomeScreen(
     var lastSyncedKey by remember { mutableStateOf<String?>(null) }
     var startupContentFocusPending by rememberSaveable { mutableStateOf(true) }
     var initialMenuFocusIgnored by remember { mutableStateOf(false) }
+    var isSwitchingModeFromRail by remember { mutableStateOf(false) }
     var contentReturnFocusRequestVersion by remember { mutableStateOf(0) }
     var isContentRailFocused by remember(activeRailId) { mutableStateOf(false) }
     var isHomeMenuFocused by rememberSaveable { mutableStateOf(true) }
@@ -170,6 +171,7 @@ fun HomeScreen(
             if (event == Lifecycle.Event.ON_RESUME) {
                 startupContentFocusPending = true
                 initialMenuFocusIgnored = false
+                isSwitchingModeFromRail = false
                 onResume()
             }
         }
@@ -220,6 +222,7 @@ fun HomeScreen(
         val currentIndex = modeSwitchOrder.indexOf(state.selectedMode)
         if (currentIndex < 0 || modeSwitchOrder.size < 2) return
         val nextIndex = (currentIndex + offset + modeSwitchOrder.size) % modeSwitchOrder.size
+        isSwitchingModeFromRail = true
         startupContentFocusPending = true
         contentReturnFocusRequestVersion += 1
         onModeSelected(modeSwitchOrder[nextIndex])
@@ -281,12 +284,14 @@ fun HomeScreen(
                     }
                 },
                 onHeaderInteraction = {
-                    if (initialMenuFocusIgnored) {
-                        startupContentFocusPending = false
-                    } else {
-                        initialMenuFocusIgnored = true
+                    if (!isSwitchingModeFromRail) {
+                        if (initialMenuFocusIgnored) {
+                            startupContentFocusPending = false
+                        } else {
+                            initialMenuFocusIgnored = true
+                        }
+                        isHomeMenuFocused = true
                     }
-                    isHomeMenuFocused = true
                 },
                 onBackToContent = {
                     if (headerDownTarget == null) {
@@ -404,6 +409,7 @@ fun HomeScreen(
                                     onItemFocused = { detailsUrl ->
                                         startupContentFocusPending = false
                                         isHomeMenuFocused = false
+                                        isSwitchingModeFromRail = false
                                         focusedItemKey = detailsUrl
                                         onItemFocused(detailsUrl)
                                     },
