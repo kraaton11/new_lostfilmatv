@@ -151,6 +151,7 @@ fun HomeScreen(
     }
     var lastSyncedKey by remember { mutableStateOf<String?>(null) }
     var startupContentFocusPending by rememberSaveable { mutableStateOf(true) }
+    var initialMenuFocusIgnored by remember { mutableStateOf(false) }
     var contentReturnFocusRequestVersion by remember { mutableStateOf(0) }
     var isContentRailFocused by remember(activeRailId) { mutableStateOf(false) }
     var isHomeMenuFocused by rememberSaveable { mutableStateOf(true) }
@@ -168,6 +169,7 @@ fun HomeScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 startupContentFocusPending = true
+                initialMenuFocusIgnored = false
                 onResume()
             }
         }
@@ -280,7 +282,11 @@ fun HomeScreen(
                     }
                 },
                 onHeaderInteraction = {
-                    startupContentFocusPending = false
+                    if (initialMenuFocusIgnored) {
+                        startupContentFocusPending = false
+                    } else {
+                        initialMenuFocusIgnored = true
+                    }
                     isHomeMenuFocused = true
                 },
                 onBackToContent = {
