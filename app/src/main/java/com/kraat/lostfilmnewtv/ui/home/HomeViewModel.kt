@@ -536,67 +536,81 @@ class HomeViewModel @Inject constructor(
             )
         }
         favoriteLoadJob = viewModelScope.launch(ioDispatcher) {
-            val result = repository.loadFavoriteReleases(pageNumber)
-            if (favoriteRequestToken != requestToken) return@launch
-            _uiState.update { state ->
-                when (result) {
-                    is FavoriteReleasesResult.Success -> {
-                        val updatedItems = if (isPagingRequest) {
-                            (state.favoriteItems + result.items).distinctBy { it.detailsUrl }
-                        } else {
-                            result.items
+            try {
+                repository.observeFavoriteReleases(pageNumber).collect { result ->
+                    if (favoriteRequestToken != requestToken) return@collect
+                    _uiState.update { state ->
+                        when (result) {
+                            is FavoriteReleasesResult.Partial -> {
+                                val updatedItems = if (isPagingRequest) {
+                                    (state.favoriteItems + result.items).distinctBy { it.detailsUrl }
+                                } else {
+                                    result.items
+                                }
+                                val favoriteState = if (updatedItems.isEmpty()) {
+                                    state.favoritesModeState // keep Loading while streaming
+                                } else {
+                                    HomeModeContentState.Content(updatedItems)
+                                }
+                                state.copy(
+                                    favoriteItems = updatedItems,
+                                    favoritesModeState = favoriteState,
+                                    isFavoritesPaging = false,
+                                ).resolveSelection()
+                            }
+                            is FavoriteReleasesResult.Success -> {
+                                val updatedItems = if (isPagingRequest) {
+                                    (state.favoriteItems + result.items).distinctBy { it.detailsUrl }
+                                } else {
+                                    result.items
+                                }
+                                val favoriteState = if (updatedItems.isEmpty()) {
+                                    HomeModeContentState.Empty
+                                } else {
+                                    HomeModeContentState.Content(updatedItems)
+                                }
+                                state.copy(
+                                    favoriteItems = updatedItems,
+                                    favoritesModeState = favoriteState,
+                                    favoriteSeriesCount = result.favoriteSeriesCount,
+                                    isFavoritesPaging = false,
+                                    favoritesPagingErrorMessage = null,
+                                    favoritesNextPage = result.pageNumber + 1,
+                                    favoritesHasNextPage = result.hasNextPage,
+                                ).resolveSelection()
+                            }
+                            is FavoriteReleasesResult.Unavailable -> {
+                                if (retainVisibleItemsOnFailure) {
+                                    _uiState.update { s -> s.copy(isFavoritesPaging = false).resolveSelection() }
+                                    return@collect
+                                }
+                                if (isPagingRequest && state.favoriteItems.isNotEmpty()) {
+                                    _uiState.update { s ->
+                                        s.copy(
+                                            isFavoritesPaging = false,
+                                            favoritesPagingErrorMessage = result.message ?: "Не удалось загрузить избранное",
+                                        ).resolveSelection()
+                                    }
+                                    return@collect
+                                }
+                                val favoriteState = when {
+                                    result.message.isNullOrBlank() -> HomeModeContentState.Error("Не удалось загрузить избранное")
+                                    result.message.contains("Войдите", ignoreCase = true) -> HomeModeContentState.LoginRequired(result.message)
+                                    else -> HomeModeContentState.Error(result.message)
+                                }
+                                state.copy(
+                                    favoriteItems = emptyList(),
+                                    favoritesModeState = favoriteState,
+                                    favoriteSeriesCount = null,
+                                    isFavoritesPaging = false,
+                                    favoritesPagingErrorMessage = null,
+                                ).resolveSelection()
+                            }
                         }
-                        val favoriteState = if (updatedItems.isEmpty()) {
-                            HomeModeContentState.Empty
-                        } else {
-                            HomeModeContentState.Content(updatedItems)
-                        }
-                        state.copy(
-                            favoriteItems = updatedItems,
-                            favoritesModeState = favoriteState,
-                            favoriteSeriesCount = result.favoriteSeriesCount,
-                            isFavoritesPaging = false,
-                            favoritesPagingErrorMessage = null,
-                            favoritesNextPage = result.pageNumber + 1,
-                            favoritesHasNextPage = result.hasNextPage,
-                        ).resolveSelection()
-                    }
-                    is FavoriteReleasesResult.Partial -> {
-                        val favoriteState = if (result.items.isEmpty()) {
-                            HomeModeContentState.Loading
-                        } else {
-                            HomeModeContentState.Content(result.items)
-                        }
-                        state.copy(
-                            favoriteItems = result.items,
-                            favoritesModeState = favoriteState,
-                            favoriteSeriesCount = result.favoriteSeriesCount,
-                        ).resolveSelection()
-                    }
-                    is FavoriteReleasesResult.Unavailable -> {
-                        if (retainVisibleItemsOnFailure) {
-                            return@update state.copy(isFavoritesPaging = false).resolveSelection()
-                        }
-                        if (isPagingRequest && state.favoriteItems.isNotEmpty()) {
-                            return@update state.copy(
-                                isFavoritesPaging = false,
-                                favoritesPagingErrorMessage = result.message ?: "Не удалось загрузить избранное",
-                            ).resolveSelection()
-                        }
-                        val favoriteState = when {
-                            result.message.isNullOrBlank() -> HomeModeContentState.Error("Не удалось загрузить избранное")
-                            result.message.contains("Войдите", ignoreCase = true) -> HomeModeContentState.LoginRequired(result.message)
-                            else -> HomeModeContentState.Error(result.message)
-                        }
-                        state.copy(
-                            favoriteItems = emptyList(),
-                            favoritesModeState = favoriteState,
-                            favoriteSeriesCount = null,
-                            isFavoritesPaging = false,
-                            favoritesPagingErrorMessage = null,
-                        ).resolveSelection()
                     }
                 }
+            } catch (exception: CancellationException) {
+                throw exception
             }
         }
     }

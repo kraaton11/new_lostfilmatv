@@ -30,6 +30,7 @@ import com.kraat.lostfilmnewtv.updates.ReleaseApkLauncher
 import com.kraat.lostfilmnewtv.updates.UpdateHttpClientFactory
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.ui.settings.AppSettingsDataManager
+import kotlinx.coroutines.flow.last
 import com.kraat.lostfilmnewtv.ui.settings.AppSettingsDiagnosticsRunner
 import com.kraat.lostfilmnewtv.ui.settings.OkHttpTorrServeEndpointChecker
 import com.kraat.lostfilmnewtv.ui.settings.SettingsDataManager
@@ -174,7 +175,7 @@ object AppModule {
     ): HomeChannelContentRepository = HomeChannelContentRepository(
         releaseDao = releaseDao,
         tmdbResolver = tmdbResolver,
-        loadFavoriteReleases = { repository.loadFavoriteReleases() },
+        loadFavoriteReleases = { repository.observeFavoriteReleases().last() },
     )
 
     @Provides

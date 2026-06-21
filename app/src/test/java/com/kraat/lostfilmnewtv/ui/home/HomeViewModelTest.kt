@@ -1267,10 +1267,10 @@ private class FakeLostFilmRepository(
         return FavoriteMutationResult.RequiresLogin()
     }
 
-    override suspend fun loadFavoriteReleases(pageNumber: Int): FavoriteReleasesResult {
+    override fun observeFavoriteReleases(pageNumber: Int): Flow<FavoriteReleasesResult> {
         favoriteReleaseCalls += 1
         favoriteReleaseRequests += pageNumber
-        return favoriteReleaseResults.removeFirstOrNull() ?: FavoriteReleasesResult.Unavailable()
+        return flow { emit(favoriteReleaseResults.removeFirstOrNull() ?: FavoriteReleasesResult.Unavailable()) }
     }
 
     override suspend fun loadFavoriteSeries(): FavoriteSeriesResult {

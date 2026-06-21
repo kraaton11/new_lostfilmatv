@@ -688,10 +688,6 @@ private class RouteFakeDetailsRepository(
         }
     }
 
-    override suspend fun loadFavoriteReleases(pageNumber: Int): FavoriteReleasesResult {
-        return FavoriteReleasesResult.Unavailable()
-    }
-
     companion object {
         fun success(
             detailsUrl: String,

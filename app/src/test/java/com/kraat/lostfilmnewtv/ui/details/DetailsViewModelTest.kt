@@ -653,10 +653,6 @@ private class PreviewThenExtrasRepository(
     override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult {
         return FavoriteMutationResult.RequiresLogin()
     }
-
-    override suspend fun loadFavoriteReleases(pageNumber: Int): FavoriteReleasesResult {
-        return FavoriteReleasesResult.Unavailable()
-    }
 }
 
 private class FakeDetailsRepository(
@@ -680,10 +676,6 @@ private class FakeDetailsRepository(
         targetWatched
 
     override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult = favoriteResult.await()
-
-    override suspend fun loadFavoriteReleases(pageNumber: Int): FavoriteReleasesResult {
-        return FavoriteReleasesResult.Unavailable()
-    }
 }
 
 private class SequencedDetailsRepository(
@@ -709,10 +701,6 @@ private class SequencedDetailsRepository(
 
     override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult {
         return FavoriteMutationResult.RequiresLogin()
-    }
-
-    override suspend fun loadFavoriteReleases(pageNumber: Int): FavoriteReleasesResult {
-        return FavoriteReleasesResult.Unavailable()
     }
 }
 
@@ -741,10 +729,6 @@ private class ReloadingDetailsRepository(
 
     override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult {
         return FavoriteMutationResult.RequiresLogin()
-    }
-
-    override suspend fun loadFavoriteReleases(pageNumber: Int): FavoriteReleasesResult {
-        return FavoriteReleasesResult.Unavailable()
     }
 }
 

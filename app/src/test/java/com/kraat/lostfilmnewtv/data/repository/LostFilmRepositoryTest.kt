@@ -30,6 +30,7 @@ import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolverImpl
 import java.io.IOException
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.flow.last
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -1182,7 +1183,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.loadFavoriteReleases()
+        val result = repository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -1325,7 +1326,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.loadFavoriteReleases()
+        val result = repository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -1406,7 +1407,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.loadFavoriteReleases()
+        val result = repository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -1462,7 +1463,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.loadFavoriteReleases()
+        val result = repository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -1521,7 +1522,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.loadFavoriteReleases()
+        val result = repository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -1580,7 +1581,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.loadFavoriteReleases()
+        val result = repository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -1660,7 +1661,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.loadFavoriteReleases()
+        val result = repository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -1724,7 +1725,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.loadFavoriteReleases()
+        val result = repository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -1820,7 +1821,7 @@ class LostFilmRepositoryTest {
         isAuthenticated = true,
     )
 
-    val result = repository.loadFavoriteReleases()
+    val result = repository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -1898,7 +1899,7 @@ class LostFilmRepositoryTest {
             tmdbResolver = tmdbResolver,
         )
 
-        val result = repository.loadFavoriteReleases()
+        val result = repository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -1981,7 +1982,7 @@ class LostFilmRepositoryTest {
             tmdbResolver = tmdbResolver,
         )
 
-        val result = repository.loadFavoriteReleases()
+        val result = repository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -2009,7 +2010,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.loadFavoriteReleases()
+        val result = repository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Unavailable)
     }

@@ -173,10 +173,6 @@ private class FakeSeriesGuideRepository(
         return FavoriteMutationResult.RequiresLogin()
     }
 
-    override suspend fun loadFavoriteReleases(pageNumber: Int): FavoriteReleasesResult {
-        return FavoriteReleasesResult.Unavailable()
-    }
-
     companion object {
         fun success(selectedEpisodeUrl: String): FakeSeriesGuideRepository {
             return FakeSeriesGuideRepository(
