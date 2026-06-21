@@ -74,6 +74,7 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 
+private const val TAG = "LostFilmRepository"
 private const val FRESH_WINDOW_MS = 6 * 60 * 60 * 1000L
 private const val RETENTION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000L
 private const val FAVORITE_RELEASES_MAX_EPISODES_PER_SEASON = Int.MAX_VALUE
@@ -439,7 +440,8 @@ class LostFilmRepositoryImpl(
                         refreshCachedTorrentLinksIfNeeded(details)
                     } catch (exception: CancellationException) {
                         throw exception
-                    } catch (_: Exception) {
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to refresh cached torrent links", e)
                         details
                     }
                 }
@@ -448,7 +450,8 @@ class LostFilmRepositoryImpl(
                         refreshFavoriteMetadataIfNeeded(details)
                     } catch (exception: CancellationException) {
                         throw exception
-                    } catch (_: Exception) {
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to refresh favorite metadata", e)
                         details
                     }
                 }
@@ -463,7 +466,8 @@ class LostFilmRepositoryImpl(
                         )
                     } catch (exception: CancellationException) {
                         throw exception
-                    } catch (_: Exception) {
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to resolve TMDB poster for details extras", e)
                         null
                     }
                 }
@@ -515,7 +519,8 @@ class LostFilmRepositoryImpl(
                                     serialId = serialId,
                                 ),
                             )
-                        } catch (_: IOException) {
+                        } catch (e: IOException) {
+                            Log.w(TAG, "Failed to fetch watched marks for series guide", e)
                             emptySet()
                         }
                     }
@@ -702,7 +707,8 @@ class LostFilmRepositoryImpl(
                 fetchedPosterUrl
             } catch (exception: CancellationException) {
                 throw exception
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to fetch schedule poster from LostFilm", e)
                 null
             }
         }
@@ -724,7 +730,8 @@ class LostFilmRepositoryImpl(
                 )
             }
             watchedState
-        } catch (_: IOException) {
+        } catch (e: IOException) {
+            Log.w(TAG, "Failed to load watched state", e)
             null
         }
     }
@@ -803,7 +810,8 @@ class LostFilmRepositoryImpl(
                 invalidateFavoriteReleasesCache()
             }
             effectiveWatched
-        } catch (_: IOException) {
+        } catch (e: IOException) {
+            Log.w(TAG, "Failed to set episode watched state", e)
             null
         }
     }
@@ -853,7 +861,8 @@ class LostFilmRepositoryImpl(
             } else {
                 FavoriteMutationResult.Error("Не удалось обновить избранное")
             }
-        } catch (_: IOException) {
+        } catch (e: IOException) {
+            Log.w(TAG, "Failed to toggle favorite", e)
             FavoriteMutationResult.Error("Не удалось обновить избранное")
         }
     }
@@ -960,7 +969,8 @@ class LostFilmRepositoryImpl(
             ))
         } catch (exception: CancellationException) {
             throw exception
-        } catch (_: IOException) {
+        } catch (e: IOException) {
+            Log.w(TAG, "Failed to load favorite releases", e)
             send(FavoriteReleasesResult.Unavailable())
         }
     }
@@ -1005,7 +1015,8 @@ class LostFilmRepositoryImpl(
                         val seasonsUrl = "${series.seriesUrl.trimEnd('/')}/seasons"
                         val seasonsHtml = try {
                             httpClient.fetchDetails(seasonsUrl)
-                        } catch (_: IOException) {
+                        } catch (e: IOException) {
+                            Log.w(TAG, "Failed to fetch seasons page for favorite series", e)
                             return@withPermit SeriesLoadResult(emptyList(), loaded = false)
                         }
                         val watchedEpisodeIdsFromMarks = seasonEpisodesParser.parseSerialId(seasonsHtml)
@@ -1017,7 +1028,8 @@ class LostFilmRepositoryImpl(
                                             serialId = serialId,
                                         ),
                                     )
-                                } catch (_: IOException) {
+                                } catch (e: IOException) {
+                                    Log.w(TAG, "Failed to fetch watched marks for favorite series", e)
                                     emptySet()
                                 }
                             }
@@ -1027,7 +1039,8 @@ class LostFilmRepositoryImpl(
                                 seasonEpisodesParser.parseWatchedEpisodeIdsFromPage(
                                     httpClient.fetchDetails(series.seriesUrl),
                                 )
-                            } catch (_: IOException) {
+                            } catch (e: IOException) {
+                                Log.w(TAG, "Failed to fetch watched state from series root page", e)
                                 emptySet()
                             }
                         } else {
@@ -1132,7 +1145,8 @@ class LostFilmRepositoryImpl(
             )
 
             FavoriteSeriesResult.Success(enrichedItems)
-        } catch (_: IOException) {
+        } catch (e: IOException) {
+            Log.w(TAG, "Failed to load favorite series list", e)
             FavoriteSeriesResult.Unavailable()
         }
     }
@@ -1345,7 +1359,8 @@ class LostFilmRepositoryImpl(
                                         serialId = serialId,
                                     ),
                                 )
-                            } catch (_: IOException) {
+                            } catch (e: IOException) {
+                                Log.w(TAG, "Failed to fetch watched marks for new releases page", e)
                                 null
                             }
                         }
@@ -1412,7 +1427,8 @@ class LostFilmRepositoryImpl(
                 try {
                     val torrentPageHtml = httpClient.fetchTorrentPage(torrentLinks.first().url)
                     detailsParser.parseTorrentLinks(torrentPageHtml).ifEmpty { torrentLinks }
-                } catch (_: IOException) {
+                } catch (e: IOException) {
+                    Log.w(TAG, "Failed to expand single-variant torrent link", e)
                     torrentLinks
                 }
             } else {
@@ -1425,7 +1441,8 @@ class LostFilmRepositoryImpl(
             details.copy(
                 torrentLinks = expandedLinks,
             )
-        } catch (_: IOException) {
+        } catch (e: IOException) {
+            Log.w(TAG, "Failed to fetch torrent redirect", e)
             details
         }
     }
@@ -1442,7 +1459,7 @@ class LostFilmRepositoryImpl(
                 val html = httpClient.fetchDetails(resolveUrl(details.detailsUrl))
                 val pid = detailsParser.parsePlayEpisodeId(html)
                 if (pid != null) details.copy(playEpisodeId = pid) else null
-            } catch (_: Exception) { null }
+            } catch (e: Exception) { Log.w(TAG, "Failed to re-fetch playEpisodeId", e); null }
             if (refreshed == null) {
                 Log.d("REFRESH_TORRENT", "still no playEpisodeId after re-fetch")
                 return details
@@ -1529,7 +1546,8 @@ class LostFilmRepositoryImpl(
         for (metadataPageUrl in metadataPageUrls) {
             val metadataHtml = try {
                 httpClient.fetchDetails(metadataPageUrl)
-            } catch (_: IOException) {
+            } catch (e: IOException) {
+                Log.w(TAG, "Failed to fetch favorite metadata page", e)
                 continue
             }
             enriched = enriched.withSeriesStatus(detailsParser.parseSeriesStatus(metadataHtml))
@@ -1579,7 +1597,8 @@ class LostFilmRepositoryImpl(
             } else {
                 details.copy(torrentLinks = parsedLinks)
             }
-        } catch (_: IOException) {
+        } catch (e: IOException) {
+            Log.w(TAG, "Failed to expand generic torrent links", e)
             details
         }
     }
@@ -1672,7 +1691,8 @@ class LostFilmRepositoryImpl(
         return try {
             val detailsHtml = httpClient.fetchDetails(resolveUrl(detailsUrl))
             detailsParser.parsePlayEpisodeId(detailsHtml) != null
-        } catch (_: IOException) {
+        } catch (e: IOException) {
+            Log.w(TAG, "Failed to check if favorite release is published today", e)
             false
         }
     }
@@ -1680,7 +1700,8 @@ class LostFilmRepositoryImpl(
     private fun parseFavoriteReleaseDate(value: String): LocalDate? {
         return try {
             LocalDate.parse(value, favoriteReleaseDateFormatter)
-        } catch (_: DateTimeParseException) {
+        } catch (e: DateTimeParseException) {
+            Log.w(TAG, "Failed to parse favorite release date", e)
             null
         }
     }
