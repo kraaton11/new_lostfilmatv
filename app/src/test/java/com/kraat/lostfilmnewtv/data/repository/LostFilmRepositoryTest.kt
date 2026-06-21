@@ -33,6 +33,7 @@ import java.io.IOException
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.flow.last
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -100,6 +101,39 @@ class LostFilmRepositoryTest {
         assertTrue(result is PageState.Error)
         assertTrue(releaseDao.getPageSummaries(1).isEmpty())
         assertTrue(releaseDao.getPageMetadata(1) == null)
+    }
+
+    @Test
+    fun observeNewReleases_skipsNetwork_whenRoomCacheIsFresh() = runTest {
+        // Seed Room with cache fetched 5 minutes ago — within 10-min TTL.
+        seedPage(pageNumber = 1, fetchedAt = NOW - 5 * 60 * 1000L)
+        val repository = createRepository(
+            // Network handler would error if called.
+            pageHandler = { error("Fresh Room cache should prevent network request") },
+        )
+
+        val emissions = repository.observeNewReleases(1).toList()
+
+        assertEquals(1, emissions.size)
+        val result = emissions.single() as PageState.Content
+        assertFalse(result.isStale)
+        assertEquals("9-1-1", result.items.first().titleRu)
+    }
+
+    @Test
+    fun observeNewReleases_hitsNetwork_whenRoomCacheIsStale() = runTest {
+        // Seed Room with cache fetched 15 minutes ago — outside 10-min TTL.
+        seedPage(pageNumber = 1, fetchedAt = NOW - 15 * 60 * 1000L)
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+        )
+
+        val emissions = repository.observeNewReleases(1).toList()
+
+        // Expect 2 emissions: stale Room cache, then fresh network result.
+        assertEquals(2, emissions.size)
+        assertTrue((emissions[0] as PageState.Content).isStale)
+        assertFalse((emissions[1] as PageState.Content).isStale)
     }
 
     @Test

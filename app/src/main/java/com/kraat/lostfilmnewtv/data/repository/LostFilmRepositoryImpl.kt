@@ -89,6 +89,10 @@ private const val FAVORITE_RELEASES_CACHE_TTL_MS = 2 * 60 * 1000L
 // How long the Room-persisted favorite-releases cache stays fresh. While the cache is fresh,
 // observeFavoriteReleases skips the expensive fan-out and serves data directly from Room.
 private const val FAVORITE_RELEASES_ROOM_FRESH_MS = 15 * 60 * 1000L
+
+// How long the Room-persisted page 1 cache stays fresh. While the cache is fresh,
+// observeNewReleases skips the network request and serves data directly from Room.
+private const val NEW_RELEASES_ROOM_FRESH_MS = 10 * 60 * 1000L
 private const val MOVIES_PAGE_SIZE = 20
 private const val SERIES_CATALOG_PAGE_SIZE = 20
 private const val CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000L
@@ -207,18 +211,22 @@ class LostFilmRepositoryImpl(
         //    поэтому в HomeViewModel на cache-эмиссии нужно одновременно сбросить этот флаг
         //    и fullScreenErrorMessage, иначе UI решит, что данных нет.
         val cachedItems = releaseDao.getSummariesUpToPage(pageNumber).toSummaryModels()
+        val metadata = if (cachedItems.isNotEmpty()) releaseDao.getPageMetadata(pageNumber) else null
         if (cachedItems.isNotEmpty()) {
-            val metadata = releaseDao.getPageMetadata(pageNumber)
+            val cacheFresh = metadata != null &&
+                (clock() - metadata.fetchedAt) < NEW_RELEASES_ROOM_FRESH_MS
             emit(
                 PageState.Content(
                     pageNumber = pageNumber,
                     items = cachedItems,
                     hasNextPage = metadata?.hasNextPage ?: true,
-                    isStale = true,
+                    isStale = !cacheFresh,
                 ),
             )
+            // Если кэш свежий — пропускаем сетевой запрос.
+            if (cacheFresh) return@flow
         }
-        // 2. Затем всегда запускаем свежую загрузку. Если сеть упала, а кэш был показан,
+        // 2. Запускаем свежую загрузку. Если сеть упала, а кэш был показан,
         //    HomeViewModel сам решит не стирать items (retainVisibleItemsOnFailure-семантика).
         //    Контекст исполнения приходит от коллектора (ViewModel запускает collect на ioDispatcher).
         emit(loadPage(pageNumber))
