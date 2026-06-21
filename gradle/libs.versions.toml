@@ -1,7 +1,7 @@
 [versions]
 agp = "8.9.0"
 kotlin = "2.1.20"
-composeBom = "2023.10.01"
+composeBom = "2024.09.00"
 tvMaterial = "1.1.0-beta01"
 tvFoundation = "1.0.0-alpha12"
 tvProvider = "1.1.0"
