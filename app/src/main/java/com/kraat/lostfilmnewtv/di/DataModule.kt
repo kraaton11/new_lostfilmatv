@@ -54,11 +54,13 @@ object DataModule {
     @Singleton
     fun provideLostFilmRepository(
         @AuthenticatedHttpClient httpClient: LostFilmHttpClient,
+        @AnonymousHttpClient anonymousHttpClient: LostFilmHttpClient,
         releaseDao: ReleaseDao,
         tmdbResolver: TmdbPosterResolver,
         sessionStore: EncryptedSessionStore,
     ): LostFilmRepository = LostFilmRepositoryImpl(
         httpClient = httpClient,
+        anonymousHttpClient = anonymousHttpClient,
         releaseDao = releaseDao,
         listParser = LostFilmListParser(),
         detailsParser = LostFilmDetailsParser(),
