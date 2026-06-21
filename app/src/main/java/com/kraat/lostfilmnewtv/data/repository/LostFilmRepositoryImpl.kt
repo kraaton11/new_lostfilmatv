@@ -63,6 +63,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
@@ -842,18 +843,16 @@ class LostFilmRepositoryImpl(
         }
     }
 
-    override suspend fun loadFavoriteReleases(pageNumber: Int): FavoriteReleasesResult {
+    override fun observeFavoriteReleases(pageNumber: Int): Flow<FavoriteReleasesResult> = channelFlow {
         if (!hasAuthenticatedSession()) {
-            return FavoriteReleasesResult.Unavailable("Войдите в LostFilm")
+            send(FavoriteReleasesResult.Unavailable("Войдите в LostFilm"))
+            return@channelFlow
         }
 
         val normalizedPageNumber = pageNumber.coerceAtLeast(1)
 
-        return try {
-            // Page 1 is the start of a new listing session, so it always refreshes from the
-            // network (this is also how callers implement pull-to-refresh). Pages beyond that
-            // are only ever requested to continue scrolling an already-visible list, so they
-            // reuse the cached full listing instead of re-running the whole per-series fan-out.
+        try {
+            // Pages > 1 read from in-memory cache — no streaming needed, emit Success directly.
             val cached = favoriteReleasesCacheMutex.withLock { favoriteReleasesCache }
             val canReuseCache = normalizedPageNumber > 1 &&
                 cached != null &&
@@ -862,7 +861,16 @@ class LostFilmRepositoryImpl(
             val (allItems, favoriteSeriesCount) = if (canReuseCache) {
                 cached!!.allItems to cached.favoriteSeriesCount
             } else {
-                val fetched = fetchAllFavoriteReleases() ?: return FavoriteReleasesResult.Unavailable()
+                // Page 1: run fan-out with streaming partial results.
+                val fetched = fetchAllFavoriteReleasesStreaming(
+                    onPartial = { partialItems, total ->
+                        // Emit unenriched partial results so the UI can show items immediately.
+                        send(FavoriteReleasesResult.Partial(items = partialItems, favoriteSeriesCount = total))
+                    },
+                ) ?: run {
+                    send(FavoriteReleasesResult.Unavailable())
+                    return@channelFlow
+                }
                 favoriteReleasesCacheMutex.withLock {
                     favoriteReleasesCache = FavoriteReleasesCache(
                         allItems = fetched.allItems,
@@ -882,14 +890,16 @@ class LostFilmRepositoryImpl(
             val enrichedItems = enrichSummaries(items)
                 .mapIndexed { index, item -> item.copy(positionInPage = pageOffset + index) }
 
-            FavoriteReleasesResult.Success(
+            send(FavoriteReleasesResult.Success(
                 items = enrichedItems,
                 pageNumber = normalizedPageNumber,
                 hasNextPage = allItems.size > pageOffset + FAVORITE_RELEASES_PAGE_SIZE,
                 favoriteSeriesCount = favoriteSeriesCount,
-            )
+            ))
+        } catch (exception: CancellationException) {
+            throw exception
         } catch (_: IOException) {
-            FavoriteReleasesResult.Unavailable()
+            send(FavoriteReleasesResult.Unavailable())
         }
     }
 
@@ -1008,7 +1018,129 @@ class LostFilmRepositoryImpl(
         return AllFavoriteReleasesFetch(allItems = allItems, favoriteSeriesCount = favoriteSeries.size)
     }
 
-    /** Drops the cached favorite-releases listing so the next [loadFavoriteReleases] call refetches it. */
+    /**
+     * Streaming variant of [fetchAllFavoriteReleases]. After each favorite series finishes loading,
+     * calls [onPartial] with the accumulated items so far so callers can emit intermediate results.
+     * Returns null only when nothing could be loaded at all (every request failed).
+     */
+    private suspend fun fetchAllFavoriteReleasesStreaming(
+        onPartial: suspend (items: List<ReleaseSummary>, favoriteSeriesCount: Int) -> Unit,
+    ): AllFavoriteReleasesFetch? {
+        val favoritesHtml = httpClient.fetchAccountPage(favoriteSeriesRoute)
+        val favoriteSeries = favoriteSeriesParser.parse(favoritesHtml)
+        if (favoriteSeries.isEmpty()) {
+            return AllFavoriteReleasesFetch(allItems = emptyList(), favoriteSeriesCount = 0)
+        }
+
+        val fetchedAt = clock()
+        val today = currentFavoriteReleaseDate()
+        val totalSeriesCount = favoriteSeries.size
+
+        val favoriteSeriesSemaphore = Semaphore(FAVORITE_SERIES_LOAD_CONCURRENCY)
+        data class SeriesLoadResult(
+            val items: List<ReleaseSummary>,
+            val loaded: Boolean,
+        )
+
+        // Shared accumulator — updated from concurrent coroutines, protected by a mutex.
+        val accumulatedMutex = Mutex()
+        var accumulatedItems: List<ReleaseSummary> = emptyList()
+
+        val seriesResults = coroutineScope {
+            favoriteSeries.map { series ->
+                async {
+                    favoriteSeriesSemaphore.withPermit {
+                        val seasonsUrl = "${series.seriesUrl.trimEnd('/')}/seasons"
+                        val seasonsHtml = try {
+                            httpClient.fetchDetails(seasonsUrl)
+                        } catch (_: IOException) {
+                            return@withPermit SeriesLoadResult(emptyList(), loaded = false)
+                        }
+                        val watchedEpisodeIdsFromMarks = seasonEpisodesParser.parseSerialId(seasonsHtml)
+                            ?.let { serialId ->
+                                try {
+                                    seasonEpisodesParser.parseWatchedEpisodeIds(
+                                        httpClient.fetchSeasonWatchedEpisodeMarks(
+                                            refererUrl = seasonsUrl,
+                                            serialId = serialId,
+                                        ),
+                                    )
+                                } catch (_: IOException) {
+                                    emptySet()
+                                }
+                            }
+                            .orEmpty()
+                        val watchedEpisodeIdsFromSeriesRoot = if (watchedEpisodeIdsFromMarks.isEmpty()) {
+                            try {
+                                seasonEpisodesParser.parseWatchedEpisodeIdsFromPage(
+                                    httpClient.fetchDetails(series.seriesUrl),
+                                )
+                            } catch (_: IOException) {
+                                emptySet()
+                            }
+                        } else {
+                            emptySet()
+                        }
+                        val watchedEpisodeIds = watchedEpisodeIdsFromSeriesRoot + watchedEpisodeIdsFromMarks
+                        val seriesItems = withContext(Dispatchers.Default) {
+                            seasonEpisodesParser.parse(
+                                html = seasonsHtml,
+                                series = series,
+                                fetchedAt = fetchedAt,
+                                watchedEpisodeIds = watchedEpisodeIds,
+                                maxEpisodesPerSeason = FAVORITE_RELEASES_MAX_EPISODES_PER_SEASON,
+                                maxSeasons = FAVORITE_RELEASES_MAX_SEASONS_PER_SERIES,
+                            )
+                        }
+
+                        // Accumulate and emit partial result after this series finishes.
+                        if (seriesItems.isNotEmpty()) {
+                            val snapshot = accumulatedMutex.withLock {
+                                accumulatedItems = (accumulatedItems + seriesItems).distinctBy { it.detailsUrl }
+                                accumulatedItems
+                            }
+                            onPartial(snapshot, totalSeriesCount)
+                        }
+
+                        SeriesLoadResult(items = seriesItems, loaded = true)
+                    }
+                }
+            }.awaitAll()
+        }
+
+        val loadedAnySeasonPage = seriesResults.any { it.loaded }
+        val rawItems = seriesResults
+            .flatMap { it.items }
+            .distinctBy { it.detailsUrl }
+
+        val publishCheckSemaphore = Semaphore(FAVORITE_PUBLISH_CHECK_CONCURRENCY)
+        val allItems = coroutineScope {
+            rawItems.map { item ->
+                async {
+                    publishCheckSemaphore.withPermit {
+                        val releaseDate = parseFavoriteReleaseDate(item.releaseDateRu) ?: return@withPermit null
+                        when {
+                            releaseDate.isBefore(today) -> item
+                            releaseDate.isAfter(today) -> null
+                            isFavoriteReleasePublishedToday(item.detailsUrl) -> item
+                            else -> null
+                        }
+                    }
+                }
+            }.awaitAll()
+        }
+            .filterNotNull()
+            .sortedByDescending { parseFavoriteReleaseDate(it.releaseDateRu) ?: LocalDate.MIN }
+            .mapIndexed { index, item -> item.copy(positionInPage = index) }
+
+        if (allItems.isEmpty() && !loadedAnySeasonPage) {
+            return null
+        }
+
+        return AllFavoriteReleasesFetch(allItems = allItems, favoriteSeriesCount = favoriteSeries.size)
+    }
+
+    /** Drops the cached favorite-releases listing so the next [observeFavoriteReleases] call refetches it. */
     private suspend fun invalidateFavoriteReleasesCache() {
         favoriteReleasesCacheMutex.withLock { favoriteReleasesCache = null }
     }
