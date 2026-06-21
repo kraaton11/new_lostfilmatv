@@ -19,6 +19,12 @@ import com.kraat.lostfilmnewtv.data.model.ScheduleMonth
 import com.kraat.lostfilmnewtv.data.model.SeriesGuide
 import com.kraat.lostfilmnewtv.data.model.SeriesOverview
 import com.kraat.lostfilmnewtv.data.model.TmdbImageUrls
+import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.FAVORITE_PUBLISH_CHECK_CONCURRENCY
+import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.FAVORITE_SERIES_LOAD_CONCURRENCY
+import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.SCHEDULE_IMAGE_ENRICHMENT_CONCURRENCY
+import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.SEARCH_ENRICHMENT_CONCURRENCY
+import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.SUMMARY_ENRICHMENT_CONCURRENCY
+import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.WATCHED_MARKS_LOAD_CONCURRENCY
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.parser.BASE_URL
 import com.kraat.lostfilmnewtv.data.parser.FavoriteSeriesRef
@@ -70,15 +76,12 @@ private const val RETENTION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000L
 private const val FAVORITE_RELEASES_MAX_EPISODES_PER_SEASON = Int.MAX_VALUE
 private const val FAVORITE_RELEASES_PAGE_SIZE = 30
 private const val FAVORITE_RELEASES_MAX_SEASONS_PER_SERIES = 1
-private const val FAVORITE_SERIES_LOAD_CONCURRENCY = 6
 
 // How long the full favorite-releases listing (see [LostFilmRepositoryImpl.favoriteReleasesCache])
 // stays valid before we re-fetch it from the network on page 1. Pages beyond the first always
 // reuse whatever is cached, however stale, since they are only requested while a paging session
 // for the same listing is still in progress.
 private const val FAVORITE_RELEASES_CACHE_TTL_MS = 2 * 60 * 1000L
-private const val FAVORITE_PUBLISH_CHECK_CONCURRENCY = 6
-private const val WATCHED_MARKS_LOAD_CONCURRENCY = 4
 private const val MOVIES_PAGE_SIZE = 20
 private const val SERIES_CATALOG_PAGE_SIZE = 20
 private const val CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000L
@@ -633,7 +636,7 @@ class LostFilmRepositoryImpl(
 
         val cachedSummariesByUrl = releaseDao.getSummaries(missingPosterItems.map { it.targetUrl })
             .associateBy { it.detailsUrl }
-        val semaphore = Semaphore(4)
+        val semaphore = Semaphore(SCHEDULE_IMAGE_ENRICHMENT_CONCURRENCY)
         val posterUrlsByTargetUrl = coroutineScope {
             missingPosterItems.map { item ->
                 async {
@@ -715,7 +718,7 @@ class LostFilmRepositoryImpl(
             return emptyList()
         }
 
-        val semaphore = Semaphore(6)
+        val semaphore = Semaphore(SEARCH_ENRICHMENT_CONCURRENCY)
         return coroutineScope {
             items.map { item ->
                 async {
@@ -1096,7 +1099,7 @@ class LostFilmRepositoryImpl(
         }
 
         // Cap TMDB enrichment fan-out so one page load cannot create dozens of simultaneous HTTP calls.
-        val semaphore = Semaphore(6)
+        val semaphore = Semaphore(SUMMARY_ENRICHMENT_CONCURRENCY)
         val enrichedItems = coroutineScope {
             items.map { item ->
                 async {

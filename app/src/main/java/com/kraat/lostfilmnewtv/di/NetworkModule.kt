@@ -3,6 +3,7 @@ package com.kraat.lostfilmnewtv.di
 import android.content.Context
 import com.kraat.lostfilmnewtv.data.auth.EncryptedSessionStore
 import com.kraat.lostfilmnewtv.data.network.AuthBridgeClient
+import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.LOSTFILM_MAX_CONCURRENT_REQUESTS
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.network.OkHttpLostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.network.TmdbPosterClient
@@ -16,6 +17,7 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Qualifier
 import javax.inject.Singleton
 import okhttp3.Cache
+import okhttp3.Dispatcher
 import okhttp3.OkHttpClient
 
 @Qualifier
@@ -42,13 +44,27 @@ object NetworkModule {
      * unauthenticated request — returning stale/wrong personalized data. So instead of one
      * shared cache, each client below that actually wants caching gets its own dedicated
      * [Cache] instance.
+     *
+     * The dispatcher's [Dispatcher.maxRequestsPerHost] is the single, transport-level place that
+     * caps how many requests this app can have in flight against lostfilm.today at once. Repository
+     * code used to additionally hand-roll its own `Semaphore(4)` / `Semaphore(6)` per call site to
+     * avoid flooding the site — those still exist (they bound *logical* work, e.g. how many
+     * favorite series are processed concurrently), but this dispatcher limit is what actually
+     * guarantees the app never exceeds [LOSTFILM_MAX_CONCURRENT_REQUESTS] simultaneous HTTP
+     * requests against the site, app-wide, regardless of which code path issues them.
      */
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(20, TimeUnit.SECONDS)
-        .build()
+    fun provideOkHttpClient(): OkHttpClient {
+        val dispatcher = Dispatcher().apply {
+            maxRequestsPerHost = LOSTFILM_MAX_CONCURRENT_REQUESTS
+        }
+        return OkHttpClient.Builder()
+            .dispatcher(dispatcher)
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(20, TimeUnit.SECONDS)
+            .build()
+    }
 
     @Provides
     @Singleton
