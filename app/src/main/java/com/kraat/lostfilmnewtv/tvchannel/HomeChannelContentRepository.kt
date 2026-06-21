@@ -49,6 +49,7 @@ class HomeChannelContentRepository(
     override suspend fun loadFavoritePrograms(limit: Int): List<HomeChannelProgram> {
         val items = when (val result = loadFavoriteReleases()) {
             is FavoriteReleasesResult.Success -> result.items.take(limit)
+            is FavoriteReleasesResult.Partial -> result.items.take(limit)
             is FavoriteReleasesResult.Unavailable -> return emptyList()
         }
 

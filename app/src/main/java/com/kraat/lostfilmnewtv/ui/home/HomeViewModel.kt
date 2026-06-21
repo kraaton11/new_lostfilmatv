@@ -561,6 +561,18 @@ class HomeViewModel @Inject constructor(
                             favoritesHasNextPage = result.hasNextPage,
                         ).resolveSelection()
                     }
+                    is FavoriteReleasesResult.Partial -> {
+                        val favoriteState = if (result.items.isEmpty()) {
+                            HomeModeContentState.Loading
+                        } else {
+                            HomeModeContentState.Content(result.items)
+                        }
+                        state.copy(
+                            favoriteItems = result.items,
+                            favoritesModeState = favoriteState,
+                            favoriteSeriesCount = result.favoriteSeriesCount,
+                        ).resolveSelection()
+                    }
                     is FavoriteReleasesResult.Unavailable -> {
                         if (retainVisibleItemsOnFailure) {
                             return@update state.copy(isFavoritesPaging = false).resolveSelection()
