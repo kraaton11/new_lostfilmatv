@@ -123,7 +123,6 @@ fun HomeRail(
                 .onPreviewKeyEvent { event ->
                     event.type == KeyEventType.KeyDown && handleVerticalNavigation(event.key)
                 }
-                .focusable()
                 .height(218.dp),
             horizontalArrangement = Arrangement.spacedBy(HOME_RAIL_CARD_SPACING),
             contentPadding = PaddingValues(
