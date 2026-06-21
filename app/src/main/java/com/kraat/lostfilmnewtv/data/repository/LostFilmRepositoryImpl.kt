@@ -101,6 +101,7 @@ private data class FavoriteMetadataPage(
 
 class LostFilmRepositoryImpl(
     private val httpClient: LostFilmHttpClient,
+    private val anonymousHttpClient: LostFilmHttpClient = httpClient,
     private val releaseDao: ReleaseDao,
     private val listParser: LostFilmListParser,
     private val detailsParser: LostFilmDetailsParser,
@@ -137,7 +138,7 @@ class LostFilmRepositoryImpl(
         return try {
             val fetchedAt = clock()
             val hasAuthenticatedSession = hasAuthenticatedSession()
-            val html = httpClient.fetchNewPage(pageNumber)
+            val html = anonymousHttpClient.fetchNewPage(pageNumber)
             val parsedItems = withContext(Dispatchers.Default) {
                 listParser.parse(
                     html = html,
@@ -221,7 +222,7 @@ class LostFilmRepositoryImpl(
 
         return try {
             val fetchedAt = clock()
-            val html = httpClient.fetchMoviesPage(pageNumber)
+            val html = anonymousHttpClient.fetchMoviesPage(pageNumber)
             val parsedItems = withContext(Dispatchers.Default) {
                 listParser.parse(
                     html = html,
@@ -257,7 +258,7 @@ class LostFilmRepositoryImpl(
     override suspend fun loadSeriesCatalog(pageNumber: Int): PageState {
         return try {
             val fetchedAt = clock()
-            val json = httpClient.fetchSeriesCatalogPage(pageNumber)
+            val json = anonymousHttpClient.fetchSeriesCatalogPage(pageNumber)
             val parsedItems = withContext(Dispatchers.Default) {
                 seriesCatalogParser.parseSearchJson(
                     json = json,
@@ -544,7 +545,7 @@ class LostFilmRepositoryImpl(
             ?: return SeriesOverviewResult.Error("Обзор недоступен")
 
         return try {
-            val overviewHtml = httpClient.fetchDetails(seriesRootUrl)
+            val overviewHtml = anonymousHttpClient.fetchDetails(seriesRootUrl)
             val parsedOverview = withContext(Dispatchers.Default) {
                 seriesOverviewParser.parse(
                     html = overviewHtml,
@@ -586,7 +587,7 @@ class LostFilmRepositoryImpl(
         return try {
             val encodedQuery = URLEncoder.encode(normalizedQuery, StandardCharsets.UTF_8.toString())
                 .replace("+", "%20")
-            val html = httpClient.fetchDetails("$BASE_URL/search/?q=$encodedQuery")
+            val html = anonymousHttpClient.fetchDetails("$BASE_URL/search/?q=$encodedQuery")
             val parsedItems = withContext(Dispatchers.Default) {
                 searchParser.parse(html)
             }
@@ -611,7 +612,7 @@ class LostFilmRepositoryImpl(
 
     override suspend fun loadSchedule(): ScheduleResult {
         return try {
-            val html = httpClient.fetchSchedulePage()
+            val html = anonymousHttpClient.fetchSchedulePage()
             val schedule = withContext(Dispatchers.Default) {
                 scheduleParser.parse(html)
             }
@@ -676,7 +677,7 @@ class LostFilmRepositoryImpl(
 
         return semaphore.withPermit {
             try {
-                val fetchedPosterUrl = detailsParser.parsePosterUrl(httpClient.fetchDetails(item.targetUrl))
+                val fetchedPosterUrl = detailsParser.parsePosterUrl(anonymousHttpClient.fetchDetails(item.targetUrl))
                     .takeIf { it.isLostFilmImageUrl() }
                 if (fetchedPosterUrl != null) {
                     releaseDao.getSummary(item.targetUrl)?.let { existing ->
