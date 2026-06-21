@@ -331,7 +331,7 @@ fun HomeScreen(
                 showLabels = shouldShowHomeMenuLabels,
                 menuLabelsEnabled = state.isHomeMenuLabelsEnabled,
                 onHomeMenuLabelsVisibilitySelected = onHomeMenuLabelsVisibilitySelected,
-                menuEnabled = !isSwitchingModeFromRail,
+                isVisualFocusEnabled = !isSwitchingModeFromRail,
                 modifier = Modifier
                     .width(if (shouldShowHomeMenuLabels) 204.dp else 68.dp)
                     .fillMaxHeight(),

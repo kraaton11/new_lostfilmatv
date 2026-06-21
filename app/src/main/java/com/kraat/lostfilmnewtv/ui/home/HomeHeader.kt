@@ -102,7 +102,7 @@ fun HomeHeader(
     showLabels: Boolean,
     menuLabelsEnabled: Boolean = showLabels,
     onHomeMenuLabelsVisibilitySelected: (Boolean) -> Unit,
-    menuEnabled: Boolean = true,
+    isVisualFocusEnabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val visibleModes = remember(availableModes) {
@@ -187,7 +187,7 @@ fun HomeHeader(
                     onInteraction = onHeaderInteraction,
                     onBackClick = onBackToContent,
                     showLabels = showLabels,
-                    menuEnabled = menuEnabled,
+                    isVisualFocusEnabled = isVisualFocusEnabled,
                     modifier = Modifier.testTag("home-mode-control"),
                 )
             } else {
@@ -206,7 +206,7 @@ fun HomeHeader(
                 onInteraction = onHeaderInteraction,
                 onBackClick = onBackToContent,
                 isPrimary = selectedNavItem == NavItem.SCHEDULE,
-                menuEnabled = menuEnabled,
+                isVisualFocusEnabled = isVisualFocusEnabled,
                 minWidth = if (showLabels) ExpandedMenuWidth - 36.dp else CollapsedMenuWidth - 20.dp,
                 hideSubtitle = true,
                 showLabel = showLabels,
@@ -234,7 +234,7 @@ fun HomeHeader(
                 onInteraction = onHeaderInteraction,
                 onBackClick = onBackToContent,
                 isPrimary = selectedNavItem == NavItem.SEARCH,
-                menuEnabled = menuEnabled,
+                isVisualFocusEnabled = isVisualFocusEnabled,
                 minWidth = if (showLabels) ExpandedMenuWidth - 36.dp else CollapsedMenuWidth - 20.dp,
                 hideSubtitle = true,
                 showLabel = showLabels,
@@ -263,7 +263,7 @@ fun HomeHeader(
                     onInteraction = onHeaderInteraction,
                     onBackClick = onBackToContent,
                     isPrimary = selectedNavItem == NavItem.UPDATE,
-                    menuEnabled = menuEnabled,
+                    isVisualFocusEnabled = isVisualFocusEnabled,
                     minWidth = if (showLabels) ExpandedMenuWidth - 36.dp else CollapsedMenuWidth - 20.dp,
                     hideSubtitle = true,
                     showLabel = showLabels,
@@ -293,7 +293,7 @@ fun HomeHeader(
                 onInteraction = onHeaderInteraction,
                 onBackClick = onBackToContent,
                 isPrimary = selectedNavItem == NavItem.SETTINGS,
-                menuEnabled = menuEnabled,
+                isVisualFocusEnabled = isVisualFocusEnabled,
                 minWidth = if (showLabels) ExpandedMenuWidth - 36.dp else CollapsedMenuWidth - 20.dp,
                 hideSubtitle = true,
                 showLabel = showLabels,
@@ -319,7 +319,7 @@ fun HomeHeader(
                 onLongClick = {},
                 onInteraction = onHeaderInteraction,
                 onBackClick = onBackToContent,
-                menuEnabled = menuEnabled,
+                isVisualFocusEnabled = isVisualFocusEnabled,
                 minWidth = if (showLabels) ExpandedMenuWidth - 36.dp else CollapsedMenuWidth - 20.dp,
                 hideSubtitle = true,
                 showLabel = showLabels,
@@ -391,7 +391,7 @@ private fun HomeHeaderModeSegmentedControl(
     onInteraction: () -> Unit,
     onBackClick: () -> Boolean,
     showLabels: Boolean,
-    menuEnabled: Boolean = true,
+    isVisualFocusEnabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val shape = MenuButtonShape
@@ -424,7 +424,7 @@ private fun HomeHeaderModeSegmentedControl(
                 onInteraction = onInteraction,
                 onBackClick = onBackClick,
                 showLabel = showLabels,
-                menuEnabled = menuEnabled,
+                isVisualFocusEnabled = isVisualFocusEnabled,
                 modifier = if (showLabels) Modifier.fillMaxWidth() else Modifier.width(CollapsedMenuWidth - 20.dp),
             )
         }
@@ -446,12 +446,13 @@ private fun HomeModeSegmentButton(
     onInteraction: () -> Unit,
     onBackClick: () -> Boolean,
     showLabel: Boolean,
-    menuEnabled: Boolean = true,
+    isVisualFocusEnabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     var isFocused by remember { mutableStateOf(false) }
+    val showFocusedStyle = isFocused && isVisualFocusEnabled
     val scale by animateFloatAsState(
-        targetValue = if (isFocused) 1.04f else 1f,
+        targetValue = if (showFocusedStyle) 1.04f else 1f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessMedium,
@@ -459,7 +460,7 @@ private fun HomeModeSegmentButton(
         label = "homeModeSegmentScale",
     )
     val shape = MenuButtonShape
-    val active = selected || isFocused
+    val active = selected || showFocusedStyle
     val contentColor = if (active) HomeAccentGoldGlow else HomeTextMuted
     Box(
         modifier = modifier
@@ -507,7 +508,7 @@ private fun HomeModeSegmentButton(
                 isFocused = it.isFocused
                 if (it.isFocused) onInteraction()
             }
-            .focusable(menuEnabled)
+            .focusable()
             .combinedClickable(
                 role = Role.Button,
                 onClick = onClick,
@@ -563,11 +564,12 @@ private fun HomeHeaderActionButton(
     hideSubtitle: Boolean = false,
     leadingIcon: HeaderActionIcon? = null,
     showLabel: Boolean = true,
-    menuEnabled: Boolean = true,
+    isVisualFocusEnabled: Boolean = true,
 ) {
     var isFocused by remember { mutableStateOf(false) }
+    val showFocusedStyle = isFocused && isVisualFocusEnabled
     val scale by animateFloatAsState(
-        targetValue = if (isFocused) 1.04f else 1f,
+        targetValue = if (showFocusedStyle) 1.04f else 1f,
         animationSpec = spring(
             dampingRatio = Spring.DampingRatioMediumBouncy,
             stiffness = Spring.StiffnessMedium,
@@ -576,11 +578,11 @@ private fun HomeHeaderActionButton(
     )
 
     val borderColor = when {
-        isPrimary || isFocused -> HomeAccentGold.copy(alpha = 0.86f)
+        isPrimary || showFocusedStyle -> HomeAccentGold.copy(alpha = 0.86f)
         else -> HomePanelBorder.copy(alpha = 0.10f)
     }
-    val textColor = if (isPrimary || isFocused) HomeAccentGoldGlow else HomeTextMuted
-    val subtitleColor = if (isPrimary || isFocused) HomeAccentGold.copy(alpha = 0.80f) else HomeTextMuted
+    val textColor = if (isPrimary || showFocusedStyle) HomeAccentGoldGlow else HomeTextMuted
+    val subtitleColor = if (isPrimary || showFocusedStyle) HomeAccentGold.copy(alpha = 0.80f) else HomeTextMuted
     val shape = MenuButtonShape
 
     Box(
@@ -614,8 +616,8 @@ private fun HomeHeaderActionButton(
             }
             .background(
                 brush = Brush.verticalGradient(
-                    0f to FocusBackground.copy(alpha = if (isPrimary || isFocused) 0.76f else 0.24f),
-                    1f to HomePanelSurfaceStrong.copy(alpha = if (isPrimary || isFocused) 0.90f else 0.46f),
+                    0f to FocusBackground.copy(alpha = if (isPrimary || showFocusedStyle) 0.76f else 0.24f),
+                    1f to HomePanelSurfaceStrong.copy(alpha = if (isPrimary || showFocusedStyle) 0.90f else 0.46f),
                 ),
                 shape = shape,
             )
@@ -626,7 +628,7 @@ private fun HomeHeaderActionButton(
                     onInteraction()
                 }
             }
-            .focusable(menuEnabled)
+            .focusable()
             .combinedClickable(
                 role = Role.Button,
                 onClick = onClick,
