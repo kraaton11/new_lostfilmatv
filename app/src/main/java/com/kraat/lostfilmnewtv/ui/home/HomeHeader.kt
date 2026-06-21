@@ -102,6 +102,7 @@ fun HomeHeader(
     showLabels: Boolean,
     menuLabelsEnabled: Boolean = showLabels,
     onHomeMenuLabelsVisibilitySelected: (Boolean) -> Unit,
+    menuEnabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val visibleModes = remember(availableModes) {
@@ -186,6 +187,7 @@ fun HomeHeader(
                     onInteraction = onHeaderInteraction,
                     onBackClick = onBackToContent,
                     showLabels = showLabels,
+                    menuEnabled = menuEnabled,
                     modifier = Modifier.testTag("home-mode-control"),
                 )
             } else {
@@ -204,6 +206,7 @@ fun HomeHeader(
                 onInteraction = onHeaderInteraction,
                 onBackClick = onBackToContent,
                 isPrimary = selectedNavItem == NavItem.SCHEDULE,
+                menuEnabled = menuEnabled,
                 minWidth = if (showLabels) ExpandedMenuWidth - 36.dp else CollapsedMenuWidth - 20.dp,
                 hideSubtitle = true,
                 showLabel = showLabels,
@@ -231,6 +234,7 @@ fun HomeHeader(
                 onInteraction = onHeaderInteraction,
                 onBackClick = onBackToContent,
                 isPrimary = selectedNavItem == NavItem.SEARCH,
+                menuEnabled = menuEnabled,
                 minWidth = if (showLabels) ExpandedMenuWidth - 36.dp else CollapsedMenuWidth - 20.dp,
                 hideSubtitle = true,
                 showLabel = showLabels,
@@ -259,6 +263,7 @@ fun HomeHeader(
                     onInteraction = onHeaderInteraction,
                     onBackClick = onBackToContent,
                     isPrimary = selectedNavItem == NavItem.UPDATE,
+                    menuEnabled = menuEnabled,
                     minWidth = if (showLabels) ExpandedMenuWidth - 36.dp else CollapsedMenuWidth - 20.dp,
                     hideSubtitle = true,
                     showLabel = showLabels,
@@ -288,6 +293,7 @@ fun HomeHeader(
                 onInteraction = onHeaderInteraction,
                 onBackClick = onBackToContent,
                 isPrimary = selectedNavItem == NavItem.SETTINGS,
+                menuEnabled = menuEnabled,
                 minWidth = if (showLabels) ExpandedMenuWidth - 36.dp else CollapsedMenuWidth - 20.dp,
                 hideSubtitle = true,
                 showLabel = showLabels,
@@ -313,6 +319,7 @@ fun HomeHeader(
                 onLongClick = {},
                 onInteraction = onHeaderInteraction,
                 onBackClick = onBackToContent,
+                menuEnabled = menuEnabled,
                 minWidth = if (showLabels) ExpandedMenuWidth - 36.dp else CollapsedMenuWidth - 20.dp,
                 hideSubtitle = true,
                 showLabel = showLabels,
@@ -384,6 +391,7 @@ private fun HomeHeaderModeSegmentedControl(
     onInteraction: () -> Unit,
     onBackClick: () -> Boolean,
     showLabels: Boolean,
+    menuEnabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     val shape = MenuButtonShape
@@ -416,6 +424,7 @@ private fun HomeHeaderModeSegmentedControl(
                 onInteraction = onInteraction,
                 onBackClick = onBackClick,
                 showLabel = showLabels,
+                menuEnabled = menuEnabled,
                 modifier = if (showLabels) Modifier.fillMaxWidth() else Modifier.width(CollapsedMenuWidth - 20.dp),
             )
         }
@@ -437,6 +446,7 @@ private fun HomeModeSegmentButton(
     onInteraction: () -> Unit,
     onBackClick: () -> Boolean,
     showLabel: Boolean,
+    menuEnabled: Boolean = true,
     modifier: Modifier = Modifier,
 ) {
     var isFocused by remember { mutableStateOf(false) }
@@ -497,7 +507,7 @@ private fun HomeModeSegmentButton(
                 isFocused = it.isFocused
                 if (it.isFocused) onInteraction()
             }
-            .focusable()
+            .focusable(menuEnabled)
             .combinedClickable(
                 role = Role.Button,
                 onClick = onClick,
@@ -553,6 +563,7 @@ private fun HomeHeaderActionButton(
     hideSubtitle: Boolean = false,
     leadingIcon: HeaderActionIcon? = null,
     showLabel: Boolean = true,
+    menuEnabled: Boolean = true,
 ) {
     var isFocused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(
@@ -615,7 +626,7 @@ private fun HomeHeaderActionButton(
                     onInteraction()
                 }
             }
-            .focusable()
+            .focusable(menuEnabled)
             .combinedClickable(
                 role = Role.Button,
                 onClick = onClick,
