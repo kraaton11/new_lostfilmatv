@@ -20,6 +20,7 @@ import dagger.hilt.testing.TestInstallIn
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import okhttp3.OkHttpClient
 
 /**
@@ -87,7 +88,8 @@ class UnitTestFakeRepository : LostFilmRepository {
     override suspend fun loadWatchedState(detailsUrl: String) = watchedStateResult
     override suspend fun setEpisodeWatched(detailsUrl: String, playEpisodeId: String, targetWatched: Boolean) = markWatchedResult
     override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean) = favoriteResult
-    override suspend fun loadFavoriteReleases(pageNumber: Int) = favoriteReleasesResult
+    override fun observeFavoriteReleases(pageNumber: Int): Flow<FavoriteReleasesResult> =
+        flowOf(favoriteReleasesResult)
 }
 
 class UnitTestFakeAuthRepository : AuthRepositoryContract {
