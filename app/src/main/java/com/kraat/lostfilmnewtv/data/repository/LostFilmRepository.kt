@@ -10,6 +10,7 @@ import com.kraat.lostfilmnewtv.data.model.ScheduleMonth
 import com.kraat.lostfilmnewtv.data.model.SeriesGuide
 import com.kraat.lostfilmnewtv.data.model.SeriesOverview
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flow
 
 sealed interface DetailsResult {
@@ -110,7 +111,8 @@ interface LostFilmRepository {
 
     suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult
 
-    suspend fun loadFavoriteReleases(pageNumber: Int = 1): FavoriteReleasesResult
+    fun observeFavoriteReleases(pageNumber: Int = 1): Flow<FavoriteReleasesResult> =
+        channelFlow { send(FavoriteReleasesResult.Unavailable()) }
 
     suspend fun loadFavoriteSeries(): FavoriteSeriesResult =
         FavoriteSeriesResult.Unavailable()
