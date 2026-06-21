@@ -1,5 +1,7 @@
 package com.kraat.lostfilmnewtv.data.repository
 
+import com.kraat.lostfilmnewtv.data.db.FavoriteReleaseCacheEntity
+import com.kraat.lostfilmnewtv.data.db.FavoriteReleaseCacheMetadataEntity
 import com.kraat.lostfilmnewtv.data.db.PageCacheMetadataEntity
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
 import com.kraat.lostfilmnewtv.data.db.ReleaseDetailsEntity
@@ -83,6 +85,10 @@ private const val FAVORITE_RELEASES_MAX_SEASONS_PER_SERIES = 1
 // reuse whatever is cached, however stale, since they are only requested while a paging session
 // for the same listing is still in progress.
 private const val FAVORITE_RELEASES_CACHE_TTL_MS = 2 * 60 * 1000L
+
+// How long the Room-persisted favorite-releases cache stays fresh. While the cache is fresh,
+// observeFavoriteReleases skips the expensive fan-out and serves data directly from Room.
+private const val FAVORITE_RELEASES_ROOM_FRESH_MS = 15 * 60 * 1000L
 private const val MOVIES_PAGE_SIZE = 20
 private const val SERIES_CATALOG_PAGE_SIZE = 20
 private const val CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000L
@@ -786,6 +792,7 @@ class LostFilmRepositoryImpl(
                     detailsUrl = normalizedDetailsUrl,
                     isWatched = effectiveWatched,
                 )
+                invalidateFavoriteReleasesCache()
             }
             effectiveWatched
         } catch (_: IOException) {
@@ -854,13 +861,56 @@ class LostFilmRepositoryImpl(
         try {
             // Pages > 1 read from in-memory cache — no streaming needed, emit Success directly.
             val cached = favoriteReleasesCacheMutex.withLock { favoriteReleasesCache }
-            val canReuseCache = normalizedPageNumber > 1 &&
+            val canReuseInMemoryCache = normalizedPageNumber > 1 &&
                 cached != null &&
                 (clock() - cached.fetchedAt) < FAVORITE_RELEASES_CACHE_TTL_MS
 
-            val (allItems, favoriteSeriesCount) = if (canReuseCache) {
+            val (allItems, favoriteSeriesCount) = if (canReuseInMemoryCache) {
                 cached!!.allItems to cached.favoriteSeriesCount
             } else {
+                // Check Room cache before running the expensive network fan-out.
+                val roomMetadata = releaseDao.getFavoriteReleaseCacheMetadata()
+                val roomCacheFresh = roomMetadata != null &&
+                    (clock() - roomMetadata.fetchedAt) < FAVORITE_RELEASES_ROOM_FRESH_MS
+
+                if (roomMetadata != null) {
+                    // Emit Room-cached data immediately so the UI is not blank.
+                    val roomItems = releaseDao.getFavoriteReleasesCache().map { it.toModel() }
+                    val pageOffset = (normalizedPageNumber - 1) * FAVORITE_RELEASES_PAGE_SIZE
+                    val pageItems = roomItems
+                        .drop(pageOffset)
+                        .take(FAVORITE_RELEASES_PAGE_SIZE)
+                        .mapIndexed { index, item -> item.copy(positionInPage = pageOffset + index) }
+                    val enrichedPageItems = enrichSummaries(pageItems)
+                        .mapIndexed { index, item -> item.copy(positionInPage = pageOffset + index) }
+
+                    // Populate the in-memory cache from Room so pagination beyond page 1 works.
+                    favoriteReleasesCacheMutex.withLock {
+                        favoriteReleasesCache = FavoriteReleasesCache(
+                            allItems = roomItems,
+                            favoriteSeriesCount = roomMetadata.favoriteSeriesCount,
+                            fetchedAt = roomMetadata.fetchedAt,
+                        )
+                    }
+
+                    if (roomCacheFresh) {
+                        // Room cache is still fresh — serve it and skip the fan-out entirely.
+                        send(FavoriteReleasesResult.Success(
+                            items = enrichedPageItems,
+                            pageNumber = normalizedPageNumber,
+                            hasNextPage = roomItems.size > pageOffset + FAVORITE_RELEASES_PAGE_SIZE,
+                            favoriteSeriesCount = roomMetadata.favoriteSeriesCount,
+                        ))
+                        return@channelFlow
+                    }
+
+                    // Room cache is stale — emit it as a preview, then continue to fan-out.
+                    send(FavoriteReleasesResult.Partial(
+                        items = enrichedPageItems,
+                        favoriteSeriesCount = roomMetadata.favoriteSeriesCount,
+                    ))
+                }
+
                 // Page 1: run fan-out with streaming partial results.
                 val fetched = fetchAllFavoriteReleasesStreaming(
                     onPartial = { partialItems, total ->
@@ -871,11 +921,12 @@ class LostFilmRepositoryImpl(
                     send(FavoriteReleasesResult.Unavailable())
                     return@channelFlow
                 }
+                val now = clock()
                 favoriteReleasesCacheMutex.withLock {
                     favoriteReleasesCache = FavoriteReleasesCache(
                         allItems = fetched.allItems,
                         favoriteSeriesCount = fetched.favoriteSeriesCount,
-                        fetchedAt = clock(),
+                        fetchedAt = now,
                     )
                 }
                 fetched.allItems to fetched.favoriteSeriesCount
@@ -889,6 +940,9 @@ class LostFilmRepositoryImpl(
 
             val enrichedItems = enrichSummaries(items)
                 .mapIndexed { index, item -> item.copy(positionInPage = pageOffset + index) }
+
+            // Persist enriched results to Room for next app launch.
+            persistFavoriteReleasesToRoom(allItems = allItems, favoriteSeriesCount = favoriteSeriesCount)
 
             send(FavoriteReleasesResult.Success(
                 items = enrichedItems,
@@ -1033,6 +1087,25 @@ class LostFilmRepositoryImpl(
     /** Drops the cached favorite-releases listing so the next [observeFavoriteReleases] call refetches it. */
     private suspend fun invalidateFavoriteReleasesCache() {
         favoriteReleasesCacheMutex.withLock { favoriteReleasesCache = null }
+        releaseDao.deleteAllFavoriteReleasesCache()
+        releaseDao.deleteAllFavoriteReleasesCacheMetadata()
+    }
+
+    /** Persists the full favorite-releases list to Room so it survives app restarts. */
+    private suspend fun persistFavoriteReleasesToRoom(
+        allItems: List<ReleaseSummary>,
+        favoriteSeriesCount: Int,
+    ) {
+        val now = clock()
+        val cacheEntities = allItems.mapIndexed { index, item ->
+            FavoriteReleaseCacheEntity.fromModel(item, positionInList = index)
+        }
+        val metadata = FavoriteReleaseCacheMetadataEntity(
+            fetchedAt = now,
+            favoriteSeriesCount = favoriteSeriesCount,
+            itemCount = allItems.size,
+        )
+        releaseDao.replaceFavoriteReleasesCache(cacheEntities, metadata)
     }
 
     override suspend fun loadFavoriteSeries(): FavoriteSeriesResult {

@@ -92,6 +92,41 @@ interface ReleaseDao {
     @Query("DELETE FROM page_cache_metadata")
     suspend fun deleteAllPageMetadata()
 
+    @Query("SELECT * FROM favorite_release_cache ORDER BY positionInList ASC")
+    suspend fun getFavoriteReleasesCache(): List<FavoriteReleaseCacheEntity>
+
+    @Query("SELECT * FROM favorite_release_cache_metadata WHERE id = 1")
+    suspend fun getFavoriteReleaseCacheMetadata(): FavoriteReleaseCacheMetadataEntity?
+
+    @Query("DELETE FROM favorite_release_cache")
+    suspend fun deleteAllFavoriteReleasesCache()
+
+    @Query("DELETE FROM favorite_release_cache_metadata")
+    suspend fun deleteAllFavoriteReleasesCacheMetadata()
+
+    @Query("DELETE FROM favorite_release_cache WHERE fetchedAt < :threshold")
+    suspend fun deleteExpiredFavoriteReleasesCache(threshold: Long)
+
+    @Query("DELETE FROM favorite_release_cache_metadata WHERE fetchedAt < :threshold")
+    suspend fun deleteExpiredFavoriteReleasesCacheMetadata(threshold: Long)
+
+    @Upsert
+    suspend fun upsertFavoriteReleasesCache(items: List<FavoriteReleaseCacheEntity>)
+
+    @Upsert
+    suspend fun upsertFavoriteReleasesCacheMetadata(metadata: FavoriteReleaseCacheMetadataEntity)
+
+    @Transaction
+    suspend fun replaceFavoriteReleasesCache(
+        items: List<FavoriteReleaseCacheEntity>,
+        metadata: FavoriteReleaseCacheMetadataEntity,
+    ) {
+        deleteAllFavoriteReleasesCache()
+        deleteAllFavoriteReleasesCacheMetadata()
+        upsertFavoriteReleasesCache(items)
+        upsertFavoriteReleasesCacheMetadata(metadata)
+    }
+
     @Transaction
     suspend fun replacePage(
         pageNumber: Int,
@@ -108,6 +143,8 @@ interface ReleaseDao {
         deleteExpiredSummaries(threshold)
         deleteExpiredDetails(threshold)
         deleteExpiredPageMetadata(threshold)
+        deleteExpiredFavoriteReleasesCache(threshold)
+        deleteExpiredFavoriteReleasesCacheMetadata(threshold)
     }
 
     @Transaction
@@ -115,5 +152,7 @@ interface ReleaseDao {
         deleteAllSummaries()
         deleteAllDetails()
         deleteAllPageMetadata()
+        deleteAllFavoriteReleasesCache()
+        deleteAllFavoriteReleasesCacheMetadata()
     }
 }

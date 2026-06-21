@@ -2,6 +2,8 @@ package com.kraat.lostfilmnewtv.data.repository
 
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.kraat.lostfilmnewtv.data.db.FavoriteReleaseCacheEntity
+import com.kraat.lostfilmnewtv.data.db.FavoriteReleaseCacheMetadataEntity
 import com.kraat.lostfilmnewtv.data.db.LostFilmDatabase
 import com.kraat.lostfilmnewtv.data.db.PageCacheMetadataEntity
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
@@ -2013,6 +2015,216 @@ class LostFilmRepositoryTest {
         val result = repository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Unavailable)
+    }
+
+    @Test
+    fun loadFavoriteReleases_servesFromRoomCache_whenCacheIsFresh() = runTest {
+        // Seed Room with cached favorite releases (fetched 5 minutes ago — within 15-min TTL).
+        val cachedFetchedAt = NOW - 5 * 60 * 1000L
+        releaseDao.replaceFavoriteReleasesCache(
+            items = listOf(
+                FavoriteReleaseCacheEntity(
+                    detailsUrl = "https://www.lostfilm.today/series/alpha/season_1/episode_2/",
+                    kind = "SERIES",
+                    titleRu = "Alpha",
+                    episodeTitleRu = "Alpha Episode",
+                    seasonNumber = 1,
+                    episodeNumber = 2,
+                    releaseDateRu = "14.03.2026",
+                    posterUrl = "",
+                    positionInList = 0,
+                    fetchedAt = cachedFetchedAt,
+                    isWatched = false,
+                ),
+            ),
+            metadata = FavoriteReleaseCacheMetadataEntity(
+                fetchedAt = cachedFetchedAt,
+                favoriteSeriesCount = 1,
+                itemCount = 1,
+            ),
+        )
+        // Network should NOT be touched — account page handler would error if called.
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            accountPageHandler = { error("Room cache should prevent network fan-out") },
+            isAuthenticated = true,
+        )
+
+        val result = repository.observeFavoriteReleases().last()
+
+        assertTrue(result is FavoriteReleasesResult.Success)
+        result as FavoriteReleasesResult.Success
+        assertEquals(1, result.items.size)
+        assertEquals("Alpha", result.items.first().titleRu)
+        assertEquals(1, result.favoriteSeriesCount)
+    }
+
+    @Test
+    fun loadFavoriteReleases_persistsToRoomCache_afterSuccessfulFanOut() = runTest {
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            accountPageHandler = { path ->
+                when (path) {
+                    "/my/type_1" -> favoriteSeriesAccountPageHtml()
+                    else -> error("Unexpected account path $path")
+                }
+            },
+            detailsHandler = { requestedUrl ->
+                when (requestedUrl) {
+                    "https://www.lostfilm.today/series/alpha" -> "<html><body></body></html>"
+                    "https://www.lostfilm.today/series/alpha/seasons" -> favoriteSeriesSeasonsPageHtml(
+                        seriesSlug = "alpha",
+                        serialId = "1001",
+                        episodes = listOf(
+                            SeasonEpisodeRow(
+                                seasonNumber = 1,
+                                episodeNumber = 2,
+                                episodeTitle = "Alpha Episode",
+                                releaseDateRu = "14.03.2026",
+                                episodeId = "1001001002",
+                            ),
+                        ),
+                    )
+                    "https://www.lostfilm.today/series/beta" -> "<html><body></body></html>"
+                    "https://www.lostfilm.today/series/beta/seasons" -> favoriteSeriesSeasonsPageHtml(
+                        seriesSlug = "beta",
+                        serialId = "2003",
+                        episodes = listOf(
+                            SeasonEpisodeRow(
+                                seasonNumber = 3,
+                                episodeNumber = 1,
+                                episodeTitle = "Beta Episode",
+                                releaseDateRu = "13.03.2026",
+                                episodeId = "2003003001",
+                            ),
+                        ),
+                    )
+                    else -> error("Unexpected details request: $requestedUrl")
+                }
+            },
+            isAuthenticated = true,
+        )
+
+        repository.observeFavoriteReleases().last()
+
+        // Verify data was persisted to Room.
+        val roomMetadata = releaseDao.getFavoriteReleaseCacheMetadata()
+        assertNotNull(roomMetadata)
+        assertEquals(2, roomMetadata!!.favoriteSeriesCount)
+        assertEquals(2, roomMetadata.itemCount)
+        val roomItems = releaseDao.getFavoriteReleasesCache()
+        assertEquals(2, roomItems.size)
+        assertEquals(
+            listOf(
+                "https://www.lostfilm.today/series/alpha/season_1/episode_2/",
+                "https://www.lostfilm.today/series/beta/season_3/episode_1/",
+            ),
+            roomItems.map { it.detailsUrl },
+        )
+    }
+
+    @Test
+    fun setFavorite_invalidatesRoomFavoriteReleasesCache() = runTest {
+        // Seed Room cache.
+        val cachedFetchedAt = NOW - 1_000L
+        releaseDao.replaceFavoriteReleasesCache(
+            items = listOf(
+                FavoriteReleaseCacheEntity(
+                    detailsUrl = "https://www.lostfilm.today/series/alpha/season_1/episode_2/",
+                    kind = "SERIES",
+                    titleRu = "Alpha",
+                    episodeTitleRu = null,
+                    seasonNumber = 1,
+                    episodeNumber = 2,
+                    releaseDateRu = "14.03.2026",
+                    posterUrl = "",
+                    positionInList = 0,
+                    fetchedAt = cachedFetchedAt,
+                    isWatched = false,
+                ),
+            ),
+            metadata = FavoriteReleaseCacheMetadataEntity(
+                fetchedAt = cachedFetchedAt,
+                favoriteSeriesCount = 1,
+                itemCount = 1,
+            ),
+        )
+        val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        val favoritePageUrl = "https://www.lostfilm.today/series/9-1-1/"
+        seedDetails(detailsUrl = detailsUrl, fetchedAt = NOW - 1_000L)
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            detailsHandler = { requestedUrl ->
+                assertEquals(favoritePageUrl, requestedUrl)
+                seriesFavoritePageHtml(isFavorite = false, includeSessionToken = true)
+            },
+            favoriteToggleHandler = { _, _, _ ->
+                FavoriteToggleNetworkResult.ToggledOn
+            },
+            isAuthenticated = true,
+        )
+
+        val result = repository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
+
+        assertEquals(FavoriteMutationResult.Updated, result)
+        // Room cache should have been cleared.
+        assertTrue(releaseDao.getFavoriteReleasesCache().isEmpty())
+        assertTrue(releaseDao.getFavoriteReleaseCacheMetadata() == null)
+    }
+
+    @Test
+    fun setEpisodeWatched_invalidatesRoomFavoriteReleasesCache() = runTest {
+        // Seed Room cache.
+        val cachedFetchedAt = NOW - 1_000L
+        releaseDao.replaceFavoriteReleasesCache(
+            items = listOf(
+                FavoriteReleaseCacheEntity(
+                    detailsUrl = "https://www.lostfilm.today/series/alpha/season_1/episode_2/",
+                    kind = "SERIES",
+                    titleRu = "Alpha",
+                    episodeTitleRu = null,
+                    seasonNumber = 1,
+                    episodeNumber = 2,
+                    releaseDateRu = "14.03.2026",
+                    posterUrl = "",
+                    positionInList = 0,
+                    fetchedAt = cachedFetchedAt,
+                    isWatched = false,
+                ),
+            ),
+            metadata = FavoriteReleaseCacheMetadataEntity(
+                fetchedAt = cachedFetchedAt,
+                favoriteSeriesCount = 1,
+                itemCount = 1,
+            ),
+        )
+        val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        seedPage(pageNumber = 1, fetchedAt = NOW - 1_000L)
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            detailsHandler = {
+                fixture("series-details.html").replace(
+                    oldValue = "let UserData = {};",
+                    newValue = """
+                        let UserData = {};
+                        UserData.id = 42;
+                        UserData.session = 'ajax-session-token';
+                    """.trimIndent(),
+                )
+            },
+            markEpisodeHandler = { _, _, _, _ -> true },
+            isAuthenticated = true,
+        )
+
+        repository.setEpisodeWatched(
+            detailsUrl = detailsUrl,
+            playEpisodeId = "362009013",
+            targetWatched = true,
+        )
+
+        // Room cache should have been cleared.
+        assertTrue(releaseDao.getFavoriteReleasesCache().isEmpty())
+        assertTrue(releaseDao.getFavoriteReleaseCacheMetadata() == null)
     }
 
     private suspend fun seedPage(pageNumber: Int, fetchedAt: Long) {
