@@ -20,6 +20,10 @@ import com.kraat.lostfilmnewtv.data.model.SeriesGuideEpisode
 import com.kraat.lostfilmnewtv.data.model.SeriesGuideSeason
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
+import com.kraat.lostfilmnewtv.data.repository.FavoritesRepository
+import com.kraat.lostfilmnewtv.data.model.FavoriteSeriesResult
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult
 import com.kraat.lostfilmnewtv.navigation.AppDestination
 import java.util.concurrent.ConcurrentHashMap
@@ -148,7 +152,10 @@ private fun routeViewModel(
 
 private class FakeSeriesGuideRepository(
     private val scriptedGuideResults: ConcurrentHashMap<String, MutableList<SeriesGuideResult>>,
-) : LostFilmRepository {
+) : LostFilmRepository, FavoritesRepository {
+    override fun observeFavoriteReleases(pageNumber: Int): Flow<FavoriteReleasesResult> = flow { emit(FavoriteReleasesResult.Unavailable()) }
+    override suspend fun loadFavoriteSeries(): FavoriteSeriesResult = FavoriteSeriesResult.Unavailable()
+    override suspend fun invalidateCache() {}
     val loadedGuideUrls = CopyOnWriteArrayList<String>()
 
     override suspend fun loadPage(pageNumber: Int): PageState {

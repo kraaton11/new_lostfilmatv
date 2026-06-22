@@ -10,6 +10,7 @@ import com.kraat.lostfilmnewtv.data.network.ProwlarrClientFactory
 import com.kraat.lostfilmnewtv.data.network.ProwlarrSearchResult
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
+import com.kraat.lostfilmnewtv.data.repository.FavoritesRepository
 import com.kraat.lostfilmnewtv.navigation.AppDestination
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -32,6 +33,7 @@ private val prowlarrStopWords = setOf("the", "a", "an")
 @HiltViewModel
 class DetailsViewModel @Inject constructor(
     private val repository: LostFilmRepository,
+    private val favoritesRepository: FavoritesRepository,
     private val savedStateHandle: SavedStateHandle,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val preferencesStore: PlaybackPreferencesStore? = null,
@@ -210,7 +212,7 @@ class DetailsViewModel @Inject constructor(
 
         viewModelScope.launch(ioDispatcher) {
             val targetFavorite = !currentFavorite
-            when (val result = repository.setFavorite(currentDetails.detailsUrl, targetFavorite)) {
+            when (val result = favoritesRepository.setFavorite(currentDetails.detailsUrl, targetFavorite)) {
                 FavoriteMutationResult.Updated -> _uiState.update { state ->
                     state.copy(
                         details = state.details?.copy(isFavorite = targetFavorite),

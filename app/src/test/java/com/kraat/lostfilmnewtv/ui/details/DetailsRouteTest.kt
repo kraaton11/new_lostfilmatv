@@ -23,6 +23,10 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.TorrentLink
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
+import com.kraat.lostfilmnewtv.data.repository.FavoritesRepository
+import com.kraat.lostfilmnewtv.data.model.FavoriteSeriesResult
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import com.kraat.lostfilmnewtv.navigation.AppDestination
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeActionHandler
@@ -527,6 +531,7 @@ class DetailsRouteTest {
         }
         val viewModel = DetailsViewModel(
             repository = repository,
+            favoritesRepository = repository,
             savedStateHandle = SavedStateHandle(
                 mapOf(
                     AppDestination.Details.detailsUrlArg to detailsUrl,
@@ -605,6 +610,7 @@ private fun routeViewModel(
     isAuthenticated: Boolean = true,
 ): DetailsViewModel = DetailsViewModel(
     repository = repository,
+    favoritesRepository = repository as FavoritesRepository,
     savedStateHandle = SavedStateHandle(
         mapOf(
             AppDestination.Details.detailsUrlArg to detailsUrl,
@@ -647,7 +653,7 @@ private class ImmediateLauncher(
 private class RouteFakeDetailsRepository(
     detailsResults: Map<String, MutableList<DetailsResult>>,
     private val watchedStateResult: Boolean? = false,
-) : LostFilmRepository {
+) : LostFilmRepository, FavoritesRepository {
     private val scriptedResults = ConcurrentHashMap(detailsResults)
     val loadedDetailsUrls = CopyOnWriteArrayList<String>()
     val markedEpisodes = CopyOnWriteArrayList<Pair<String, String>>()
@@ -687,6 +693,14 @@ private class RouteFakeDetailsRepository(
             favoriteResults.removeAt(0)
         }
     }
+
+    override fun observeFavoriteReleases(pageNumber: Int): Flow<FavoriteReleasesResult> = flow {
+        emit(FavoriteReleasesResult.Unavailable())
+    }
+
+    override suspend fun loadFavoriteSeries(): FavoriteSeriesResult = FavoriteSeriesResult.Unavailable()
+
+    override suspend fun invalidateCache() {}
 
     companion object {
         fun success(

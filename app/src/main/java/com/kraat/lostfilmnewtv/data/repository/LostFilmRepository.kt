@@ -108,12 +108,4 @@ interface LostFilmRepository {
     suspend fun loadWatchedState(detailsUrl: String): Boolean?
 
     suspend fun setEpisodeWatched(detailsUrl: String, playEpisodeId: String, targetWatched: Boolean): Boolean?
-
-    suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult
-
-    fun observeFavoriteReleases(pageNumber: Int = 1): Flow<FavoriteReleasesResult> =
-        channelFlow { send(FavoriteReleasesResult.Unavailable()) }
-
-    suspend fun loadFavoriteSeries(): FavoriteSeriesResult =
-        FavoriteSeriesResult.Unavailable()
 }

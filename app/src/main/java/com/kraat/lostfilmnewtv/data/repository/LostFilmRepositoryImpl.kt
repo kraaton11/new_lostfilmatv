@@ -48,6 +48,8 @@ import com.kraat.lostfilmnewtv.data.parser.toSummaryEntities
 import com.kraat.lostfilmnewtv.data.parser.toSummaryModels
 import com.kraat.lostfilmnewtv.data.poster.TmdbPosterEnricher
 import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolver
+import com.kraat.lostfilmnewtv.data.poster.TmdbEnrichmentService
+import dagger.Lazy
 import android.util.Log
 import java.io.IOException
 import java.net.URLEncoder
@@ -124,25 +126,13 @@ class LostFilmRepositoryImpl(
     private val seriesCatalogParser: LostFilmSeriesCatalogParser = LostFilmSeriesCatalogParser(),
     private val seriesOverviewParser: LostFilmSeriesOverviewParser = LostFilmSeriesOverviewParser(),
     private val tmdbResolver: TmdbPosterResolver,
+    private val tmdbEnrichmentService: TmdbEnrichmentService,
+    private val favoritesRepository: Lazy<FavoritesRepository>,
     private val hasAuthenticatedSession: suspend () -> Boolean,
     private val clock: () -> Long = { System.currentTimeMillis() },
 ) : LostFilmRepository {
     private val cleanupMutex = Mutex()
-    private val tmdbEnrichCache = ConcurrentHashMap<String, Deferred<TmdbImageUrls?>>()
     private var lastCleanupAt = 0L
-
-    // In-memory cache of the full (unpaginated) favorite-releases listing. Building this list
-    // requires a network round trip per favorite series (seasons page + watched marks + a
-    // "published today?" check), so re-running it on every pagination request does not scale
-    // with account size. We fetch it once and slice pages out of this cache instead.
-    private val favoriteReleasesCacheMutex = Mutex()
-    private var favoriteReleasesCache: FavoriteReleasesCache? = null
-
-    private data class FavoriteReleasesCache(
-        val allItems: List<ReleaseSummary>,
-        val favoriteSeriesCount: Int,
-        val fetchedAt: Long,
-    )
 
     override suspend fun loadPage(pageNumber: Int): PageState {
         cleanupExpiredDataIfNeeded()
@@ -178,7 +168,7 @@ class LostFilmRepositoryImpl(
             )
 
             // Only enrich the freshly fetched page; previous pages already keep their TMDB posters in Room.
-            val enrichedItems = enrichSummaries(
+            val enrichedItems = tmdbEnrichmentService.enrichSummaries(
                 items = itemsToPersist,
                 persistToCache = true,
             )
@@ -246,7 +236,7 @@ class LostFilmRepositoryImpl(
                     fetchedAt = fetchedAt,
                 )
             }
-            val enrichedItems = enrichSummaries(
+            val enrichedItems = tmdbEnrichmentService.enrichSummaries(
                 items = parsedItems,
                 persistToCache = false,
             )
@@ -282,7 +272,7 @@ class LostFilmRepositoryImpl(
                     fetchedAt = fetchedAt,
                 )
             }
-            val enrichedItems = enrichSummaries(
+            val enrichedItems = tmdbEnrichmentService.enrichSummaries(
                 items = parsedItems,
                 persistToCache = false,
             )
@@ -614,7 +604,7 @@ class LostFilmRepositoryImpl(
 
             SearchResultsResult.Success(
                 query = normalizedQuery,
-                items = enrichSearchItems(parsedItems),
+                items = tmdbEnrichmentService.enrichSearchItems(parsedItems),
             )
         } catch (exception: CancellationException) {
             throw exception
@@ -807,7 +797,7 @@ class LostFilmRepositoryImpl(
                     detailsUrl = normalizedDetailsUrl,
                     isWatched = effectiveWatched,
                 )
-                invalidateFavoriteReleasesCache()
+                favoritesRepository.get().invalidateCache()
             }
             effectiveWatched
         } catch (e: IOException) {
@@ -816,340 +806,6 @@ class LostFilmRepositoryImpl(
         }
     }
 
-    override suspend fun setFavorite(
-        detailsUrl: String,
-        targetFavorite: Boolean,
-    ): FavoriteMutationResult {
-        if (!hasAuthenticatedSession()) {
-            return FavoriteMutationResult.RequiresLogin()
-        }
-
-        val normalizedDetailsUrl = resolveUrl(detailsUrl)
-        return try {
-            val favoritePage = fetchFavoriteMetadataPage(normalizedDetailsUrl)
-                ?: return FavoriteMutationResult.Error("Не удалось обновить избранное")
-            val favoriteMetadata = favoritePage.metadata
-            persistFavoriteMetadata(normalizedDetailsUrl, favoriteMetadata)
-
-            if (favoriteMetadata.isFavorite == targetFavorite) {
-                return FavoriteMutationResult.NoOp
-            }
-
-            val ajaxSessionToken = detailsParser.parseAjaxSessionToken(favoritePage.html)
-                ?: return FavoriteMutationResult.Error("Войдите в LostFilm")
-            val toggleResult = httpClient.toggleFavorite(
-                refererUrl = favoritePage.url,
-                favoriteTargetId = favoriteMetadata.targetId,
-                ajaxSessionToken = ajaxSessionToken,
-            )
-
-            val effectiveFavoriteState = when (toggleResult) {
-                FavoriteToggleNetworkResult.ToggledOn -> true
-                FavoriteToggleNetworkResult.ToggledOff -> false
-                FavoriteToggleNetworkResult.Unknown -> {
-                    val refreshedHtml = httpClient.fetchDetails(favoritePage.url)
-                    detailsParser.parseFavoriteMetadata(refreshedHtml)?.isFavorite
-                }
-            }
-            effectiveFavoriteState?.let { state ->
-                persistFavoriteMetadata(normalizedDetailsUrl, favoriteMetadata.copy(isFavorite = state))
-            }
-
-            if (effectiveFavoriteState == targetFavorite) {
-                invalidateFavoriteReleasesCache()
-                FavoriteMutationResult.Updated
-            } else {
-                FavoriteMutationResult.Error("Не удалось обновить избранное")
-            }
-        } catch (e: IOException) {
-            Log.w(TAG, "Failed to toggle favorite", e)
-            FavoriteMutationResult.Error("Не удалось обновить избранное")
-        }
-    }
-
-    override fun observeFavoriteReleases(pageNumber: Int): Flow<FavoriteReleasesResult> = channelFlow {
-        if (!hasAuthenticatedSession()) {
-            send(FavoriteReleasesResult.Unavailable("Войдите в LostFilm"))
-            return@channelFlow
-        }
-
-        val normalizedPageNumber = pageNumber.coerceAtLeast(1)
-
-        try {
-            // Pages > 1 read from in-memory cache — no streaming needed, emit Success directly.
-            val cached = favoriteReleasesCacheMutex.withLock { favoriteReleasesCache }
-            val canReuseInMemoryCache = normalizedPageNumber > 1 &&
-                cached != null &&
-                (clock() - cached.fetchedAt) < FAVORITE_RELEASES_CACHE_TTL_MS
-
-            val (allItems, favoriteSeriesCount) = if (canReuseInMemoryCache) {
-                cached!!.allItems to cached.favoriteSeriesCount
-            } else {
-                // Check Room cache before running the expensive network fan-out.
-                val roomMetadata = releaseDao.getFavoriteReleaseCacheMetadata()
-                val roomCacheFresh = roomMetadata != null &&
-                    (clock() - roomMetadata.fetchedAt) < FAVORITE_RELEASES_ROOM_FRESH_MS
-
-                if (roomMetadata != null) {
-                    // Emit Room-cached data immediately so the UI is not blank.
-                    val roomItems = releaseDao.getFavoriteReleasesCache().map { it.toModel() }
-                    val pageOffset = (normalizedPageNumber - 1) * FAVORITE_RELEASES_PAGE_SIZE
-                    val pageItems = roomItems
-                        .drop(pageOffset)
-                        .take(FAVORITE_RELEASES_PAGE_SIZE)
-                        .mapIndexed { index, item -> item.copy(positionInPage = pageOffset + index) }
-                    val enrichedPageItems = enrichSummaries(pageItems)
-                        .mapIndexed { index, item -> item.copy(positionInPage = pageOffset + index) }
-
-                    // Populate the in-memory cache from Room so pagination beyond page 1 works.
-                    favoriteReleasesCacheMutex.withLock {
-                        favoriteReleasesCache = FavoriteReleasesCache(
-                            allItems = roomItems,
-                            favoriteSeriesCount = roomMetadata.favoriteSeriesCount,
-                            fetchedAt = roomMetadata.fetchedAt,
-                        )
-                    }
-
-                    if (roomCacheFresh) {
-                        // Room cache is still fresh — serve it and skip the fan-out entirely.
-                        send(FavoriteReleasesResult.Success(
-                            items = enrichedPageItems,
-                            pageNumber = normalizedPageNumber,
-                            hasNextPage = roomItems.size > pageOffset + FAVORITE_RELEASES_PAGE_SIZE,
-                            favoriteSeriesCount = roomMetadata.favoriteSeriesCount,
-                        ))
-                        return@channelFlow
-                    }
-
-                    // Room cache is stale — emit it as a preview, then continue to fan-out.
-                    send(FavoriteReleasesResult.Partial(
-                        items = enrichedPageItems,
-                        favoriteSeriesCount = roomMetadata.favoriteSeriesCount,
-                    ))
-                }
-
-                // Page 1: run fan-out with streaming partial results.
-                val fetched = fetchAllFavoriteReleasesStreaming(
-                    onPartial = { partialItems, total ->
-                        // Emit unenriched partial results so the UI can show items immediately.
-                        send(FavoriteReleasesResult.Partial(items = partialItems, favoriteSeriesCount = total))
-                    },
-                ) ?: run {
-                    send(FavoriteReleasesResult.Unavailable())
-                    return@channelFlow
-                }
-                val now = clock()
-                favoriteReleasesCacheMutex.withLock {
-                    favoriteReleasesCache = FavoriteReleasesCache(
-                        allItems = fetched.allItems,
-                        favoriteSeriesCount = fetched.favoriteSeriesCount,
-                        fetchedAt = now,
-                    )
-                }
-                fetched.allItems to fetched.favoriteSeriesCount
-            }
-
-            val pageOffset = (normalizedPageNumber - 1) * FAVORITE_RELEASES_PAGE_SIZE
-            val items = allItems
-                .drop(pageOffset)
-                .take(FAVORITE_RELEASES_PAGE_SIZE)
-                .mapIndexed { index, item -> item.copy(positionInPage = pageOffset + index) }
-
-            val enrichedItems = enrichSummaries(items)
-                .mapIndexed { index, item -> item.copy(positionInPage = pageOffset + index) }
-
-            // Persist enriched results to Room for next app launch.
-            persistFavoriteReleasesToRoom(allItems = allItems, favoriteSeriesCount = favoriteSeriesCount)
-
-            send(FavoriteReleasesResult.Success(
-                items = enrichedItems,
-                pageNumber = normalizedPageNumber,
-                hasNextPage = allItems.size > pageOffset + FAVORITE_RELEASES_PAGE_SIZE,
-                favoriteSeriesCount = favoriteSeriesCount,
-            ))
-        } catch (exception: CancellationException) {
-            throw exception
-        } catch (e: IOException) {
-            Log.w(TAG, "Failed to load favorite releases", e)
-            send(FavoriteReleasesResult.Unavailable())
-        }
-    }
-
-    private data class AllFavoriteReleasesFetch(
-        val allItems: List<ReleaseSummary>,
-        val favoriteSeriesCount: Int,
-    )
-
-    /**
-     * Performs the full favorite-releases fan-out with streaming: after each favorite series
-     * finishes loading, calls [onPartial] with the accumulated items so far so callers can emit
-     * intermediate results. Returns null only when nothing could be loaded at all (every request failed).
-     */
-    private suspend fun fetchAllFavoriteReleasesStreaming(
-        onPartial: suspend (items: List<ReleaseSummary>, favoriteSeriesCount: Int) -> Unit,
-    ): AllFavoriteReleasesFetch? {
-        val favoritesHtml = httpClient.fetchAccountPage(favoriteSeriesRoute)
-        val favoriteSeries = favoriteSeriesParser.parse(favoritesHtml)
-        if (favoriteSeries.isEmpty()) {
-            return AllFavoriteReleasesFetch(allItems = emptyList(), favoriteSeriesCount = 0)
-        }
-
-        val fetchedAt = clock()
-        val today = currentFavoriteReleaseDate()
-        val totalSeriesCount = favoriteSeries.size
-
-        val favoriteSeriesSemaphore = Semaphore(FAVORITE_SERIES_LOAD_CONCURRENCY)
-        data class SeriesLoadResult(
-            val items: List<ReleaseSummary>,
-            val loaded: Boolean,
-        )
-
-        // Shared accumulator — updated from concurrent coroutines, protected by a mutex.
-        val accumulatedMutex = Mutex()
-        var accumulatedItems: List<ReleaseSummary> = emptyList()
-
-        val seriesResults = coroutineScope {
-            favoriteSeries.map { series ->
-                async {
-                    favoriteSeriesSemaphore.withPermit {
-                        val seasonsUrl = "${series.seriesUrl.trimEnd('/')}/seasons"
-                        val seasonsHtml = try {
-                            httpClient.fetchDetails(seasonsUrl)
-                        } catch (e: IOException) {
-                            Log.w(TAG, "Failed to fetch seasons page for favorite series", e)
-                            return@withPermit SeriesLoadResult(emptyList(), loaded = false)
-                        }
-                        val watchedEpisodeIdsFromMarks = seasonEpisodesParser.parseSerialId(seasonsHtml)
-                            ?.let { serialId ->
-                                try {
-                                    seasonEpisodesParser.parseWatchedEpisodeIds(
-                                        httpClient.fetchSeasonWatchedEpisodeMarks(
-                                            refererUrl = seasonsUrl,
-                                            serialId = serialId,
-                                        ),
-                                    )
-                                } catch (e: IOException) {
-                                    Log.w(TAG, "Failed to fetch watched marks for favorite series", e)
-                                    emptySet()
-                                }
-                            }
-                            .orEmpty()
-                        val watchedEpisodeIdsFromSeriesRoot = if (watchedEpisodeIdsFromMarks.isEmpty()) {
-                            try {
-                                seasonEpisodesParser.parseWatchedEpisodeIdsFromPage(
-                                    httpClient.fetchDetails(series.seriesUrl),
-                                )
-                            } catch (e: IOException) {
-                                Log.w(TAG, "Failed to fetch watched state from series root page", e)
-                                emptySet()
-                            }
-                        } else {
-                            emptySet()
-                        }
-                        val watchedEpisodeIds = watchedEpisodeIdsFromSeriesRoot + watchedEpisodeIdsFromMarks
-                        val seriesItems = withContext(Dispatchers.Default) {
-                            seasonEpisodesParser.parse(
-                                html = seasonsHtml,
-                                series = series,
-                                fetchedAt = fetchedAt,
-                                watchedEpisodeIds = watchedEpisodeIds,
-                                maxEpisodesPerSeason = FAVORITE_RELEASES_MAX_EPISODES_PER_SEASON,
-                                maxSeasons = FAVORITE_RELEASES_MAX_SEASONS_PER_SERIES,
-                            )
-                        }
-
-                        // Accumulate and emit partial result after this series finishes.
-                        if (seriesItems.isNotEmpty()) {
-                            val snapshot = accumulatedMutex.withLock {
-                                accumulatedItems = (accumulatedItems + seriesItems).distinctBy { it.detailsUrl }
-                                accumulatedItems
-                            }
-                            onPartial(snapshot, totalSeriesCount)
-                        }
-
-                        SeriesLoadResult(items = seriesItems, loaded = true)
-                    }
-                }
-            }.awaitAll()
-        }
-
-        val loadedAnySeasonPage = seriesResults.any { it.loaded }
-        val rawItems = seriesResults
-            .flatMap { it.items }
-            .distinctBy { it.detailsUrl }
-
-        val publishCheckSemaphore = Semaphore(FAVORITE_PUBLISH_CHECK_CONCURRENCY)
-        val allItems = coroutineScope {
-            rawItems.map { item ->
-                async {
-                    publishCheckSemaphore.withPermit {
-                        val releaseDate = parseFavoriteReleaseDate(item.releaseDateRu) ?: return@withPermit null
-                        when {
-                            releaseDate.isBefore(today) -> item
-                            releaseDate.isAfter(today) -> null
-                            isFavoriteReleasePublishedToday(item.detailsUrl) -> item
-                            else -> null
-                        }
-                    }
-                }
-            }.awaitAll()
-        }
-            .filterNotNull()
-            .sortedByDescending { parseFavoriteReleaseDate(it.releaseDateRu) ?: LocalDate.MIN }
-            .mapIndexed { index, item -> item.copy(positionInPage = index) }
-
-        if (allItems.isEmpty() && !loadedAnySeasonPage) {
-            return null
-        }
-
-        return AllFavoriteReleasesFetch(allItems = allItems, favoriteSeriesCount = favoriteSeries.size)
-    }
-
-    /** Drops the cached favorite-releases listing so the next [observeFavoriteReleases] call refetches it. */
-    private suspend fun invalidateFavoriteReleasesCache() {
-        favoriteReleasesCacheMutex.withLock { favoriteReleasesCache = null }
-        releaseDao.deleteAllFavoriteReleasesCache()
-        releaseDao.deleteAllFavoriteReleasesCacheMetadata()
-    }
-
-    /** Persists the full favorite-releases list to Room so it survives app restarts. */
-    private suspend fun persistFavoriteReleasesToRoom(
-        allItems: List<ReleaseSummary>,
-        favoriteSeriesCount: Int,
-    ) {
-        val now = clock()
-        val cacheEntities = allItems.mapIndexed { index, item ->
-            FavoriteReleaseCacheEntity.fromModel(item, positionInList = index)
-        }
-        val metadata = FavoriteReleaseCacheMetadataEntity(
-            fetchedAt = now,
-            favoriteSeriesCount = favoriteSeriesCount,
-            itemCount = allItems.size,
-        )
-        releaseDao.replaceFavoriteReleasesCache(cacheEntities, metadata)
-    }
-
-    override suspend fun loadFavoriteSeries(): FavoriteSeriesResult {
-        if (!hasAuthenticatedSession()) {
-            return FavoriteSeriesResult.Unavailable("Войдите в LostFilm")
-        }
-
-        return try {
-            val fetchedAt = clock()
-            val favoritesHtml = httpClient.fetchAccountPage(favoriteSeriesRoute)
-            val items = favoriteSeriesParser.parse(favoritesHtml)
-                .mapIndexed { index, series -> series.toFavoriteSeriesSummary(index, fetchedAt) }
-            val enrichedItems = enrichSummaries(
-                items = items,
-                persistToCache = false,
-            )
-
-            FavoriteSeriesResult.Success(enrichedItems)
-        } catch (e: IOException) {
-            Log.w(TAG, "Failed to load favorite series list", e)
-            FavoriteSeriesResult.Unavailable()
-        }
-    }
 
     private suspend fun fallbackPageState(pageNumber: Int, exception: Exception): PageState {
         val now = clock()
@@ -1157,7 +813,7 @@ class LostFilmRepositoryImpl(
 
         if (cachedMetadata != null && now - cachedMetadata.fetchedAt < RETENTION_WINDOW_MS) {
             val cachedItems = releaseDao.getSummariesUpToPage(pageNumber).toSummaryModels()
-            val enrichedItems = enrichSummaries(
+            val enrichedItems = tmdbEnrichmentService.enrichSummaries(
                 items = cachedItems,
                 persistToCache = true,
             )
@@ -1177,7 +833,7 @@ class LostFilmRepositoryImpl(
         if (pageNumber > 1) {
             val previousItems = releaseDao.getSummariesUpToPage(pageNumber - 1).toSummaryModels()
             if (previousItems.isNotEmpty()) {
-                val enrichedItems = enrichSummaries(
+                val enrichedItems = tmdbEnrichmentService.enrichSummaries(
                     items = previousItems,
                     persistToCache = true,
                 )
@@ -1197,75 +853,6 @@ class LostFilmRepositoryImpl(
         )
     }
 
-    private suspend fun enrichSummaries(
-        items: List<ReleaseSummary>,
-        persistToCache: Boolean = false,
-    ): List<ReleaseSummary> {
-        if (items.isEmpty()) {
-            return emptyList()
-        }
-
-        // Skip TMDB lookup for items whose poster and backdrop are already resolved
-        // (cached in Room from a previous load). На повторных запусках это убирает 6+ параллельных HTTP
-        // и заметно ускоряет критический путь к отрисовке.
-        val needsEnrichment = items.filterNot { it.hasCompleteArt() }
-        if (needsEnrichment.isEmpty()) {
-            if (persistToCache) {
-                upsertChangedSummaries(items.toSummaryEntities())
-            }
-            return items
-        }
-
-        // Cap TMDB enrichment fan-out so one page load cannot create dozens of simultaneous HTTP calls.
-        val semaphore = Semaphore(SUMMARY_ENRICHMENT_CONCURRENCY)
-        val enrichedItems = coroutineScope {
-            items.map { item ->
-                async {
-                    if (item.hasCompleteArt()) {
-                        return@async item
-                    }
-                    val tmdbUrlsDeferred = tmdbEnrichCache.getOrPut(item.detailsUrl) {
-                        async {
-                            semaphore.withPermit {
-                                tmdbResolver.resolve(
-                                    detailsUrl = item.detailsUrl,
-                                    titleRu = item.titleRu,
-                                    releaseDateRu = item.releaseDateRu,
-                                    kind = item.kind,
-                                    originalReleaseYear = item.originalReleaseYear,
-                                )
-                            }
-                        }
-                    }
-                    val tmdbUrls = try {
-                        tmdbUrlsDeferred.await()
-                    } catch (exception: CancellationException) {
-                        tmdbEnrichCache.remove(item.detailsUrl, tmdbUrlsDeferred)
-                        throw exception
-                    } catch (exception: Exception) {
-                        tmdbEnrichCache.remove(item.detailsUrl, tmdbUrlsDeferred)
-                        throw exception
-                    }
-                    tmdbEnrichCache.remove(item.detailsUrl, tmdbUrlsDeferred)
-                    TmdbPosterEnricher.enrichSummary(item, tmdbUrls)
-                }
-            }.awaitAll()
-        }
-
-        if (persistToCache) {
-            upsertChangedSummaries(enrichedItems.toSummaryEntities())
-        }
-
-        return enrichedItems
-    }
-
-    private fun ReleaseSummary.hasCompleteArt(): Boolean =
-        posterUrl.isNotBlank() && !backdropUrl.isNullOrBlank()
-
-    private suspend fun upsertChangedSummaries(entities: List<ReleaseSummaryEntity>) {
-        if (entities.isEmpty()) return
-        releaseDao.upsertSummaries(entities)
-    }
 
     private suspend fun cleanupExpiredDataIfNeeded() {
         val now = clock()
@@ -1687,51 +1274,9 @@ class LostFilmRepositoryImpl(
             .normalizeText()
     }
 
-    private suspend fun isFavoriteReleasePublishedToday(detailsUrl: String): Boolean {
-        return try {
-            val detailsHtml = httpClient.fetchDetails(resolveUrl(detailsUrl))
-            detailsParser.parsePlayEpisodeId(detailsHtml) != null
-        } catch (e: IOException) {
-            Log.w(TAG, "Failed to check if favorite release is published today", e)
-            false
-        }
-    }
-
-    private fun parseFavoriteReleaseDate(value: String): LocalDate? {
-        return try {
-            LocalDate.parse(value, favoriteReleaseDateFormatter)
-        } catch (e: DateTimeParseException) {
-            Log.w(TAG, "Failed to parse favorite release date", e)
-            null
-        }
-    }
-
-    private fun currentFavoriteReleaseDate(): LocalDate {
-        return Instant.ofEpochMilli(clock())
-            .atZone(ZoneOffset.UTC)
-            .toLocalDate()
-    }
 }
 
 private fun String.normalizeSearchQuery(): String = normalizeText().replace(searchWhitespaceRegex, " ")
-
-private fun FavoriteSeriesRef.toFavoriteSeriesSummary(
-    positionInPage: Int,
-    fetchedAt: Long,
-): ReleaseSummary = ReleaseSummary(
-    id = seriesUrl,
-    kind = ReleaseKind.SERIES,
-    titleRu = titleRu,
-    episodeTitleRu = null,
-    seasonNumber = null,
-    episodeNumber = null,
-    releaseDateRu = "",
-    posterUrl = posterUrl,
-    detailsUrl = seriesUrl,
-    pageNumber = 1,
-    positionInPage = positionInPage,
-    fetchedAt = fetchedAt,
-)
 
 private fun String.isLostFilmImageUrl(): Boolean {
     val normalized = lowercase()

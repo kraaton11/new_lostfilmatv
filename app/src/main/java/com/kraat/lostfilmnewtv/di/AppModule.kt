@@ -29,6 +29,7 @@ import com.kraat.lostfilmnewtv.updates.GitHubReleaseClient
 import com.kraat.lostfilmnewtv.updates.ReleaseApkLauncher
 import com.kraat.lostfilmnewtv.updates.UpdateHttpClientFactory
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
+import com.kraat.lostfilmnewtv.data.repository.FavoritesRepository
 import com.kraat.lostfilmnewtv.ui.settings.AppSettingsDataManager
 import kotlinx.coroutines.flow.last
 import com.kraat.lostfilmnewtv.ui.settings.AppSettingsDiagnosticsRunner
@@ -171,11 +172,11 @@ object AppModule {
     fun provideHomeChannelContentRepository(
         releaseDao: ReleaseDao,
         tmdbResolver: TmdbPosterResolver,
-        repository: LostFilmRepository,
+        favoritesRepository: FavoritesRepository,
     ): HomeChannelContentRepository = HomeChannelContentRepository(
         releaseDao = releaseDao,
         tmdbResolver = tmdbResolver,
-        loadFavoriteReleases = { repository.observeFavoriteReleases().last() },
+        loadFavoriteReleases = { favoritesRepository.observeFavoriteReleases().last() },
     )
 
     @Provides

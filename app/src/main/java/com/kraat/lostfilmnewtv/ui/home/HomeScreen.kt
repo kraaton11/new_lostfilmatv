@@ -52,6 +52,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.flow.StateFlow
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
@@ -77,6 +79,7 @@ import kotlinx.coroutines.withTimeoutOrNull
 fun HomeScreen(
     state: HomeUiState = demoHomeUiState(),
     externalSelectedItemKey: String? = null,
+    focusStateFlow: StateFlow<HomeFocusState>? = null,
     onItemFocused: (String) -> Unit = {},
     onModeSelected: (HomeFeedMode) -> Unit = {},
     onOpenDetails: (String) -> Unit = {},
@@ -100,6 +103,13 @@ fun HomeScreen(
     isUpdateDownloading: Boolean = false,
     updateDownloadProgress: Int? = null,
 ) {
+    val focusState by if (focusStateFlow != null) {
+        focusStateFlow.collectAsStateWithLifecycle()
+    } else {
+        remember { mutableStateOf(HomeFocusState(selectedItemKey = externalSelectedItemKey)) }
+    }
+    val resolvedExternalSelectedItemKey = focusState.selectedItemKey
+
     val lifecycleOwner = LocalLifecycleOwner.current
     val activeModeStateState = remember(
         state.selectedMode,
@@ -146,7 +156,7 @@ fun HomeScreen(
     val itemKeys = remember(activeItems) { activeItems.map { it.detailsUrl } }
     var focusedItemKey by rememberSaveable(state.selectedMode, itemKeys) {
         mutableStateOf(
-            externalSelectedItemKey ?: state.selectedItemKey ?: itemKeys.firstOrNull(),
+            resolvedExternalSelectedItemKey ?: state.selectedItemKey ?: itemKeys.firstOrNull(),
         )
     }
     var lastSyncedKey by remember { mutableStateOf<String?>(null) }
@@ -158,8 +168,8 @@ fun HomeScreen(
     var isHomeMenuFocused by rememberSaveable { mutableStateOf(true) }
     val shouldShowHomeMenuLabels = state.isHomeMenuLabelsEnabled || isHomeMenuFocused
 
-    LaunchedEffect(externalSelectedItemKey, state.selectedItemKey, state.selectedMode, itemKeys) {
-        val preferredKey = externalSelectedItemKey ?: state.selectedItemKey ?: itemKeys.firstOrNull()
+    LaunchedEffect(resolvedExternalSelectedItemKey, state.selectedItemKey, state.selectedMode, itemKeys) {
+        val preferredKey = resolvedExternalSelectedItemKey ?: state.selectedItemKey ?: itemKeys.firstOrNull()
         if (preferredKey != null && preferredKey != lastSyncedKey) {
             focusedItemKey = preferredKey
             lastSyncedKey = preferredKey

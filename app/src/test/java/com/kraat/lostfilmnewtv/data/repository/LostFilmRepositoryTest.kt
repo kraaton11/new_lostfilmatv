@@ -33,6 +33,10 @@ import java.io.IOException
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.flow.last
+import com.kraat.lostfilmnewtv.data.repository.FavoritesRepository
+import com.kraat.lostfilmnewtv.data.repository.FavoritesRepositoryImpl
+import com.kraat.lostfilmnewtv.data.poster.TmdbEnrichmentService
+import com.kraat.lostfilmnewtv.data.poster.TmdbEnrichmentServiceImpl
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import org.junit.After
@@ -55,6 +59,7 @@ private const val SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000L
 class LostFilmRepositoryTest {
     private lateinit var database: LostFilmDatabase
     private lateinit var releaseDao: ReleaseDao
+    private lateinit var favoritesRepository: FavoritesRepository
 
     @Before
     fun setUp() {
@@ -1080,7 +1085,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
+        val result = favoritesRepository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
 
         assertEquals(FavoriteMutationResult.NoOp, result)
         assertEquals(0, toggleCalls)
@@ -1108,7 +1113,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
+        val result = favoritesRepository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
 
         assertEquals(FavoriteMutationResult.Updated, result)
         assertTrue(releaseDao.getReleaseDetails(detailsUrl)?.toModel()?.isFavorite == true)
@@ -1138,7 +1143,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
+        val result = favoritesRepository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
 
         assertEquals(FavoriteMutationResult.Updated, result)
         assertEquals(listOf(favoritePageUrl), detailsRequests)
@@ -1171,7 +1176,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
+        val result = favoritesRepository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
 
         assertEquals(FavoriteMutationResult.Updated, result)
         assertEquals(listOf(favoritePageUrl, detailsUrl), detailsRequests)
@@ -1186,7 +1191,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = false,
         )
 
-        val result = repository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
+        val result = favoritesRepository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
 
         assertEquals(FavoriteMutationResult.RequiresLogin(), result)
     }
@@ -1219,7 +1224,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.observeFavoriteReleases().last()
+        val result = favoritesRepository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -1260,7 +1265,7 @@ class LostFilmRepositoryTest {
             },
         )
 
-        val result = repository.loadFavoriteSeries()
+        val result = favoritesRepository.loadFavoriteSeries()
 
         assertTrue(result is FavoriteSeriesResult.Success)
         result as FavoriteSeriesResult.Success
@@ -1302,7 +1307,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = false,
         )
 
-        val result = repository.loadFavoriteSeries()
+        val result = favoritesRepository.loadFavoriteSeries()
 
         assertEquals(FavoriteSeriesResult.Unavailable("Войдите в LostFilm"), result)
     }
@@ -1362,20 +1367,20 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.observeFavoriteReleases().last()
+        val result = favoritesRepository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
         assertEquals(listOf("/my/type_1"), accountRequests)
         assertEquals(
-            listOf(
+            setOf(
                 "https://www.lostfilm.today/series/alpha/seasons",
                 "https://www.lostfilm.today/series/alpha",
                 "https://www.lostfilm.today/series/beta/seasons",
                 "https://www.lostfilm.today/series/beta",
                 "https://www.lostfilm.today/series/alpha/season_1/episode_2/",
             ),
-            detailsRequests,
+            detailsRequests.toSet(),
         )
         val feedDetails = result.items.map { it.detailsUrl }
         assertEquals(2, feedDetails.size)
@@ -1443,7 +1448,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.observeFavoriteReleases().last()
+        val result = favoritesRepository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -1499,7 +1504,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.observeFavoriteReleases().last()
+        val result = favoritesRepository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -1558,7 +1563,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.observeFavoriteReleases().last()
+        val result = favoritesRepository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -1617,7 +1622,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.observeFavoriteReleases().last()
+        val result = favoritesRepository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -1697,11 +1702,11 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.observeFavoriteReleases().last()
+        val result = favoritesRepository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
-        assertEquals(listOf("1072", "2088"), watchedMarksRequests)
+        assertEquals(setOf("1072", "2088"), watchedMarksRequests.toSet())
         assertTrue(result.items.first { it.detailsUrl.endsWith("/season_1/episode_2/") }.isWatched)
         assertFalse(result.items.first { it.detailsUrl.endsWith("/season_1/episode_1/") }.isWatched)
         assertFalse(result.items.first { it.detailsUrl.endsWith("/season_3/episode_1/") }.isWatched)
@@ -1761,7 +1766,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.observeFavoriteReleases().last()
+        val result = favoritesRepository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -1857,7 +1862,7 @@ class LostFilmRepositoryTest {
         isAuthenticated = true,
     )
 
-    val result = repository.observeFavoriteReleases().last()
+    val result = favoritesRepository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -1935,7 +1940,7 @@ class LostFilmRepositoryTest {
             tmdbResolver = tmdbResolver,
         )
 
-        val result = repository.observeFavoriteReleases().last()
+        val result = favoritesRepository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -2018,7 +2023,7 @@ class LostFilmRepositoryTest {
             tmdbResolver = tmdbResolver,
         )
 
-        val result = repository.observeFavoriteReleases().last()
+        val result = favoritesRepository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -2046,7 +2051,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.observeFavoriteReleases().last()
+        val result = favoritesRepository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Unavailable)
     }
@@ -2084,7 +2089,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.observeFavoriteReleases().last()
+        val result = favoritesRepository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -2139,7 +2144,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        repository.observeFavoriteReleases().last()
+        favoritesRepository.observeFavoriteReleases().last()
 
         // Verify data was persisted to Room.
         val roomMetadata = releaseDao.getFavoriteReleaseCacheMetadata()
@@ -2198,7 +2203,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
+        val result = favoritesRepository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
 
         assertEquals(FavoriteMutationResult.Updated, result)
         // Room cache should have been cleared.
@@ -2305,17 +2310,29 @@ class LostFilmRepositoryTest {
         isAuthenticated: Boolean = false,
         tmdbResolver: TmdbPosterResolver = createFakeTmdbResolver(),
     ): LostFilmRepository {
+        val fakeHttpClient = FakeLostFilmHttpClient(
+            pageHandler = pageHandler,
+            detailsHandler = detailsHandler,
+            torrentHandler = torrentHandler,
+            torrentPageHandler = torrentPageHandler,
+            markEpisodeHandler = markEpisodeHandler,
+            watchedEpisodeMarksHandler = watchedEpisodeMarksHandler,
+            favoriteToggleHandler = favoriteToggleHandler,
+            accountPageHandler = accountPageHandler,
+        )
+        val tmdbEnrichmentService = TmdbEnrichmentServiceImpl(
+            tmdbResolver = tmdbResolver,
+            releaseDao = releaseDao
+        )
+        favoritesRepository = FavoritesRepositoryImpl(
+            httpClient = fakeHttpClient,
+            releaseDao = releaseDao,
+            tmdbEnrichmentService = tmdbEnrichmentService,
+            hasAuthenticatedSession = { isAuthenticated },
+            clock = { NOW },
+        )
         return LostFilmRepositoryImpl(
-            httpClient = FakeLostFilmHttpClient(
-                pageHandler = pageHandler,
-                detailsHandler = detailsHandler,
-                torrentHandler = torrentHandler,
-                torrentPageHandler = torrentPageHandler,
-                markEpisodeHandler = markEpisodeHandler,
-                watchedEpisodeMarksHandler = watchedEpisodeMarksHandler,
-                favoriteToggleHandler = favoriteToggleHandler,
-                accountPageHandler = accountPageHandler,
-            ),
+            httpClient = fakeHttpClient,
             releaseDao = releaseDao,
             listParser = LostFilmListParser(),
             detailsParser = LostFilmDetailsParser(),
@@ -2323,6 +2340,8 @@ class LostFilmRepositoryTest {
             seasonEpisodesParser = LostFilmSeasonEpisodesParser(),
             hasAuthenticatedSession = { isAuthenticated },
             tmdbResolver = tmdbResolver,
+            tmdbEnrichmentService = tmdbEnrichmentService,
+            favoritesRepository = dagger.internal.DoubleCheck.lazy { favoritesRepository },
             clock = { NOW },
         )
     }

@@ -9,6 +9,10 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.network.ProwlarrSearchResult
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
+import com.kraat.lostfilmnewtv.data.repository.FavoritesRepository
+import com.kraat.lostfilmnewtv.data.model.FavoriteSeriesResult
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import com.kraat.lostfilmnewtv.navigation.AppDestination
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.CompletableDeferred
@@ -158,6 +162,7 @@ class DetailsViewModelTest {
         )
         val viewModel = DetailsViewModel(
             repository = repository,
+            favoritesRepository = repository,
             savedStateHandle = SavedStateHandle(
                 mapOf(AppDestination.Details.detailsUrlArg to "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"),
             ),
@@ -189,6 +194,7 @@ class DetailsViewModelTest {
         )
         val viewModel = DetailsViewModel(
             repository = repository,
+            favoritesRepository = repository,
             savedStateHandle = SavedStateHandle(
                 mapOf(AppDestination.Details.detailsUrlArg to "https://www.lostfilm.today/movies/Irreversible"),
             ),
@@ -219,6 +225,7 @@ class DetailsViewModelTest {
         )
         val viewModel = DetailsViewModel(
             repository = repository,
+            favoritesRepository = repository,
             savedStateHandle = SavedStateHandle(
                 mapOf(AppDestination.Details.detailsUrlArg to "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"),
             ),
@@ -242,6 +249,7 @@ class DetailsViewModelTest {
         )
         val viewModel = DetailsViewModel(
             repository = repository,
+            favoritesRepository = repository,
             savedStateHandle = SavedStateHandle(
                 mapOf(AppDestination.Details.detailsUrlArg to "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"),
             ),
@@ -297,6 +305,7 @@ class DetailsViewModelTest {
         )
         val viewModel = DetailsViewModel(
             repository = repository,
+            favoritesRepository = repository,
             savedStateHandle = SavedStateHandle(
                 mapOf(AppDestination.Details.detailsUrlArg to "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"),
             ),
@@ -347,6 +356,7 @@ class DetailsViewModelTest {
         )
         val viewModel = DetailsViewModel(
             repository = repository,
+            favoritesRepository = repository,
             savedStateHandle = SavedStateHandle(
                 mapOf(AppDestination.Details.detailsUrlArg to "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"),
             ),
@@ -390,6 +400,7 @@ class DetailsViewModelTest {
         )
         val viewModel = DetailsViewModel(
             repository = repository,
+            favoritesRepository = repository,
             savedStateHandle = SavedStateHandle(
                 mapOf(AppDestination.Details.detailsUrlArg to "https://www.lostfilm.today/movies/Irreversible"),
             ),
@@ -423,6 +434,7 @@ class DetailsViewModelTest {
         )
         val viewModel = DetailsViewModel(
             repository = repository,
+            favoritesRepository = repository,
             savedStateHandle = SavedStateHandle(
                 mapOf(AppDestination.Details.detailsUrlArg to "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"),
             ),
@@ -454,6 +466,7 @@ class DetailsViewModelTest {
         )
         val viewModel = DetailsViewModel(
             repository = repository,
+            favoritesRepository = repository,
             savedStateHandle = SavedStateHandle(
                 mapOf(AppDestination.Details.detailsUrlArg to "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"),
             ),
@@ -490,6 +503,7 @@ class DetailsViewModelTest {
         )
         val viewModel = DetailsViewModel(
             repository = repository,
+            favoritesRepository = repository,
             savedStateHandle = SavedStateHandle(
                 mapOf(AppDestination.Details.detailsUrlArg to "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"),
             ),
@@ -526,6 +540,7 @@ class DetailsViewModelTest {
         )
         val viewModel = DetailsViewModel(
             repository = repository,
+            favoritesRepository = repository,
             savedStateHandle = SavedStateHandle(
                 mapOf(AppDestination.Details.detailsUrlArg to "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"),
             ),
@@ -558,6 +573,7 @@ class DetailsViewModelTest {
         )
         val viewModel = DetailsViewModel(
             repository = repository,
+            favoritesRepository = repository,
             savedStateHandle = SavedStateHandle(
                 mapOf(
                     AppDestination.Details.detailsUrlArg to "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/",
@@ -606,6 +622,7 @@ class DetailsViewModelTest {
         )
         val viewModel = DetailsViewModel(
             repository = repository,
+            favoritesRepository = repository,
             savedStateHandle = SavedStateHandle(
                 mapOf(
                     AppDestination.Details.detailsUrlArg to detailsUrl,
@@ -631,7 +648,10 @@ class DetailsViewModelTest {
 private class PreviewThenExtrasRepository(
     private val previewResult: DetailsResult,
     private val extrasResult: CompletableDeferred<DetailsResult>,
-) : LostFilmRepository {
+) : LostFilmRepository, FavoritesRepository {
+    override fun observeFavoriteReleases(pageNumber: Int): Flow<FavoriteReleasesResult> = flow { emit(FavoriteReleasesResult.Unavailable()) }
+    override suspend fun loadFavoriteSeries(): FavoriteSeriesResult = FavoriteSeriesResult.Unavailable()
+    override suspend fun invalidateCache() {}
     override suspend fun loadPage(pageNumber: Int): PageState {
         error("Page loading is not used in details tests")
     }
@@ -659,7 +679,10 @@ private class FakeDetailsRepository(
     private val detailsResult: DetailsResult,
     private val watchedStateResult: Boolean? = false,
     private val favoriteResult: CompletableDeferred<FavoriteMutationResult> = CompletableDeferred(FavoriteMutationResult.RequiresLogin()),
-) : LostFilmRepository {
+) : LostFilmRepository, FavoritesRepository {
+    override fun observeFavoriteReleases(pageNumber: Int): Flow<FavoriteReleasesResult> = flow { emit(FavoriteReleasesResult.Unavailable()) }
+    override suspend fun loadFavoriteSeries(): FavoriteSeriesResult = FavoriteSeriesResult.Unavailable()
+    override suspend fun invalidateCache() {}
     override suspend fun loadPage(pageNumber: Int): PageState {
         error("Page loading is not used in details tests")
     }
@@ -680,9 +703,11 @@ private class FakeDetailsRepository(
 
 private class SequencedDetailsRepository(
     private val results: List<CompletableDeferred<DetailsResult>>,
-) : LostFilmRepository {
+) : LostFilmRepository, FavoritesRepository {
+    override fun observeFavoriteReleases(pageNumber: Int): Flow<FavoriteReleasesResult> = flow { emit(FavoriteReleasesResult.Unavailable()) }
+    override suspend fun loadFavoriteSeries(): FavoriteSeriesResult = FavoriteSeriesResult.Unavailable()
+    override suspend fun invalidateCache() {}
     private var index = 0
-
     override suspend fun loadPage(pageNumber: Int): PageState {
         error("Page loading is not used in details tests")
     }
@@ -706,7 +731,10 @@ private class SequencedDetailsRepository(
 
 private class ReloadingDetailsRepository(
     private val results: List<DetailsResult>,
-) : LostFilmRepository {
+) : LostFilmRepository, FavoritesRepository {
+    override fun observeFavoriteReleases(pageNumber: Int): Flow<FavoriteReleasesResult> = flow { emit(FavoriteReleasesResult.Unavailable()) }
+    override suspend fun loadFavoriteSeries(): FavoriteSeriesResult = FavoriteSeriesResult.Unavailable()
+    override suspend fun invalidateCache() {}
     val loadedDetailsUrls = mutableListOf<String>()
     private var index = 0
 

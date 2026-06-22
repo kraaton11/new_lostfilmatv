@@ -12,6 +12,9 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
+import com.kraat.lostfilmnewtv.data.repository.FavoritesRepository
+import com.kraat.lostfilmnewtv.data.poster.TmdbEnrichmentService
+import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPreferences
@@ -1210,7 +1213,7 @@ private class FakeLostFilmRepository(
      * контроль тайминга между эмиссиями.
      */
     val newReleasesEmissions: Map<Int, List<PageState>> = emptyMap(),
-) : LostFilmRepository {
+) : LostFilmRepository, FavoritesRepository {
     val pageRequests = mutableListOf<Int>()
     val movieRequests = mutableListOf<Int>()
     val favoriteReleaseRequests = mutableListOf<Int>()
@@ -1276,6 +1279,8 @@ private class FakeLostFilmRepository(
     override suspend fun loadFavoriteSeries(): FavoriteSeriesResult {
         return favoriteSeriesResults.removeFirstOrNull() ?: FavoriteSeriesResult.Unavailable()
     }
+
+    override suspend fun invalidateCache() {}
 }
 
 private fun summary(
@@ -1367,6 +1372,11 @@ private fun createViewModel(
 
     return HomeViewModel(
         repository = repository,
+        favoritesRepository = repository as FavoritesRepository,
+        tmdbEnrichmentService = object : TmdbEnrichmentService {
+            override suspend fun enrichSummaries(items: List<ReleaseSummary>, persistToCache: Boolean) = items
+            override suspend fun enrichSearchItems(items: List<LostFilmSearchItem>) = items
+        },
         savedStateHandle = savedStateHandle,
         preferencesStore = preferencesStore,
         homeChannelSyncManager = homeChannelSyncManager,

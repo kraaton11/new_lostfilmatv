@@ -8,6 +8,8 @@ import com.kraat.lostfilmnewtv.data.model.FavoriteSeriesResult
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
+import com.kraat.lostfilmnewtv.data.repository.FavoritesRepository
+import com.kraat.lostfilmnewtv.data.poster.TmdbEnrichmentService
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import com.kraat.lostfilmnewtv.updates.AppUpdateCoordinator
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
@@ -22,6 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -33,6 +36,8 @@ private val favoriteSeriesSlugRegex = Regex("""/series/([^/]+)""")
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val repository: LostFilmRepository,
+    private val favoritesRepository: FavoritesRepository,
+    private val tmdbEnrichmentService: TmdbEnrichmentService,
     private val savedStateHandle: SavedStateHandle,
     private val preferencesStore: PlaybackPreferencesStore,
     private val homeChannelSyncManager: HomeChannelSyncManager,
@@ -115,6 +120,7 @@ class HomeViewModel @Inject constructor(
     private var favoriteSeriesLoadJob: Job? = null
     private var moviesLoadJob: Job? = null
     private var seriesLoadJob: Job? = null
+    private var saveFocusJob: Job? = null
     private var lastAllNewRefreshAt = 0L
 
     fun onStart() {
@@ -237,12 +243,17 @@ class HomeViewModel @Inject constructor(
         val state = _uiState.value
         val mode = itemMode(state, itemKey)
         val normalizedKey = preferredDetailsUrl(itemKey) ?: itemKey
-        savedStateHandle[FOCUS_KEY] = normalizedKey
         _focusState.update { focus ->
             focus.copy(
                 rememberedItemKeyByMode = focus.rememberedItemKeyByMode + (mode to normalizedKey),
                 selectedItemKey = if (mode == state.selectedMode) normalizedKey else focus.selectedItemKey,
             )
+        }
+
+        saveFocusJob?.cancel()
+        saveFocusJob = viewModelScope.launch(ioDispatcher) {
+            delay(500)
+            savedStateHandle[FOCUS_KEY] = normalizedKey
         }
     }
 
@@ -533,7 +544,7 @@ class HomeViewModel @Inject constructor(
         }
         favoriteLoadJob = viewModelScope.launch(ioDispatcher) {
             try {
-                repository.observeFavoriteReleases(pageNumber).collect { result ->
+                favoritesRepository.observeFavoriteReleases(pageNumber).collect { result ->
                     if (favoriteRequestToken != requestToken) return@collect
                     _uiState.update { state ->
                         when (result) {
@@ -619,7 +630,7 @@ class HomeViewModel @Inject constructor(
             )
         }
         favoriteSeriesLoadJob = viewModelScope.launch(ioDispatcher) {
-            when (val result = repository.loadFavoriteSeries()) {
+            when (val result = favoritesRepository.loadFavoriteSeries()) {
                 is FavoriteSeriesResult.Success -> {
                     val seriesState = if (result.items.isEmpty()) {
                         HomeModeContentState.Empty
