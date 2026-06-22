@@ -368,6 +368,14 @@ class HomeViewModel @Inject constructor(
             if (mode == state.selectedMode || mode !in state.availableModes) state
             else {
                 preferencesStore.writeHomeSelectedFeedMode(mode)
+                // Сбрасываем запомненную позицию фокуса для целевого режима,
+                // чтобы при переключении фокус всегда вставал на первую карточку.
+                _focusState.update { focus ->
+                    focus.copy(
+                        rememberedItemKeyByMode = focus.rememberedItemKeyByMode - mode,
+                        selectedItemKey = null,
+                    )
+                }
                 val resolved = state.copy(selectedMode = mode).resolveSelection()
                 updateFocusFromResolvedState(resolved)
                 resolved
