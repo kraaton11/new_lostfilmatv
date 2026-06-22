@@ -474,13 +474,15 @@ private fun HomeModeSegmentButton(
                 downTarget?.let { down = it }
             }
             .onPreviewKeyEvent { event ->
-                if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight) {
+                if (event.key == Key.DirectionRight && event.type == KeyEventType.KeyDown) {
                     onInteraction()
                     return@onPreviewKeyEvent onBackClick()
                 }
-                if (event.type == KeyEventType.KeyDown && event.key.isHeaderActivationKey()) {
-                    onInteraction()
-                    onClick()
+                if (event.key.isHeaderActivationKey()) {
+                    if (event.type == KeyEventType.KeyDown) {
+                        onInteraction()
+                        onClick()
+                    }
                     return@onPreviewKeyEvent true
                 }
                 if (event.type == KeyEventType.KeyDown && event.key.isHeaderInteractionKey()) {
@@ -590,13 +592,15 @@ private fun HomeHeaderActionButton(
             .then(
                 if (observeKeyInteractions) {
                     Modifier.onPreviewKeyEvent { event ->
-                        if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight) {
+                        if (event.key == Key.DirectionRight && event.type == KeyEventType.KeyDown) {
                             onInteraction()
                             return@onPreviewKeyEvent onBackClick()
                         }
-                        if (event.type == KeyEventType.KeyDown && event.key.isHeaderActivationKey()) {
-                            onInteraction()
-                            onClick()
+                        if (event.key.isHeaderActivationKey()) {
+                            if (event.type == KeyEventType.KeyDown) {
+                                onInteraction()
+                                onClick()
+                            }
                             return@onPreviewKeyEvent true
                         }
                         if (event.type == KeyEventType.KeyDown && event.key.isHeaderInteractionKey()) {
@@ -723,13 +727,15 @@ private fun HomeHeaderIconButton(
             .then(
                 if (observeKeyInteractions) {
                     Modifier.onPreviewKeyEvent { event ->
-                        if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionRight) {
+                        if (event.key == Key.DirectionRight && event.type == KeyEventType.KeyDown) {
                             onInteraction()
                             return@onPreviewKeyEvent onBackClick()
                         }
-                        if (event.type == KeyEventType.KeyDown && event.key.isHeaderActivationKey()) {
-                            onInteraction()
-                            onClick()
+                        if (event.key.isHeaderActivationKey()) {
+                            if (event.type == KeyEventType.KeyDown) {
+                                onInteraction()
+                                onClick()
+                            }
                             return@onPreviewKeyEvent true
                         }
                         if (event.type == KeyEventType.KeyDown && event.key.isHeaderInteractionKey()) {

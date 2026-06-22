@@ -169,10 +169,6 @@ fun HomeRail(
                             }
 
                             when {
-                                event.key.isPosterActivationKey() -> {
-                                    onOpenDetails(item.detailsUrl)
-                                    true
-                                }
                                 event.key == Key.Back && leftTargetRequester != null -> {
                                     leftTargetRequester.requestFocus()
                                     true
@@ -234,15 +230,4 @@ private fun HomePagingPosterSkeleton(modifier: Modifier = Modifier) {
         baseColor = HomePanelSurfaceStrong,
         borderColor = HomePanelBorder.copy(alpha = 0.20f),
     )
-}
-
-private fun Key.isPosterActivationKey(): Boolean {
-    return when (this) {
-        Key.DirectionCenter,
-        Key.Enter,
-        Key.NumPadEnter,
-        -> true
-
-        else -> false
-    }
 }
