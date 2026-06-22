@@ -778,14 +778,18 @@ class LostFilmRepositoryImpl(
                 val detailsHtml = httpClient.fetchDetails(normalizedDetailsUrl)
                 val ws = detailsParser.parseWatchedState(detailsHtml)
                 val token = detailsParser.parseAjaxSessionToken(detailsHtml)
+                Log.d(TAG, "setEpisodeWatched: page fetch ws=$ws hasToken=${token != null} target=$targetWatched")
                 val fresh = ws to token
                 watchedPageCache[normalizedDetailsUrl] = fresh
                 fresh
             }
+            Log.d(TAG, "setEpisodeWatched: currentWatched=$currentWatched target=$targetWatched")
             if (ajaxSessionToken == null) {
-                return currentWatched
+                Log.w(TAG, "setEpisodeWatched: no ajax token — session likely expired, cannot call API")
+                return null
             }
             if (currentWatched == targetWatched) {
+                Log.d(TAG, "setEpisodeWatched: already at target=$targetWatched, no-op")
                 return currentWatched
             }
             val requestSucceeded = httpClient.setEpisodeWatched(
@@ -794,12 +798,14 @@ class LostFilmRepositoryImpl(
                 ajaxSessionToken = ajaxSessionToken,
                 targetWatched = targetWatched,
             )
+            Log.d(TAG, "setEpisodeWatched: AJAX requestSucceeded=$requestSucceeded target=$targetWatched")
             val effectiveWatched = if (requestSucceeded) {
                 targetWatched
             } else {
                 val refreshedDetailsHtml = httpClient.fetchDetails(normalizedDetailsUrl)
                 val refreshedWatched = detailsParser.parseWatchedState(refreshedDetailsHtml)
                 val refreshedToken = detailsParser.parseAjaxSessionToken(refreshedDetailsHtml)
+                Log.d(TAG, "setEpisodeWatched: fallback page refreshedWatched=$refreshedWatched")
                 watchedPageCache[normalizedDetailsUrl] = refreshedWatched to refreshedToken
                 if (refreshedWatched == targetWatched) {
                     refreshedWatched
@@ -807,6 +813,7 @@ class LostFilmRepositoryImpl(
                     refreshedWatched ?: currentWatched
                 }
             }
+            Log.d(TAG, "setEpisodeWatched: effectiveWatched=$effectiveWatched")
             if (effectiveWatched != null) {
                 watchedPageCache[normalizedDetailsUrl] = effectiveWatched to ajaxSessionToken
                 releaseDao.updateSummaryWatched(

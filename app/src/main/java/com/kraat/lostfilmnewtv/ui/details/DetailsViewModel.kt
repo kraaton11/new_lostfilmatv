@@ -51,6 +51,7 @@ class DetailsViewModel @Inject constructor(
     private var loadRequestToken = 0
     private var loadJob: Job? = null
     private var watchedStateJob: Job? = null
+    private var watchedMutationCount = 0
     private var prowlarrSearchJob: Job? = null
     private var hasValidSession = isAuthenticated
 
@@ -171,6 +172,7 @@ class DetailsViewModel @Inject constructor(
 
         viewModelScope.launch(ioDispatcher) {
             val targetWatched = !currentWatched
+            watchedStateJob?.cancel()
             val effectiveWatched = repository.setEpisodeWatched(
                 detailsUrl = currentDetails.detailsUrl,
                 playEpisodeId = playEpisodeId,
@@ -186,6 +188,7 @@ class DetailsViewModel @Inject constructor(
                     }
 
                     else -> {
+                        watchedMutationCount++
                         state.copy(
                             isWatched = effectiveWatched,
                             isWatchedMutationInFlight = false,
@@ -320,9 +323,11 @@ class DetailsViewModel @Inject constructor(
 
         _uiState.update { it.copy(isWatchedStateLoading = true).withWatchedPresentation() }
         watchedStateJob?.cancel()
+        val mutationCountAtStart = watchedMutationCount
         watchedStateJob = viewModelScope.launch(ioDispatcher) {
             val watchedState = repository.loadWatchedState(detailsUrl)
             if (loadRequestToken != requestToken) return@launch
+            if (watchedMutationCount != mutationCountAtStart) return@launch
             _uiState.update {
                 it.copy(
                     isWatched = watchedState,

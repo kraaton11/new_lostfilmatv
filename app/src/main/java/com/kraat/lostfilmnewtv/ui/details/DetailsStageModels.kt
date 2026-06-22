@@ -165,7 +165,14 @@ fun buildDetailsStageUi(
         heroStatusLine = heroStatusLine,
         primaryAction = primaryAction,
         secondaryActions = if (isAuthenticated) {
-            listOfNotNull(movieDescriptionAction, overviewAction, guideAction, favoriteAction, watchedAction)
+            val isMovie = details?.kind == ReleaseKind.MOVIE
+            listOfNotNull(
+                movieDescriptionAction,
+                overviewAction,
+                guideAction,
+                favoriteAction.takeUnless { isMovie },
+                watchedAction.takeUnless { isMovie },
+            )
         } else {
             emptyList()
         },

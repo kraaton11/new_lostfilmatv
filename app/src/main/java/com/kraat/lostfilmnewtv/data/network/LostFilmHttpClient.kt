@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.data.network
 
+import android.util.Log
 import com.kraat.lostfilmnewtv.data.parser.BASE_URL
 import com.kraat.lostfilmnewtv.data.parser.resolveUrl
 import com.kraat.lostfilmnewtv.data.auth.SessionStore
@@ -235,7 +236,7 @@ private fun seriesCatalogPageUrl(pageNumber: Int): String {
 // AuthenticatedLostFilmHttpClient (например, в тестах).
 typealias AuthenticatedLostFilmHttpClient = OkHttpLostFilmHttpClient
 
-private val markEpisodeSuccessRegex = Regex(""""result"\s*:\s*"on"""")
+private val markEpisodeResultRegex = Regex(""""result"\s*:\s*"(on|off)"""")
 private val favoriteToggleResultRegex = Regex(""""result"\s*:\s*"(on|off)"""")
 
 private fun executeFetchSeasonWatchedEpisodeMarks(
@@ -310,7 +311,11 @@ private fun executeSetEpisodeWatched(
         }
         val body = response.body?.string()
             ?: throw IOException("Empty response body for ${ajaxUrl.redactedForError()}")
-        return markEpisodeSuccessRegex.containsMatchIn(body)
+        val resultValue = markEpisodeResultRegex.find(body)?.groupValues?.getOrNull(1)
+        if (resultValue == null) {
+            Log.w("LostFilmHttp", "markEpisode: unexpected response body=${body.take(300)}")
+        }
+        return if (targetWatched) resultValue == "on" else resultValue == "off"
     }
 }
 
