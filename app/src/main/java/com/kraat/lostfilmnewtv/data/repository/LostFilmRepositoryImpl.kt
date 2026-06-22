@@ -133,6 +133,9 @@ class LostFilmRepositoryImpl(
 ) : LostFilmRepository {
     private val cleanupMutex = Mutex()
     private var lastCleanupAt = 0L
+    // Кеш (isWatched, ajaxSessionToken) после последнего loadWatchedState — позволяет
+    // setEpisodeWatched не делать повторный fetchDetails ради получения токена.
+    private val watchedPageCache = ConcurrentHashMap<String, Pair<Boolean?, String?>>()
 
     override suspend fun loadPage(pageNumber: Int): PageState {
         cleanupExpiredDataIfNeeded()
@@ -713,6 +716,8 @@ class LostFilmRepositoryImpl(
         return try {
             val detailsHtml = httpClient.fetchDetails(normalizedDetailsUrl)
             val watchedState = detailsParser.parseWatchedState(detailsHtml)
+            val ajaxToken = detailsParser.parseAjaxSessionToken(detailsHtml)
+            watchedPageCache[normalizedDetailsUrl] = watchedState to ajaxToken
             watchedState?.let { isWatched ->
                 releaseDao.updateSummaryWatched(
                     detailsUrl = normalizedDetailsUrl,
@@ -766,9 +771,17 @@ class LostFilmRepositoryImpl(
 
         val normalizedDetailsUrl = resolveUrl(detailsUrl)
         return try {
-            val detailsHtml = httpClient.fetchDetails(normalizedDetailsUrl)
-            val currentWatched = detailsParser.parseWatchedState(detailsHtml)
-            val ajaxSessionToken = detailsParser.parseAjaxSessionToken(detailsHtml)
+            val cached = watchedPageCache[normalizedDetailsUrl]
+            val (currentWatched, ajaxSessionToken) = if (cached != null) {
+                cached
+            } else {
+                val detailsHtml = httpClient.fetchDetails(normalizedDetailsUrl)
+                val ws = detailsParser.parseWatchedState(detailsHtml)
+                val token = detailsParser.parseAjaxSessionToken(detailsHtml)
+                val fresh = ws to token
+                watchedPageCache[normalizedDetailsUrl] = fresh
+                fresh
+            }
             if (ajaxSessionToken == null) {
                 return currentWatched
             }
@@ -786,6 +799,8 @@ class LostFilmRepositoryImpl(
             } else {
                 val refreshedDetailsHtml = httpClient.fetchDetails(normalizedDetailsUrl)
                 val refreshedWatched = detailsParser.parseWatchedState(refreshedDetailsHtml)
+                val refreshedToken = detailsParser.parseAjaxSessionToken(refreshedDetailsHtml)
+                watchedPageCache[normalizedDetailsUrl] = refreshedWatched to refreshedToken
                 if (refreshedWatched == targetWatched) {
                     refreshedWatched
                 } else {
@@ -793,6 +808,7 @@ class LostFilmRepositoryImpl(
                 }
             }
             if (effectiveWatched != null) {
+                watchedPageCache[normalizedDetailsUrl] = effectiveWatched to ajaxSessionToken
                 releaseDao.updateSummaryWatched(
                     detailsUrl = normalizedDetailsUrl,
                     isWatched = effectiveWatched,

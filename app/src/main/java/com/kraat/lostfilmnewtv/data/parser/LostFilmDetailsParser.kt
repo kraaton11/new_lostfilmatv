@@ -179,8 +179,6 @@ class LostFilmDetailsParser {
             .selectFirst(".isawthat-btn, .haveseen-btn")
             ?: return null
 
-        android.util.Log.d("PARSE_WATCHED", "watchedElement: tag=${watchedElement.tagName()} class=${watchedElement.className()} text=${watchedElement.text()} html=${watchedElement.outerHtml()}")
-
         val checked = watchedElement.hasClass("checked") ||
                 watchedElement.classNames().contains("checked") ||
                 (watchedElement.attr("title").contains("просмотрен", ignoreCase = true) &&
