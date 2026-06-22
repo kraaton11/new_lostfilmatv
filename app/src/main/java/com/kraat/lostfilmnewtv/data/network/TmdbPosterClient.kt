@@ -188,12 +188,6 @@ open class TmdbPosterClient(
         )
     }
 
-    open suspend fun getEpisodeOverviewRu(
-        tmdbId: Int,
-        seasonNumber: Int,
-        episodeNumber: Int,
-    ): String? = getEpisodeOverview(tmdbId, seasonNumber, episodeNumber)?.text
-
     open suspend fun getEpisodeOverview(
         tmdbId: Int,
         seasonNumber: Int,

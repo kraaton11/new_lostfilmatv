@@ -17,6 +17,7 @@ import com.kraat.lostfilmnewtv.updates.ReleaseApkLauncher
 import com.kraat.lostfilmnewtv.updates.AppUpdateRefreshResult
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
+import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeConfig
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
@@ -44,6 +45,7 @@ class SettingsViewModel @Inject constructor(
     private val torrServeEndpointChecker: TorrServeEndpointChecker,
     private val settingsDataManager: SettingsDataManager,
     private val diagnosticsRunner: SettingsDiagnosticsRunner,
+    private val torrServeConfig: TorrServeConfig,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
@@ -72,7 +74,7 @@ class SettingsViewModel @Inject constructor(
             isHomeSeriesEnabled = preferencesStore.readHomeSeriesEnabled(),
             isHomeMenuLabelsEnabled = preferencesStore.readHomeMenuLabelsEnabled(),
             watchedMarkingMode = preferencesStore.readWatchedMarkingMode(),
-            torrServeBaseUrl = preferencesStore.readTorrServeBaseUrl(),
+            torrServeBaseUrl = torrServeConfig.baseUrl,
             prowlarrBaseUrl = preferencesStore.readProwlarrBaseUrl(),
             prowlarrApiKey = preferencesStore.readProwlarrApiKey(),
             installedVersionText = BuildConfig.VERSION_NAME,
@@ -187,35 +189,6 @@ class SettingsViewModel @Inject constructor(
         _uiState.update { it.copy(watchedMarkingMode = mode) }
     }
 
-    fun onTorrServeBaseUrlChanged(value: String) {
-        _uiState.update { it.copy(torrServeBaseUrl = value, torrServeStatusText = null) }
-    }
-
-    fun onSaveTorrServeBaseUrlClick() {
-        val normalized = normalizeTorrServeBaseUrl(_uiState.value.torrServeBaseUrl)
-        if (normalized == null) {
-            _uiState.update { it.copy(torrServeStatusText = "Неверный адрес TorrServe") }
-            return
-        }
-        preferencesStore.writeTorrServeBaseUrl(normalized)
-        _uiState.update {
-            it.copy(
-                torrServeBaseUrl = normalized,
-                torrServeStatusText = "Адрес сохранен",
-            )
-        }
-    }
-
-    fun onResetTorrServeBaseUrlClick() {
-        preferencesStore.resetTorrServeBaseUrl()
-        _uiState.update {
-            it.copy(
-                torrServeBaseUrl = preferencesStore.readTorrServeBaseUrl(),
-                torrServeStatusText = "Адрес сброшен",
-            )
-        }
-    }
-
     fun onProwlarrBaseUrlChanged(value: String) {
         _uiState.update { it.copy(prowlarrBaseUrl = value, prowlarrStatusText = null) }
     }
@@ -253,59 +226,6 @@ class SettingsViewModel @Inject constructor(
                 prowlarrApiKey = "",
                 prowlarrStatusText = "Prowlarr отключен",
             )
-        }
-    }
-
-    fun onCheckTorrServeClick() {
-        if (torrServeCheckJob?.isActive == true) return
-        torrServeCheckJob = viewModelScope.launch(ioDispatcher) {
-            _uiState.update { it.copy(isCheckingTorrServe = true, torrServeStatusText = "Проверяем TorrServe...") }
-            val result = runCatching {
-                torrServeEndpointChecker.check(_uiState.value.torrServeBaseUrl)
-            }.getOrNull()
-            _uiState.update {
-                val message = when {
-                    result == null -> "Не удалось проверить TorrServe"
-                    result.normalizedBaseUrl == null -> "Неверный адрес TorrServe"
-                    result.isAppInstalled && result.isEndpointReachable -> "TorrServe доступен"
-                    result.isAppInstalled -> "Приложение найдено, HTTP недоступен"
-                    result.isEndpointReachable -> "HTTP доступен, приложение не найдено"
-                    else -> "TorrServe недоступен"
-                }
-                it.copy(
-                    torrServeBaseUrl = result?.normalizedBaseUrl ?: it.torrServeBaseUrl,
-                    torrServeStatusText = message,
-                    isCheckingTorrServe = false,
-                )
-            }
-        }
-    }
-
-    fun onRefreshDataClick() {
-        runDataAction(runningText = "Обновляем главную...") {
-            val success = settingsDataManager.refreshFirstPage()
-            if (success) "Главная обновлена" else "Не удалось обновить главную"
-        }
-    }
-
-    fun onClearReleaseCacheClick() {
-        runDataAction(runningText = "Очищаем кеш релизов...") {
-            settingsDataManager.clearReleaseCache()
-            "Кеш релизов очищен"
-        }
-    }
-
-    fun onClearPosterCacheClick() {
-        runDataAction(runningText = "Очищаем кеш постеров...") {
-            settingsDataManager.clearPosterCache()
-            "Кеш постеров очищен"
-        }
-    }
-
-    fun onClearNetworkCacheClick() {
-        runDataAction(runningText = "Очищаем сетевой кеш...") {
-            settingsDataManager.clearNetworkCache()
-            "Сетевой кеш очищен"
         }
     }
 
@@ -462,6 +382,7 @@ class SettingsViewModel @Inject constructor(
         torrServeEndpointChecker = torrServeEndpointChecker,
         settingsDataManager = settingsDataManager,
         diagnosticsRunner = diagnosticsRunner,
+        torrServeConfig = TorrServeConfig(),
         ioDispatcher = ioDispatcher,
     ) {
         this.debounceIntervalMs = debounceIntervalMs
