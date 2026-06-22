@@ -250,10 +250,6 @@ class HomeViewModel @Inject constructor(
         _selectedNavItem.update { item }
     }
 
-    fun onItemWatched(detailsUrl: String) {
-        onItemWatchedStateChanged(detailsUrl, isWatched = true)
-    }
-
     fun onItemWatchedStateChanged(detailsUrl: String, isWatched: Boolean) {
         _uiState.update { state ->
             val updatedItems = state.items.updateWatched(detailsUrl, isWatched)
@@ -935,9 +931,6 @@ private fun isModeVisible(state: HomeUiState, mode: HomeFeedMode): Boolean {
     }
 }
 
-private fun findItemForMode(state: HomeUiState, mode: HomeFeedMode, itemKey: String): HomeModeItemMatch? =
-    state.itemsForMode(mode).firstOrNull { it.detailsUrl == itemKey }?.let { HomeModeItemMatch(mode, it) }
-
 private fun itemMode(state: HomeUiState, itemKey: String): HomeFeedMode = when (railIdFromItemKey(itemKey)) {
     HOME_RAIL_FAVORITES -> HomeFeedMode.Favorites
     HOME_RAIL_FAVORITE_SERIES -> HomeFeedMode.FavoriteSeries
@@ -970,5 +963,3 @@ private fun Map<HomeFeedMode, String>.withDefaultRememberedKeys(
     if (HomeFeedMode.Series !in current) seriesItems.firstOrNull()?.detailsUrl?.let { current[HomeFeedMode.Series] = it }
     return current
 }
-
-private data class HomeModeItemMatch(val mode: HomeFeedMode, val item: ReleaseSummary)

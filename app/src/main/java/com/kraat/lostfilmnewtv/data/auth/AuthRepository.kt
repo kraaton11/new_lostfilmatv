@@ -66,26 +66,11 @@ class AuthRepository(
         return pairing
     }
 
-    suspend fun getCurrentPairing(): PairingSession? = currentPairing
-
     override suspend fun pollPairingStatus(): PairingSession? {
         val pairing = currentPairing ?: return null
         val updated = authBridgeClient.getPairingStatus(pairing)
         currentPairing = updated
         return updated
-    }
-
-    suspend fun waitForConfirmation(timeoutSeconds: Int = 120): PairingSession? {
-        val startTime = System.currentTimeMillis()
-        while (System.currentTimeMillis() - startTime < timeoutSeconds * 1000) {
-            val pairing = pollPairingStatus() ?: return null
-            when (pairing.status) {
-                PairingStatus.CONFIRMED -> return pairing
-                PairingStatus.EXPIRED, PairingStatus.FAILED -> return pairing
-                else -> delay(pairing.pollInterval * 1000L)
-            }
-        }
-        return currentPairing
     }
 
     override suspend fun claimAndPersistSession(): AuthCompletionResult {

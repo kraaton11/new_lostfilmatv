@@ -26,9 +26,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.ui.res.painterResource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -53,6 +51,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -693,87 +692,6 @@ private fun HomeHeaderActionButton(
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun HomeHeaderIconButton(
-    iconResId: Int,
-    contentDescription: String,
-    onClick: () -> Unit,
-    onLongClick: () -> Unit = {},
-    onInteraction: () -> Unit = {},
-    onBackClick: () -> Boolean = { false },
-    modifier: Modifier = Modifier,
-    observeKeyInteractions: Boolean = true,
-    isSelected: Boolean = false,
-) {
-    var isFocused by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(
-        targetValue = if (isFocused) 1.04f else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium,
-        ),
-        label = "homeActionScale",
-    )
-
-    val iconColor = if (isFocused || isSelected) HomeAccentGoldGlow else HomeTextMuted
-    val shape = RoundedCornerShape(9.dp)
-    val borderColor = if (isFocused) FocusBorder else HomePanelBorder
-
-    Box(
-        modifier = modifier
-            .then(
-                if (observeKeyInteractions) {
-                    Modifier.onPreviewKeyEvent { event ->
-                        if (event.key == Key.DirectionRight && event.type == KeyEventType.KeyDown) {
-                            onInteraction()
-                            return@onPreviewKeyEvent onBackClick()
-                        }
-                        if (event.key.isHeaderActivationKey()) {
-                            if (event.type == KeyEventType.KeyDown) {
-                                onInteraction()
-                                onClick()
-                            }
-                            return@onPreviewKeyEvent true
-                        }
-                        if (event.type == KeyEventType.KeyDown && event.key.isHeaderInteractionKey()) {
-                            onInteraction()
-                        }
-                        false
-                    }
-                } else {
-                    Modifier
-                },
-            )
-            .size(38.dp)
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
-            .background(if (isFocused || isSelected) FocusBackground else HomePanelSurface, shape)
-            .border(if (isFocused) 1.5.dp else 1.dp, borderColor, shape)
-            .onFocusChanged {
-                isFocused = it.isFocused
-                if (it.isFocused) {
-                    onInteraction()
-                }
-            }
-            .focusable()
-            .combinedClickable(
-                role = Role.Button,
-                onClick = onClick,
-                onLongClick = onLongClick,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            painter = painterResource(id = iconResId),
-            contentDescription = contentDescription,
-            modifier = Modifier.size(18.dp),
-            tint = iconColor,
-        )
     }
 }
 

@@ -19,10 +19,6 @@ class AppUpdateBackgroundWorker @AssistedInject constructor(
         coordinator.refreshSavedUpdateState().toWorkerResult()
 }
 
-interface AppUpdateBackgroundWorkerProvider {
-    val appUpdateCoordinator: AppUpdateCoordinator
-}
-
 internal fun AppUpdateRefreshResult.toWorkerResult(): ListenableWorker.Result =
     when (this) {
         is AppUpdateRefreshResult.UpToDate,

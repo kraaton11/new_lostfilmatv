@@ -29,10 +29,6 @@ class HomeChannelRefreshWorker @AssistedInject constructor(
         }
 }
 
-interface HomeChannelBackgroundRefreshRunnerProvider {
-    val homeChannelBackgroundRefreshRunner: HomeChannelBackgroundRefreshRunner
-}
-
 internal fun HomeChannelBackgroundRefreshOutcome.toWorkerResult(): ListenableWorker.Result =
     when (this) {
         HomeChannelBackgroundRefreshOutcome.SKIPPED_DISABLED,

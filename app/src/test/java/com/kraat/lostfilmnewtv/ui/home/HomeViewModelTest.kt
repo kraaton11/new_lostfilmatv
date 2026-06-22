@@ -500,7 +500,7 @@ class HomeViewModelTest {
         advanceUntilIdle()
         viewModel.onItemFocused(detailsUrl)
 
-        viewModel.onItemWatched(detailsUrl)
+        viewModel.onItemWatchedStateChanged(detailsUrl, isWatched = true)
 
         assertTrue(viewModel.uiState.value.items.single().isWatched)
         assertTrue(viewModel.uiState.value.selectedItem?.isWatched == true)
