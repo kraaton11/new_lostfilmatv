@@ -110,7 +110,7 @@ class AuthViewModel @Inject constructor(
                 }
             }
 
-            delay(pairing.pollInterval.coerceAtLeast(0) * 1000L)
+            delay(pairing.pollInterval.coerceAtLeast(MIN_POLL_INTERVAL_SECONDS) * 1000L)
         }
     }
 
@@ -144,5 +144,9 @@ class AuthViewModel @Inject constructor(
         "session_invalid" -> "Не удалось подтвердить вход. Получите новый код."
         "cancelled" -> "Вход отменен."
         else -> "Не удалось завершить вход. Получите новый код."
+    }
+
+    private companion object {
+        const val MIN_POLL_INTERVAL_SECONDS = 2
     }
 }

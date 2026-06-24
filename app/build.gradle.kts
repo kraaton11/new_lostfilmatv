@@ -45,7 +45,7 @@ android {
 
     defaultConfig {
         applicationId = "com.kraat.lostfilmnewtv"
-        minSdk = 26
+        minSdk = 28
         targetSdk = 35
         versionCode = releaseVersionCodeProvider.get().toInt()
         versionName = releaseVersionNameProvider.get()

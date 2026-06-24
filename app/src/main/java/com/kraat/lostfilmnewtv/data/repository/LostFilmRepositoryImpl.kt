@@ -1,16 +1,9 @@
 package com.kraat.lostfilmnewtv.data.repository
 
-import com.kraat.lostfilmnewtv.data.db.FavoriteReleaseCacheEntity
-import com.kraat.lostfilmnewtv.data.db.FavoriteReleaseCacheMetadataEntity
 import com.kraat.lostfilmnewtv.data.db.PageCacheMetadataEntity
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
 import com.kraat.lostfilmnewtv.data.db.ReleaseDetailsEntity
-import com.kraat.lostfilmnewtv.data.db.ReleaseSummaryEntity
 import com.kraat.lostfilmnewtv.data.model.FavoriteMetadata
-import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
-import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
-import com.kraat.lostfilmnewtv.data.model.FavoriteSeriesResult
-import com.kraat.lostfilmnewtv.data.model.FavoriteToggleNetworkResult
 import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
@@ -19,17 +12,11 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.model.ScheduleItem
 import com.kraat.lostfilmnewtv.data.model.ScheduleMonth
 import com.kraat.lostfilmnewtv.data.model.SeriesGuide
-import com.kraat.lostfilmnewtv.data.model.SeriesOverview
-import com.kraat.lostfilmnewtv.data.model.TmdbImageUrls
-import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.FAVORITE_PUBLISH_CHECK_CONCURRENCY
-import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.FAVORITE_SERIES_LOAD_CONCURRENCY
 import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.SCHEDULE_IMAGE_ENRICHMENT_CONCURRENCY
 import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.SEARCH_ENRICHMENT_CONCURRENCY
-import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.SUMMARY_ENRICHMENT_CONCURRENCY
 import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.WATCHED_MARKS_LOAD_CONCURRENCY
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.parser.BASE_URL
-import com.kraat.lostfilmnewtv.data.parser.FavoriteSeriesRef
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteSeriesParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmListParser
@@ -38,7 +25,6 @@ import com.kraat.lostfilmnewtv.data.parser.LostFilmScheduleParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSeriesCatalogParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSeriesOverviewParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSeasonEpisodesParser
-import com.kraat.lostfilmnewtv.data.parser.absoluteUrl
 import com.kraat.lostfilmnewtv.data.parser.extractYear
 import com.kraat.lostfilmnewtv.data.parser.normalizeText
 import com.kraat.lostfilmnewtv.data.parser.resolveUrl
@@ -54,20 +40,13 @@ import android.util.Log
 import java.io.IOException
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
-import java.time.format.DateTimeParseException
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
@@ -79,19 +58,6 @@ import org.jsoup.Jsoup
 private const val TAG = "LostFilmRepository"
 private const val FRESH_WINDOW_MS = 6 * 60 * 60 * 1000L
 private const val RETENTION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000L
-private const val FAVORITE_RELEASES_MAX_EPISODES_PER_SEASON = Int.MAX_VALUE
-private const val FAVORITE_RELEASES_PAGE_SIZE = 30
-private const val FAVORITE_RELEASES_MAX_SEASONS_PER_SERIES = 1
-
-// How long the full favorite-releases listing (see [LostFilmRepositoryImpl.favoriteReleasesCache])
-// stays valid before we re-fetch it from the network on page 1. Pages beyond the first always
-// reuse whatever is cached, however stale, since they are only requested while a paging session
-// for the same listing is still in progress.
-private const val FAVORITE_RELEASES_CACHE_TTL_MS = 2 * 60 * 1000L
-
-// How long the Room-persisted favorite-releases cache stays fresh. While the cache is fresh,
-// observeFavoriteReleases skips the expensive fan-out and serves data directly from Room.
-private const val FAVORITE_RELEASES_ROOM_FRESH_MS = 15 * 60 * 1000L
 
 // How long the Room-persisted page 1 cache stays fresh. While the cache is fresh,
 // observeNewReleases skips the network request and serves data directly from Room.
@@ -101,11 +67,9 @@ private const val SERIES_CATALOG_PAGE_SIZE = 20
 private const val CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000L
 private const val YEAR_AWARE_TMDB_MATCHING_MIN_FETCHED_AT_MS = 1777852800000L // 2026-05-04
 private val paginatorRegex = Regex("""/new/page_(\d+)""")
-private const val favoriteSeriesRoute = "/my/type_1"
 private val seriesFavoritePageRegex = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)/season_\d+/episode_\d+/?""")
 private val seriesRootUrlRegex = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)(?:/.*)?/?""")
 private val searchWhitespaceRegex = Regex("""\s+""")
-private val favoriteReleaseDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy")
 
 private data class FavoriteMetadataPage(
     val url: String,

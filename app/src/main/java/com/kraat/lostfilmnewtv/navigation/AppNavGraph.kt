@@ -287,22 +287,27 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
         ) { backStackEntry ->
             val sectionArg = backStackEntry.arguments?.getString("section")
             val homeBackStack = remember(backStackEntry) {
-                navController.getBackStackEntry(AppDestination.Home.route)
+                runCatching {
+                    navController.getBackStackEntry(AppDestination.Home.route)
+                }.getOrNull()
             }
-            val homeViewModel: HomeViewModel = hiltViewModel(homeBackStack)
+            val homeViewModel: HomeViewModel? = homeBackStack?.let { hiltViewModel(it) }
             val settingsViewModel: SettingsViewModel = hiltViewModel()
 
             LaunchedEffect(settingsViewModel, homeViewModel) {
+                if (homeViewModel == null) return@LaunchedEffect
                 settingsViewModel.railVisibilityEvents.collect { isVisible ->
                     homeViewModel.onFavoritesRailVisibilityChanged(isVisible)
                 }
             }
             LaunchedEffect(settingsViewModel, homeViewModel) {
+                if (homeViewModel == null) return@LaunchedEffect
                 settingsViewModel.homeMenuLabelsVisibilityEvents.collect { isVisible ->
                     homeViewModel.onHomeMenuLabelsVisibilityChanged(isVisible)
                 }
             }
             LaunchedEffect(settingsViewModel, homeViewModel) {
+                if (homeViewModel == null) return@LaunchedEffect
                 settingsViewModel.homeModeVisibilityEvents.collect { (mode, isVisible) ->
                     homeViewModel.onHomeModeVisibilityChanged(mode, isVisible)
                 }

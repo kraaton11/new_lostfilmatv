@@ -195,12 +195,12 @@ val MIGRATION_18_19 = object : Migration(18, 19) {
 }
 
 /**
- * Миграция 19→20: Room-кеш для избранных релизов.
- * Хранит результат fan-out загрузки всех избранных сериалов, чтобы при повторном
- * открытии ленты избранного не повторять десятки HTTP-запросов.
+ * Миграция 19→20: добавление originalReleaseYear + Room-кеш для избранных релизов.
  */
 val MIGRATION_19_20 = object : Migration(19, 20) {
     override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `release_summaries` ADD COLUMN `originalReleaseYear` INTEGER")
+        db.execSQL("ALTER TABLE `release_details` ADD COLUMN `originalReleaseYear` INTEGER")
         db.execSQL(
             """
             CREATE TABLE IF NOT EXISTS `favorite_release_cache` (

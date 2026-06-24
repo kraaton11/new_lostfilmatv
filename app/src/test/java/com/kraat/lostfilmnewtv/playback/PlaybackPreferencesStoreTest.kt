@@ -230,37 +230,4 @@ class PlaybackPreferencesStoreTest {
 
         assertEquals(HomeFeedMode.AllNew, store.readHomeSelectedFeedMode())
     }
-
-    @Test
-    fun prowlarrSettings_defaultToLocalProwlarrValues() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        val prefsName = "playback-store-prowlarr-default"
-        context.deleteSharedPreferences(prefsName)
-        val store = PlaybackPreferencesStore(context, prefsName = prefsName)
-
-        assertEquals("http://192.168.2.245:9696", store.readProwlarrBaseUrl())
-        assertEquals("69dfb29b6ddf457b89ece1e4b142f510", store.readProwlarrApiKey())
-    }
-
-    @Test
-    fun prowlarrSettings_persistAndClearTogether() {
-        val context = ApplicationProvider.getApplicationContext<Context>()
-        val prefsName = "playback-store-prowlarr-write"
-        context.deleteSharedPreferences(prefsName)
-        val store = PlaybackPreferencesStore(context, prefsName = prefsName)
-
-        store.writeProwlarrSettings(
-            baseUrl = "http://192.168.2.245:9696",
-            apiKey = "secret-key",
-        )
-
-        val recreatedStore = PlaybackPreferencesStore(context, prefsName = prefsName)
-        assertEquals("http://192.168.2.245:9696", recreatedStore.readProwlarrBaseUrl())
-        assertEquals("secret-key", recreatedStore.readProwlarrApiKey())
-
-        recreatedStore.clearProwlarrSettings()
-
-        assertEquals("http://192.168.2.245:9696", recreatedStore.readProwlarrBaseUrl())
-        assertEquals("69dfb29b6ddf457b89ece1e4b142f510", recreatedStore.readProwlarrApiKey())
-    }
 }

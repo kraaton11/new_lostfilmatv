@@ -24,7 +24,9 @@ object DatabaseModule {
             context,
             LostFilmDatabase::class.java,
             "lostfilm-new-tv.db",
-        ).addMigrations(*ALL_MIGRATIONS).build()
+        ).addMigrations(*ALL_MIGRATIONS)
+            .fallbackToDestructiveMigration(dropAllTables = true)
+            .build()
 
     @Provides
     fun provideReleaseDao(database: LostFilmDatabase): ReleaseDao =

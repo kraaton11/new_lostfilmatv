@@ -111,38 +111,12 @@ fun HomeScreen(
     val resolvedExternalSelectedItemKey = focusState.selectedItemKey
 
     val lifecycleOwner = LocalLifecycleOwner.current
-    val activeModeStateState = remember(
-        state.selectedMode,
-        state.allNewModeState,
-        state.favoritesModeState,
-        state.favoriteSeriesModeState,
-        state.moviesModeState,
-        state.seriesModeState,
-    ) {
-        derivedStateOf {
-            when (state.selectedMode) {
-                HomeFeedMode.AllNew -> state.allNewModeState
-                HomeFeedMode.Favorites -> state.favoritesModeState
-                HomeFeedMode.FavoriteSeries -> state.favoriteSeriesModeState
-                HomeFeedMode.Movies -> state.moviesModeState
-                HomeFeedMode.Series -> state.seriesModeState
-            }
-        }
-    }
-    val activeModeState = activeModeStateState.value
+    val activeModeData = state.modeData(state.selectedMode)
+    val activeModeState = activeModeData.contentState
     val isAllNewMode by remember(state.selectedMode) {
         derivedStateOf { state.selectedMode == HomeFeedMode.AllNew }
     }
-    val activeItems = remember(
-        state.selectedMode,
-        state.allNewModeState,
-        state.favoritesModeState,
-        state.favoriteSeriesModeState,
-        state.moviesModeState,
-        state.seriesModeState,
-    ) {
-        state.itemsForMode(state.selectedMode)
-    }
+    val activeItems = activeModeData.items
     val modeSwitchOrder = remember(state.availableModes) {
         HomeFeedMode.entries.filter { it in state.availableModes }
     }
@@ -410,13 +384,7 @@ fun HomeScreen(
                                     upTargetRequester = headerPrimaryRequester,
                                     leftTargetRequester = headerPrimaryRequester,
                                     downTargetRequester = null,
-                                    isPaging = when (state.selectedMode) {
-                                        HomeFeedMode.AllNew -> state.isPaging
-                                        HomeFeedMode.Movies -> state.isMoviesPaging
-                                        HomeFeedMode.Favorites -> state.isFavoritesPaging
-                                        HomeFeedMode.FavoriteSeries -> false
-                                        HomeFeedMode.Series -> state.isSeriesPaging
-                                    },
+                                    isPaging = activeModeData.isPaging,
                                     onItemFocused = { detailsUrl ->
                                         startupContentFocusPending = false
                                         isHomeMenuFocused = false
@@ -482,13 +450,7 @@ fun HomeScreen(
                                 )
                             }
                         }
-                        val activePagingErrorMessage = when (state.selectedMode) {
-                            HomeFeedMode.AllNew -> state.pagingErrorMessage
-                            HomeFeedMode.Movies -> state.moviesPagingErrorMessage
-                            HomeFeedMode.Favorites -> state.favoritesPagingErrorMessage
-                            HomeFeedMode.FavoriteSeries -> null
-                            HomeFeedMode.Series -> state.seriesPagingErrorMessage
-                        }
+                        val activePagingErrorMessage = activeModeData.pagingErrorMessage
                         if (activePagingErrorMessage != null) {
                             HomeStatusPanel(
                                 tag = "home-paging-status",

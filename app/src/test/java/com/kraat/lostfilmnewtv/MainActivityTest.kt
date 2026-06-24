@@ -7,7 +7,6 @@ import androidx.test.core.app.ApplicationProvider
 import androidx.work.WorkManager
 import com.kraat.lostfilmnewtv.di.AppModule
 import com.kraat.lostfilmnewtv.di.UnitTestAppOverrides
-import com.kraat.lostfilmnewtv.data.network.ProwlarrClientFactory
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
@@ -17,8 +16,6 @@ import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeConfig
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeLinkBuilder
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeUrlLauncher
 import com.kraat.lostfilmnewtv.ui.settings.SettingsDataManager
-import com.kraat.lostfilmnewtv.ui.settings.SettingsDiagnosticResult
-import com.kraat.lostfilmnewtv.ui.settings.SettingsDiagnosticsRunner
 import com.kraat.lostfilmnewtv.ui.settings.TorrServeEndpointCheck
 import com.kraat.lostfilmnewtv.ui.settings.TorrServeEndpointChecker
 import com.kraat.lostfilmnewtv.ui.settings.normalizeTorrServeBaseUrl
@@ -218,23 +215,11 @@ object MainActivityTestAppModule {
 
     @Provides
     @Singleton
-    fun provideProwlarrClientFactory(): ProwlarrClientFactory = ProwlarrClientFactory(OkHttpClient())
-
-    @Provides
-    @Singleton
     fun provideSettingsDataManager(): SettingsDataManager = object : SettingsDataManager {
         override suspend fun refreshFirstPage(): Boolean = true
         override suspend fun clearReleaseCache() = Unit
         override suspend fun clearPosterCache() = Unit
         override suspend fun clearNetworkCache() = Unit
-    }
-
-    @Provides
-    @Singleton
-    fun provideSettingsDiagnosticsRunner(): SettingsDiagnosticsRunner = object : SettingsDiagnosticsRunner {
-        override suspend fun run(torrServeBaseUrl: String): List<SettingsDiagnosticResult> {
-            return listOf(SettingsDiagnosticResult("LostFilm", "Доступен", isOk = true))
-        }
     }
 
     @Provides

@@ -23,6 +23,13 @@ class EncryptedSessionStore(private val context: Context) : SessionStore {
     @Volatile
     private var _prefs: android.content.SharedPreferences? = null
 
+    /** In-memory кеш десериализованной сессии: избегает повторных чтений из EncryptedSharedPreferences. */
+    @Volatile
+    private var cachedSession: LostFilmSession? = null
+
+    @Volatile
+    private var sessionCachePopulated = false
+
     private suspend fun prefs(): android.content.SharedPreferences {
         _prefs?.let { return it }
         return initMutex.withLock {
@@ -46,13 +53,26 @@ class EncryptedSessionStore(private val context: Context) : SessionStore {
         encodeDefaults = true
     }
 
-    override suspend fun read(): LostFilmSession? = withContext(Dispatchers.IO) {
-        val sessionJson = prefs().getString(KEY_SESSION, null) ?: return@withContext null
-        try {
-            json.decodeFromString<LostFilmSession>(sessionJson)
-        } catch (e: Exception) {
-            clear()
-            null
+    override suspend fun read(): LostFilmSession? {
+        if (sessionCachePopulated) return cachedSession
+        return withContext(Dispatchers.IO) {
+            if (sessionCachePopulated) return@withContext cachedSession
+            val sessionJson = prefs().getString(KEY_SESSION, null)
+            if (sessionJson == null) {
+                cachedSession = null
+                sessionCachePopulated = true
+                return@withContext null
+            }
+            try {
+                json.decodeFromString<LostFilmSession>(sessionJson).also {
+                    cachedSession = it
+                    sessionCachePopulated = true
+                }
+            } catch (e: kotlinx.serialization.SerializationException) {
+                android.util.Log.w("EncryptedSessionStore", "Corrupted session data, clearing", e)
+                clear()
+                null
+            }
         }
     }
 
@@ -63,6 +83,8 @@ class EncryptedSessionStore(private val context: Context) : SessionStore {
                 .putString(KEY_SESSION, sessionJson)
                 .remove(KEY_EXPIRED)
                 .apply()
+            cachedSession = session
+            sessionCachePopulated = true
             changesFlow.tryEmit(Unit)
         }
     }
@@ -78,6 +100,8 @@ class EncryptedSessionStore(private val context: Context) : SessionStore {
 
     override suspend fun clear() {
         withContext(Dispatchers.IO) {
+            cachedSession = null
+            sessionCachePopulated = true
             prefs().edit()
                 .remove(KEY_SESSION)
                 .remove(KEY_EXPIRED)

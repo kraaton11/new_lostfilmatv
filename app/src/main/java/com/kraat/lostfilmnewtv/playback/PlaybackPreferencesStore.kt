@@ -150,29 +150,21 @@ class PlaybackPreferencesStore(
             .apply()
     }
 
-    fun readProwlarrBaseUrl(): String {
-        return prefs.getString(KEY_PROWLARR_BASE_URL, null)
+    fun readTorrServeBaseUrl(): String {
+        return prefs.getString(KEY_TORRSERVE_BASE_URL, null)
             ?.takeIf { it.isNotBlank() }
-            ?: DEFAULT_PROWLARR_BASE_URL
+            ?: DEFAULT_TORRSERVE_BASE_URL
     }
 
-    fun readProwlarrApiKey(): String {
-        return prefs.getString(KEY_PROWLARR_API_KEY, null)
-            ?.takeIf { it.isNotBlank() }
-            ?: DEFAULT_PROWLARR_API_KEY
-    }
-
-    fun writeProwlarrSettings(baseUrl: String, apiKey: String) {
+    fun writeTorrServeBaseUrl(value: String) {
         prefs.edit()
-            .putString(KEY_PROWLARR_BASE_URL, baseUrl)
-            .putString(KEY_PROWLARR_API_KEY, apiKey)
+            .putString(KEY_TORRSERVE_BASE_URL, value)
             .apply()
     }
 
-    fun clearProwlarrSettings() {
+    fun resetTorrServeBaseUrl() {
         prefs.edit()
-            .remove(KEY_PROWLARR_BASE_URL)
-            .remove(KEY_PROWLARR_API_KEY)
+            .remove(KEY_TORRSERVE_BASE_URL)
             .apply()
     }
 
@@ -202,9 +194,7 @@ class PlaybackPreferencesStore(
         const val KEY_HOME_MENU_LABELS_ENABLED = "home_menu_labels_enabled"
         const val KEY_HOME_SELECTED_FEED_MODE = "home_selected_feed_mode"
         const val KEY_WATCHED_MARKING_MODE = "watched_marking_mode"
-        const val KEY_PROWLARR_BASE_URL = "prowlarr_base_url"
-        const val KEY_PROWLARR_API_KEY = "prowlarr_api_key"
-        const val DEFAULT_PROWLARR_BASE_URL = "http://192.168.2.245:9696"
-        const val DEFAULT_PROWLARR_API_KEY = "69dfb29b6ddf457b89ece1e4b142f510"
+        const val KEY_TORRSERVE_BASE_URL = "torrserve_base_url"
+        const val DEFAULT_TORRSERVE_BASE_URL = "http://127.0.0.1:8090"
     }
 }

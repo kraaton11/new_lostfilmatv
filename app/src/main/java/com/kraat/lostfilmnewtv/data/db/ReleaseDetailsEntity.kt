@@ -34,6 +34,7 @@ data class ReleaseDetailsEntity(
     val episodeOverviewSource: String? = null,
     val movieOverviewRu: String? = null,
     val tmdbRating: String? = null,
+    val originalReleaseYear: Int? = null,
 ) {
     fun toModel(): ReleaseDetails = ReleaseDetails(
         detailsUrl = detailsUrl,
@@ -57,6 +58,7 @@ data class ReleaseDetailsEntity(
         episodeOverviewSource = episodeOverviewSource,
         movieOverviewRu = movieOverviewRu,
         tmdbRating = tmdbRating,
+        originalReleaseYear = originalReleaseYear,
     )
 
     companion object {
@@ -80,6 +82,7 @@ data class ReleaseDetailsEntity(
             episodeOverviewSource = model.episodeOverviewSource,
             movieOverviewRu = model.movieOverviewRu,
             tmdbRating = model.tmdbRating,
+            originalReleaseYear = model.originalReleaseYear,
         )
     }
 }

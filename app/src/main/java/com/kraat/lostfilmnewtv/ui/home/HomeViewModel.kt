@@ -152,15 +152,15 @@ class HomeViewModel @Inject constructor(
     fun onRetry() {
         when (_uiState.value.selectedMode) {
             HomeFeedMode.Favorites -> {
-                val state = _uiState.value
-                if (state.favoritesPagingErrorMessage == null ||
-                    state.isFavoritesPaging ||
-                    !state.favoritesHasNextPage ||
-                    state.favoritesModeState !is HomeModeContentState.Content
+                val md = _uiState.value.modeData(HomeFeedMode.Favorites)
+                if (md.pagingErrorMessage == null ||
+                    md.isPaging ||
+                    !md.hasNextPage ||
+                    md.contentState !is HomeModeContentState.Content
                 ) {
                     return
                 }
-                loadFavoriteReleases(pageNumber = state.favoritesNextPage, isPagingRequest = true)
+                loadFavoriteReleases(pageNumber = md.nextPage, isPagingRequest = true)
             }
             HomeFeedMode.Movies -> {
                 loadMovies(pageNumber = 1, isPagingRequest = false)
@@ -184,57 +184,61 @@ class HomeViewModel @Inject constructor(
 
     fun onPagingRetry() {
         val state = _uiState.value
-        when (state.selectedMode) {
+        val mode = state.selectedMode
+        val md = state.modeData(mode)
+        when (mode) {
             HomeFeedMode.AllNew -> {
-                if (state.pagingErrorMessage == null || state.isPaging || state.isInitialLoading || !state.hasNextPage) return
-                loadPage(pageNumber = state.nextPage, isPagingRequest = true)
+                if (md.pagingErrorMessage == null || md.isPaging || state.isInitialLoading || !md.hasNextPage) return
+                loadPage(pageNumber = md.nextPage, isPagingRequest = true)
             }
             HomeFeedMode.Movies -> {
-                if (state.moviesPagingErrorMessage == null || state.isMoviesPaging || !state.moviesHasNextPage) return
-                loadMovies(pageNumber = state.moviesNextPage, isPagingRequest = true)
+                if (md.pagingErrorMessage == null || md.isPaging || !md.hasNextPage) return
+                loadMovies(pageNumber = md.nextPage, isPagingRequest = true)
             }
             HomeFeedMode.Favorites -> {
-                if (state.favoritesPagingErrorMessage == null ||
-                    state.isFavoritesPaging ||
-                    !state.favoritesHasNextPage ||
-                    state.favoritesModeState !is HomeModeContentState.Content
+                if (md.pagingErrorMessage == null ||
+                    md.isPaging ||
+                    !md.hasNextPage ||
+                    md.contentState !is HomeModeContentState.Content
                 ) {
                     return
                 }
-                loadFavoriteReleases(pageNumber = state.favoritesNextPage, isPagingRequest = true)
+                loadFavoriteReleases(pageNumber = md.nextPage, isPagingRequest = true)
             }
             HomeFeedMode.FavoriteSeries -> Unit
             HomeFeedMode.Series -> {
-                if (state.seriesPagingErrorMessage == null || state.isSeriesPaging || !state.seriesHasNextPage) return
-                loadSeriesCatalog(pageNumber = state.seriesNextPage, isPagingRequest = true)
+                if (md.pagingErrorMessage == null || md.isPaging || !md.hasNextPage) return
+                loadSeriesCatalog(pageNumber = md.nextPage, isPagingRequest = true)
             }
         }
     }
 
     fun onEndReached() {
         val state = _uiState.value
-        when (state.selectedMode) {
+        val mode = state.selectedMode
+        val md = state.modeData(mode)
+        when (mode) {
             HomeFeedMode.AllNew -> {
-                if (state.isInitialLoading || state.isPaging || !state.hasNextPage || state.fullScreenErrorMessage != null) return
-                loadPage(pageNumber = state.nextPage, isPagingRequest = true)
+                if (state.isInitialLoading || md.isPaging || !md.hasNextPage || state.fullScreenErrorMessage != null) return
+                loadPage(pageNumber = md.nextPage, isPagingRequest = true)
             }
             HomeFeedMode.Movies -> {
-                if (state.isMoviesPaging || !state.moviesHasNextPage || state.moviesModeState !is HomeModeContentState.Content) return
-                loadMovies(pageNumber = state.moviesNextPage, isPagingRequest = true)
+                if (md.isPaging || !md.hasNextPage || md.contentState !is HomeModeContentState.Content) return
+                loadMovies(pageNumber = md.nextPage, isPagingRequest = true)
             }
             HomeFeedMode.Favorites -> {
-                if (state.isFavoritesPaging ||
-                    !state.favoritesHasNextPage ||
-                    state.favoritesModeState !is HomeModeContentState.Content
+                if (md.isPaging ||
+                    !md.hasNextPage ||
+                    md.contentState !is HomeModeContentState.Content
                 ) {
                     return
                 }
-                loadFavoriteReleases(pageNumber = state.favoritesNextPage, isPagingRequest = true)
+                loadFavoriteReleases(pageNumber = md.nextPage, isPagingRequest = true)
             }
             HomeFeedMode.FavoriteSeries -> Unit
             HomeFeedMode.Series -> {
-                if (state.isSeriesPaging || !state.seriesHasNextPage || state.seriesModeState !is HomeModeContentState.Content) return
-                loadSeriesCatalog(pageNumber = state.seriesNextPage, isPagingRequest = true)
+                if (md.isPaging || !md.hasNextPage || md.contentState !is HomeModeContentState.Content) return
+                loadSeriesCatalog(pageNumber = md.nextPage, isPagingRequest = true)
             }
         }
     }
@@ -263,22 +267,16 @@ class HomeViewModel @Inject constructor(
 
     fun onItemWatchedStateChanged(detailsUrl: String, isWatched: Boolean) {
         _uiState.update { state ->
-            val updatedItems = state.items.updateWatched(detailsUrl, isWatched)
-            val updatedFavoriteItems = state.favoriteItems.updateWatched(detailsUrl, isWatched)
-            val updatedFavoriteSeriesItems = state.favoriteSeriesItems.updateWatched(detailsUrl, isWatched)
-            val updatedMovieItems = state.movieItems.updateWatched(detailsUrl, isWatched)
-            val updatedSeriesItems = state.seriesItems.updateWatched(detailsUrl, isWatched)
-            state.copy(
-                items = updatedItems,
-                favoriteItems = updatedFavoriteItems,
-                favoriteSeriesItems = updatedFavoriteSeriesItems,
-                movieItems = updatedMovieItems,
-                seriesItems = updatedSeriesItems,
-                allNewModeState = state.allNewModeState.updateItems(updatedItems),
-                favoritesModeState = state.favoritesModeState.updateItems(updatedFavoriteItems),
-                favoriteSeriesModeState = state.favoriteSeriesModeState.updateItems(updatedFavoriteSeriesItems),
-                moviesModeState = state.moviesModeState.updateItems(updatedMovieItems),
-                seriesModeState = state.seriesModeState.updateItems(updatedSeriesItems),
+            state.updateModes(
+                *HomeFeedMode.entries.map { mode ->
+                    mode to { md: HomeModeData ->
+                        val updatedItems = md.items.updateWatched(detailsUrl, isWatched)
+                        md.copy(
+                            items = updatedItems,
+                            contentState = md.contentState.updateItems(updatedItems),
+                        )
+                    }
+                }.toTypedArray(),
             ).resolveSelection()
         }
     }
@@ -289,7 +287,7 @@ class HomeViewModel @Inject constructor(
 
     fun onHomeModeVisibilityChanged(mode: HomeFeedMode, isVisible: Boolean) {
         if (mode == HomeFeedMode.AllNew) return
-        if (isModeVisible(_uiState.value, mode) == isVisible) return
+        if (_uiState.value.modeData(mode).isVisible == isVisible) return
 
         when (mode) {
             HomeFeedMode.Favorites -> preferencesStore.writeHomeFavoritesRailEnabled(isVisible)
@@ -306,21 +304,17 @@ class HomeViewModel @Inject constructor(
         val shouldPersistFallback = _uiState.value.selectedMode == mode && !isVisible
         _uiState.update { state ->
             val selectedMode = if (state.selectedMode == mode && !isVisible) HomeFeedMode.AllNew else state.selectedMode
-            state.copy(
-                selectedMode = selectedMode,
-                isFavoritesRailVisible = if (mode == HomeFeedMode.Favorites) isVisible else state.isFavoritesRailVisible,
-                isFavoriteSeriesModeVisible = if (mode == HomeFeedMode.FavoriteSeries) isVisible else state.isFavoriteSeriesModeVisible,
-                isMoviesModeVisible = if (mode == HomeFeedMode.Movies) isVisible else state.isMoviesModeVisible,
-                isSeriesModeVisible = if (mode == HomeFeedMode.Series) isVisible else state.isSeriesModeVisible,
-                favoriteItems = if (mode == HomeFeedMode.Favorites && !isVisible) emptyList() else state.favoriteItems,
-                favoriteSeriesItems = if (mode == HomeFeedMode.FavoriteSeries && !isVisible) emptyList() else state.favoriteSeriesItems,
-                movieItems = if (mode == HomeFeedMode.Movies && !isVisible) emptyList() else state.movieItems,
-                seriesItems = if (mode == HomeFeedMode.Series && !isVisible) emptyList() else state.seriesItems,
-                favoritesModeState = if (mode == HomeFeedMode.Favorites && !isVisible) HomeModeContentState.Empty else state.favoritesModeState,
-                favoriteSeriesModeState = if (mode == HomeFeedMode.FavoriteSeries && !isVisible) HomeModeContentState.Empty else state.favoriteSeriesModeState,
-                moviesModeState = if (mode == HomeFeedMode.Movies && !isVisible) HomeModeContentState.Empty else state.moviesModeState,
-                seriesModeState = if (mode == HomeFeedMode.Series && !isVisible) HomeModeContentState.Empty else state.seriesModeState,
-            ).resolveSelection()
+            state.copy(selectedMode = selectedMode).updateMode(mode) { md ->
+                if (isVisible) {
+                    md.copy(isVisible = true)
+                } else {
+                    md.copy(
+                        items = emptyList(),
+                        contentState = HomeModeContentState.Empty,
+                        isVisible = false,
+                    )
+                }
+            }.resolveSelection()
         }
         if (shouldPersistFallback) preferencesStore.writeHomeSelectedFeedMode(HomeFeedMode.AllNew)
         if (started && isVisible) {
@@ -354,10 +348,12 @@ class HomeViewModel @Inject constructor(
                 detailsUrl = detailsUrl,
                 isFavorite = isFavorite,
             )
-            state.copy(
-                favoriteItems = updatedFavoriteItems,
-                favoritesModeState = state.favoritesModeState.optimisticallyUpdateFavoriteItems(updatedFavoriteItems),
-            ).resolveSelection()
+            state.updateMode(HomeFeedMode.Favorites) { md ->
+                md.copy(
+                    items = updatedFavoriteItems,
+                    contentState = md.contentState.optimisticallyUpdateFavoriteItems(updatedFavoriteItems),
+                )
+            }.resolveSelection()
         }
         if (_uiState.value.isFavoritesRailVisible) loadFavoriteReleases(retainVisibleItemsOnFailure = true)
         if (_uiState.value.isFavoriteSeriesModeVisible) loadFavoriteSeries()
@@ -384,10 +380,6 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun loadPage(pageNumber: Int, isPagingRequest: Boolean) {
-        // For page 1, use stale-while-revalidate: показать кэш из Room мгновенно, а сеть
-        // догрузить в фоне. На повторных запусках пользователь видит список за миллисекунды,
-        // а не ждёт ~3–10 сек полного сетевого roundtrip. Пагинация (page > 1) идёт напрямую —
-        // там кэш и так уже на экране, и нужна свежая догрузка.
         if (pageNumber == 1 && !isPagingRequest) {
             observeNewReleases()
             return
@@ -395,27 +387,21 @@ class HomeViewModel @Inject constructor(
         loadPageDirect(pageNumber, isPagingRequest)
     }
 
-    /**
-     * Stale-while-revalidate для первой страницы: первая эмиссия [observeNewReleases] — кэш
-     * из Room (если есть) с `isStale=true`, вторая — свежий результат [loadPage]. Поведение
-     * в HomeScreen: кэш рендерится сразу, скелетон не показывается; если кэша нет, остаётся
-     * [HomeModeContentState.Loading] до свежей эмиссии.
-     */
     private fun observeNewReleases() {
         allNewLoadJob?.cancel()
         _uiState.update { state ->
             state.copy(
                 isInitialLoading = true,
-                isPaging = false,
                 fullScreenErrorMessage = null,
-                pagingErrorMessage = null,
-                allNewModeState = HomeModeContentState.Loading,
-            )
+            ).updateMode(HomeFeedMode.AllNew) { md ->
+                md.copy(
+                    isPaging = false,
+                    pagingErrorMessage = null,
+                    contentState = HomeModeContentState.Loading,
+                )
+            }
         }
         allNewLoadJob = viewModelScope.launch(ioDispatcher) {
-            // hadCacheEmission фиксирует, был ли показан кэш до ошибки сети. Если да —
-            // items не стираем, только показываем pagingErrorMessage. Если кэша не было —
-            // показываем fullScreenErrorMessage, как раньше.
             var hadCacheEmission = false
             try {
                 repository.observeNewReleases(1).collect { result ->
@@ -424,47 +410,50 @@ class HomeViewModel @Inject constructor(
                             val isStale = result.isStale
                             _uiState.update { state ->
                                 state.copy(
-                                    items = result.items,
                                     isInitialLoading = false,
-                                    isPaging = false,
                                     fullScreenErrorMessage = null,
-                                    pagingErrorMessage = result.pagingErrorMessage,
-                                    nextPage = result.pageNumber + 1,
-                                    hasNextPage = result.hasNextPage,
-                                    allNewModeState = HomeModeContentState.Content(result.items),
-                                ).resolveSelection()
+                                ).updateMode(HomeFeedMode.AllNew) { md ->
+                                    md.copy(
+                                        items = result.items,
+                                        isPaging = false,
+                                        pagingErrorMessage = result.pagingErrorMessage,
+                                        nextPage = result.pageNumber + 1,
+                                        hasNextPage = result.hasNextPage,
+                                        contentState = HomeModeContentState.Content(result.items),
+                                    )
+                                }.resolveSelection()
                             }
                             if (isStale) {
                                 hadCacheEmission = true
                             } else {
-                                // lastAllNewRefreshAt обновляем только после успешной сетевой
-                                // загрузки, не на stale — иначе 30-минутный троттлинг в onResume
-                                // будет сбрасываться при показе любого кэша.
                                 lastAllNewRefreshAt = clock()
-                                // syncNow() — на свежей эмиссии, не на stale: каналы должны
-                                // отражать актуальные данные, а не вчерашний кэш.
                                 homeChannelSyncManager.syncNow()
                             }
                         }
                         is PageState.Error -> {
                             if (hadCacheEmission) {
-                                // Кэш уже на экране — не стираем items, только сообщаем об ошибке.
                                 _uiState.update { state ->
                                     state.copy(
                                         isInitialLoading = false,
-                                        isPaging = false,
-                                        pagingErrorMessage = result.message,
-                                    ).resolveSelection()
+                                    ).updateMode(HomeFeedMode.AllNew) { md ->
+                                        md.copy(
+                                            isPaging = false,
+                                            pagingErrorMessage = result.message,
+                                        )
+                                    }.resolveSelection()
                                 }
                             } else {
                                 _uiState.update { state ->
                                     state.copy(
                                         isInitialLoading = false,
-                                        isPaging = false,
                                         fullScreenErrorMessage = result.message,
-                                        pagingErrorMessage = null,
-                                        allNewModeState = HomeModeContentState.Error(result.message),
-                                    ).resolveSelection()
+                                    ).updateMode(HomeFeedMode.AllNew) { md ->
+                                        md.copy(
+                                            isPaging = false,
+                                            pagingErrorMessage = null,
+                                            contentState = HomeModeContentState.Error(result.message),
+                                        )
+                                    }.resolveSelection()
                                 }
                             }
                         }
@@ -483,33 +472,39 @@ class HomeViewModel @Inject constructor(
         _uiState.update { state ->
             state.copy(
                 isInitialLoading = !isPagingRequest,
-                isPaging = isPagingRequest,
                 fullScreenErrorMessage = if (isPagingRequest) state.fullScreenErrorMessage else null,
-                pagingErrorMessage = null,
-                allNewModeState = if (isPagingRequest) state.allNewModeState else HomeModeContentState.Loading,
-            )
+            ).updateMode(HomeFeedMode.AllNew) { md ->
+                md.copy(
+                    isPaging = isPagingRequest,
+                    pagingErrorMessage = null,
+                    contentState = if (isPagingRequest) md.contentState else HomeModeContentState.Loading,
+                )
+            }
         }
         allNewLoadJob = viewModelScope.launch(ioDispatcher) {
             when (val result = repository.loadPage(pageNumber)) {
                 is PageState.Content -> {
+                    val existingItems = _uiState.value.items
                     val updatedItems = if (result.isAppend) {
-                        (_uiState.value.items + result.items).distinctBy { it.detailsUrl }
+                        (existingItems + result.items).distinctBy { it.detailsUrl }
                     } else {
                         result.items
                     }
                     _uiState.update { state ->
                         state.copy(
-                            items = updatedItems,
                             isInitialLoading = false,
-                            isPaging = false,
                             fullScreenErrorMessage = null,
-                            pagingErrorMessage = result.pagingErrorMessage,
-                            nextPage = result.pageNumber + 1,
-                            hasNextPage = result.hasNextPage,
-                            allNewModeState = HomeModeContentState.Content(updatedItems),
-                        ).resolveSelection()
+                        ).updateMode(HomeFeedMode.AllNew) { md ->
+                            md.copy(
+                                items = updatedItems,
+                                isPaging = false,
+                                pagingErrorMessage = result.pagingErrorMessage,
+                                nextPage = result.pageNumber + 1,
+                                hasNextPage = result.hasNextPage,
+                                contentState = HomeModeContentState.Content(updatedItems),
+                            )
+                        }.resolveSelection()
                     }
-                    // Channel rows are based on the first page; avoid expensive background sync on pagination.
                     if (!isPagingRequest) {
                         homeChannelSyncManager.syncNow()
                     }
@@ -518,11 +513,14 @@ class HomeViewModel @Inject constructor(
                     _uiState.update { state ->
                         state.copy(
                             isInitialLoading = false,
-                            isPaging = false,
                             fullScreenErrorMessage = result.message,
-                            pagingErrorMessage = null,
-                            allNewModeState = HomeModeContentState.Error(result.message),
-                        ).resolveSelection()
+                        ).updateMode(HomeFeedMode.AllNew) { md ->
+                            md.copy(
+                                isPaging = false,
+                                pagingErrorMessage = null,
+                                contentState = HomeModeContentState.Error(result.message),
+                            )
+                        }.resolveSelection()
                     }
                 }
             }
@@ -540,42 +538,47 @@ class HomeViewModel @Inject constructor(
             favoriteLoadJob?.cancel()
         }
         _uiState.update { state ->
-            state.copy(
-                isFavoritesPaging = isPagingRequest,
-                favoritesPagingErrorMessage = null,
-                favoritesModeState = if (isPagingRequest || retainVisibleItemsOnFailure) {
-                    state.favoritesModeState
-                } else {
-                    HomeModeContentState.Loading
-                },
-            )
+            state.updateMode(HomeFeedMode.Favorites) { md ->
+                md.copy(
+                    isPaging = isPagingRequest,
+                    pagingErrorMessage = null,
+                    contentState = if (isPagingRequest || retainVisibleItemsOnFailure) {
+                        md.contentState
+                    } else {
+                        HomeModeContentState.Loading
+                    },
+                )
+            }
         }
         favoriteLoadJob = viewModelScope.launch(ioDispatcher) {
             try {
                 favoritesRepository.observeFavoriteReleases(pageNumber).collect { result ->
                     if (favoriteRequestToken != requestToken) return@collect
                     _uiState.update { state ->
+                        val md = state.modeData(HomeFeedMode.Favorites)
                         when (result) {
                             is FavoriteReleasesResult.Partial -> {
                                 val updatedItems = if (isPagingRequest) {
-                                    (state.favoriteItems + result.items).distinctBy { it.detailsUrl }
+                                    (md.items + result.items).distinctBy { it.detailsUrl }
                                 } else {
                                     result.items
                                 }
                                 val favoriteState = if (updatedItems.isEmpty()) {
-                                    state.favoritesModeState // keep Loading while streaming
+                                    md.contentState // keep Loading while streaming
                                 } else {
                                     HomeModeContentState.Content(updatedItems)
                                 }
-                                state.copy(
-                                    favoriteItems = updatedItems,
-                                    favoritesModeState = favoriteState,
-                                    isFavoritesPaging = false,
-                                ).resolveSelection()
+                                state.updateMode(HomeFeedMode.Favorites) {
+                                    it.copy(
+                                        items = updatedItems,
+                                        contentState = favoriteState,
+                                        isPaging = false,
+                                    )
+                                }.resolveSelection()
                             }
                             is FavoriteReleasesResult.Success -> {
                                 val updatedItems = if (isPagingRequest) {
-                                    (state.favoriteItems + result.items).distinctBy { it.detailsUrl }
+                                    (md.items + result.items).distinctBy { it.detailsUrl }
                                 } else {
                                     result.items
                                 }
@@ -585,28 +588,31 @@ class HomeViewModel @Inject constructor(
                                     HomeModeContentState.Content(updatedItems)
                                 }
                                 state.copy(
-                                    favoriteItems = updatedItems,
-                                    favoritesModeState = favoriteState,
                                     favoriteSeriesCount = result.favoriteSeriesCount,
-                                    isFavoritesPaging = false,
-                                    favoritesPagingErrorMessage = null,
-                                    favoritesNextPage = result.pageNumber + 1,
-                                    favoritesHasNextPage = result.hasNextPage,
-                                ).resolveSelection()
+                                ).updateMode(HomeFeedMode.Favorites) {
+                                    it.copy(
+                                        items = updatedItems,
+                                        contentState = favoriteState,
+                                        isPaging = false,
+                                        pagingErrorMessage = null,
+                                        nextPage = result.pageNumber + 1,
+                                        hasNextPage = result.hasNextPage,
+                                    )
+                                }.resolveSelection()
                             }
                             is FavoriteReleasesResult.Unavailable -> {
                                 if (retainVisibleItemsOnFailure) {
-                                    _uiState.update { s -> s.copy(isFavoritesPaging = false).resolveSelection() }
-                                    return@collect
+                                    return@update state.updateMode(HomeFeedMode.Favorites) {
+                                        it.copy(isPaging = false)
+                                    }.resolveSelection()
                                 }
-                                if (isPagingRequest && state.favoriteItems.isNotEmpty()) {
-                                    _uiState.update { s ->
-                                        s.copy(
-                                            isFavoritesPaging = false,
-                                            favoritesPagingErrorMessage = result.message ?: "Не удалось загрузить избранное",
-                                        ).resolveSelection()
-                                    }
-                                    return@collect
+                                if (isPagingRequest && md.items.isNotEmpty()) {
+                                    return@update state.updateMode(HomeFeedMode.Favorites) {
+                                        it.copy(
+                                            isPaging = false,
+                                            pagingErrorMessage = result.message ?: "Не удалось загрузить избранное",
+                                        )
+                                    }.resolveSelection()
                                 }
                                 val favoriteState = when {
                                     result.message.isNullOrBlank() -> HomeModeContentState.Error("Не удалось загрузить избранное")
@@ -614,12 +620,15 @@ class HomeViewModel @Inject constructor(
                                     else -> HomeModeContentState.Error(result.message)
                                 }
                                 state.copy(
-                                    favoriteItems = emptyList(),
-                                    favoritesModeState = favoriteState,
                                     favoriteSeriesCount = null,
-                                    isFavoritesPaging = false,
-                                    favoritesPagingErrorMessage = null,
-                                ).resolveSelection()
+                                ).updateMode(HomeFeedMode.Favorites) {
+                                    it.copy(
+                                        items = emptyList(),
+                                        contentState = favoriteState,
+                                        isPaging = false,
+                                        pagingErrorMessage = null,
+                                    )
+                                }.resolveSelection()
                             }
                         }
                     }
@@ -633,9 +642,9 @@ class HomeViewModel @Inject constructor(
     private fun loadFavoriteSeries() {
         favoriteSeriesLoadJob?.cancel()
         _uiState.update { state ->
-            state.copy(
-                favoriteSeriesModeState = HomeModeContentState.Loading,
-            )
+            state.updateMode(HomeFeedMode.FavoriteSeries) { md ->
+                md.copy(contentState = HomeModeContentState.Loading)
+            }
         }
         favoriteSeriesLoadJob = viewModelScope.launch(ioDispatcher) {
             when (val result = favoritesRepository.loadFavoriteSeries()) {
@@ -647,10 +656,13 @@ class HomeViewModel @Inject constructor(
                     }
                     _uiState.update { state ->
                         state.copy(
-                            favoriteSeriesItems = result.items,
-                            favoriteSeriesModeState = seriesState,
                             favoriteSeriesCount = result.items.size,
-                        ).resolveSelection()
+                        ).updateMode(HomeFeedMode.FavoriteSeries) { md ->
+                            md.copy(
+                                items = result.items,
+                                contentState = seriesState,
+                            )
+                        }.resolveSelection()
                     }
                 }
                 is FavoriteSeriesResult.Unavailable -> {
@@ -660,10 +672,12 @@ class HomeViewModel @Inject constructor(
                         else -> HomeModeContentState.Error(result.message)
                     }
                     _uiState.update { state ->
-                        state.copy(
-                            favoriteSeriesItems = emptyList(),
-                            favoriteSeriesModeState = seriesState,
-                        ).resolveSelection()
+                        state.updateMode(HomeFeedMode.FavoriteSeries) { md ->
+                            md.copy(
+                                items = emptyList(),
+                                contentState = seriesState,
+                            )
+                        }.resolveSelection()
                     }
                 }
             }
@@ -675,17 +689,20 @@ class HomeViewModel @Inject constructor(
             moviesLoadJob?.cancel()
         }
         _uiState.update { state ->
-            state.copy(
-                isMoviesPaging = isPagingRequest,
-                moviesPagingErrorMessage = null,
-                moviesModeState = if (isPagingRequest) state.moviesModeState else HomeModeContentState.Loading,
-            )
+            state.updateMode(HomeFeedMode.Movies) { md ->
+                md.copy(
+                    isPaging = isPagingRequest,
+                    pagingErrorMessage = null,
+                    contentState = if (isPagingRequest) md.contentState else HomeModeContentState.Loading,
+                )
+            }
         }
         moviesLoadJob = viewModelScope.launch(ioDispatcher) {
             when (val result = repository.loadMovies(pageNumber)) {
                 is PageState.Content -> {
+                    val existingItems = _uiState.value.movieItems
                     val updatedItems = if (isPagingRequest) {
-                        (_uiState.value.movieItems + result.items).distinctBy { it.detailsUrl }
+                        (existingItems + result.items).distinctBy { it.detailsUrl }
                     } else {
                         result.items
                     }
@@ -699,30 +716,37 @@ class HomeViewModel @Inject constructor(
                         HomeModeContentState.Content(updatedItems)
                     }
                     _uiState.update { state ->
-                        state.copy(
-                            movieItems = updatedItems,
-                            moviesModeState = moviesState,
-                            isMoviesPaging = false,
-                            moviesPagingErrorMessage = null,
-                            moviesNextPage = result.pageNumber + 1,
-                            moviesHasNextPage = result.hasNextPage,
-                        ).resolveSelection()
+                        state.updateMode(HomeFeedMode.Movies) { md ->
+                            md.copy(
+                                items = updatedItems,
+                                contentState = moviesState,
+                                isPaging = false,
+                                pagingErrorMessage = null,
+                                nextPage = result.pageNumber + 1,
+                                hasNextPage = result.hasNextPage,
+                            )
+                        }.resolveSelection()
                     }
                 }
                 is PageState.Error -> {
                     _uiState.update { state ->
-                        if (isPagingRequest && state.movieItems.isNotEmpty()) {
-                            state.copy(
-                                isMoviesPaging = false,
-                                moviesPagingErrorMessage = result.message,
-                            ).resolveSelection()
+                        val md = state.modeData(HomeFeedMode.Movies)
+                        if (isPagingRequest && md.items.isNotEmpty()) {
+                            state.updateMode(HomeFeedMode.Movies) {
+                                it.copy(
+                                    isPaging = false,
+                                    pagingErrorMessage = result.message,
+                                )
+                            }.resolveSelection()
                         } else {
-                            state.copy(
-                                movieItems = emptyList(),
-                                isMoviesPaging = false,
-                                moviesPagingErrorMessage = null,
-                                moviesModeState = HomeModeContentState.Error(result.message),
-                            ).resolveSelection()
+                            state.updateMode(HomeFeedMode.Movies) {
+                                it.copy(
+                                    items = emptyList(),
+                                    isPaging = false,
+                                    pagingErrorMessage = null,
+                                    contentState = HomeModeContentState.Error(result.message),
+                                )
+                            }.resolveSelection()
                         }
                     }
                 }
@@ -735,17 +759,20 @@ class HomeViewModel @Inject constructor(
             seriesLoadJob?.cancel()
         }
         _uiState.update { state ->
-            state.copy(
-                isSeriesPaging = isPagingRequest,
-                seriesPagingErrorMessage = null,
-                seriesModeState = if (isPagingRequest) state.seriesModeState else HomeModeContentState.Loading,
-            )
+            state.updateMode(HomeFeedMode.Series) { md ->
+                md.copy(
+                    isPaging = isPagingRequest,
+                    pagingErrorMessage = null,
+                    contentState = if (isPagingRequest) md.contentState else HomeModeContentState.Loading,
+                )
+            }
         }
         seriesLoadJob = viewModelScope.launch(ioDispatcher) {
             when (val result = repository.loadSeriesCatalog(pageNumber)) {
                 is PageState.Content -> {
+                    val existingItems = _uiState.value.seriesItems
                     val updatedItems = if (isPagingRequest) {
-                        (_uiState.value.seriesItems + result.items).distinctBy { it.detailsUrl }
+                        (existingItems + result.items).distinctBy { it.detailsUrl }
                     } else {
                         result.items
                     }
@@ -759,30 +786,37 @@ class HomeViewModel @Inject constructor(
                         HomeModeContentState.Content(updatedItems)
                     }
                     _uiState.update { state ->
-                        state.copy(
-                            seriesItems = updatedItems,
-                            seriesModeState = seriesState,
-                            isSeriesPaging = false,
-                            seriesPagingErrorMessage = null,
-                            seriesNextPage = result.pageNumber + 1,
-                            seriesHasNextPage = result.hasNextPage,
-                        ).resolveSelection()
+                        state.updateMode(HomeFeedMode.Series) { md ->
+                            md.copy(
+                                items = updatedItems,
+                                contentState = seriesState,
+                                isPaging = false,
+                                pagingErrorMessage = null,
+                                nextPage = result.pageNumber + 1,
+                                hasNextPage = result.hasNextPage,
+                            )
+                        }.resolveSelection()
                     }
                 }
                 is PageState.Error -> {
                     _uiState.update { state ->
-                        if (isPagingRequest && state.seriesItems.isNotEmpty()) {
-                            state.copy(
-                                isSeriesPaging = false,
-                                seriesPagingErrorMessage = result.message,
-                            ).resolveSelection()
+                        val md = state.modeData(HomeFeedMode.Series)
+                        if (isPagingRequest && md.items.isNotEmpty()) {
+                            state.updateMode(HomeFeedMode.Series) {
+                                it.copy(
+                                    isPaging = false,
+                                    pagingErrorMessage = result.message,
+                                )
+                            }.resolveSelection()
                         } else {
-                            state.copy(
-                                seriesItems = emptyList(),
-                                isSeriesPaging = false,
-                                seriesPagingErrorMessage = null,
-                                seriesModeState = HomeModeContentState.Error(result.message),
-                            ).resolveSelection()
+                            state.updateMode(HomeFeedMode.Series) {
+                                it.copy(
+                                    items = emptyList(),
+                                    isPaging = false,
+                                    pagingErrorMessage = null,
+                                    contentState = HomeModeContentState.Error(result.message),
+                                )
+                            }.resolveSelection()
                         }
                     }
                 }
@@ -848,7 +882,7 @@ private fun HomeUiState.withResolvedHomeSelection(
         ),
         rails = resolvedRails,
         rememberedItemKeyByMode = focusState.rememberedItemKeyByMode
-            .withDefaultRememberedKeys(items, favoriteItems, favoriteSeriesItems, movieItems, seriesItems),
+            .withDefaultRememberedKeys(this),
         selectedItem = selectedItem,
         selectedItemKey = selectedItem?.detailsUrl,
     )
@@ -968,17 +1002,13 @@ private fun favoriteSeriesSlug(detailsUrl: String): String? =
     favoriteSeriesSlugRegex.find(detailsUrl)?.groupValues?.getOrNull(1)
 
 private fun Map<HomeFeedMode, String>.withDefaultRememberedKeys(
-    items: List<ReleaseSummary>,
-    favoriteItems: List<ReleaseSummary>,
-    favoriteSeriesItems: List<ReleaseSummary>,
-    movieItems: List<ReleaseSummary>,
-    seriesItems: List<ReleaseSummary>,
+    state: HomeUiState,
 ): Map<HomeFeedMode, String> {
     val current = toMutableMap()
-    if (HomeFeedMode.AllNew !in current) items.firstOrNull()?.detailsUrl?.let { current[HomeFeedMode.AllNew] = it }
-    if (HomeFeedMode.Favorites !in current) favoriteItems.firstOrNull()?.detailsUrl?.let { current[HomeFeedMode.Favorites] = it }
-    if (HomeFeedMode.FavoriteSeries !in current) favoriteSeriesItems.firstOrNull()?.detailsUrl?.let { current[HomeFeedMode.FavoriteSeries] = it }
-    if (HomeFeedMode.Movies !in current) movieItems.firstOrNull()?.detailsUrl?.let { current[HomeFeedMode.Movies] = it }
-    if (HomeFeedMode.Series !in current) seriesItems.firstOrNull()?.detailsUrl?.let { current[HomeFeedMode.Series] = it }
+    for (mode in HomeFeedMode.entries) {
+        if (mode !in current) {
+            state.modeData(mode).items.firstOrNull()?.detailsUrl?.let { current[mode] = it }
+        }
+    }
     return current
 }
