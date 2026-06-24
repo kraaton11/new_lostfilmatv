@@ -30,6 +30,7 @@ import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.data.repository.FavoritesRepository
 import com.kraat.lostfilmnewtv.ui.settings.AppSettingsDataManager
 
+import kotlinx.coroutines.flow.last
 import com.kraat.lostfilmnewtv.ui.settings.OkHttpTorrServeEndpointChecker
 import com.kraat.lostfilmnewtv.ui.settings.SettingsDataManager
 import com.kraat.lostfilmnewtv.ui.settings.TorrServeEndpointChecker

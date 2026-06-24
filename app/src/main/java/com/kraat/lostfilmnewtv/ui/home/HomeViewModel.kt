@@ -974,9 +974,6 @@ private fun resolvedInitialMode(
     }
 }
 
-private fun findItemForMode(state: HomeUiState, mode: HomeFeedMode, itemKey: String): HomeModeItemMatch? =
-    state.itemsForMode(mode).firstOrNull { it.detailsUrl == itemKey }?.let { HomeModeItemMatch(mode, it) }
-
 private fun isModeVisible(state: HomeUiState, mode: HomeFeedMode): Boolean {
     return when (mode) {
         HomeFeedMode.AllNew -> true
