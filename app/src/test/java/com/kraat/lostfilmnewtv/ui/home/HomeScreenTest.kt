@@ -794,9 +794,9 @@ class HomeScreenTest {
         composeRule.setContent {
             LostFilmTheme {
                 HomeScreen(
-                    state = seededState().copy(
-                        pagingErrorMessage = "Не удалось догрузить страницу",
-                    ),
+                    state = seededState().updateMode(HomeFeedMode.AllNew) {
+                        it.copy(pagingErrorMessage = "Не удалось догрузить страницу")
+                    },
                 )
             }
         }

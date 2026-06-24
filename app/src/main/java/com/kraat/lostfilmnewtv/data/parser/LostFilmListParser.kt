@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.data.parser
 
+import android.util.Log
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import org.jsoup.Jsoup
@@ -25,13 +26,18 @@ class LostFilmListParser {
     ): List<ReleaseSummary> {
         val document = Jsoup.parse(html, BASE_URL)
 
-        return document.select(".serials-list .row").mapIndexed { index, row ->
-            parseRow(
-                row = row,
-                pageNumber = pageNumber,
-                positionInPage = index,
-                fetchedAt = fetchedAt,
-            )
+        return document.select(".serials-list .row").mapIndexedNotNull { index, row ->
+            try {
+                parseRow(
+                    row = row,
+                    pageNumber = pageNumber,
+                    positionInPage = index,
+                    fetchedAt = fetchedAt,
+                )
+            } catch (e: Exception) {
+                Log.w("LostFilmListParser", "Skipping malformed row $index", e)
+                null
+            }
         }
     }
 
@@ -68,10 +74,9 @@ class LostFilmListParser {
         pageNumber: Int,
         positionInPage: Int,
         fetchedAt: Long,
-    ): ReleaseSummary {
-        val contentLink = checkNotNull(row.selectFirst("a[href]:not(.comment-blue-box)")) {
-            "Missing content link for row"
-        }
+    ): ReleaseSummary? {
+        val contentLink = row.selectFirst("a[href]:not(.comment-blue-box)")
+            ?: return null
         val overlayLabel = contentLink.selectFirst(".overlay .left-part").textOrEmpty()
         val detailsUrl = contentLink.absoluteUrl("href")
         val isMovie = overlayLabel.contains("Фильм", ignoreCase = true) || detailsUrl.contains("/movies/")
@@ -146,7 +151,8 @@ class LostFilmListParser {
             return null to specialEpisodeNumber
         }
 
-        error("Cannot parse season/episode from '$overlayLabel'")
+        Log.w("LostFilmListParser", "Cannot parse season/episode from '$overlayLabel'")
+        return null to null
     }
 }
 

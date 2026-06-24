@@ -33,10 +33,11 @@ data class ReleaseSummaryEntity(
     val seriesOverviewRu: String? = null,
     val movieOverviewRu: String? = null,
     val tmdbRating: String? = null,
+    val originalReleaseYear: Int? = null,
 ) {
     fun toModel(): ReleaseSummary = ReleaseSummary(
         id = detailsUrl,
-        kind = ReleaseKind.valueOf(kind),
+        kind = runCatching { ReleaseKind.valueOf(kind) }.getOrDefault(ReleaseKind.SERIES),
         titleRu = titleRu,
         episodeTitleRu = episodeTitleRu,
         seasonNumber = seasonNumber,
@@ -54,6 +55,7 @@ data class ReleaseSummaryEntity(
         seriesOverviewRu = seriesOverviewRu,
         movieOverviewRu = movieOverviewRu,
         tmdbRating = tmdbRating,
+        originalReleaseYear = originalReleaseYear,
     )
 
     companion object {
@@ -72,6 +74,7 @@ data class ReleaseSummaryEntity(
             seriesOverviewRu = model.seriesOverviewRu,
             movieOverviewRu = model.movieOverviewRu,
             tmdbRating = model.tmdbRating,
+            originalReleaseYear = model.originalReleaseYear,
             pageNumber = model.pageNumber,
             positionInPage = model.positionInPage,
             fetchedAt = model.fetchedAt,

@@ -57,6 +57,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -124,6 +125,7 @@ class LostFilmRepositoryImpl(
     // with account size. We fetch it once and slice pages out of this cache instead.
     private val favoriteReleasesCacheMutex = Mutex()
     private var favoriteReleasesCache: FavoriteReleasesCache? = null
+    private var favoritesFetchInFlight: Deferred<AllFavoriteReleasesFetch?>? = null
 
     private data class FavoriteReleasesCache(
         val allItems: List<ReleaseSummary>,
@@ -861,7 +863,43 @@ class LostFilmRepositoryImpl(
             val (allItems, favoriteSeriesCount) = if (canReuseCache) {
                 cached!!.allItems to cached.favoriteSeriesCount
             } else {
-                val fetched = fetchAllFavoriteReleases() ?: return FavoriteReleasesResult.Unavailable()
+                // Дедупликация: если фетч уже в полёте, ждём его результат вместо
+                // запуска параллельного обхода всех избранных сериалов.
+                val existingDeferred = favoriteReleasesCacheMutex.withLock {
+                    favoritesFetchInFlight
+                }
+                val fetched = if (existingDeferred != null) {
+                    existingDeferred.await()
+                } else {
+                    val newDeferred = CompletableDeferred<AllFavoriteReleasesFetch?>()
+                    val isOwner = favoriteReleasesCacheMutex.withLock {
+                        if (favoritesFetchInFlight != null) {
+                            false
+                        } else {
+                            favoritesFetchInFlight = newDeferred
+                            true
+                        }
+                    }
+                    if (isOwner) {
+                        try {
+                            val result = fetchAllFavoriteReleases()
+                            newDeferred.complete(result)
+                            result
+                        } catch (e: Exception) {
+                            newDeferred.completeExceptionally(e)
+                            throw e
+                        } finally {
+                            favoriteReleasesCacheMutex.withLock {
+                                if (favoritesFetchInFlight === newDeferred) {
+                                    favoritesFetchInFlight = null
+                                }
+                            }
+                        }
+                    } else {
+                        // Другая корутина успела стать владельцем между двумя withLock
+                        favoriteReleasesCacheMutex.withLock { favoritesFetchInFlight }?.await()
+                    }
+                } ?: return FavoriteReleasesResult.Unavailable()
                 favoriteReleasesCacheMutex.withLock {
                     favoriteReleasesCache = FavoriteReleasesCache(
                         allItems = fetched.allItems,

@@ -272,11 +272,11 @@ class HomeScreenTest {
         var state by mutableStateOf(
             seededModeState().copy(
                 selectedMode = HomeFeedMode.Favorites,
-                favoriteItems = emptyList(),
-                favoritesModeState = HomeModeContentState.Loading,
                 selectedItem = null,
                 selectedItemKey = null,
-            ),
+            ).updateMode(HomeFeedMode.Favorites) {
+                it.copy(items = emptyList(), contentState = HomeModeContentState.Loading)
+            },
         )
         composeRule.setContent {
             LostFilmTheme {
@@ -362,11 +362,11 @@ class HomeScreenTest {
         var state by mutableStateOf(
             seededModeState().copy(
                 selectedMode = HomeFeedMode.Favorites,
-                favoriteItems = emptyList(),
-                favoritesModeState = HomeModeContentState.Loading,
                 selectedItem = null,
                 selectedItemKey = null,
-            ),
+            ).updateMode(HomeFeedMode.Favorites) {
+                it.copy(items = emptyList(), contentState = HomeModeContentState.Loading)
+            },
         )
 
         composeRule.setContent {
