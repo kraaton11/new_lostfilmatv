@@ -179,12 +179,28 @@ class LostFilmDetailsParser {
             .selectFirst(".isawthat-btn, .haveseen-btn")
             ?: return null
 
+        val checked = watchedElement.hasClass("checked") ||
+                watchedElement.classNames().contains("checked") ||
+                (watchedElement.attr("title").contains("просмотрен", ignoreCase = true) &&
+                        !watchedElement.attr("title").contains("пометить", ignoreCase = true) &&
+                        !watchedElement.attr("title").contains("отметить", ignoreCase = true)) ||
+                (watchedElement.attr("title").contains("просмотрена", ignoreCase = true) &&
+                        !watchedElement.attr("title").contains("пометить", ignoreCase = true) &&
+                        !watchedElement.attr("title").contains("отметить", ignoreCase = true))
+
+        if (checked) {
+            return true
+        }
+
         val normalizedText = watchedElement.text().lowercase()
         return when {
-            watchedElement.hasClass("checked") -> true
             normalizedText.contains("не просмотрена") -> false
             normalizedText.contains("не просмотрен") -> false
             normalizedText.contains("not watched") -> false
+            normalizedText.contains("отметить просмотренным") -> false
+            normalizedText.contains("отметить просмотренной") -> false
+            normalizedText.contains("отметить как просмотренное") -> false
+            normalizedText.contains("непросмотрен") -> true
             normalizedText.contains("просмотрена") -> true
             normalizedText.contains("просмотрен") -> true
             normalizedText.contains("watched") -> true

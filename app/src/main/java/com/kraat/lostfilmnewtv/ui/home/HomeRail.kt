@@ -3,7 +3,6 @@ package com.kraat.lostfilmnewtv.ui.home
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -136,6 +135,7 @@ fun HomeRail(
                 val itemKey = homeItemKey(railId, item.detailsUrl)
                 PosterCard(
                     item = item,
+                    onClick = { onOpenDetails(item.detailsUrl) },
                     isFocused = focusedCardKey == item.detailsUrl,
                     modifier = Modifier
                         .focusRequester(cardFocusRequesters.getValue(itemKey))
@@ -169,10 +169,6 @@ fun HomeRail(
                             }
 
                             when {
-                                event.key.isPosterActivationKey() -> {
-                                    onOpenDetails(item.detailsUrl)
-                                    true
-                                }
                                 event.key == Key.Back && leftTargetRequester != null -> {
                                     leftTargetRequester.requestFocus()
                                     true
@@ -180,9 +176,7 @@ fun HomeRail(
                                 handleVerticalNavigation(event.key) -> true
                                 else -> false
                             }
-                        }
-                        .focusable()
-                        .clickable { onOpenDetails(item.detailsUrl) },
+                        },
                 )
             }
 
@@ -236,15 +230,4 @@ private fun HomePagingPosterSkeleton(modifier: Modifier = Modifier) {
         baseColor = HomePanelSurfaceStrong,
         borderColor = HomePanelBorder.copy(alpha = 0.20f),
     )
-}
-
-private fun Key.isPosterActivationKey(): Boolean {
-    return when (this) {
-        Key.DirectionCenter,
-        Key.Enter,
-        Key.NumPadEnter,
-        -> true
-
-        else -> false
-    }
 }

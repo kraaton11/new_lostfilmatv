@@ -116,12 +116,6 @@ class AuthViewModel @Inject constructor(
 
     fun retryAuth() { startAuth() }
 
-    fun clearError() {
-        if (_uiState.value is AuthUiState.RecoverableError || _uiState.value is AuthUiState.Expired) {
-            _uiState.value = AuthUiState.Idle
-        }
-    }
-
     fun cancelAuth() {
         authJob?.cancel()
         authJob = null

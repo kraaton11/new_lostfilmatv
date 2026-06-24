@@ -19,6 +19,7 @@ private const val DEFAULT_TMDB_BASE_URL = "https://api.themoviedb.org/3"
 private const val TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/"
 private const val POSTER_SIZE = "w780"
 private const val BACKDROP_SIZE = "w1280"
+private const val TAG = "TmdbPosterClient"
 
 open class TmdbPosterClient(
     private val okHttpClient: OkHttpClient,
@@ -128,7 +129,10 @@ open class TmdbPosterClient(
             .build()
 
         okHttpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return null
+            if (!response.isSuccessful) {
+                Log.w(TAG, "TMDB image fetch failed: HTTP ${response.code} for $url")
+                return null
+            }
             val body = response.body?.string() ?: return null
             val json = JSONObject(body)
 
@@ -184,12 +188,6 @@ open class TmdbPosterClient(
         )
     }
 
-    open suspend fun getEpisodeOverviewRu(
-        tmdbId: Int,
-        seasonNumber: Int,
-        episodeNumber: Int,
-    ): String? = getEpisodeOverview(tmdbId, seasonNumber, episodeNumber)?.text
-
     open suspend fun getEpisodeOverview(
         tmdbId: Int,
         seasonNumber: Int,
@@ -229,7 +227,10 @@ open class TmdbPosterClient(
             .build()
 
         okHttpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return null
+            if (!response.isSuccessful) {
+                Log.w(TAG, "TMDB overview fetch failed: HTTP ${response.code} for $url")
+                return null
+            }
             val body = response.body?.string() ?: return null
             return JSONObject(body).optString("overview", "")
                 .trim()
@@ -245,7 +246,10 @@ open class TmdbPosterClient(
             .build()
 
         okHttpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return@withContext null
+            if (!response.isSuccessful) {
+                Log.w(TAG, "TMDB series overview fetch failed: HTTP ${response.code} for tmdbId=$tmdbId")
+                return@withContext null
+            }
             val body = response.body?.string() ?: return@withContext null
             JSONObject(body).optString("overview", "")
                 .trim()
@@ -261,7 +265,10 @@ open class TmdbPosterClient(
             .build()
 
         okHttpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return@withContext null
+            if (!response.isSuccessful) {
+                Log.w(TAG, "TMDB movie overview fetch failed: HTTP ${response.code} for tmdbId=$tmdbId")
+                return@withContext null
+            }
             val body = response.body?.string() ?: return@withContext null
             JSONObject(body).optString("overview", "")
                 .trim()
@@ -284,7 +291,10 @@ open class TmdbPosterClient(
             .build()
 
         okHttpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return@withContext null
+            if (!response.isSuccessful) {
+                Log.w(TAG, "TMDB rating fetch failed: HTTP ${response.code} for $endpoint")
+                return@withContext null
+            }
             val body = response.body?.string() ?: return@withContext null
             JSONObject(body).optTmdbRating()
         }

@@ -18,6 +18,7 @@ import dagger.hilt.testing.TestInstallIn
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 
 /**
  * Заменяет [DataModule] в инструментальных тестах.
@@ -68,7 +69,8 @@ class TestFakeRepository : LostFilmRepository {
         targetWatched: Boolean,
     ): Boolean? = setEpisodeWatchedResult
     override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult = setFavoriteResult
-    override suspend fun loadFavoriteReleases(pageNumber: Int): FavoriteReleasesResult = favoriteReleasesResult
+    override fun observeFavoriteReleases(pageNumber: Int): Flow<FavoriteReleasesResult> =
+        flowOf(favoriteReleasesResult)
 }
 
 class TestFakeAuthRepository : AuthRepositoryContract {

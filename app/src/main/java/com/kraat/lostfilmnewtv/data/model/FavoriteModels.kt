@@ -36,6 +36,15 @@ sealed interface FavoriteReleasesResult {
         val favoriteSeriesCount: Int? = null,
     ) : FavoriteReleasesResult
 
+    /**
+     * Emitted during the fan-out phase (page 1 only) as each favorite series finishes loading.
+     * Items are unenriched (no TMDB posters yet). Final enriched results arrive with [Success].
+     */
+    data class Partial(
+        val items: List<ReleaseSummary>,
+        val favoriteSeriesCount: Int,
+    ) : FavoriteReleasesResult
+
     data class Unavailable(
         val message: String? = null,
     ) : FavoriteReleasesResult

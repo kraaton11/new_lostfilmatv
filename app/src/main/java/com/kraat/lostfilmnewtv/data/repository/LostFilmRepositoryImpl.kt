@@ -3,12 +3,7 @@ package com.kraat.lostfilmnewtv.data.repository
 import com.kraat.lostfilmnewtv.data.db.PageCacheMetadataEntity
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
 import com.kraat.lostfilmnewtv.data.db.ReleaseDetailsEntity
-import com.kraat.lostfilmnewtv.data.db.ReleaseSummaryEntity
 import com.kraat.lostfilmnewtv.data.model.FavoriteMetadata
-import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
-import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
-import com.kraat.lostfilmnewtv.data.model.FavoriteSeriesResult
-import com.kraat.lostfilmnewtv.data.model.FavoriteToggleNetworkResult
 import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
@@ -17,17 +12,11 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.model.ScheduleItem
 import com.kraat.lostfilmnewtv.data.model.ScheduleMonth
 import com.kraat.lostfilmnewtv.data.model.SeriesGuide
-import com.kraat.lostfilmnewtv.data.model.SeriesOverview
-import com.kraat.lostfilmnewtv.data.model.TmdbImageUrls
-import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.FAVORITE_PUBLISH_CHECK_CONCURRENCY
-import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.FAVORITE_SERIES_LOAD_CONCURRENCY
 import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.SCHEDULE_IMAGE_ENRICHMENT_CONCURRENCY
 import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.SEARCH_ENRICHMENT_CONCURRENCY
-import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.SUMMARY_ENRICHMENT_CONCURRENCY
 import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.WATCHED_MARKS_LOAD_CONCURRENCY
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.parser.BASE_URL
-import com.kraat.lostfilmnewtv.data.parser.FavoriteSeriesRef
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteSeriesParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmListParser
@@ -36,7 +25,6 @@ import com.kraat.lostfilmnewtv.data.parser.LostFilmScheduleParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSeriesCatalogParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSeriesOverviewParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSeasonEpisodesParser
-import com.kraat.lostfilmnewtv.data.parser.absoluteUrl
 import com.kraat.lostfilmnewtv.data.parser.extractYear
 import com.kraat.lostfilmnewtv.data.parser.normalizeText
 import com.kraat.lostfilmnewtv.data.parser.resolveUrl
@@ -46,19 +34,14 @@ import com.kraat.lostfilmnewtv.data.parser.toSummaryEntities
 import com.kraat.lostfilmnewtv.data.parser.toSummaryModels
 import com.kraat.lostfilmnewtv.data.poster.TmdbPosterEnricher
 import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolver
+import com.kraat.lostfilmnewtv.data.poster.TmdbEnrichmentService
+import dagger.Lazy
 import android.util.Log
 import java.io.IOException
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
-import java.time.format.DateTimeParseException
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -72,27 +55,21 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import org.jsoup.Jsoup
 
+private const val TAG = "LostFilmRepository"
 private const val FRESH_WINDOW_MS = 6 * 60 * 60 * 1000L
 private const val RETENTION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000L
-private const val FAVORITE_RELEASES_MAX_EPISODES_PER_SEASON = Int.MAX_VALUE
-private const val FAVORITE_RELEASES_PAGE_SIZE = 30
-private const val FAVORITE_RELEASES_MAX_SEASONS_PER_SERIES = 1
 
-// How long the full favorite-releases listing (see [LostFilmRepositoryImpl.favoriteReleasesCache])
-// stays valid before we re-fetch it from the network on page 1. Pages beyond the first always
-// reuse whatever is cached, however stale, since they are only requested while a paging session
-// for the same listing is still in progress.
-private const val FAVORITE_RELEASES_CACHE_TTL_MS = 2 * 60 * 1000L
+// How long the Room-persisted page 1 cache stays fresh. While the cache is fresh,
+// observeNewReleases skips the network request and serves data directly from Room.
+private const val NEW_RELEASES_ROOM_FRESH_MS = 10 * 60 * 1000L
 private const val MOVIES_PAGE_SIZE = 20
 private const val SERIES_CATALOG_PAGE_SIZE = 20
 private const val CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000L
 private const val YEAR_AWARE_TMDB_MATCHING_MIN_FETCHED_AT_MS = 1777852800000L // 2026-05-04
 private val paginatorRegex = Regex("""/new/page_(\d+)""")
-private const val favoriteSeriesRoute = "/my/type_1"
 private val seriesFavoritePageRegex = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)/season_\d+/episode_\d+/?""")
 private val seriesRootUrlRegex = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)(?:/.*)?/?""")
 private val searchWhitespaceRegex = Regex("""\s+""")
-private val favoriteReleaseDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy")
 
 private data class FavoriteMetadataPage(
     val url: String,
@@ -102,6 +79,7 @@ private data class FavoriteMetadataPage(
 
 class LostFilmRepositoryImpl(
     private val httpClient: LostFilmHttpClient,
+    private val anonymousHttpClient: LostFilmHttpClient = httpClient,
     private val releaseDao: ReleaseDao,
     private val listParser: LostFilmListParser,
     private val detailsParser: LostFilmDetailsParser,
@@ -112,26 +90,16 @@ class LostFilmRepositoryImpl(
     private val seriesCatalogParser: LostFilmSeriesCatalogParser = LostFilmSeriesCatalogParser(),
     private val seriesOverviewParser: LostFilmSeriesOverviewParser = LostFilmSeriesOverviewParser(),
     private val tmdbResolver: TmdbPosterResolver,
+    private val tmdbEnrichmentService: TmdbEnrichmentService,
+    private val favoritesRepository: Lazy<FavoritesRepository>,
     private val hasAuthenticatedSession: suspend () -> Boolean,
     private val clock: () -> Long = { System.currentTimeMillis() },
 ) : LostFilmRepository {
     private val cleanupMutex = Mutex()
-    private val tmdbEnrichCache = ConcurrentHashMap<String, Deferred<TmdbImageUrls?>>()
     private var lastCleanupAt = 0L
-
-    // In-memory cache of the full (unpaginated) favorite-releases listing. Building this list
-    // requires a network round trip per favorite series (seasons page + watched marks + a
-    // "published today?" check), so re-running it on every pagination request does not scale
-    // with account size. We fetch it once and slice pages out of this cache instead.
-    private val favoriteReleasesCacheMutex = Mutex()
-    private var favoriteReleasesCache: FavoriteReleasesCache? = null
-    private var favoritesFetchInFlight: Deferred<AllFavoriteReleasesFetch?>? = null
-
-    private data class FavoriteReleasesCache(
-        val allItems: List<ReleaseSummary>,
-        val favoriteSeriesCount: Int,
-        val fetchedAt: Long,
-    )
+    // Кеш (isWatched, ajaxSessionToken) после последнего loadWatchedState — позволяет
+    // setEpisodeWatched не делать повторный fetchDetails ради получения токена.
+    private val watchedPageCache = ConcurrentHashMap<String, Pair<Boolean?, String?>>()
 
     override suspend fun loadPage(pageNumber: Int): PageState {
         cleanupExpiredDataIfNeeded()
@@ -139,7 +107,7 @@ class LostFilmRepositoryImpl(
         return try {
             val fetchedAt = clock()
             val hasAuthenticatedSession = hasAuthenticatedSession()
-            val html = httpClient.fetchNewPage(pageNumber)
+            val html = anonymousHttpClient.fetchNewPage(pageNumber)
             val parsedItems = withContext(Dispatchers.Default) {
                 listParser.parse(
                     html = html,
@@ -167,7 +135,7 @@ class LostFilmRepositoryImpl(
             )
 
             // Only enrich the freshly fetched page; previous pages already keep their TMDB posters in Room.
-            val enrichedItems = enrichSummaries(
+            val enrichedItems = tmdbEnrichmentService.enrichSummaries(
                 items = itemsToPersist,
                 persistToCache = true,
             )
@@ -201,18 +169,22 @@ class LostFilmRepositoryImpl(
         //    поэтому в HomeViewModel на cache-эмиссии нужно одновременно сбросить этот флаг
         //    и fullScreenErrorMessage, иначе UI решит, что данных нет.
         val cachedItems = releaseDao.getSummariesUpToPage(pageNumber).toSummaryModels()
+        val metadata = if (cachedItems.isNotEmpty()) releaseDao.getPageMetadata(pageNumber) else null
         if (cachedItems.isNotEmpty()) {
-            val metadata = releaseDao.getPageMetadata(pageNumber)
+            val cacheFresh = metadata != null &&
+                (clock() - metadata.fetchedAt) < NEW_RELEASES_ROOM_FRESH_MS
             emit(
                 PageState.Content(
                     pageNumber = pageNumber,
                     items = cachedItems,
                     hasNextPage = metadata?.hasNextPage ?: true,
-                    isStale = true,
+                    isStale = !cacheFresh,
                 ),
             )
+            // Если кэш свежий — пропускаем сетевой запрос.
+            if (cacheFresh) return@flow
         }
-        // 2. Затем всегда запускаем свежую загрузку. Если сеть упала, а кэш был показан,
+        // 2. Запускаем свежую загрузку. Если сеть упала, а кэш был показан,
         //    HomeViewModel сам решит не стирать items (retainVisibleItemsOnFailure-семантика).
         //    Контекст исполнения приходит от коллектора (ViewModel запускает collect на ioDispatcher).
         emit(loadPage(pageNumber))
@@ -223,7 +195,7 @@ class LostFilmRepositoryImpl(
 
         return try {
             val fetchedAt = clock()
-            val html = httpClient.fetchMoviesPage(pageNumber)
+            val html = anonymousHttpClient.fetchMoviesPage(pageNumber)
             val parsedItems = withContext(Dispatchers.Default) {
                 listParser.parse(
                     html = html,
@@ -231,7 +203,7 @@ class LostFilmRepositoryImpl(
                     fetchedAt = fetchedAt,
                 )
             }
-            val enrichedItems = enrichSummaries(
+            val enrichedItems = tmdbEnrichmentService.enrichSummaries(
                 items = parsedItems,
                 persistToCache = false,
             )
@@ -259,7 +231,7 @@ class LostFilmRepositoryImpl(
     override suspend fun loadSeriesCatalog(pageNumber: Int): PageState {
         return try {
             val fetchedAt = clock()
-            val json = httpClient.fetchSeriesCatalogPage(pageNumber)
+            val json = anonymousHttpClient.fetchSeriesCatalogPage(pageNumber)
             val parsedItems = withContext(Dispatchers.Default) {
                 seriesCatalogParser.parseSearchJson(
                     json = json,
@@ -267,7 +239,7 @@ class LostFilmRepositoryImpl(
                     fetchedAt = fetchedAt,
                 )
             }
-            val enrichedItems = enrichSummaries(
+            val enrichedItems = tmdbEnrichmentService.enrichSummaries(
                 items = parsedItems,
                 persistToCache = false,
             )
@@ -425,7 +397,8 @@ class LostFilmRepositoryImpl(
                         refreshCachedTorrentLinksIfNeeded(details)
                     } catch (exception: CancellationException) {
                         throw exception
-                    } catch (_: Exception) {
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to refresh cached torrent links", e)
                         details
                     }
                 }
@@ -434,7 +407,8 @@ class LostFilmRepositoryImpl(
                         refreshFavoriteMetadataIfNeeded(details)
                     } catch (exception: CancellationException) {
                         throw exception
-                    } catch (_: Exception) {
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to refresh favorite metadata", e)
                         details
                     }
                 }
@@ -449,7 +423,8 @@ class LostFilmRepositoryImpl(
                         )
                     } catch (exception: CancellationException) {
                         throw exception
-                    } catch (_: Exception) {
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Failed to resolve TMDB poster for details extras", e)
                         null
                     }
                 }
@@ -501,7 +476,8 @@ class LostFilmRepositoryImpl(
                                     serialId = serialId,
                                 ),
                             )
-                        } catch (_: IOException) {
+                        } catch (e: IOException) {
+                            Log.w(TAG, "Failed to fetch watched marks for series guide", e)
                             emptySet()
                         }
                     }
@@ -546,7 +522,7 @@ class LostFilmRepositoryImpl(
             ?: return SeriesOverviewResult.Error("Обзор недоступен")
 
         return try {
-            val overviewHtml = httpClient.fetchDetails(seriesRootUrl)
+            val overviewHtml = anonymousHttpClient.fetchDetails(seriesRootUrl)
             val parsedOverview = withContext(Dispatchers.Default) {
                 seriesOverviewParser.parse(
                     html = overviewHtml,
@@ -588,14 +564,14 @@ class LostFilmRepositoryImpl(
         return try {
             val encodedQuery = URLEncoder.encode(normalizedQuery, StandardCharsets.UTF_8.toString())
                 .replace("+", "%20")
-            val html = httpClient.fetchDetails("$BASE_URL/search/?q=$encodedQuery")
+            val html = anonymousHttpClient.fetchDetails("$BASE_URL/search/?q=$encodedQuery")
             val parsedItems = withContext(Dispatchers.Default) {
                 searchParser.parse(html)
             }
 
             SearchResultsResult.Success(
                 query = normalizedQuery,
-                items = enrichSearchItems(parsedItems),
+                items = tmdbEnrichmentService.enrichSearchItems(parsedItems),
             )
         } catch (exception: CancellationException) {
             throw exception
@@ -613,7 +589,7 @@ class LostFilmRepositoryImpl(
 
     override suspend fun loadSchedule(): ScheduleResult {
         return try {
-            val html = httpClient.fetchSchedulePage()
+            val html = anonymousHttpClient.fetchSchedulePage()
             val schedule = withContext(Dispatchers.Default) {
                 scheduleParser.parse(html)
             }
@@ -678,7 +654,7 @@ class LostFilmRepositoryImpl(
 
         return semaphore.withPermit {
             try {
-                val fetchedPosterUrl = detailsParser.parsePosterUrl(httpClient.fetchDetails(item.targetUrl))
+                val fetchedPosterUrl = detailsParser.parsePosterUrl(anonymousHttpClient.fetchDetails(item.targetUrl))
                     .takeIf { it.isLostFilmImageUrl() }
                 if (fetchedPosterUrl != null) {
                     releaseDao.getSummary(item.targetUrl)?.let { existing ->
@@ -688,7 +664,8 @@ class LostFilmRepositoryImpl(
                 fetchedPosterUrl
             } catch (exception: CancellationException) {
                 throw exception
-            } catch (_: Exception) {
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to fetch schedule poster from LostFilm", e)
                 null
             }
         }
@@ -703,6 +680,8 @@ class LostFilmRepositoryImpl(
         return try {
             val detailsHtml = httpClient.fetchDetails(normalizedDetailsUrl)
             val watchedState = detailsParser.parseWatchedState(detailsHtml)
+            val ajaxToken = detailsParser.parseAjaxSessionToken(detailsHtml)
+            watchedPageCache[normalizedDetailsUrl] = watchedState to ajaxToken
             watchedState?.let { isWatched ->
                 releaseDao.updateSummaryWatched(
                     detailsUrl = normalizedDetailsUrl,
@@ -710,7 +689,8 @@ class LostFilmRepositoryImpl(
                 )
             }
             watchedState
-        } catch (_: IOException) {
+        } catch (e: IOException) {
+            Log.w(TAG, "Failed to load watched state", e)
             null
         }
     }
@@ -755,13 +735,25 @@ class LostFilmRepositoryImpl(
 
         val normalizedDetailsUrl = resolveUrl(detailsUrl)
         return try {
-            val detailsHtml = httpClient.fetchDetails(normalizedDetailsUrl)
-            val currentWatched = detailsParser.parseWatchedState(detailsHtml)
-            val ajaxSessionToken = detailsParser.parseAjaxSessionToken(detailsHtml)
+            val cached = watchedPageCache[normalizedDetailsUrl]
+            val (currentWatched, ajaxSessionToken) = if (cached != null) {
+                cached
+            } else {
+                val detailsHtml = httpClient.fetchDetails(normalizedDetailsUrl)
+                val ws = detailsParser.parseWatchedState(detailsHtml)
+                val token = detailsParser.parseAjaxSessionToken(detailsHtml)
+                Log.d(TAG, "setEpisodeWatched: page fetch ws=$ws hasToken=${token != null} target=$targetWatched")
+                val fresh = ws to token
+                watchedPageCache[normalizedDetailsUrl] = fresh
+                fresh
+            }
+            Log.d(TAG, "setEpisodeWatched: currentWatched=$currentWatched target=$targetWatched")
             if (ajaxSessionToken == null) {
-                return currentWatched
+                Log.w(TAG, "setEpisodeWatched: no ajax token — session likely expired, cannot call API")
+                return null
             }
             if (currentWatched == targetWatched) {
+                Log.d(TAG, "setEpisodeWatched: already at target=$targetWatched, no-op")
                 return currentWatched
             }
             val requestSucceeded = httpClient.setEpisodeWatched(
@@ -770,306 +762,37 @@ class LostFilmRepositoryImpl(
                 ajaxSessionToken = ajaxSessionToken,
                 targetWatched = targetWatched,
             )
+            Log.d(TAG, "setEpisodeWatched: AJAX requestSucceeded=$requestSucceeded target=$targetWatched")
             val effectiveWatched = if (requestSucceeded) {
                 targetWatched
             } else {
                 val refreshedDetailsHtml = httpClient.fetchDetails(normalizedDetailsUrl)
                 val refreshedWatched = detailsParser.parseWatchedState(refreshedDetailsHtml)
+                val refreshedToken = detailsParser.parseAjaxSessionToken(refreshedDetailsHtml)
+                Log.d(TAG, "setEpisodeWatched: fallback page refreshedWatched=$refreshedWatched")
+                watchedPageCache[normalizedDetailsUrl] = refreshedWatched to refreshedToken
                 if (refreshedWatched == targetWatched) {
                     refreshedWatched
                 } else {
                     refreshedWatched ?: currentWatched
                 }
             }
+            Log.d(TAG, "setEpisodeWatched: effectiveWatched=$effectiveWatched")
             if (effectiveWatched != null) {
+                watchedPageCache[normalizedDetailsUrl] = effectiveWatched to ajaxSessionToken
                 releaseDao.updateSummaryWatched(
                     detailsUrl = normalizedDetailsUrl,
                     isWatched = effectiveWatched,
                 )
+                favoritesRepository.get().invalidateCache()
             }
             effectiveWatched
-        } catch (_: IOException) {
+        } catch (e: IOException) {
+            Log.w(TAG, "Failed to set episode watched state", e)
             null
         }
     }
 
-    override suspend fun setFavorite(
-        detailsUrl: String,
-        targetFavorite: Boolean,
-    ): FavoriteMutationResult {
-        if (!hasAuthenticatedSession()) {
-            return FavoriteMutationResult.RequiresLogin()
-        }
-
-        val normalizedDetailsUrl = resolveUrl(detailsUrl)
-        return try {
-            val favoritePage = fetchFavoriteMetadataPage(normalizedDetailsUrl)
-                ?: return FavoriteMutationResult.Error("Не удалось обновить избранное")
-            val favoriteMetadata = favoritePage.metadata
-            persistFavoriteMetadata(normalizedDetailsUrl, favoriteMetadata)
-
-            if (favoriteMetadata.isFavorite == targetFavorite) {
-                return FavoriteMutationResult.NoOp
-            }
-
-            val ajaxSessionToken = detailsParser.parseAjaxSessionToken(favoritePage.html)
-                ?: return FavoriteMutationResult.Error("Войдите в LostFilm")
-            val toggleResult = httpClient.toggleFavorite(
-                refererUrl = favoritePage.url,
-                favoriteTargetId = favoriteMetadata.targetId,
-                ajaxSessionToken = ajaxSessionToken,
-            )
-
-            val effectiveFavoriteState = when (toggleResult) {
-                FavoriteToggleNetworkResult.ToggledOn -> true
-                FavoriteToggleNetworkResult.ToggledOff -> false
-                FavoriteToggleNetworkResult.Unknown -> {
-                    val refreshedHtml = httpClient.fetchDetails(favoritePage.url)
-                    detailsParser.parseFavoriteMetadata(refreshedHtml)?.isFavorite
-                }
-            }
-            effectiveFavoriteState?.let { state ->
-                persistFavoriteMetadata(normalizedDetailsUrl, favoriteMetadata.copy(isFavorite = state))
-            }
-
-            if (effectiveFavoriteState == targetFavorite) {
-                invalidateFavoriteReleasesCache()
-                FavoriteMutationResult.Updated
-            } else {
-                FavoriteMutationResult.Error("Не удалось обновить избранное")
-            }
-        } catch (_: IOException) {
-            FavoriteMutationResult.Error("Не удалось обновить избранное")
-        }
-    }
-
-    override suspend fun loadFavoriteReleases(pageNumber: Int): FavoriteReleasesResult {
-        if (!hasAuthenticatedSession()) {
-            return FavoriteReleasesResult.Unavailable("Войдите в LostFilm")
-        }
-
-        val normalizedPageNumber = pageNumber.coerceAtLeast(1)
-
-        return try {
-            // Page 1 is the start of a new listing session, so it always refreshes from the
-            // network (this is also how callers implement pull-to-refresh). Pages beyond that
-            // are only ever requested to continue scrolling an already-visible list, so they
-            // reuse the cached full listing instead of re-running the whole per-series fan-out.
-            val cached = favoriteReleasesCacheMutex.withLock { favoriteReleasesCache }
-            val canReuseCache = normalizedPageNumber > 1 &&
-                cached != null &&
-                (clock() - cached.fetchedAt) < FAVORITE_RELEASES_CACHE_TTL_MS
-
-            val (allItems, favoriteSeriesCount) = if (canReuseCache) {
-                cached!!.allItems to cached.favoriteSeriesCount
-            } else {
-                // Дедупликация: если фетч уже в полёте, ждём его результат вместо
-                // запуска параллельного обхода всех избранных сериалов.
-                val existingDeferred = favoriteReleasesCacheMutex.withLock {
-                    favoritesFetchInFlight
-                }
-                val fetched = if (existingDeferred != null) {
-                    existingDeferred.await()
-                } else {
-                    val newDeferred = CompletableDeferred<AllFavoriteReleasesFetch?>()
-                    val isOwner = favoriteReleasesCacheMutex.withLock {
-                        if (favoritesFetchInFlight != null) {
-                            false
-                        } else {
-                            favoritesFetchInFlight = newDeferred
-                            true
-                        }
-                    }
-                    if (isOwner) {
-                        try {
-                            val result = fetchAllFavoriteReleases()
-                            newDeferred.complete(result)
-                            result
-                        } catch (e: Exception) {
-                            newDeferred.completeExceptionally(e)
-                            throw e
-                        } finally {
-                            favoriteReleasesCacheMutex.withLock {
-                                if (favoritesFetchInFlight === newDeferred) {
-                                    favoritesFetchInFlight = null
-                                }
-                            }
-                        }
-                    } else {
-                        // Другая корутина успела стать владельцем между двумя withLock
-                        favoriteReleasesCacheMutex.withLock { favoritesFetchInFlight }?.await()
-                    }
-                } ?: return FavoriteReleasesResult.Unavailable()
-                favoriteReleasesCacheMutex.withLock {
-                    favoriteReleasesCache = FavoriteReleasesCache(
-                        allItems = fetched.allItems,
-                        favoriteSeriesCount = fetched.favoriteSeriesCount,
-                        fetchedAt = clock(),
-                    )
-                }
-                fetched.allItems to fetched.favoriteSeriesCount
-            }
-
-            val pageOffset = (normalizedPageNumber - 1) * FAVORITE_RELEASES_PAGE_SIZE
-            val items = allItems
-                .drop(pageOffset)
-                .take(FAVORITE_RELEASES_PAGE_SIZE)
-                .mapIndexed { index, item -> item.copy(positionInPage = pageOffset + index) }
-
-            val enrichedItems = enrichSummaries(items)
-                .mapIndexed { index, item -> item.copy(positionInPage = pageOffset + index) }
-
-            FavoriteReleasesResult.Success(
-                items = enrichedItems,
-                pageNumber = normalizedPageNumber,
-                hasNextPage = allItems.size > pageOffset + FAVORITE_RELEASES_PAGE_SIZE,
-                favoriteSeriesCount = favoriteSeriesCount,
-            )
-        } catch (_: IOException) {
-            FavoriteReleasesResult.Unavailable()
-        }
-    }
-
-    private data class AllFavoriteReleasesFetch(
-        val allItems: List<ReleaseSummary>,
-        val favoriteSeriesCount: Int,
-    )
-
-    /**
-     * Performs the full, expensive favorite-releases fan-out: one network round trip per
-     * favorite series (seasons page + watched marks, plus a "published today?" check per
-     * candidate release), bounded by [FAVORITE_SERIES_LOAD_CONCURRENCY] /
-     * [FAVORITE_PUBLISH_CHECK_CONCURRENCY]. Returns null when nothing could be loaded at all
-     * (e.g. every request failed), distinct from a successful empty result.
-     */
-    private suspend fun fetchAllFavoriteReleases(): AllFavoriteReleasesFetch? {
-        val favoritesHtml = httpClient.fetchAccountPage(favoriteSeriesRoute)
-        val favoriteSeries = favoriteSeriesParser.parse(favoritesHtml)
-        if (favoriteSeries.isEmpty()) {
-            return AllFavoriteReleasesFetch(allItems = emptyList(), favoriteSeriesCount = 0)
-        }
-
-        val fetchedAt = clock()
-        val today = currentFavoriteReleaseDate()
-
-        // Keep favorites parallel, but cap LostFilm request fan-out so big accounts do not flood the site.
-        val favoriteSeriesSemaphore = Semaphore(FAVORITE_SERIES_LOAD_CONCURRENCY)
-        data class SeriesLoadResult(
-            val items: List<ReleaseSummary>,
-            val loaded: Boolean,
-        )
-
-        val seriesResults = coroutineScope {
-            favoriteSeries.map { series ->
-                async {
-                    favoriteSeriesSemaphore.withPermit {
-                        val seasonsUrl = "${series.seriesUrl.trimEnd('/')}/seasons"
-                        val seasonsHtml = try {
-                            httpClient.fetchDetails(seasonsUrl)
-                        } catch (_: IOException) {
-                            return@withPermit SeriesLoadResult(emptyList(), loaded = false)
-                        }
-                        val watchedEpisodeIdsFromMarks = seasonEpisodesParser.parseSerialId(seasonsHtml)
-                            ?.let { serialId ->
-                                try {
-                                    seasonEpisodesParser.parseWatchedEpisodeIds(
-                                        httpClient.fetchSeasonWatchedEpisodeMarks(
-                                            refererUrl = seasonsUrl,
-                                            serialId = serialId,
-                                        ),
-                                    )
-                                } catch (_: IOException) {
-                                    emptySet()
-                                }
-                            }
-                            .orEmpty()
-                        val watchedEpisodeIdsFromSeriesRoot = if (watchedEpisodeIdsFromMarks.isEmpty()) {
-                            try {
-                                seasonEpisodesParser.parseWatchedEpisodeIdsFromPage(
-                                    httpClient.fetchDetails(series.seriesUrl),
-                                )
-                            } catch (_: IOException) {
-                                emptySet()
-                            }
-                        } else {
-                            emptySet()
-                        }
-                        val watchedEpisodeIds = watchedEpisodeIdsFromSeriesRoot + watchedEpisodeIdsFromMarks
-                        SeriesLoadResult(
-                            items = withContext(Dispatchers.Default) {
-                                seasonEpisodesParser.parse(
-                                    html = seasonsHtml,
-                                    series = series,
-                                    fetchedAt = fetchedAt,
-                                    watchedEpisodeIds = watchedEpisodeIds,
-                                    maxEpisodesPerSeason = FAVORITE_RELEASES_MAX_EPISODES_PER_SEASON,
-                                    maxSeasons = FAVORITE_RELEASES_MAX_SEASONS_PER_SERIES,
-                                )
-                            },
-                            loaded = true,
-                        )
-                    }
-                }
-            }.awaitAll()
-        }
-
-        val loadedAnySeasonPage = seriesResults.any { it.loaded }
-        val rawItems = seriesResults
-            .flatMap { it.items }
-            .distinctBy { it.detailsUrl }
-        // Today's release checks can hit details pages; keep that network work bounded too.
-        val publishCheckSemaphore = Semaphore(FAVORITE_PUBLISH_CHECK_CONCURRENCY)
-        val allItems = coroutineScope {
-            rawItems.map { item ->
-                async {
-                    publishCheckSemaphore.withPermit {
-                        val releaseDate = parseFavoriteReleaseDate(item.releaseDateRu) ?: return@withPermit null
-                        when {
-                            releaseDate.isBefore(today) -> item
-                            releaseDate.isAfter(today) -> null
-                            isFavoriteReleasePublishedToday(item.detailsUrl) -> item
-                            else -> null
-                        }
-                    }
-                }
-            }.awaitAll()
-        }
-            .filterNotNull()
-            .sortedByDescending { parseFavoriteReleaseDate(it.releaseDateRu) ?: LocalDate.MIN }
-            .mapIndexed { index, item -> item.copy(positionInPage = index) }
-
-        if (allItems.isEmpty() && !loadedAnySeasonPage) {
-            return null
-        }
-
-        return AllFavoriteReleasesFetch(allItems = allItems, favoriteSeriesCount = favoriteSeries.size)
-    }
-
-    /** Drops the cached favorite-releases listing so the next [loadFavoriteReleases] call refetches it. */
-    private suspend fun invalidateFavoriteReleasesCache() {
-        favoriteReleasesCacheMutex.withLock { favoriteReleasesCache = null }
-    }
-
-    override suspend fun loadFavoriteSeries(): FavoriteSeriesResult {
-        if (!hasAuthenticatedSession()) {
-            return FavoriteSeriesResult.Unavailable("Войдите в LostFilm")
-        }
-
-        return try {
-            val fetchedAt = clock()
-            val favoritesHtml = httpClient.fetchAccountPage(favoriteSeriesRoute)
-            val items = favoriteSeriesParser.parse(favoritesHtml)
-                .mapIndexed { index, series -> series.toFavoriteSeriesSummary(index, fetchedAt) }
-            val enrichedItems = enrichSummaries(
-                items = items,
-                persistToCache = false,
-            )
-
-            FavoriteSeriesResult.Success(enrichedItems)
-        } catch (_: IOException) {
-            FavoriteSeriesResult.Unavailable()
-        }
-    }
 
     private suspend fun fallbackPageState(pageNumber: Int, exception: Exception): PageState {
         val now = clock()
@@ -1077,7 +800,7 @@ class LostFilmRepositoryImpl(
 
         if (cachedMetadata != null && now - cachedMetadata.fetchedAt < RETENTION_WINDOW_MS) {
             val cachedItems = releaseDao.getSummariesUpToPage(pageNumber).toSummaryModels()
-            val enrichedItems = enrichSummaries(
+            val enrichedItems = tmdbEnrichmentService.enrichSummaries(
                 items = cachedItems,
                 persistToCache = true,
             )
@@ -1097,7 +820,7 @@ class LostFilmRepositoryImpl(
         if (pageNumber > 1) {
             val previousItems = releaseDao.getSummariesUpToPage(pageNumber - 1).toSummaryModels()
             if (previousItems.isNotEmpty()) {
-                val enrichedItems = enrichSummaries(
+                val enrichedItems = tmdbEnrichmentService.enrichSummaries(
                     items = previousItems,
                     persistToCache = true,
                 )
@@ -1117,75 +840,6 @@ class LostFilmRepositoryImpl(
         )
     }
 
-    private suspend fun enrichSummaries(
-        items: List<ReleaseSummary>,
-        persistToCache: Boolean = false,
-    ): List<ReleaseSummary> {
-        if (items.isEmpty()) {
-            return emptyList()
-        }
-
-        // Skip TMDB lookup for items whose poster and backdrop are already resolved
-        // (cached in Room from a previous load). На повторных запусках это убирает 6+ параллельных HTTP
-        // и заметно ускоряет критический путь к отрисовке.
-        val needsEnrichment = items.filterNot { it.hasCompleteArt() }
-        if (needsEnrichment.isEmpty()) {
-            if (persistToCache) {
-                upsertChangedSummaries(items.toSummaryEntities())
-            }
-            return items
-        }
-
-        // Cap TMDB enrichment fan-out so one page load cannot create dozens of simultaneous HTTP calls.
-        val semaphore = Semaphore(SUMMARY_ENRICHMENT_CONCURRENCY)
-        val enrichedItems = coroutineScope {
-            items.map { item ->
-                async {
-                    if (item.hasCompleteArt()) {
-                        return@async item
-                    }
-                    val tmdbUrlsDeferred = tmdbEnrichCache.getOrPut(item.detailsUrl) {
-                        async {
-                            semaphore.withPermit {
-                                tmdbResolver.resolve(
-                                    detailsUrl = item.detailsUrl,
-                                    titleRu = item.titleRu,
-                                    releaseDateRu = item.releaseDateRu,
-                                    kind = item.kind,
-                                    originalReleaseYear = item.originalReleaseYear,
-                                )
-                            }
-                        }
-                    }
-                    val tmdbUrls = try {
-                        tmdbUrlsDeferred.await()
-                    } catch (exception: CancellationException) {
-                        tmdbEnrichCache.remove(item.detailsUrl, tmdbUrlsDeferred)
-                        throw exception
-                    } catch (exception: Exception) {
-                        tmdbEnrichCache.remove(item.detailsUrl, tmdbUrlsDeferred)
-                        throw exception
-                    }
-                    tmdbEnrichCache.remove(item.detailsUrl, tmdbUrlsDeferred)
-                    TmdbPosterEnricher.enrichSummary(item, tmdbUrls)
-                }
-            }.awaitAll()
-        }
-
-        if (persistToCache) {
-            upsertChangedSummaries(enrichedItems.toSummaryEntities())
-        }
-
-        return enrichedItems
-    }
-
-    private fun ReleaseSummary.hasCompleteArt(): Boolean =
-        posterUrl.isNotBlank() && !backdropUrl.isNullOrBlank()
-
-    private suspend fun upsertChangedSummaries(entities: List<ReleaseSummaryEntity>) {
-        if (entities.isEmpty()) return
-        releaseDao.upsertSummaries(entities)
-    }
 
     private suspend fun cleanupExpiredDataIfNeeded() {
         val now = clock()
@@ -1279,7 +933,8 @@ class LostFilmRepositoryImpl(
                                         serialId = serialId,
                                     ),
                                 )
-                            } catch (_: IOException) {
+                            } catch (e: IOException) {
+                                Log.w(TAG, "Failed to fetch watched marks for new releases page", e)
                                 null
                             }
                         }
@@ -1346,7 +1001,8 @@ class LostFilmRepositoryImpl(
                 try {
                     val torrentPageHtml = httpClient.fetchTorrentPage(torrentLinks.first().url)
                     detailsParser.parseTorrentLinks(torrentPageHtml).ifEmpty { torrentLinks }
-                } catch (_: IOException) {
+                } catch (e: IOException) {
+                    Log.w(TAG, "Failed to expand single-variant torrent link", e)
                     torrentLinks
                 }
             } else {
@@ -1359,7 +1015,8 @@ class LostFilmRepositoryImpl(
             details.copy(
                 torrentLinks = expandedLinks,
             )
-        } catch (_: IOException) {
+        } catch (e: IOException) {
+            Log.w(TAG, "Failed to fetch torrent redirect", e)
             details
         }
     }
@@ -1376,7 +1033,7 @@ class LostFilmRepositoryImpl(
                 val html = httpClient.fetchDetails(resolveUrl(details.detailsUrl))
                 val pid = detailsParser.parsePlayEpisodeId(html)
                 if (pid != null) details.copy(playEpisodeId = pid) else null
-            } catch (_: Exception) { null }
+            } catch (e: Exception) { Log.w(TAG, "Failed to re-fetch playEpisodeId", e); null }
             if (refreshed == null) {
                 Log.d("REFRESH_TORRENT", "still no playEpisodeId after re-fetch")
                 return details
@@ -1463,7 +1120,8 @@ class LostFilmRepositoryImpl(
         for (metadataPageUrl in metadataPageUrls) {
             val metadataHtml = try {
                 httpClient.fetchDetails(metadataPageUrl)
-            } catch (_: IOException) {
+            } catch (e: IOException) {
+                Log.w(TAG, "Failed to fetch favorite metadata page", e)
                 continue
             }
             enriched = enriched.withSeriesStatus(detailsParser.parseSeriesStatus(metadataHtml))
@@ -1513,7 +1171,8 @@ class LostFilmRepositoryImpl(
             } else {
                 details.copy(torrentLinks = parsedLinks)
             }
-        } catch (_: IOException) {
+        } catch (e: IOException) {
+            Log.w(TAG, "Failed to expand generic torrent links", e)
             details
         }
     }
@@ -1602,49 +1261,9 @@ class LostFilmRepositoryImpl(
             .normalizeText()
     }
 
-    private suspend fun isFavoriteReleasePublishedToday(detailsUrl: String): Boolean {
-        return try {
-            val detailsHtml = httpClient.fetchDetails(resolveUrl(detailsUrl))
-            detailsParser.parsePlayEpisodeId(detailsHtml) != null
-        } catch (_: IOException) {
-            false
-        }
-    }
-
-    private fun parseFavoriteReleaseDate(value: String): LocalDate? {
-        return try {
-            LocalDate.parse(value, favoriteReleaseDateFormatter)
-        } catch (_: DateTimeParseException) {
-            null
-        }
-    }
-
-    private fun currentFavoriteReleaseDate(): LocalDate {
-        return Instant.ofEpochMilli(clock())
-            .atZone(ZoneOffset.UTC)
-            .toLocalDate()
-    }
 }
 
 private fun String.normalizeSearchQuery(): String = normalizeText().replace(searchWhitespaceRegex, " ")
-
-private fun FavoriteSeriesRef.toFavoriteSeriesSummary(
-    positionInPage: Int,
-    fetchedAt: Long,
-): ReleaseSummary = ReleaseSummary(
-    id = seriesUrl,
-    kind = ReleaseKind.SERIES,
-    titleRu = titleRu,
-    episodeTitleRu = null,
-    seasonNumber = null,
-    episodeNumber = null,
-    releaseDateRu = "",
-    posterUrl = posterUrl,
-    detailsUrl = seriesUrl,
-    pageNumber = 1,
-    positionInPage = positionInPage,
-    fetchedAt = fetchedAt,
-)
 
 private fun String.isLostFilmImageUrl(): Boolean {
     val normalized = lowercase()

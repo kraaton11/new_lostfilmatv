@@ -69,7 +69,6 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
         composable(AppDestination.Home.route) { backStackEntry ->
             val homeViewModel: HomeViewModel = hiltViewModel()
             val state by homeViewModel.uiState.collectAsStateWithLifecycle()
-            val focusState by homeViewModel.focusState.collectAsStateWithLifecycle()
             val savedAppUpdate by homeViewModel.savedAppUpdate.collectAsStateWithLifecycle()
             val selectedNavItem by homeViewModel.selectedNavItem.collectAsStateWithLifecycle()
             var updateInstallJob by remember { mutableStateOf<Job?>(null) }
@@ -117,7 +116,7 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
 
             HomeScreen(
                 state = state,
-                externalSelectedItemKey = focusState.selectedItemKey,
+                focusStateFlow = homeViewModel.focusState,
                 onItemFocused = homeViewModel::onItemFocused,
                 onModeSelected = homeViewModel::onModeSelected,
                 onOpenDetails = { url -> navController.navigate(AppDestination.Details.createRoute(url, isAuthenticated)) },

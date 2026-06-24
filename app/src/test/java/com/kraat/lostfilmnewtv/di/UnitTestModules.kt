@@ -12,6 +12,11 @@ import com.kraat.lostfilmnewtv.data.model.TmdbImageUrls
 import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolver
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
+import com.kraat.lostfilmnewtv.data.repository.FavoritesRepository
+import com.kraat.lostfilmnewtv.data.poster.TmdbEnrichmentService
+import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
+import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
+import com.kraat.lostfilmnewtv.data.model.FavoriteSeriesResult
 import com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult
 import dagger.Module
 import dagger.Provides
@@ -20,6 +25,7 @@ import dagger.hilt.testing.TestInstallIn
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import okhttp3.OkHttpClient
 
 /**
@@ -36,6 +42,18 @@ object UnitTestDataModule {
     @Provides
     @Singleton
     fun provideRepository(): LostFilmRepository = UnitTestFakeRepository()
+
+    @Provides
+    @Singleton
+    fun provideFavoritesRepository(repository: LostFilmRepository): FavoritesRepository =
+        repository as FavoritesRepository
+
+    @Provides
+    @Singleton
+    fun provideTmdbEnrichmentService(): TmdbEnrichmentService = object : TmdbEnrichmentService {
+        override suspend fun enrichSummaries(items: List<ReleaseSummary>, persistToCache: Boolean) = items
+        override suspend fun enrichSearchItems(items: List<LostFilmSearchItem>) = items
+    }
 
     @Provides
     @Singleton
@@ -70,7 +88,7 @@ object UnitTestNetworkModule {
     }
 }
 
-class UnitTestFakeRepository : LostFilmRepository {
+class UnitTestFakeRepository : LostFilmRepository, FavoritesRepository {
     var pageState: PageState = PageState.Content(
         pageNumber = 1, items = emptyList(), hasNextPage = false, isStale = false,
     )
@@ -87,7 +105,10 @@ class UnitTestFakeRepository : LostFilmRepository {
     override suspend fun loadWatchedState(detailsUrl: String) = watchedStateResult
     override suspend fun setEpisodeWatched(detailsUrl: String, playEpisodeId: String, targetWatched: Boolean) = markWatchedResult
     override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean) = favoriteResult
-    override suspend fun loadFavoriteReleases(pageNumber: Int) = favoriteReleasesResult
+    override fun observeFavoriteReleases(pageNumber: Int): Flow<FavoriteReleasesResult> =
+        flowOf(favoriteReleasesResult)
+    override suspend fun loadFavoriteSeries() = FavoriteSeriesResult.Unavailable()
+    override suspend fun invalidateCache() {}
 }
 
 class UnitTestFakeAuthRepository : AuthRepositoryContract {

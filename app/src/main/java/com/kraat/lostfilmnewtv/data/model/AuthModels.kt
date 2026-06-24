@@ -45,6 +45,5 @@ data class PairingSession(
 @Serializable
 data class AuthState(
     val isAuthenticated: Boolean = false,
-    val session: LostFilmSession? = null,
-    val lastError: String? = null
+    val session: LostFilmSession? = null
 )

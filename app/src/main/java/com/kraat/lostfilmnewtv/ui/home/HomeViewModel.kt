@@ -8,6 +8,8 @@ import com.kraat.lostfilmnewtv.data.model.FavoriteSeriesResult
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
+import com.kraat.lostfilmnewtv.data.repository.FavoritesRepository
+import com.kraat.lostfilmnewtv.data.poster.TmdbEnrichmentService
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import com.kraat.lostfilmnewtv.updates.AppUpdateCoordinator
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
@@ -22,6 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -33,6 +36,8 @@ private val favoriteSeriesSlugRegex = Regex("""/series/([^/]+)""")
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val repository: LostFilmRepository,
+    private val favoritesRepository: FavoritesRepository,
+    private val tmdbEnrichmentService: TmdbEnrichmentService,
     private val savedStateHandle: SavedStateHandle,
     private val preferencesStore: PlaybackPreferencesStore,
     private val homeChannelSyncManager: HomeChannelSyncManager,
@@ -115,6 +120,7 @@ class HomeViewModel @Inject constructor(
     private var favoriteSeriesLoadJob: Job? = null
     private var moviesLoadJob: Job? = null
     private var seriesLoadJob: Job? = null
+    private var saveFocusJob: Job? = null
     private var lastAllNewRefreshAt = 0L
 
     fun onStart() {
@@ -241,21 +247,22 @@ class HomeViewModel @Inject constructor(
         val state = _uiState.value
         val mode = itemMode(state, itemKey)
         val normalizedKey = preferredDetailsUrl(itemKey) ?: itemKey
-        savedStateHandle[FOCUS_KEY] = normalizedKey
         _focusState.update { focus ->
             focus.copy(
                 rememberedItemKeyByMode = focus.rememberedItemKeyByMode + (mode to normalizedKey),
                 selectedItemKey = if (mode == state.selectedMode) normalizedKey else focus.selectedItemKey,
             )
         }
+
+        saveFocusJob?.cancel()
+        saveFocusJob = viewModelScope.launch(ioDispatcher) {
+            delay(500)
+            savedStateHandle[FOCUS_KEY] = normalizedKey
+        }
     }
 
     fun onNavItemSelected(item: NavItem) {
         _selectedNavItem.update { item }
-    }
-
-    fun onItemWatched(detailsUrl: String) {
-        onItemWatchedStateChanged(detailsUrl, isWatched = true)
     }
 
     fun onItemWatchedStateChanged(detailsUrl: String, isWatched: Boolean) {
@@ -357,6 +364,14 @@ class HomeViewModel @Inject constructor(
             if (mode == state.selectedMode || mode !in state.availableModes) state
             else {
                 preferencesStore.writeHomeSelectedFeedMode(mode)
+                // Сбрасываем запомненную позицию фокуса для целевого режима,
+                // чтобы при переключении фокус всегда вставал на первую карточку.
+                _focusState.update { focus ->
+                    focus.copy(
+                        rememberedItemKeyByMode = focus.rememberedItemKeyByMode - mode,
+                        selectedItemKey = null,
+                    )
+                }
                 val resolved = state.copy(selectedMode = mode).resolveSelection()
                 updateFocusFromResolvedState(resolved)
                 resolved
@@ -536,66 +551,90 @@ class HomeViewModel @Inject constructor(
             }
         }
         favoriteLoadJob = viewModelScope.launch(ioDispatcher) {
-            val result = repository.loadFavoriteReleases(pageNumber)
-            if (favoriteRequestToken != requestToken) return@launch
-            _uiState.update { state ->
-                val md = state.modeData(HomeFeedMode.Favorites)
-                when (result) {
-                    is FavoriteReleasesResult.Success -> {
-                        val updatedItems = if (isPagingRequest) {
-                            (md.items + result.items).distinctBy { it.detailsUrl }
-                        } else {
-                            result.items
+            try {
+                favoritesRepository.observeFavoriteReleases(pageNumber).collect { result ->
+                    if (favoriteRequestToken != requestToken) return@collect
+                    _uiState.update { state ->
+                        val md = state.modeData(HomeFeedMode.Favorites)
+                        when (result) {
+                            is FavoriteReleasesResult.Partial -> {
+                                val updatedItems = if (isPagingRequest) {
+                                    (md.items + result.items).distinctBy { it.detailsUrl }
+                                } else {
+                                    result.items
+                                }
+                                val favoriteState = if (updatedItems.isEmpty()) {
+                                    md.contentState // keep Loading while streaming
+                                } else {
+                                    HomeModeContentState.Content(updatedItems)
+                                }
+                                state.updateMode(HomeFeedMode.Favorites) {
+                                    it.copy(
+                                        items = updatedItems,
+                                        contentState = favoriteState,
+                                        isPaging = false,
+                                    )
+                                }.resolveSelection()
+                            }
+                            is FavoriteReleasesResult.Success -> {
+                                val updatedItems = if (isPagingRequest) {
+                                    (md.items + result.items).distinctBy { it.detailsUrl }
+                                } else {
+                                    result.items
+                                }
+                                val favoriteState = if (updatedItems.isEmpty()) {
+                                    HomeModeContentState.Empty
+                                } else {
+                                    HomeModeContentState.Content(updatedItems)
+                                }
+                                state.copy(
+                                    favoriteSeriesCount = result.favoriteSeriesCount,
+                                ).updateMode(HomeFeedMode.Favorites) {
+                                    it.copy(
+                                        items = updatedItems,
+                                        contentState = favoriteState,
+                                        isPaging = false,
+                                        pagingErrorMessage = null,
+                                        nextPage = result.pageNumber + 1,
+                                        hasNextPage = result.hasNextPage,
+                                    )
+                                }.resolveSelection()
+                            }
+                            is FavoriteReleasesResult.Unavailable -> {
+                                if (retainVisibleItemsOnFailure) {
+                                    return@update state.updateMode(HomeFeedMode.Favorites) {
+                                        it.copy(isPaging = false)
+                                    }.resolveSelection()
+                                }
+                                if (isPagingRequest && md.items.isNotEmpty()) {
+                                    return@update state.updateMode(HomeFeedMode.Favorites) {
+                                        it.copy(
+                                            isPaging = false,
+                                            pagingErrorMessage = result.message ?: "Не удалось загрузить избранное",
+                                        )
+                                    }.resolveSelection()
+                                }
+                                val favoriteState = when {
+                                    result.message.isNullOrBlank() -> HomeModeContentState.Error("Не удалось загрузить избранное")
+                                    result.message.contains("Войдите", ignoreCase = true) -> HomeModeContentState.LoginRequired(result.message)
+                                    else -> HomeModeContentState.Error(result.message)
+                                }
+                                state.copy(
+                                    favoriteSeriesCount = null,
+                                ).updateMode(HomeFeedMode.Favorites) {
+                                    it.copy(
+                                        items = emptyList(),
+                                        contentState = favoriteState,
+                                        isPaging = false,
+                                        pagingErrorMessage = null,
+                                    )
+                                }.resolveSelection()
+                            }
                         }
-                        val favoriteState = if (updatedItems.isEmpty()) {
-                            HomeModeContentState.Empty
-                        } else {
-                            HomeModeContentState.Content(updatedItems)
-                        }
-                        state.copy(
-                            favoriteSeriesCount = result.favoriteSeriesCount,
-                        ).updateMode(HomeFeedMode.Favorites) {
-                            it.copy(
-                                items = updatedItems,
-                                contentState = favoriteState,
-                                isPaging = false,
-                                pagingErrorMessage = null,
-                                nextPage = result.pageNumber + 1,
-                                hasNextPage = result.hasNextPage,
-                            )
-                        }.resolveSelection()
-                    }
-                    is FavoriteReleasesResult.Unavailable -> {
-                        if (retainVisibleItemsOnFailure) {
-                            return@update state.updateMode(HomeFeedMode.Favorites) {
-                                it.copy(isPaging = false)
-                            }.resolveSelection()
-                        }
-                        if (isPagingRequest && md.items.isNotEmpty()) {
-                            return@update state.updateMode(HomeFeedMode.Favorites) {
-                                it.copy(
-                                    isPaging = false,
-                                    pagingErrorMessage = result.message ?: "Не удалось загрузить избранное",
-                                )
-                            }.resolveSelection()
-                        }
-                        val favoriteState = when {
-                            result.message.isNullOrBlank() -> HomeModeContentState.Error("Не удалось загрузить избранное")
-                            result.message.contains("Войдите", ignoreCase = true) -> HomeModeContentState.LoginRequired(result.message)
-                            else -> HomeModeContentState.Error(result.message)
-                        }
-                        state.copy(
-                            favoriteSeriesCount = null,
-                        ).updateMode(HomeFeedMode.Favorites) {
-                            it.copy(
-                                items = emptyList(),
-                                contentState = favoriteState,
-                                isPaging = false,
-                                pagingErrorMessage = null,
-                            )
-                        }.resolveSelection()
                     }
                 }
+            } catch (exception: CancellationException) {
+                throw exception
             }
         }
     }
@@ -608,7 +647,7 @@ class HomeViewModel @Inject constructor(
             }
         }
         favoriteSeriesLoadJob = viewModelScope.launch(ioDispatcher) {
-            when (val result = repository.loadFavoriteSeries()) {
+            when (val result = favoritesRepository.loadFavoriteSeries()) {
                 is FavoriteSeriesResult.Success -> {
                     val seriesState = if (result.items.isEmpty()) {
                         HomeModeContentState.Empty
@@ -938,6 +977,16 @@ private fun resolvedInitialMode(
 private fun findItemForMode(state: HomeUiState, mode: HomeFeedMode, itemKey: String): HomeModeItemMatch? =
     state.itemsForMode(mode).firstOrNull { it.detailsUrl == itemKey }?.let { HomeModeItemMatch(mode, it) }
 
+private fun isModeVisible(state: HomeUiState, mode: HomeFeedMode): Boolean {
+    return when (mode) {
+        HomeFeedMode.AllNew -> true
+        HomeFeedMode.Favorites -> state.isFavoritesRailVisible
+        HomeFeedMode.FavoriteSeries -> state.isFavoriteSeriesModeVisible
+        HomeFeedMode.Movies -> state.isMoviesModeVisible
+        HomeFeedMode.Series -> state.isSeriesModeVisible
+    }
+}
+
 private fun itemMode(state: HomeUiState, itemKey: String): HomeFeedMode = when (railIdFromItemKey(itemKey)) {
     HOME_RAIL_FAVORITES -> HomeFeedMode.Favorites
     HOME_RAIL_FAVORITE_SERIES -> HomeFeedMode.FavoriteSeries
@@ -966,5 +1015,3 @@ private fun Map<HomeFeedMode, String>.withDefaultRememberedKeys(
     }
     return current
 }
-
-private data class HomeModeItemMatch(val mode: HomeFeedMode, val item: ReleaseSummary)

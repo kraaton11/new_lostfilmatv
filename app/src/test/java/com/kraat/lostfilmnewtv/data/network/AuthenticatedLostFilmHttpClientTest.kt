@@ -259,7 +259,7 @@ class AuthenticatedLostFilmHttpClientTest {
                         .protocol(Protocol.HTTP_1_1)
                         .code(200)
                         .message("OK")
-                        .body("""{"result":"on"}""".toResponseBody())
+                        .body("""{"result":"off"}""".toResponseBody())
                         .build()
                 }
                 .build(),

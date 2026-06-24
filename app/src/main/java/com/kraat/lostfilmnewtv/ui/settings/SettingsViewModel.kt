@@ -264,6 +264,7 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+
     fun onCheckForUpdatesClick() {
         val now = System.currentTimeMillis()
         if (now - lastCheckTimestamp < debounceIntervalMs) return

@@ -2,6 +2,8 @@ package com.kraat.lostfilmnewtv.data.repository
 
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.kraat.lostfilmnewtv.data.db.FavoriteReleaseCacheEntity
+import com.kraat.lostfilmnewtv.data.db.FavoriteReleaseCacheMetadataEntity
 import com.kraat.lostfilmnewtv.data.db.LostFilmDatabase
 import com.kraat.lostfilmnewtv.data.db.PageCacheMetadataEntity
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
@@ -30,6 +32,12 @@ import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolverImpl
 import java.io.IOException
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.flow.last
+import com.kraat.lostfilmnewtv.data.repository.FavoritesRepository
+import com.kraat.lostfilmnewtv.data.repository.FavoritesRepositoryImpl
+import com.kraat.lostfilmnewtv.data.poster.TmdbEnrichmentService
+import com.kraat.lostfilmnewtv.data.poster.TmdbEnrichmentServiceImpl
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -51,6 +59,7 @@ private const val SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000L
 class LostFilmRepositoryTest {
     private lateinit var database: LostFilmDatabase
     private lateinit var releaseDao: ReleaseDao
+    private lateinit var favoritesRepository: FavoritesRepository
 
     @Before
     fun setUp() {
@@ -97,6 +106,39 @@ class LostFilmRepositoryTest {
         assertTrue(result is PageState.Error)
         assertTrue(releaseDao.getPageSummaries(1).isEmpty())
         assertTrue(releaseDao.getPageMetadata(1) == null)
+    }
+
+    @Test
+    fun observeNewReleases_skipsNetwork_whenRoomCacheIsFresh() = runTest {
+        // Seed Room with cache fetched 5 minutes ago — within 10-min TTL.
+        seedPage(pageNumber = 1, fetchedAt = NOW - 5 * 60 * 1000L)
+        val repository = createRepository(
+            // Network handler would error if called.
+            pageHandler = { error("Fresh Room cache should prevent network request") },
+        )
+
+        val emissions = repository.observeNewReleases(1).toList()
+
+        assertEquals(1, emissions.size)
+        val result = emissions.single() as PageState.Content
+        assertFalse(result.isStale)
+        assertEquals("9-1-1", result.items.first().titleRu)
+    }
+
+    @Test
+    fun observeNewReleases_hitsNetwork_whenRoomCacheIsStale() = runTest {
+        // Seed Room with cache fetched 15 minutes ago — outside 10-min TTL.
+        seedPage(pageNumber = 1, fetchedAt = NOW - 15 * 60 * 1000L)
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+        )
+
+        val emissions = repository.observeNewReleases(1).toList()
+
+        // Expect 2 emissions: stale Room cache, then fresh network result.
+        assertEquals(2, emissions.size)
+        assertTrue((emissions[0] as PageState.Content).isStale)
+        assertFalse((emissions[1] as PageState.Content).isStale)
     }
 
     @Test
@@ -1043,7 +1085,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
+        val result = favoritesRepository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
 
         assertEquals(FavoriteMutationResult.NoOp, result)
         assertEquals(0, toggleCalls)
@@ -1071,7 +1113,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
+        val result = favoritesRepository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
 
         assertEquals(FavoriteMutationResult.Updated, result)
         assertTrue(releaseDao.getReleaseDetails(detailsUrl)?.toModel()?.isFavorite == true)
@@ -1101,7 +1143,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
+        val result = favoritesRepository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
 
         assertEquals(FavoriteMutationResult.Updated, result)
         assertEquals(listOf(favoritePageUrl), detailsRequests)
@@ -1134,7 +1176,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
+        val result = favoritesRepository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
 
         assertEquals(FavoriteMutationResult.Updated, result)
         assertEquals(listOf(favoritePageUrl, detailsUrl), detailsRequests)
@@ -1149,7 +1191,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = false,
         )
 
-        val result = repository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
+        val result = favoritesRepository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
 
         assertEquals(FavoriteMutationResult.RequiresLogin(), result)
     }
@@ -1182,7 +1224,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.loadFavoriteReleases()
+        val result = favoritesRepository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -1223,7 +1265,7 @@ class LostFilmRepositoryTest {
             },
         )
 
-        val result = repository.loadFavoriteSeries()
+        val result = favoritesRepository.loadFavoriteSeries()
 
         assertTrue(result is FavoriteSeriesResult.Success)
         result as FavoriteSeriesResult.Success
@@ -1265,7 +1307,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = false,
         )
 
-        val result = repository.loadFavoriteSeries()
+        val result = favoritesRepository.loadFavoriteSeries()
 
         assertEquals(FavoriteSeriesResult.Unavailable("Войдите в LostFilm"), result)
     }
@@ -1325,20 +1367,20 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.loadFavoriteReleases()
+        val result = favoritesRepository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
         assertEquals(listOf("/my/type_1"), accountRequests)
         assertEquals(
-            listOf(
+            setOf(
                 "https://www.lostfilm.today/series/alpha/seasons",
                 "https://www.lostfilm.today/series/alpha",
                 "https://www.lostfilm.today/series/beta/seasons",
                 "https://www.lostfilm.today/series/beta",
                 "https://www.lostfilm.today/series/alpha/season_1/episode_2/",
             ),
-            detailsRequests,
+            detailsRequests.toSet(),
         )
         val feedDetails = result.items.map { it.detailsUrl }
         assertEquals(2, feedDetails.size)
@@ -1406,7 +1448,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.loadFavoriteReleases()
+        val result = favoritesRepository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -1462,7 +1504,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.loadFavoriteReleases()
+        val result = favoritesRepository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -1521,7 +1563,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.loadFavoriteReleases()
+        val result = favoritesRepository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -1580,7 +1622,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.loadFavoriteReleases()
+        val result = favoritesRepository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -1660,11 +1702,11 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.loadFavoriteReleases()
+        val result = favoritesRepository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
-        assertEquals(listOf("1072", "2088"), watchedMarksRequests)
+        assertEquals(setOf("1072", "2088"), watchedMarksRequests.toSet())
         assertTrue(result.items.first { it.detailsUrl.endsWith("/season_1/episode_2/") }.isWatched)
         assertFalse(result.items.first { it.detailsUrl.endsWith("/season_1/episode_1/") }.isWatched)
         assertFalse(result.items.first { it.detailsUrl.endsWith("/season_3/episode_1/") }.isWatched)
@@ -1724,7 +1766,7 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.loadFavoriteReleases()
+        val result = favoritesRepository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -1820,7 +1862,7 @@ class LostFilmRepositoryTest {
         isAuthenticated = true,
     )
 
-    val result = repository.loadFavoriteReleases()
+    val result = favoritesRepository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -1898,7 +1940,7 @@ class LostFilmRepositoryTest {
             tmdbResolver = tmdbResolver,
         )
 
-        val result = repository.loadFavoriteReleases()
+        val result = favoritesRepository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -1981,7 +2023,7 @@ class LostFilmRepositoryTest {
             tmdbResolver = tmdbResolver,
         )
 
-        val result = repository.loadFavoriteReleases()
+        val result = favoritesRepository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Success)
         result as FavoriteReleasesResult.Success
@@ -2009,9 +2051,219 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = repository.loadFavoriteReleases()
+        val result = favoritesRepository.observeFavoriteReleases().last()
 
         assertTrue(result is FavoriteReleasesResult.Unavailable)
+    }
+
+    @Test
+    fun loadFavoriteReleases_servesFromRoomCache_whenCacheIsFresh() = runTest {
+        // Seed Room with cached favorite releases (fetched 5 minutes ago — within 15-min TTL).
+        val cachedFetchedAt = NOW - 5 * 60 * 1000L
+        releaseDao.replaceFavoriteReleasesCache(
+            items = listOf(
+                FavoriteReleaseCacheEntity(
+                    detailsUrl = "https://www.lostfilm.today/series/alpha/season_1/episode_2/",
+                    kind = "SERIES",
+                    titleRu = "Alpha",
+                    episodeTitleRu = "Alpha Episode",
+                    seasonNumber = 1,
+                    episodeNumber = 2,
+                    releaseDateRu = "14.03.2026",
+                    posterUrl = "",
+                    positionInList = 0,
+                    fetchedAt = cachedFetchedAt,
+                    isWatched = false,
+                ),
+            ),
+            metadata = FavoriteReleaseCacheMetadataEntity(
+                fetchedAt = cachedFetchedAt,
+                favoriteSeriesCount = 1,
+                itemCount = 1,
+            ),
+        )
+        // Network should NOT be touched — account page handler would error if called.
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            accountPageHandler = { error("Room cache should prevent network fan-out") },
+            isAuthenticated = true,
+        )
+
+        val result = favoritesRepository.observeFavoriteReleases().last()
+
+        assertTrue(result is FavoriteReleasesResult.Success)
+        result as FavoriteReleasesResult.Success
+        assertEquals(1, result.items.size)
+        assertEquals("Alpha", result.items.first().titleRu)
+        assertEquals(1, result.favoriteSeriesCount)
+    }
+
+    @Test
+    fun loadFavoriteReleases_persistsToRoomCache_afterSuccessfulFanOut() = runTest {
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            accountPageHandler = { path ->
+                when (path) {
+                    "/my/type_1" -> favoriteSeriesAccountPageHtml()
+                    else -> error("Unexpected account path $path")
+                }
+            },
+            detailsHandler = { requestedUrl ->
+                when (requestedUrl) {
+                    "https://www.lostfilm.today/series/alpha" -> "<html><body></body></html>"
+                    "https://www.lostfilm.today/series/alpha/seasons" -> favoriteSeriesSeasonsPageHtml(
+                        seriesSlug = "alpha",
+                        serialId = "1001",
+                        episodes = listOf(
+                            SeasonEpisodeRow(
+                                seasonNumber = 1,
+                                episodeNumber = 2,
+                                episodeTitle = "Alpha Episode",
+                                releaseDateRu = "14.03.2026",
+                                episodeId = "1001001002",
+                            ),
+                        ),
+                    )
+                    "https://www.lostfilm.today/series/beta" -> "<html><body></body></html>"
+                    "https://www.lostfilm.today/series/beta/seasons" -> favoriteSeriesSeasonsPageHtml(
+                        seriesSlug = "beta",
+                        serialId = "2003",
+                        episodes = listOf(
+                            SeasonEpisodeRow(
+                                seasonNumber = 3,
+                                episodeNumber = 1,
+                                episodeTitle = "Beta Episode",
+                                releaseDateRu = "13.03.2026",
+                                episodeId = "2003003001",
+                            ),
+                        ),
+                    )
+                    else -> error("Unexpected details request: $requestedUrl")
+                }
+            },
+            isAuthenticated = true,
+        )
+
+        favoritesRepository.observeFavoriteReleases().last()
+
+        // Verify data was persisted to Room.
+        val roomMetadata = releaseDao.getFavoriteReleaseCacheMetadata()
+        assertNotNull(roomMetadata)
+        assertEquals(2, roomMetadata!!.favoriteSeriesCount)
+        assertEquals(2, roomMetadata.itemCount)
+        val roomItems = releaseDao.getFavoriteReleasesCache()
+        assertEquals(2, roomItems.size)
+        assertEquals(
+            listOf(
+                "https://www.lostfilm.today/series/alpha/season_1/episode_2/",
+                "https://www.lostfilm.today/series/beta/season_3/episode_1/",
+            ),
+            roomItems.map { it.detailsUrl },
+        )
+    }
+
+    @Test
+    fun setFavorite_invalidatesRoomFavoriteReleasesCache() = runTest {
+        // Seed Room cache.
+        val cachedFetchedAt = NOW - 1_000L
+        releaseDao.replaceFavoriteReleasesCache(
+            items = listOf(
+                FavoriteReleaseCacheEntity(
+                    detailsUrl = "https://www.lostfilm.today/series/alpha/season_1/episode_2/",
+                    kind = "SERIES",
+                    titleRu = "Alpha",
+                    episodeTitleRu = null,
+                    seasonNumber = 1,
+                    episodeNumber = 2,
+                    releaseDateRu = "14.03.2026",
+                    posterUrl = "",
+                    positionInList = 0,
+                    fetchedAt = cachedFetchedAt,
+                    isWatched = false,
+                ),
+            ),
+            metadata = FavoriteReleaseCacheMetadataEntity(
+                fetchedAt = cachedFetchedAt,
+                favoriteSeriesCount = 1,
+                itemCount = 1,
+            ),
+        )
+        val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        val favoritePageUrl = "https://www.lostfilm.today/series/9-1-1/"
+        seedDetails(detailsUrl = detailsUrl, fetchedAt = NOW - 1_000L)
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            detailsHandler = { requestedUrl ->
+                assertEquals(favoritePageUrl, requestedUrl)
+                seriesFavoritePageHtml(isFavorite = false, includeSessionToken = true)
+            },
+            favoriteToggleHandler = { _, _, _ ->
+                FavoriteToggleNetworkResult.ToggledOn
+            },
+            isAuthenticated = true,
+        )
+
+        val result = favoritesRepository.setFavorite(detailsUrl = detailsUrl, targetFavorite = true)
+
+        assertEquals(FavoriteMutationResult.Updated, result)
+        // Room cache should have been cleared.
+        assertTrue(releaseDao.getFavoriteReleasesCache().isEmpty())
+        assertTrue(releaseDao.getFavoriteReleaseCacheMetadata() == null)
+    }
+
+    @Test
+    fun setEpisodeWatched_invalidatesRoomFavoriteReleasesCache() = runTest {
+        // Seed Room cache.
+        val cachedFetchedAt = NOW - 1_000L
+        releaseDao.replaceFavoriteReleasesCache(
+            items = listOf(
+                FavoriteReleaseCacheEntity(
+                    detailsUrl = "https://www.lostfilm.today/series/alpha/season_1/episode_2/",
+                    kind = "SERIES",
+                    titleRu = "Alpha",
+                    episodeTitleRu = null,
+                    seasonNumber = 1,
+                    episodeNumber = 2,
+                    releaseDateRu = "14.03.2026",
+                    posterUrl = "",
+                    positionInList = 0,
+                    fetchedAt = cachedFetchedAt,
+                    isWatched = false,
+                ),
+            ),
+            metadata = FavoriteReleaseCacheMetadataEntity(
+                fetchedAt = cachedFetchedAt,
+                favoriteSeriesCount = 1,
+                itemCount = 1,
+            ),
+        )
+        val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        seedPage(pageNumber = 1, fetchedAt = NOW - 1_000L)
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            detailsHandler = {
+                fixture("series-details.html").replace(
+                    oldValue = "let UserData = {};",
+                    newValue = """
+                        let UserData = {};
+                        UserData.id = 42;
+                        UserData.session = 'ajax-session-token';
+                    """.trimIndent(),
+                )
+            },
+            markEpisodeHandler = { _, _, _, _ -> true },
+            isAuthenticated = true,
+        )
+
+        repository.setEpisodeWatched(
+            detailsUrl = detailsUrl,
+            playEpisodeId = "362009013",
+            targetWatched = true,
+        )
+
+        // Room cache should have been cleared.
+        assertTrue(releaseDao.getFavoriteReleasesCache().isEmpty())
+        assertTrue(releaseDao.getFavoriteReleaseCacheMetadata() == null)
     }
 
     private suspend fun seedPage(pageNumber: Int, fetchedAt: Long) {
@@ -2058,17 +2310,29 @@ class LostFilmRepositoryTest {
         isAuthenticated: Boolean = false,
         tmdbResolver: TmdbPosterResolver = createFakeTmdbResolver(),
     ): LostFilmRepository {
+        val fakeHttpClient = FakeLostFilmHttpClient(
+            pageHandler = pageHandler,
+            detailsHandler = detailsHandler,
+            torrentHandler = torrentHandler,
+            torrentPageHandler = torrentPageHandler,
+            markEpisodeHandler = markEpisodeHandler,
+            watchedEpisodeMarksHandler = watchedEpisodeMarksHandler,
+            favoriteToggleHandler = favoriteToggleHandler,
+            accountPageHandler = accountPageHandler,
+        )
+        val tmdbEnrichmentService = TmdbEnrichmentServiceImpl(
+            tmdbResolver = tmdbResolver,
+            releaseDao = releaseDao
+        )
+        favoritesRepository = FavoritesRepositoryImpl(
+            httpClient = fakeHttpClient,
+            releaseDao = releaseDao,
+            tmdbEnrichmentService = tmdbEnrichmentService,
+            hasAuthenticatedSession = { isAuthenticated },
+            clock = { NOW },
+        )
         return LostFilmRepositoryImpl(
-            httpClient = FakeLostFilmHttpClient(
-                pageHandler = pageHandler,
-                detailsHandler = detailsHandler,
-                torrentHandler = torrentHandler,
-                torrentPageHandler = torrentPageHandler,
-                markEpisodeHandler = markEpisodeHandler,
-                watchedEpisodeMarksHandler = watchedEpisodeMarksHandler,
-                favoriteToggleHandler = favoriteToggleHandler,
-                accountPageHandler = accountPageHandler,
-            ),
+            httpClient = fakeHttpClient,
             releaseDao = releaseDao,
             listParser = LostFilmListParser(),
             detailsParser = LostFilmDetailsParser(),
@@ -2076,6 +2340,8 @@ class LostFilmRepositoryTest {
             seasonEpisodesParser = LostFilmSeasonEpisodesParser(),
             hasAuthenticatedSession = { isAuthenticated },
             tmdbResolver = tmdbResolver,
+            tmdbEnrichmentService = tmdbEnrichmentService,
+            favoritesRepository = dagger.internal.DoubleCheck.lazy { favoritesRepository },
             clock = { NOW },
         )
     }

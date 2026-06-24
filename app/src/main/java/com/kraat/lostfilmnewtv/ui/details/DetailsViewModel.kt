@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
+import com.kraat.lostfilmnewtv.data.repository.FavoritesRepository
 import com.kraat.lostfilmnewtv.navigation.AppDestination
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -22,6 +23,7 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class DetailsViewModel @Inject constructor(
     private val repository: LostFilmRepository,
+    private val favoritesRepository: FavoritesRepository,
     private val savedStateHandle: SavedStateHandle,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val preferencesStore: PlaybackPreferencesStore? = null,
@@ -38,6 +40,7 @@ class DetailsViewModel @Inject constructor(
     private var loadRequestToken = 0
     private var loadJob: Job? = null
     private var watchedStateJob: Job? = null
+    private var watchedMutationCount = 0
     private var hasValidSession = isAuthenticated
 
     fun onStart() {
@@ -94,6 +97,7 @@ class DetailsViewModel @Inject constructor(
 
         viewModelScope.launch(ioDispatcher) {
             val targetWatched = !currentWatched
+            watchedStateJob?.cancel()
             val effectiveWatched = repository.setEpisodeWatched(
                 detailsUrl = currentDetails.detailsUrl,
                 playEpisodeId = playEpisodeId,
@@ -109,6 +113,7 @@ class DetailsViewModel @Inject constructor(
                     }
 
                     else -> {
+                        watchedMutationCount++
                         state.copy(
                             isWatched = effectiveWatched,
                             isWatchedMutationInFlight = false,
@@ -135,7 +140,7 @@ class DetailsViewModel @Inject constructor(
 
         viewModelScope.launch(ioDispatcher) {
             val targetFavorite = !currentFavorite
-            when (val result = repository.setFavorite(currentDetails.detailsUrl, targetFavorite)) {
+            when (val result = favoritesRepository.setFavorite(currentDetails.detailsUrl, targetFavorite)) {
                 FavoriteMutationResult.Updated -> _uiState.update { state ->
                     state.copy(
                         details = state.details?.copy(isFavorite = targetFavorite),
@@ -241,9 +246,11 @@ class DetailsViewModel @Inject constructor(
 
         _uiState.update { it.copy(isWatchedStateLoading = true).withWatchedPresentation() }
         watchedStateJob?.cancel()
+        val mutationCountAtStart = watchedMutationCount
         watchedStateJob = viewModelScope.launch(ioDispatcher) {
             val watchedState = repository.loadWatchedState(detailsUrl)
             if (loadRequestToken != requestToken) return@launch
+            if (watchedMutationCount != mutationCountAtStart) return@launch
             _uiState.update {
                 it.copy(
                     isWatched = watchedState,
