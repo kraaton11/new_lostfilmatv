@@ -69,6 +69,13 @@ fun SettingsScreen(
     diagnosticsStatusText: String? = null,
     isRunningDiagnostics: Boolean = false,
     onRunDiagnosticsClick: () -> Unit = {},
+    torrServeBaseUrl: String = "",
+    torrServeStatusText: String? = null,
+    isCheckingTorrServe: Boolean = false,
+    onTorrServeBaseUrlChanged: (String) -> Unit = {},
+    onSaveTorrServeClick: () -> Unit = {},
+    onResetTorrServeClick: () -> Unit = {},
+    onCheckTorrServeClick: () -> Unit = {},
     prowlarrBaseUrl: String = "",
     prowlarrApiKey: String = "",
     prowlarrStatusText: String? = null,
@@ -124,6 +131,10 @@ fun SettingsScreen(
             put(SettingsFocusTarget.HomeSeriesToggle.toTag(), FocusRequester())
             put(SettingsFocusTarget.HomeMenuLabelsToggle.toTag(), FocusRequester())
             put(SettingsFocusTarget.DiagnosticsRun.toTag(), FocusRequester())
+            put(SettingsFocusTarget.TorrServeBaseUrl.toTag(), FocusRequester())
+            put(SettingsFocusTarget.TorrServeSave.toTag(), FocusRequester())
+            put(SettingsFocusTarget.TorrServeCheck.toTag(), FocusRequester())
+            put(SettingsFocusTarget.TorrServeReset.toTag(), FocusRequester())
             put(SettingsFocusTarget.ProwlarrBaseUrl.toTag(), FocusRequester())
             put(SettingsFocusTarget.ProwlarrApiKey.toTag(), FocusRequester())
             put(SettingsFocusTarget.ProwlarrSave.toTag(), FocusRequester())
@@ -143,6 +154,7 @@ fun SettingsScreen(
                 SettingsSection.HOME_SCREEN.name to SettingsFocusTarget.HomeFavoritesToggle,
                 SettingsSection.CHANNEL.name to SettingsFocusTarget.ChannelMode(selectedChannelMode),
                 SettingsSection.DIAGNOSTICS.name to SettingsFocusTarget.DiagnosticsRun,
+                SettingsSection.TORRSERVE.name to SettingsFocusTarget.TorrServeBaseUrl,
                 SettingsSection.PROWLARR.name to SettingsFocusTarget.ProwlarrBaseUrl,
                 SettingsSection.UPDATES.name to SettingsFocusTarget.UpdateChannel(selectedUpdateMode),
                 SettingsSection.ACCOUNT.name to SettingsFocusTarget.AccountAuth,
@@ -194,6 +206,11 @@ fun SettingsScreen(
         prowlarrBaseUrl.isNotBlank() && prowlarrApiKey.isNotBlank() -> "Настроен"
         else -> "Отключен"
     }
+    val torrServeSummary = when {
+        isCheckingTorrServe -> "Проверяем..."
+        !torrServeStatusText.isNullOrBlank() -> torrServeStatusText
+        else -> torrServeBaseUrl.ifBlank { "По умолчанию" }
+    }
     val accountSummary = if (isAuthenticated) "Вход выполнен" else "Без входа"
     val aboutSummary = BuildConfig.VERSION_NAME
 
@@ -223,6 +240,7 @@ fun SettingsScreen(
                 channelSummary = channelSummary,
                 homeScreenSummary = homeScreenSummary,
                 diagnosticsSummary = diagnosticsSummary,
+                torrServeSummary = torrServeSummary,
                 prowlarrSummary = prowlarrSummary,
                 accountSummary = accountSummary,
                 aboutSummary = aboutSummary,
@@ -514,6 +532,78 @@ fun SettingsScreen(
                             }
                         }
 
+                        SettingsSection.TORRSERVE -> {
+                            SettingsOptionsSection {
+                                SettingsOverviewCard(
+                                    title = "TorrServe",
+                                    subtitle = "Адрес сервера TorrServe для воспроизведения торрентов.",
+                                    modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(14.dp)),
+                                ) {
+                                    SettingsOverviewValue(text = torrServeStatusText ?: "Сейчас: $torrServeBaseUrl")
+                                }
+                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    SettingsTextField(
+                                        value = torrServeBaseUrl,
+                                        onValueChange = onTorrServeBaseUrlChanged,
+                                        label = "Адрес TorrServe",
+                                        tag = SettingsFocusTarget.TorrServeBaseUrl.toTag(),
+                                        onFocused = {
+                                            rememberedActionBySection = rememberedActionBySection + (
+                                                SettingsSection.TORRSERVE.name to SettingsFocusTarget.TorrServeBaseUrl
+                                            )
+                                        },
+                                        modifier = Modifier.focusRequester(contentRequesters.getValue(SettingsFocusTarget.TorrServeBaseUrl.toTag())),
+                                    )
+                                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        SettingsRowButton(
+                                            title = "Сохранить",
+                                            description = "Применить указанный адрес TorrServe.",
+                                            value = "Сохранить",
+                                            onClick = onSaveTorrServeClick,
+                                            tag = SettingsFocusTarget.TorrServeSave.toTag(),
+                                            onFocused = {
+                                                rememberedActionBySection = rememberedActionBySection + (
+                                                    SettingsSection.TORRSERVE.name to SettingsFocusTarget.TorrServeSave
+                                                )
+                                            },
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .focusRequester(contentRequesters.getValue(SettingsFocusTarget.TorrServeSave.toTag())),
+                                        )
+                                        SettingsRowButton(
+                                            title = "Сбросить",
+                                            description = "Вернуть адрес по умолчанию (127.0.0.1:8090).",
+                                            value = "Сбросить",
+                                            onClick = onResetTorrServeClick,
+                                            tag = SettingsFocusTarget.TorrServeReset.toTag(),
+                                            onFocused = {
+                                                rememberedActionBySection = rememberedActionBySection + (
+                                                    SettingsSection.TORRSERVE.name to SettingsFocusTarget.TorrServeReset
+                                                )
+                                            },
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .focusRequester(contentRequesters.getValue(SettingsFocusTarget.TorrServeReset.toTag())),
+                                        )
+                                    }
+                                    SettingsRowButton(
+                                        title = "Проверить подключение",
+                                        description = "Отправить запрос на /echo для проверки доступности.",
+                                        value = if (isCheckingTorrServe) "Проверяем..." else "Проверить",
+                                        onClick = onCheckTorrServeClick,
+                                        enabled = !isCheckingTorrServe,
+                                        tag = SettingsFocusTarget.TorrServeCheck.toTag(),
+                                        onFocused = {
+                                            rememberedActionBySection = rememberedActionBySection + (
+                                                SettingsSection.TORRSERVE.name to SettingsFocusTarget.TorrServeCheck
+                                            )
+                                        },
+                                        modifier = Modifier.focusRequester(contentRequesters.getValue(SettingsFocusTarget.TorrServeCheck.toTag())),
+                                    )
+                                }
+                            }
+                        }
+
                         SettingsSection.DIAGNOSTICS -> {
                             SettingsOptionsSection {
                                 SettingsOverviewCard(
@@ -762,6 +852,7 @@ enum class SettingsSection(
     PLAYBACK("Воспроизведение", "settings-section-playback", "settings-section-playback-summary"),
     HOME_SCREEN("Главный экран", "settings-section-home-screen", "settings-section-home-screen-summary"),
     CHANNEL("Android TV", "settings-section-channel", "settings-section-channel-summary"),
+    TORRSERVE("TorrServe", "settings-section-torrserve", "settings-section-torrserve-summary"),
     DIAGNOSTICS("Диагностика", "settings-section-diagnostics", "settings-section-diagnostics-summary"),
     PROWLARR("Prowlarr", "settings-section-prowlarr", "settings-section-prowlarr-summary"),
     UPDATES("Обновления", "settings-section-updates", "settings-section-updates-summary"),
@@ -790,6 +881,7 @@ private fun SettingsSectionRail(
     channelSummary: String,
     homeScreenSummary: String,
     diagnosticsSummary: String,
+    torrServeSummary: String,
     prowlarrSummary: String,
     accountSummary: String,
     aboutSummary: String,
@@ -813,6 +905,7 @@ private fun SettingsSectionRail(
                     SettingsSection.PLAYBACK -> playbackSummary
                     SettingsSection.HOME_SCREEN -> homeScreenSummary
                     SettingsSection.CHANNEL -> channelSummary
+                    SettingsSection.TORRSERVE -> torrServeSummary
                     SettingsSection.DIAGNOSTICS -> diagnosticsSummary
                     SettingsSection.PROWLARR -> prowlarrSummary
                     SettingsSection.UPDATES -> updateSummary
@@ -1001,6 +1094,7 @@ private fun targetContentTag(
         section == SettingsSection.HOME_SCREEN -> SettingsFocusTarget.HomeFavoritesToggle
         section == SettingsSection.CHANNEL -> SettingsFocusTarget.ChannelMode(selectedChannelMode)
         section == SettingsSection.DIAGNOSTICS -> SettingsFocusTarget.DiagnosticsRun
+        section == SettingsSection.TORRSERVE -> SettingsFocusTarget.TorrServeBaseUrl
         section == SettingsSection.PROWLARR -> SettingsFocusTarget.ProwlarrBaseUrl
         section == SettingsSection.UPDATES -> SettingsFocusTarget.UpdateChannel(selectedUpdateMode)
         section == SettingsSection.ACCOUNT -> SettingsFocusTarget.AccountAuth
