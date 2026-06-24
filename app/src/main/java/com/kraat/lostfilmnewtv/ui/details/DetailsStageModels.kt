@@ -1,6 +1,5 @@
 package com.kraat.lostfilmnewtv.ui.details
 
-import com.kraat.lostfilmnewtv.BuildConfig
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 
@@ -37,8 +36,6 @@ fun buildDetailsStageUi(
     activeTorrServeRowId: String?,
     isTorrServeBusy: Boolean,
     torrServeMessageText: String? = null,
-    isProwlarrConfigured: Boolean = state.isProwlarrConfigured,
-    showDeveloperActions: Boolean = BuildConfig.DEBUG,
 ): DetailsStageUiModel {
     val details = state.details
     val isBusy = isTorrServeBusy && activeTorrServeRowId == playbackRow?.rowId
@@ -143,19 +140,6 @@ fun buildDetailsStageUi(
                 enabled = true,
             )
         }
-    val prowlarrAction = details
-        ?.takeIf { isProwlarrConfigured }
-        ?.let {
-            DetailsStageActionUiModel(
-                actionId = "prowlarr-search",
-                rowId = null,
-                label = "Prowlarr",
-                subtitle = "Искать раздачи",
-                qualityLabel = null,
-                actionType = DetailsStageActionType.OPEN_PROWLARR_SEARCH,
-                enabled = !state.isProwlarrSearching,
-            )
-        }
 
     return DetailsStageUiModel(
         activeRowId = playbackRow?.rowId,
@@ -169,11 +153,7 @@ fun buildDetailsStageUi(
         } else {
             emptyList()
         },
-        overflowActions = if (isAuthenticated) {
-            if (showDeveloperActions) listOfNotNull(prowlarrAction) else emptyList()
-        } else {
-            emptyList()
-        },
+        overflowActions = emptyList(),
     )
 }
 
@@ -257,7 +237,6 @@ enum class DetailsStageActionType {
     OPEN_MOVIE_OVERVIEW,
     OPEN_SERIES_OVERVIEW,
     OPEN_SERIES_GUIDE,
-    OPEN_PROWLARR_SEARCH,
     OPEN_MORE_ACTIONS,
     NONE,
 }

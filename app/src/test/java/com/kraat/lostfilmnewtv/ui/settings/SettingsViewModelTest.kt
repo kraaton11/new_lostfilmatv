@@ -625,7 +625,6 @@ class SettingsViewModelTest {
             releaseApkLauncher = releaseApkLauncher,
             torrServeEndpointChecker = FakeTorrServeEndpointChecker(),
             settingsDataManager = FakeSettingsDataManager(),
-            diagnosticsRunner = FakeSettingsDiagnosticsRunner(),
             ioDispatcher = ioDispatcher,
             debounceIntervalMs = debounceIntervalMs,
         )
@@ -669,14 +668,6 @@ class SettingsViewModelTest {
         override suspend fun clearNetworkCache() = Unit
     }
 
-    private class FakeSettingsDiagnosticsRunner : SettingsDiagnosticsRunner {
-        override suspend fun run(torrServeBaseUrl: String): List<SettingsDiagnosticResult> {
-            return listOf(
-                SettingsDiagnosticResult("LostFilm", "Доступен", isOk = true),
-                SettingsDiagnosticResult("TorrServe HTTP", "Доступен", isOk = true),
-            )
-        }
-    }
 }
 
 private var settingsPrefsCounter = 0

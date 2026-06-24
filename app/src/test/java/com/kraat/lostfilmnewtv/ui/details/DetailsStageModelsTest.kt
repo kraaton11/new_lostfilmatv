@@ -289,52 +289,6 @@ class DetailsStageModelsTest {
         assertEquals("Сезон 1 • Серия 5", ui.heroMetaLine)
     }
 
-    @Test
-    fun buildStageUi_addsProwlarrSearchAction_whenConfigured() {
-        val ui = buildDetailsStageUi(
-            state = DetailsUiState(details = seriesDetails()),
-            isAuthenticated = true,
-            availableTorrentRowsCount = 1,
-            playbackRow = DetailsTorrentRowUiModel(
-                rowId = "row-0",
-                label = "1080p",
-                url = "https://example.com/1080",
-                isTorrServeSupported = true,
-            ),
-            activeTorrServeRowId = null,
-            isTorrServeBusy = false,
-            isProwlarrConfigured = true,
-        )
-
-        assertEquals(
-            false,
-            ui.secondaryActions.any { it.actionType == DetailsStageActionType.OPEN_PROWLARR_SEARCH },
-        )
-        val action = ui.overflowActions.first { it.actionType == DetailsStageActionType.OPEN_PROWLARR_SEARCH }
-        assertEquals("Prowlarr", action.label)
-        assertEquals("Искать раздачи", action.subtitle)
-    }
-
-    @Test
-    fun buildStageUi_hidesOverflowActions_whenDeveloperActionsAreHidden() {
-        val ui = buildDetailsStageUi(
-            state = DetailsUiState(details = seriesDetails()),
-            isAuthenticated = true,
-            availableTorrentRowsCount = 1,
-            playbackRow = DetailsTorrentRowUiModel(
-                rowId = "row-0",
-                label = "1080p",
-                url = "https://example.com/1080",
-                isTorrServeSupported = true,
-            ),
-            activeTorrServeRowId = null,
-            isTorrServeBusy = false,
-            isProwlarrConfigured = true,
-            showDeveloperActions = false,
-        )
-
-        assertEquals(emptyList<DetailsStageActionUiModel>(), ui.overflowActions)
-    }
 }
 
 private fun seriesDetails(): ReleaseDetails = ReleaseDetails(

@@ -3,7 +3,6 @@ package com.kraat.lostfilmnewtv.ui.settings
 import android.content.Context
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
 import com.kraat.lostfilmnewtv.data.db.TmdbPosterDao
-import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeAvailabilityChecker
@@ -101,48 +100,6 @@ class AppSettingsDataManager(
 
     private companion object {
         const val COIL_IMAGE_CACHE_DIR = "coil_image_cache"
-    }
-}
-
-data class SettingsDiagnosticResult(
-    val title: String,
-    val value: String,
-    val isOk: Boolean,
-)
-
-interface SettingsDiagnosticsRunner {
-    suspend fun run(torrServeBaseUrl: String): List<SettingsDiagnosticResult>
-}
-
-class AppSettingsDiagnosticsRunner(
-    private val lostFilmHttpClient: LostFilmHttpClient,
-    private val torrServeEndpointChecker: TorrServeEndpointChecker,
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-) : SettingsDiagnosticsRunner {
-    override suspend fun run(torrServeBaseUrl: String): List<SettingsDiagnosticResult> = withContext(ioDispatcher) {
-        val lostFilmOk = runCatching { lostFilmHttpClient.fetchNewPage(pageNumber = 1) }.isSuccess
-        val torrServe = torrServeEndpointChecker.check(torrServeBaseUrl)
-        listOf(
-            SettingsDiagnosticResult(
-                title = "LostFilm",
-                value = if (lostFilmOk) "Доступен" else "Недоступен",
-                isOk = lostFilmOk,
-            ),
-            SettingsDiagnosticResult(
-                title = "TorrServe приложение",
-                value = if (torrServe.isAppInstalled) "Установлено" else "Не найдено",
-                isOk = torrServe.isAppInstalled,
-            ),
-            SettingsDiagnosticResult(
-                title = "TorrServe HTTP",
-                value = when {
-                    torrServe.normalizedBaseUrl == null -> "Неверный адрес"
-                    torrServe.isEndpointReachable -> "Доступен"
-                    else -> "Недоступен"
-                },
-                isOk = torrServe.normalizedBaseUrl != null && torrServe.isEndpointReachable,
-            ),
-        )
     }
 }
 

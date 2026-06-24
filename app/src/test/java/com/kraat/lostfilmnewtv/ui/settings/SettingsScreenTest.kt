@@ -486,39 +486,6 @@ class SettingsScreenTest {
     }
 
     @Test
-    fun settingsScreen_hidesDeveloperSections_whenDeveloperSectionsAreDisabled() {
-        composeRule.setContent {
-            LostFilmTheme {
-                SettingsScreen(
-                    selectedQuality = PlaybackQualityPreference.Q1080,
-                    onQualitySelected = {},
-                    selectedUpdateMode = UpdateCheckMode.MANUAL,
-                    selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
-                    installedVersionText = "0.1.0",
-                    latestVersionText = null,
-                    statusText = null,
-                    isCheckingForUpdates = false,
-                    installUrl = null,
-                    onUpdateModeSelected = {},
-                    onChannelModeSelected = {},
-                    onCheckForUpdatesClick = {},
-                    onInstallUpdateClick = {},
-                    showDeveloperSections = false,
-                )
-            }
-        }
-
-        assertEquals(
-            0,
-            composeRule.onAllNodesWithTag("settings-section-diagnostics").fetchSemanticsNodes().size,
-        )
-        assertEquals(
-            0,
-            composeRule.onAllNodesWithTag("settings-section-prowlarr").fetchSemanticsNodes().size,
-        )
-    }
-
-    @Test
     fun settingsScreen_contentButtons_haveLeftFocusRoutingToRail() {
         composeRule.setContent {
             LostFilmTheme {

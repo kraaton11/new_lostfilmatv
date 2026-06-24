@@ -11,10 +11,6 @@ sealed class SettingsFocusTarget {
     data object TorrServeSave : SettingsFocusTarget()
     data object TorrServeCheck : SettingsFocusTarget()
     data object TorrServeReset : SettingsFocusTarget()
-    data object ProwlarrBaseUrl : SettingsFocusTarget()
-    data object ProwlarrApiKey : SettingsFocusTarget()
-    data object ProwlarrSave : SettingsFocusTarget()
-    data object ProwlarrClear : SettingsFocusTarget()
     data object HomeFavoritesToggle : SettingsFocusTarget()
     data object HomeFavoriteSeriesToggle : SettingsFocusTarget()
     data object HomeMoviesToggle : SettingsFocusTarget()
@@ -24,7 +20,6 @@ sealed class SettingsFocusTarget {
     data object DataClearReleases : SettingsFocusTarget()
     data object DataClearPosters : SettingsFocusTarget()
     data object DataClearNetwork : SettingsFocusTarget()
-    data object DiagnosticsRun : SettingsFocusTarget()
     data class UpdateChannel(val mode: UpdateCheckMode) : SettingsFocusTarget()
     data object CheckForUpdates : SettingsFocusTarget()
     data object InstallUpdate : SettingsFocusTarget()
@@ -42,10 +37,6 @@ fun SettingsFocusTarget.toTag(): String = when (this) {
     SettingsFocusTarget.TorrServeSave -> "settings-torrserve-save"
     SettingsFocusTarget.TorrServeCheck -> "settings-torrserve-check"
     SettingsFocusTarget.TorrServeReset -> "settings-torrserve-reset"
-    SettingsFocusTarget.ProwlarrBaseUrl -> "settings-prowlarr-base-url"
-    SettingsFocusTarget.ProwlarrApiKey -> "settings-prowlarr-api-key"
-    SettingsFocusTarget.ProwlarrSave -> "settings-prowlarr-save"
-    SettingsFocusTarget.ProwlarrClear -> "settings-prowlarr-clear"
     SettingsFocusTarget.HomeFavoritesToggle -> "settings-home-favorites-toggle"
     SettingsFocusTarget.HomeFavoriteSeriesToggle -> "settings-home-favorite-series-toggle"
     SettingsFocusTarget.HomeMoviesToggle -> "settings-home-movies-toggle"
@@ -55,7 +46,6 @@ fun SettingsFocusTarget.toTag(): String = when (this) {
     SettingsFocusTarget.DataClearReleases -> "settings-data-clear-releases"
     SettingsFocusTarget.DataClearPosters -> "settings-data-clear-posters"
     SettingsFocusTarget.DataClearNetwork -> "settings-data-clear-network"
-    SettingsFocusTarget.DiagnosticsRun -> "settings-diagnostics-run"
     is SettingsFocusTarget.UpdateChannel -> when (mode) {
         UpdateCheckMode.MANUAL -> "settings-update-mode-manual"
         UpdateCheckMode.QUIET_CHECK -> "settings-update-mode-quiet"

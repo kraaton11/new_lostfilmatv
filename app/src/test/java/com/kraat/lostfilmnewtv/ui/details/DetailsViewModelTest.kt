@@ -6,7 +6,6 @@ import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
-import com.kraat.lostfilmnewtv.data.network.ProwlarrSearchResult
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.navigation.AppDestination
@@ -23,124 +22,6 @@ import org.junit.Test
 @OptIn(ExperimentalCoroutinesApi::class)
 class DetailsViewModelTest {
     private val dispatcher = StandardTestDispatcher()
-
-    @Test
-    fun buildProwlarrSearchQueries_prefersEnglishSlugWithYear() {
-        val queries = buildProwlarrSearchQueries(
-            ReleaseDetails(
-                detailsUrl = "https://www.lostfilm.today/series/The_Boroughs/season_1/episode_2/",
-                kind = ReleaseKind.SERIES,
-                titleRu = "Бороуз",
-                seasonNumber = 1,
-                episodeNumber = 2,
-                releaseDateRu = "25 мая 2026",
-                posterUrl = "https://www.lostfilm.today/poster.jpg",
-                fetchedAt = 0L,
-                originalReleaseYear = 2025,
-            ),
-        )
-
-        assertEquals(
-            listOf(
-                "The Boroughs 2025",
-                "The Boroughs",
-                "Бороуз",
-            ),
-            queries,
-        )
-    }
-
-    @Test
-    fun bestProwlarrResults_sortsBySeedersThenLeechersAndLimitsToFive() {
-        val searchSpec = ProwlarrSearchSpec.from(
-            ReleaseDetails(
-                detailsUrl = "https://www.lostfilm.today/series/The_Boroughs/season_1/episode_2/",
-                kind = ReleaseKind.SERIES,
-                titleRu = "Бороуз",
-                seasonNumber = 1,
-                episodeNumber = 2,
-                releaseDateRu = "25 мая 2026",
-                posterUrl = "https://www.lostfilm.today/poster.jpg",
-                fetchedAt = 0L,
-                originalReleaseYear = 2025,
-            ),
-        )
-        val results = listOf(
-            prowlarrResult("The Boroughs S01E02 low", sourceUrl = "magnet:?xt=duplicate", seeders = 1, leechers = 20),
-            prowlarrResult("The Boroughs S01E02 duplicate-high", sourceUrl = "magnet:?xt=duplicate", seeders = 99, leechers = 99),
-            prowlarrResult("The Boroughs S01E02 top", seeders = 40, leechers = 1),
-            prowlarrResult("The Boroughs S01E02 second", seeders = 30, leechers = 5),
-            prowlarrResult("The Boroughs S01E02 third", seeders = 30, leechers = 3),
-            prowlarrResult("The Boroughs S01E02 fourth", seeders = 20, leechers = 1),
-            prowlarrResult("The Boroughs S01E02 fifth", seeders = 10, leechers = 1),
-            prowlarrResult("The Boroughs S01E02 sixth", seeders = 9, leechers = 100),
-        )
-
-        assertEquals(
-            listOf(
-                "The Boroughs S01E02 duplicate-high",
-                "The Boroughs S01E02 top",
-                "The Boroughs S01E02 second",
-                "The Boroughs S01E02 third",
-                "The Boroughs S01E02 fourth",
-            ),
-            results.bestProwlarrResults(searchSpec).map { it.title },
-        )
-    }
-
-    @Test
-    fun bestProwlarrResults_filtersWrongTitleButDoesNotRequireEpisode() {
-        val searchSpec = ProwlarrSearchSpec.from(
-            ReleaseDetails(
-                detailsUrl = "https://www.lostfilm.today/series/The_Boroughs/season_1/episode_2/",
-                kind = ReleaseKind.SERIES,
-                titleRu = "Бороуз",
-                seasonNumber = 1,
-                episodeNumber = 2,
-                releaseDateRu = "25 мая 2026",
-                posterUrl = "https://www.lostfilm.today/poster.jpg",
-                fetchedAt = 0L,
-                originalReleaseYear = 2025,
-            ),
-        )
-
-        assertEquals(
-            listOf(
-                "The Boroughs 2025 S01E02 1080p",
-                "The Boroughs S01E01 1080p",
-                "The Boroughs 2024 S01E02 1080p",
-                "Бороуз S01E02 720p",
-            ),
-            listOf(
-                prowlarrResult("The Boroughs 2025 S01E02 1080p", seeders = 10, leechers = 1),
-                prowlarrResult("Бороуз S01E02 720p", seeders = 9, leechers = 1),
-                prowlarrResult("The Boroughs S01E01 1080p", seeders = 999, leechers = 999),
-                prowlarrResult("Other Show 2025 S01E02 1080p", seeders = 999, leechers = 999),
-                prowlarrResult("The Boroughs 2024 S01E02 1080p", seeders = 999, leechers = 999),
-            ).bestProwlarrResults(searchSpec).map { it.title },
-        )
-    }
-
-    @Test
-    fun buildProwlarrSearchQueries_doesNotUseRussianReleaseDateYearAsOriginalYear() {
-        val queries = buildProwlarrSearchQueries(
-            ReleaseDetails(
-                detailsUrl = "https://www.lostfilm.today/series/The_Boroughs/season_1/episode_2/",
-                kind = ReleaseKind.SERIES,
-                titleRu = "Бороуз",
-                seasonNumber = 1,
-                episodeNumber = 2,
-                releaseDateRu = "25 мая 2026",
-                posterUrl = "https://www.lostfilm.today/poster.jpg",
-                fetchedAt = 0L,
-            ),
-        )
-
-        assertEquals(
-            listOf("The Boroughs", "Бороуз"),
-            queries,
-        )
-    }
 
     @Test
     fun seriesDetails_showSeasonEpisodeAndRuDate() = runTest(dispatcher) {
@@ -763,18 +644,4 @@ private fun details(
     releaseDateRu = releaseDateRu,
     posterUrl = "https://www.lostfilm.today/poster.jpg",
     fetchedAt = 0L,
-)
-
-private fun prowlarrResult(
-    title: String,
-    sourceUrl: String = "magnet:?xt=$title",
-    seeders: Int?,
-    leechers: Int?,
-): ProwlarrSearchResult = ProwlarrSearchResult(
-    title = title,
-    indexer = "Test",
-    sourceUrl = sourceUrl,
-    sizeBytes = null,
-    seeders = seeders,
-    leechers = leechers,
 )

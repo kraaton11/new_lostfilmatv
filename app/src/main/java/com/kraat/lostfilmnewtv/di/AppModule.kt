@@ -6,8 +6,6 @@ import com.kraat.lostfilmnewtv.BuildConfig
 import com.kraat.lostfilmnewtv.data.auth.EncryptedSessionStore
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
 import com.kraat.lostfilmnewtv.data.db.TmdbPosterDao
-import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
-import com.kraat.lostfilmnewtv.data.network.ProwlarrClientFactory
 import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolver
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeActionHandler
@@ -30,10 +28,8 @@ import com.kraat.lostfilmnewtv.updates.ReleaseApkLauncher
 import com.kraat.lostfilmnewtv.updates.UpdateHttpClientFactory
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.ui.settings.AppSettingsDataManager
-import com.kraat.lostfilmnewtv.ui.settings.AppSettingsDiagnosticsRunner
 import com.kraat.lostfilmnewtv.ui.settings.OkHttpTorrServeEndpointChecker
 import com.kraat.lostfilmnewtv.ui.settings.SettingsDataManager
-import com.kraat.lostfilmnewtv.ui.settings.SettingsDiagnosticsRunner
 import com.kraat.lostfilmnewtv.ui.settings.TorrServeEndpointChecker
 import dagger.Module
 import dagger.Provides
@@ -126,14 +122,9 @@ object AppModule {
         torrentDownloader = torrentDownloader,
     )
 
-    @Provides
-    @Singleton
-    fun provideProwlarrClientFactory(okHttpClient: OkHttpClient): ProwlarrClientFactory =
-        ProwlarrClientFactory(okHttpClient)
-
     // endregion
 
-    // region Settings Maintenance / Diagnostics
+    // region Settings Maintenance
 
     @Provides
     @Singleton
@@ -149,16 +140,6 @@ object AppModule {
         tmdbPosterDao = tmdbPosterDao,
         repository = repository,
         okHttpClient = okHttpClient,
-    )
-
-    @Provides
-    @Singleton
-    fun provideSettingsDiagnosticsRunner(
-        @AnonymousHttpClient lostFilmHttpClient: LostFilmHttpClient,
-        torrServeEndpointChecker: TorrServeEndpointChecker,
-    ): SettingsDiagnosticsRunner = AppSettingsDiagnosticsRunner(
-        lostFilmHttpClient = lostFilmHttpClient,
-        torrServeEndpointChecker = torrServeEndpointChecker,
     )
 
     // endregion

@@ -65,10 +65,6 @@ fun SettingsScreen(
     isHomeMenuLabelsEnabled: Boolean = true,
     selectedWatchedMarkingMode: WatchedMarkingMode = WatchedMarkingMode.AUTO,
     onWatchedMarkingModeSelected: (WatchedMarkingMode) -> Unit = {},
-    diagnosticResults: List<SettingsDiagnosticResult> = emptyList(),
-    diagnosticsStatusText: String? = null,
-    isRunningDiagnostics: Boolean = false,
-    onRunDiagnosticsClick: () -> Unit = {},
     torrServeBaseUrl: String = "",
     torrServeStatusText: String? = null,
     isCheckingTorrServe: Boolean = false,
@@ -76,13 +72,6 @@ fun SettingsScreen(
     onSaveTorrServeClick: () -> Unit = {},
     onResetTorrServeClick: () -> Unit = {},
     onCheckTorrServeClick: () -> Unit = {},
-    prowlarrBaseUrl: String = "",
-    prowlarrApiKey: String = "",
-    prowlarrStatusText: String? = null,
-    onProwlarrBaseUrlChanged: (String) -> Unit = {},
-    onProwlarrApiKeyChanged: (String) -> Unit = {},
-    onSaveProwlarrClick: () -> Unit = {},
-    onClearProwlarrClick: () -> Unit = {},
     isAuthenticated: Boolean = false,
     onAuthClick: () -> Unit = {},
     installedVersionText: String,
@@ -130,15 +119,10 @@ fun SettingsScreen(
             put(SettingsFocusTarget.HomeMoviesToggle.toTag(), FocusRequester())
             put(SettingsFocusTarget.HomeSeriesToggle.toTag(), FocusRequester())
             put(SettingsFocusTarget.HomeMenuLabelsToggle.toTag(), FocusRequester())
-            put(SettingsFocusTarget.DiagnosticsRun.toTag(), FocusRequester())
             put(SettingsFocusTarget.TorrServeBaseUrl.toTag(), FocusRequester())
             put(SettingsFocusTarget.TorrServeSave.toTag(), FocusRequester())
             put(SettingsFocusTarget.TorrServeCheck.toTag(), FocusRequester())
             put(SettingsFocusTarget.TorrServeReset.toTag(), FocusRequester())
-            put(SettingsFocusTarget.ProwlarrBaseUrl.toTag(), FocusRequester())
-            put(SettingsFocusTarget.ProwlarrApiKey.toTag(), FocusRequester())
-            put(SettingsFocusTarget.ProwlarrSave.toTag(), FocusRequester())
-            put(SettingsFocusTarget.ProwlarrClear.toTag(), FocusRequester())
             put(SettingsFocusTarget.CheckForUpdates.toTag(), FocusRequester())
             put(SettingsFocusTarget.InstallUpdate.toTag(), FocusRequester())
             put(SettingsFocusTarget.AccountAuth.toTag(), FocusRequester())
@@ -153,9 +137,7 @@ fun SettingsScreen(
                 SettingsSection.PLAYBACK.name to SettingsFocusTarget.PlaybackQuality(selectedQuality),
                 SettingsSection.HOME_SCREEN.name to SettingsFocusTarget.HomeFavoritesToggle,
                 SettingsSection.CHANNEL.name to SettingsFocusTarget.ChannelMode(selectedChannelMode),
-                SettingsSection.DIAGNOSTICS.name to SettingsFocusTarget.DiagnosticsRun,
                 SettingsSection.TORRSERVE.name to SettingsFocusTarget.TorrServeBaseUrl,
-                SettingsSection.PROWLARR.name to SettingsFocusTarget.ProwlarrBaseUrl,
                 SettingsSection.UPDATES.name to SettingsFocusTarget.UpdateChannel(selectedUpdateMode),
                 SettingsSection.ACCOUNT.name to SettingsFocusTarget.AccountAuth,
             ),
@@ -197,15 +179,6 @@ fun SettingsScreen(
         "сериалы ${if (isHomeSeriesEnabled) "вкл" else "выкл"}",
         "подписи ${if (isHomeMenuLabelsEnabled) "вкл" else "выкл"}",
     ).joinToString(" · ")
-    val diagnosticsSummary = when {
-        isRunningDiagnostics -> "Проверяем..."
-        !diagnosticsStatusText.isNullOrBlank() -> diagnosticsStatusText
-        else -> "Проверка системы"
-    }
-    val prowlarrSummary = when {
-        prowlarrBaseUrl.isNotBlank() && prowlarrApiKey.isNotBlank() -> "Настроен"
-        else -> "Отключен"
-    }
     val torrServeSummary = when {
         isCheckingTorrServe -> "Проверяем..."
         !torrServeStatusText.isNullOrBlank() -> torrServeStatusText
@@ -239,9 +212,7 @@ fun SettingsScreen(
                 updateSummary = updateSummary,
                 channelSummary = channelSummary,
                 homeScreenSummary = homeScreenSummary,
-                diagnosticsSummary = diagnosticsSummary,
                 torrServeSummary = torrServeSummary,
-                prowlarrSummary = prowlarrSummary,
                 accountSummary = accountSummary,
                 aboutSummary = aboutSummary,
                 sections = visibleSections,
@@ -604,114 +575,6 @@ fun SettingsScreen(
                             }
                         }
 
-                        SettingsSection.DIAGNOSTICS -> {
-                            SettingsOptionsSection {
-                                SettingsOverviewCard(
-                                    title = "Диагностика",
-                                    subtitle = "Быстрая проверка сети, аккаунта и TorrServe.",
-                                    modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(14.dp)),
-                                ) {
-                                    SettingsOverviewValue(text = diagnosticsStatusText ?: "Запустите проверку, если воспроизведение или загрузка не работают.")
-                                    diagnosticResults.forEach { item ->
-                                        SettingsOverviewValue(text = "${item.title}: ${item.value}")
-                                    }
-                                }
-                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    val runTag = SettingsFocusTarget.DiagnosticsRun.toTag()
-                                    SettingsRowButton(
-                                        title = "Запустить диагностику",
-                                        description = "Проверить LostFilm, TorrServe и статус аккаунта.",
-                                        value = if (isRunningDiagnostics) "Проверяем..." else "Проверить",
-                                        onClick = onRunDiagnosticsClick,
-                                        enabled = !isRunningDiagnostics,
-                                        tag = runTag,
-                                        onFocused = {
-                                            rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.DIAGNOSTICS.name to SettingsFocusTarget.DiagnosticsRun
-                                            )
-                                        },
-                                        modifier = Modifier
-                                            .focusRequester(contentRequesters.getValue(runTag))
-                                            .focusProperties {
-                                                left = railRequesters.getValue(SettingsSection.DIAGNOSTICS)
-                                                up = railRequesters.getValue(SettingsSection.DIAGNOSTICS)
-                                                down = FocusRequester.Default
-                                            },
-                                    )
-                                }
-                            }
-                        }
-
-                        SettingsSection.PROWLARR -> {
-                            SettingsOptionsSection {
-                                SettingsOverviewCard(
-                                    title = "Prowlarr",
-                                    subtitle = "Источник альтернативных раздач для экрана деталей.",
-                                    modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(14.dp)),
-                                ) {
-                                    SettingsOverviewValue(text = prowlarrStatusText ?: prowlarrSummary)
-                                }
-                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    SettingsTextField(
-                                        value = prowlarrBaseUrl,
-                                        onValueChange = onProwlarrBaseUrlChanged,
-                                        label = "URL Prowlarr",
-                                        tag = SettingsFocusTarget.ProwlarrBaseUrl.toTag(),
-                                        onFocused = {
-                                            rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.PROWLARR.name to SettingsFocusTarget.ProwlarrBaseUrl
-                                            )
-                                        },
-                                        modifier = Modifier.focusRequester(contentRequesters.getValue(SettingsFocusTarget.ProwlarrBaseUrl.toTag())),
-                                    )
-                                    SettingsTextField(
-                                        value = prowlarrApiKey,
-                                        onValueChange = onProwlarrApiKeyChanged,
-                                        label = "API key",
-                                        tag = SettingsFocusTarget.ProwlarrApiKey.toTag(),
-                                        onFocused = {
-                                            rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.PROWLARR.name to SettingsFocusTarget.ProwlarrApiKey
-                                            )
-                                        },
-                                        modifier = Modifier.focusRequester(contentRequesters.getValue(SettingsFocusTarget.ProwlarrApiKey.toTag())),
-                                    )
-                                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                        SettingsRowButton(
-                                            title = "Сохранить",
-                                            description = "Включить поиск Prowlarr на экране деталей.",
-                                            value = "Сохранить",
-                                            onClick = onSaveProwlarrClick,
-                                            tag = SettingsFocusTarget.ProwlarrSave.toTag(),
-                                            onFocused = {
-                                                rememberedActionBySection = rememberedActionBySection + (
-                                                    SettingsSection.PROWLARR.name to SettingsFocusTarget.ProwlarrSave
-                                                )
-                                            },
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .focusRequester(contentRequesters.getValue(SettingsFocusTarget.ProwlarrSave.toTag())),
-                                        )
-                                        SettingsRowButton(
-                                            title = "Отключить",
-                                            description = "Убрать кнопку Prowlarr с экрана деталей.",
-                                            value = "Очистить",
-                                            onClick = onClearProwlarrClick,
-                                            tag = SettingsFocusTarget.ProwlarrClear.toTag(),
-                                            onFocused = {
-                                                rememberedActionBySection = rememberedActionBySection + (
-                                                    SettingsSection.PROWLARR.name to SettingsFocusTarget.ProwlarrClear
-                                                )
-                                            },
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .focusRequester(contentRequesters.getValue(SettingsFocusTarget.ProwlarrClear.toTag())),
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
                         SettingsSection.UPDATES -> {
                             SettingsOptionsSection {
                                 UpdatesSectionContent(
@@ -853,8 +716,6 @@ enum class SettingsSection(
     HOME_SCREEN("Главный экран", "settings-section-home-screen", "settings-section-home-screen-summary"),
     CHANNEL("Android TV", "settings-section-channel", "settings-section-channel-summary"),
     TORRSERVE("TorrServe", "settings-section-torrserve", "settings-section-torrserve-summary"),
-    DIAGNOSTICS("Диагностика", "settings-section-diagnostics", "settings-section-diagnostics-summary"),
-    PROWLARR("Prowlarr", "settings-section-prowlarr", "settings-section-prowlarr-summary"),
     UPDATES("Обновления", "settings-section-updates", "settings-section-updates-summary"),
     ACCOUNT("Аккаунт", "settings-section-account", "settings-section-account-summary"),
     ABOUT("О приложении", "settings-section-about", "settings-section-about-summary");
@@ -866,9 +727,7 @@ enum class SettingsSection(
         }
 
         fun visibleSections(showDeveloperSections: Boolean): List<SettingsSection> {
-            return entries.filter { section ->
-                showDeveloperSections || (section != DIAGNOSTICS && section != PROWLARR)
-            }
+            return entries.toList()
         }
     }
 }
@@ -880,9 +739,7 @@ private fun SettingsSectionRail(
     updateSummary: String,
     channelSummary: String,
     homeScreenSummary: String,
-    diagnosticsSummary: String,
     torrServeSummary: String,
-    prowlarrSummary: String,
     accountSummary: String,
     aboutSummary: String,
     sections: List<SettingsSection>,
@@ -906,8 +763,6 @@ private fun SettingsSectionRail(
                     SettingsSection.HOME_SCREEN -> homeScreenSummary
                     SettingsSection.CHANNEL -> channelSummary
                     SettingsSection.TORRSERVE -> torrServeSummary
-                    SettingsSection.DIAGNOSTICS -> diagnosticsSummary
-                    SettingsSection.PROWLARR -> prowlarrSummary
                     SettingsSection.UPDATES -> updateSummary
                     SettingsSection.ACCOUNT -> accountSummary
                     SettingsSection.ABOUT -> aboutSummary
@@ -1093,9 +948,7 @@ private fun targetContentTag(
         section == SettingsSection.PLAYBACK -> SettingsFocusTarget.PlaybackQuality(selectedQuality)
         section == SettingsSection.HOME_SCREEN -> SettingsFocusTarget.HomeFavoritesToggle
         section == SettingsSection.CHANNEL -> SettingsFocusTarget.ChannelMode(selectedChannelMode)
-        section == SettingsSection.DIAGNOSTICS -> SettingsFocusTarget.DiagnosticsRun
         section == SettingsSection.TORRSERVE -> SettingsFocusTarget.TorrServeBaseUrl
-        section == SettingsSection.PROWLARR -> SettingsFocusTarget.ProwlarrBaseUrl
         section == SettingsSection.UPDATES -> SettingsFocusTarget.UpdateChannel(selectedUpdateMode)
         section == SettingsSection.ACCOUNT -> SettingsFocusTarget.AccountAuth
         section == SettingsSection.ABOUT -> SettingsFocusTarget.AboutGitHubLink
