@@ -245,6 +245,58 @@ val MIGRATION_19_20 = object : Migration(19, 20) {
     }
 }
 
+/**
+ * Миграция 20→21: исправление identity hash — в version 20 могло не быть таблиц кеша избранного
+ * (если устройство обновилось с коммита ab12ca4 без ee7d546). Полная замена таблиц избранного.
+ */
+val MIGRATION_20_21 = object : Migration(20, 21) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("DROP TABLE IF EXISTS `favorite_release_cache`")
+        db.execSQL("DROP TABLE IF EXISTS `favorite_release_cache_metadata`")
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `favorite_release_cache` (
+                `detailsUrl` TEXT NOT NULL,
+                `kind` TEXT NOT NULL,
+                `titleRu` TEXT NOT NULL,
+                `episodeTitleRu` TEXT,
+                `seasonNumber` INTEGER,
+                `episodeNumber` INTEGER,
+                `releaseDateRu` TEXT NOT NULL,
+                `posterUrl` TEXT NOT NULL,
+                `backdropUrl` TEXT,
+                `positionInList` INTEGER NOT NULL,
+                `fetchedAt` INTEGER NOT NULL,
+                `isWatched` INTEGER NOT NULL,
+                `episodeOverviewRu` TEXT,
+                `episodeOverviewSource` TEXT,
+                `seriesOverviewRu` TEXT,
+                `movieOverviewRu` TEXT,
+                `tmdbRating` TEXT,
+                PRIMARY KEY(`detailsUrl`)
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            """
+            CREATE INDEX IF NOT EXISTS `index_favorite_release_cache_fetchedAt`
+            ON `favorite_release_cache` (`fetchedAt`)
+            """.trimIndent(),
+        )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `favorite_release_cache_metadata` (
+                `id` INTEGER NOT NULL,
+                `fetchedAt` INTEGER NOT NULL,
+                `favoriteSeriesCount` INTEGER NOT NULL,
+                `itemCount` INTEGER NOT NULL,
+                PRIMARY KEY(`id`)
+            )
+            """.trimIndent(),
+        )
+    }
+}
+
 /** Список всех миграций для передачи в Room.databaseBuilder. */
 val ALL_MIGRATIONS = arrayOf(
     MIGRATION_5_6,
@@ -262,6 +314,7 @@ val ALL_MIGRATIONS = arrayOf(
     MIGRATION_17_18,
     MIGRATION_18_19,
     MIGRATION_19_20,
+    MIGRATION_20_21,
 )
 
 private fun SupportSQLiteDatabase.hasColumn(tableName: String, columnName: String): Boolean {

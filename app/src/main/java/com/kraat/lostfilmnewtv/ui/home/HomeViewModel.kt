@@ -553,7 +553,9 @@ class HomeViewModel @Inject constructor(
         favoriteLoadJob = viewModelScope.launch(ioDispatcher) {
             try {
                 favoritesRepository.observeFavoriteReleases(pageNumber).collect { result ->
-                    if (favoriteRequestToken != requestToken) return@collect
+                    if (favoriteRequestToken != requestToken) {
+                        return@collect
+                    }
                     _uiState.update { state ->
                         val md = state.modeData(HomeFeedMode.Favorites)
                         when (result) {

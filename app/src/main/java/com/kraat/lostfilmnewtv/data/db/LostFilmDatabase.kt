@@ -12,7 +12,7 @@ import androidx.room.RoomDatabase
         FavoriteReleaseCacheEntity::class,
         FavoriteReleaseCacheMetadataEntity::class,
     ],
-    version = 20,
+    version = 21,
     exportSchema = false,
 )
 abstract class LostFilmDatabase : RoomDatabase() {
