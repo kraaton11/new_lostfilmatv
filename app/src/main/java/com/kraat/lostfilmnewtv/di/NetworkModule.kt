@@ -6,6 +6,7 @@ import com.kraat.lostfilmnewtv.data.network.AuthBridgeClient
 import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.LOSTFILM_MAX_CONCURRENT_REQUESTS
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.network.OkHttpLostFilmHttpClient
+import com.kraat.lostfilmnewtv.data.network.KinoPoiskClient
 import com.kraat.lostfilmnewtv.data.network.TmdbPosterClient
 import dagger.Module
 import dagger.Provides
@@ -122,4 +123,19 @@ object NetworkModule {
     }
 
     private const val AUTH_BRIDGE_BASE_URL = "https://auth.bazuka.pp.ua"
+
+    @Provides
+    @Singleton
+    fun provideKinoPoiskClient(
+        okHttpClient: OkHttpClient,
+        @ApplicationContext context: Context,
+    ): KinoPoiskClient {
+        val cachedClient = okHttpClient.newBuilder()
+            .cache(Cache(File(context.cacheDir, "okhttp_cache_kinopoisk"), 10L * 1024 * 1024))
+            .build()
+        return KinoPoiskClient(
+            okHttpClient = cachedClient,
+            baseUrl = "$AUTH_BRIDGE_BASE_URL/api/kinopoisk",
+        )
+    }
 }

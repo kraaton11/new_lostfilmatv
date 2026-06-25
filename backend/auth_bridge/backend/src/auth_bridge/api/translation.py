@@ -14,7 +14,7 @@ from auth_bridge.services.translation_service import (
 
 
 def build_translation_router() -> APIRouter:
-    router = APIRouter(prefix="/api/translate", tags=["translation"])
+    router = APIRouter(tags=["translation"])
 
     @router.post("", response_model=TranslationResponse)
     def translate(request_body: TranslationRequest, request: Request) -> TranslationResponse:

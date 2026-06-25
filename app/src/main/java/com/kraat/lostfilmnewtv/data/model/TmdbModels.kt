@@ -18,11 +18,31 @@ enum class TmdbEpisodeOverviewSource {
     TMDB_RU,
     TMDB_EN,
     MACHINE_TRANSLATED,
+    KINOPOISK,
 }
 
 data class TmdbEpisodeOverview(
     val text: String,
     val source: TmdbEpisodeOverviewSource,
+)
+
+data class KinoPoiskSearchResult(
+    val filmId: Int,
+    val nameRu: String?,
+    val nameEn: String?,
+    val type: String?,
+    val year: String?,
+    val rating: String?,
+    val posterUrl: String?,
+)
+
+data class KinoPoiskFilmDetails(
+    val posterUrl: String?,
+    val coverUrl: String?,
+    val description: String?,
+    val shortDescription: String?,
+    val ratingKinopoisk: Double?,
+    val ratingImdb: Double?,
 )
 
 data class TmdbImageUrls(

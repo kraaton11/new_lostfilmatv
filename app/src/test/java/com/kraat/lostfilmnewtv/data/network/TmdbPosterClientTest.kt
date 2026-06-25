@@ -377,4 +377,109 @@ class TmdbPosterClientTest {
         assertEquals("Русское описание серии.", result?.text)
         assertEquals(TmdbEpisodeOverviewSource.MACHINE_TRANSLATED, result?.source)
     }
+
+    @Test
+    fun getSeasonImages_requestsSeasonEndpoint() = runTest {
+        val requestedUrls = mutableListOf<String>()
+        val client = TmdbPosterClient(
+            okHttpClient = OkHttpClient.Builder()
+                .addInterceptor(Interceptor { chain ->
+                    val url = chain.request().url.toString()
+                    requestedUrls += url
+                    val body = """
+                        {
+                          "posters": [{"file_path": "/season-poster.jpg"}],
+                          "backdrops": [{"file_path": "/season-backdrop.jpg"}]
+                        }
+                    """.trimIndent()
+
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body(body.toResponseBody())
+                        .build()
+                })
+                .build(),
+            apiKey = "test",
+        )
+
+        val result = client.getSeasonImages(tmdbId = 456, seasonNumber = 3)
+
+        requireNotNull(result)
+        assertEquals("https://image.tmdb.org/t/p/w780/season-poster.jpg", result.posterUrl)
+        assertEquals("https://image.tmdb.org/t/p/w1280/season-backdrop.jpg", result.backdropUrl)
+        assertTrue(requestedUrls.any { it.contains("/tv/456/season/3/images") })
+    }
+
+    @Test
+    fun getSeasonImages_returnsNull_whenNoImagesExist() = runTest {
+        val client = TmdbPosterClient(
+            okHttpClient = OkHttpClient.Builder()
+                .addInterceptor(Interceptor { chain ->
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body("""{"posters": [], "backdrops": []}""".toResponseBody())
+                        .build()
+                })
+                .build(),
+            apiKey = "test",
+        )
+
+        val result = client.getSeasonImages(tmdbId = 456, seasonNumber = 3)
+
+        assertEquals(null, result)
+    }
+
+    @Test
+    fun getSeasonOverviewRu_returnsRussianSeasonOverview() = runTest {
+        var requestedUrl = ""
+        val client = TmdbPosterClient(
+            okHttpClient = OkHttpClient.Builder()
+                .addInterceptor(Interceptor { chain ->
+                    requestedUrl = chain.request().url.toString()
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body("""{"overview": "Описание третьего сезона."}""".toResponseBody())
+                        .build()
+                })
+                .build(),
+            apiKey = "test",
+        )
+
+        val result = client.getSeasonOverviewRu(tmdbId = 456, seasonNumber = 3)
+
+        assertEquals("Описание третьего сезона.", result)
+        assertTrue(requestedUrl.contains("/tv/456/season/3"))
+        assertTrue(requestedUrl.contains("language=ru-RU"))
+    }
+
+    @Test
+    fun getSeasonOverviewRu_returnsNull_whenOverviewIsBlank() = runTest {
+        val client = TmdbPosterClient(
+            okHttpClient = OkHttpClient.Builder()
+                .addInterceptor(Interceptor { chain ->
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body("""{"overview": ""}""".toResponseBody())
+                        .build()
+                })
+                .build(),
+            apiKey = "test",
+        )
+
+        val result = client.getSeasonOverviewRu(tmdbId = 456, seasonNumber = 3)
+
+        assertEquals(null, result)
+    }
 }

@@ -8,6 +8,9 @@ import com.kraat.lostfilmnewtv.data.model.TmdbSearchResult
 import android.util.Log
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
@@ -20,6 +23,7 @@ private const val TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/"
 private const val POSTER_SIZE = "w780"
 private const val BACKDROP_SIZE = "w1280"
 private const val TAG = "TmdbPosterClient"
+private const val TMDB_RATE_LIMIT_MS = 300L
 
 open class TmdbPosterClient(
     private val okHttpClient: OkHttpClient,
@@ -49,6 +53,7 @@ open class TmdbPosterClient(
             .tmdbHeaders()
             .build()
 
+        rateLimit()
         okHttpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
                 throw IOException("TMDB HTTP ${response.code} for $url")
@@ -116,7 +121,7 @@ open class TmdbPosterClient(
             ?: fetchImages(imagesBaseUrl, language = null)
     }
 
-    private fun fetchImages(baseUrl: String, language: String?): TmdbImageUrls? {
+    private suspend fun fetchImages(baseUrl: String, language: String?): TmdbImageUrls? {
         val url = if (language != null) {
             "$baseUrl?language=$language&include_image_language=$language,null"
         } else {
@@ -128,6 +133,7 @@ open class TmdbPosterClient(
             .tmdbHeaders()
             .build()
 
+        rateLimit()
         okHttpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
                 Log.w(TAG, "TMDB image fetch failed: HTTP ${response.code} for $url")
@@ -220,12 +226,13 @@ open class TmdbPosterClient(
             ?.takeIf { it.isNotBlank() }
     }
 
-    private fun fetchOverview(url: String): String? {
+    private suspend fun fetchOverview(url: String): String? {
         val request = Request.Builder()
             .url(url.withTmdbApiKey())
             .tmdbHeaders()
             .build()
 
+        rateLimit()
         okHttpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
                 Log.w(TAG, "TMDB overview fetch failed: HTTP ${response.code} for $url")
@@ -245,6 +252,7 @@ open class TmdbPosterClient(
             .tmdbHeaders()
             .build()
 
+        rateLimit()
         okHttpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
                 Log.w(TAG, "TMDB series overview fetch failed: HTTP ${response.code} for tmdbId=$tmdbId")
@@ -264,9 +272,61 @@ open class TmdbPosterClient(
             .tmdbHeaders()
             .build()
 
+        rateLimit()
         okHttpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
                 Log.w(TAG, "TMDB movie overview fetch failed: HTTP ${response.code} for tmdbId=$tmdbId")
+                return@withContext null
+            }
+            val body = response.body?.string() ?: return@withContext null
+            JSONObject(body).optString("overview", "")
+                .trim()
+                .takeIf { it.isNotBlank() }
+        }
+    }
+
+    /**
+     * Fetch season-specific poster and backdrop from TMDB.
+     * Returns `null` when the season has no images at all.
+     */
+    open suspend fun getSeasonImages(
+        tmdbId: Int,
+        seasonNumber: Int,
+    ): TmdbImageUrls? = withContext(Dispatchers.IO) {
+        val imagesBaseUrl = "${baseUrl.trimEnd('/')}/tv/$tmdbId/season/$seasonNumber/images"
+        val russianImages = fetchImages(imagesBaseUrl, language = "ru")
+        if (russianImages.hasPosterAndBackdrop()) {
+            return@withContext russianImages
+        }
+
+        val englishImages = if (russianImages.needsEnglishFallback()) {
+            fetchImages(imagesBaseUrl, language = "en")
+        } else {
+            null
+        }
+
+        mergeImages(russianImages, englishImages)
+            ?: fetchImages(imagesBaseUrl, language = null)
+    }
+
+    /**
+     * Fetch season-specific overview (description) from TMDB in Russian.
+     */
+    open suspend fun getSeasonOverviewRu(
+        tmdbId: Int,
+        seasonNumber: Int,
+    ): String? = withContext(Dispatchers.IO) {
+        val url = "${baseUrl.trimEnd('/')}/tv/$tmdbId/season/$seasonNumber?language=ru-RU"
+            .withTmdbApiKey()
+        val request = Request.Builder()
+            .url(url)
+            .tmdbHeaders()
+            .build()
+
+        rateLimit()
+        okHttpClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                Log.w(TAG, "TMDB season overview fetch failed: HTTP ${response.code} for tmdbId=$tmdbId s=$seasonNumber")
                 return@withContext null
             }
             val body = response.body?.string() ?: return@withContext null
@@ -290,6 +350,7 @@ open class TmdbPosterClient(
             .tmdbHeaders()
             .build()
 
+        rateLimit()
         okHttpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
                 Log.w(TAG, "TMDB rating fetch failed: HTTP ${response.code} for $endpoint")
@@ -317,6 +378,22 @@ open class TmdbPosterClient(
             header("Authorization", "Bearer $bearerToken")
         }
         return this
+    }
+
+    private companion object {
+        private val rateLimitMutex = Mutex()
+        private var lastRateLimitedCallMs = 0L
+
+        suspend fun rateLimit() {
+            rateLimitMutex.withLock {
+                val now = System.currentTimeMillis()
+                val elapsed = now - lastRateLimitedCallMs
+                if (elapsed < TMDB_RATE_LIMIT_MS) {
+                    delay(TMDB_RATE_LIMIT_MS - elapsed)
+                }
+                lastRateLimitedCallMs = System.currentTimeMillis()
+            }
+        }
     }
 }
 

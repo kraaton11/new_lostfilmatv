@@ -662,7 +662,7 @@ class TmdbPosterResolverTest {
         assertEquals("https://image.tmdb.org/t/p/w780/911-poster.jpg", result?.posterUrl)
         assertEquals(listOf("9-1-1" to null), searchRequests)
         assertEquals(75219, dao.upserted?.tmdbId)
-        assertEquals("https://www.lostfilm.today/series/9-1-1/", dao.upserted?.detailsUrl)
+        assertEquals("https://www.lostfilm.today/series/9-1-1/season_9/", dao.upserted?.detailsUrl)
     }
 
     @Test
@@ -707,7 +707,7 @@ class TmdbPosterResolverTest {
         assertEquals("https://image.tmdb.org/t/p/w780/monarch-poster.jpg", episode9?.posterUrl)
         assertEquals("https://image.tmdb.org/t/p/w780/monarch-poster.jpg", episode10?.posterUrl)
         assertEquals(1, searchCalls)
-        assertEquals("https://www.lostfilm.today/series/Monarch_Legacy_of_Monsters/", dao.upserted?.detailsUrl)
+        assertEquals("https://www.lostfilm.today/series/Monarch_Legacy_of_Monsters/season_2/", dao.upserted?.detailsUrl)
     }
 
     @Test
@@ -729,6 +729,114 @@ class TmdbPosterResolverTest {
 
         assertNull(result)
         assertNull(dao.upserted)
+    }
+
+    @Test
+    fun resolve_usesSeasonPoster_whenAvailable() = runTest {
+        val dao = FakeTmdbPosterDao()
+        val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType): List<TmdbSearchResult> {
+                return listOf(TmdbSearchResult(id = 888, name = "The Terror", popularity = 10.0, rating = "8.1"))
+            }
+
+            override suspend fun getPosterAndBackdrop(tmdbId: Int, type: TmdbMediaType): TmdbImageUrls {
+                return TmdbImageUrls(
+                    posterUrl = "https://image.tmdb.org/t/p/w780/series-poster.jpg",
+                    backdropUrl = "https://image.tmdb.org/t/p/w1280/series-backdrop.jpg",
+                )
+            }
+
+            override suspend fun getSeasonImages(tmdbId: Int, seasonNumber: Int): TmdbImageUrls {
+                assertEquals(888, tmdbId)
+                assertEquals(3, seasonNumber)
+                return TmdbImageUrls(
+                    posterUrl = "https://image.tmdb.org/t/p/w780/season3-poster.jpg",
+                    backdropUrl = "https://image.tmdb.org/t/p/w1280/season3-backdrop.jpg",
+                )
+            }
+        }
+        val resolver = TmdbPosterResolverImpl(client, dao)
+
+        val result = resolver.resolve(
+            detailsUrl = "https://www.lostfilm.today/series/The_Terror/season_3/episode_1/",
+            titleRu = "Террор",
+            releaseDateRu = "05.06.2026",
+            kind = ReleaseKind.SERIES,
+        )
+
+        assertNotNull(result)
+        assertEquals("https://image.tmdb.org/t/p/w780/season3-poster.jpg", result?.posterUrl)
+    }
+
+    @Test
+    fun resolve_fallsBackToSeriesPoster_whenSeasonHasNoImages() = runTest {
+        val dao = FakeTmdbPosterDao()
+        val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType): List<TmdbSearchResult> {
+                return listOf(TmdbSearchResult(id = 888, name = "The Terror", popularity = 10.0, rating = "8.1"))
+            }
+
+            override suspend fun getPosterAndBackdrop(tmdbId: Int, type: TmdbMediaType): TmdbImageUrls {
+                return TmdbImageUrls(
+                    posterUrl = "https://image.tmdb.org/t/p/w780/series-poster.jpg",
+                    backdropUrl = "https://image.tmdb.org/t/p/w1280/series-backdrop.jpg",
+                )
+            }
+
+            override suspend fun getSeasonImages(tmdbId: Int, seasonNumber: Int): TmdbImageUrls? {
+                return null
+            }
+        }
+        val resolver = TmdbPosterResolverImpl(client, dao)
+
+        val result = resolver.resolve(
+            detailsUrl = "https://www.lostfilm.today/series/The_Terror/season_3/episode_1/",
+            titleRu = "Террор",
+            releaseDateRu = "05.06.2026",
+            kind = ReleaseKind.SERIES,
+        )
+
+        assertNotNull(result)
+        assertEquals("https://image.tmdb.org/t/p/w780/series-poster.jpg", result?.posterUrl)
+        assertEquals("https://image.tmdb.org/t/p/w1280/series-backdrop.jpg", result?.backdropUrl)
+    }
+
+    @Test
+    fun resolve_usesSeasonOverview_whenAvailable() = runTest {
+        val dao = FakeTmdbPosterDao()
+        val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType): List<TmdbSearchResult> {
+                return listOf(TmdbSearchResult(id = 888, name = "The Terror", popularity = 10.0, rating = "8.1"))
+            }
+
+            override suspend fun getPosterAndBackdrop(tmdbId: Int, type: TmdbMediaType): TmdbImageUrls {
+                return TmdbImageUrls(
+                    posterUrl = "https://image.tmdb.org/t/p/w780/series-poster.jpg",
+                    backdropUrl = "https://image.tmdb.org/t/p/w1280/series-backdrop.jpg",
+                )
+            }
+
+            override suspend fun getSeriesOverviewRu(tmdbId: Int): String {
+                return "Описание всего сериала Террор."
+            }
+
+            override suspend fun getSeasonOverviewRu(tmdbId: Int, seasonNumber: Int): String {
+                assertEquals(888, tmdbId)
+                assertEquals(3, seasonNumber)
+                return "Описание третьего сезона Террор."
+            }
+        }
+        val resolver = TmdbPosterResolverImpl(client, dao)
+
+        val result = resolver.resolve(
+            detailsUrl = "https://www.lostfilm.today/series/The_Terror/season_3/episode_1/",
+            titleRu = "Террор",
+            releaseDateRu = "05.06.2026",
+            kind = ReleaseKind.SERIES,
+        )
+
+        assertNotNull(result)
+        assertEquals("Описание третьего сезона Террор.", result?.seriesOverviewRu)
     }
 }
 

@@ -8,6 +8,8 @@ import com.kraat.lostfilmnewtv.data.model.TmdbEpisodeOverview
 import com.kraat.lostfilmnewtv.data.model.TmdbImageUrls
 import com.kraat.lostfilmnewtv.data.model.TmdbMediaType
 import com.kraat.lostfilmnewtv.data.model.TmdbSearchResult
+import com.kraat.lostfilmnewtv.data.model.TmdbEpisodeOverviewSource
+import com.kraat.lostfilmnewtv.data.network.KinoPoiskClient
 import com.kraat.lostfilmnewtv.data.network.TmdbPosterClient
 import java.util.LinkedHashMap
 import java.util.concurrent.ConcurrentHashMap
@@ -16,6 +18,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -26,6 +29,9 @@ private const val SERIES_YEAR_HINT_FIX_CACHE_MIN_FETCHED_AT_MS = 1777867930731L 
 private const val TMDB_RATING_CACHE_MIN_FETCHED_AT_MS = 1778025600000L // 2026-05-06
 private const val TMDB_BEST_IMAGE_CACHE_MIN_FETCHED_AT_MS = 1778716800000L // 2026-05-14
 private const val MEMORY_CACHE_MAX_SIZE = 500
+private const val EPISODE_OVERVIEW_NEGATIVE_TTL_MS = 24L * 60 * 60 * 1000 // 24 hours
+private const val SEASON_OVERVIEW_NEGATIVE_TTL_MS = 24L * 60 * 60 * 1000 // 24 hours
+private const val SEASON_OVERVIEW_RATE_LIMIT_MS = 150L
 private val seasonNumberRegex = Regex("""/season_(\d+)/""")
 private val episodeNumberRegex = Regex("""/episode_(\d+)/?""")
 private val tmdbMatchSeparatorsRegex = Regex("[^a-z0-9а-я]+")
@@ -36,6 +42,7 @@ private val slugYearSuffixRegex = Regex("""[ _-]+(?:19|20)\d{2}$""")
 private val seriesSlugRegex = Regex("""/series/([^/?#]+)""")
 private val movieSlugRegex = Regex("""/movies/([^/?#]+)""")
 private val seriesCacheKeyRegex = Regex("""^(.*/series/[^/?#]+)""")
+private val seriesSeasonCacheKeyRegex = Regex("""^(.*/series/[^/?#]+/season_\d+)""")
 private val movieCacheKeyRegex = Regex("""^(.*/movies/[^/?#]+)""")
 
 interface TmdbPosterResolver {
@@ -51,13 +58,19 @@ interface TmdbPosterResolver {
 class TmdbPosterResolverImpl(
     private val tmdbClient: TmdbPosterClient,
     private val tmdbDao: TmdbPosterDao,
+    private val kinoPoiskClient: KinoPoiskClient? = null,
     private val clock: () -> Long = { System.currentTimeMillis() },
 ) : TmdbPosterResolver {
     private val inMemoryCache = LruMemoryCache<String, TmdbImageUrls>(MEMORY_CACHE_MAX_SIZE)
     private val negativeMemoryCache = LruMemoryCache<String, Unit>(MEMORY_CACHE_MAX_SIZE)
     private val inMemoryTmdbIdCache = LruMemoryCache<String, Int>(MEMORY_CACHE_MAX_SIZE)
     private val episodeOverviewCache = LruMemoryCache<String, TmdbEpisodeOverview>(MEMORY_CACHE_MAX_SIZE)
+    private val episodeOverviewNegativeCache = LruMemoryCache<String, Long>(MEMORY_CACHE_MAX_SIZE)
     private val seriesOverviewCache = LruMemoryCache<Int, String>(MEMORY_CACHE_MAX_SIZE)
+    private val seasonOverviewCache = LruMemoryCache<Int, String>(MEMORY_CACHE_MAX_SIZE)
+    private val seasonOverviewNegativeCache = LruMemoryCache<Int, Long>(MEMORY_CACHE_MAX_SIZE)
+    private val seasonOverviewMutex = Mutex()
+    private var lastSeasonOverviewCallMs = 0L
     private val movieOverviewCache = LruMemoryCache<Int, String>(MEMORY_CACHE_MAX_SIZE)
     private val locks = ConcurrentHashMap<String, LockEntry>()
 
@@ -71,18 +84,28 @@ class TmdbPosterResolverImpl(
         val cacheKey = tmdbCacheKey(detailsUrl, kind)
         val hasTmdbIdOverride = tmdbIdOverride(extractEnglishSlug(detailsUrl), kind) != null
 
-        inMemoryCache[cacheKey]?.let {
+        inMemoryCache[cacheKey]?.let { cached ->
+            val cachedTmdbId = inMemoryTmdbIdCache[cacheKey]
+            if (cached.seriesOverviewRu != null || cached.movieOverviewRu != null) {
+                val episodeOverview = if (cached.episodeOverviewRu == null && cachedTmdbId != null) {
+                    resolveEpisodeOverview(detailsUrl, cachedTmdbId, kind)
+                } else null
+                return cached.copy(
+                    episodeOverviewRu = episodeOverview?.text,
+                    episodeOverviewSource = episodeOverview?.source?.name,
+                )
+            }
             val overviews = resolveOverviews(
                 detailsUrl = detailsUrl,
-                tmdbId = inMemoryTmdbIdCache[cacheKey],
+                tmdbId = cachedTmdbId,
                 kind = kind,
             )
-            return it.copy(
+            return cached.copy(
                 episodeOverviewRu = overviews.episodeOverview?.text,
                 episodeOverviewSource = overviews.episodeOverview?.source?.name,
                 seriesOverviewRu = overviews.seriesOverviewRu,
                 movieOverviewRu = overviews.movieOverviewRu,
-                rating = it.rating,
+                rating = cached.rating,
             )
         }
         if (!hasTmdbIdOverride && negativeMemoryCache[cacheKey] != null) {
@@ -115,18 +138,28 @@ class TmdbPosterResolverImpl(
         }
 
         return withKeyLock(cacheKey) {
-            inMemoryCache[cacheKey]?.let {
+            inMemoryCache[cacheKey]?.let { cached ->
+                val cachedTmdbId = inMemoryTmdbIdCache[cacheKey]
+                if (cached.seriesOverviewRu != null || cached.movieOverviewRu != null) {
+                    val episodeOverview = if (cached.episodeOverviewRu == null && cachedTmdbId != null) {
+                        resolveEpisodeOverview(detailsUrl, cachedTmdbId, kind)
+                    } else null
+                    return@withKeyLock cached.copy(
+                        episodeOverviewRu = episodeOverview?.text,
+                        episodeOverviewSource = episodeOverview?.source?.name,
+                    )
+                }
                 val overviews = resolveOverviews(
                     detailsUrl = detailsUrl,
-                    tmdbId = inMemoryTmdbIdCache[cacheKey],
+                    tmdbId = cachedTmdbId,
                     kind = kind,
                 )
-                return@withKeyLock it.copy(
+                return@withKeyLock cached.copy(
                     episodeOverviewRu = overviews.episodeOverview?.text,
                     episodeOverviewSource = overviews.episodeOverview?.source?.name,
                     seriesOverviewRu = overviews.seriesOverviewRu,
                     movieOverviewRu = overviews.movieOverviewRu,
-                    rating = it.rating,
+                    rating = cached.rating,
                 )
             }
             if (!hasTmdbIdOverride && negativeMemoryCache[cacheKey] != null) {
@@ -296,6 +329,17 @@ class TmdbPosterResolverImpl(
 
         if (bestMatch == null) {
             Log.d(TAG, "No TMDB results for $titleRu")
+            // Try KinoPoisk as a fallback before giving up.
+            val kpResult = tryKinoPoiskFallback(
+                cacheKey = cacheKey,
+                detailsUrl = detailsUrl,
+                titleRu = titleRu,
+                englishSlug = englishSlug,
+                kind = kind,
+            )
+            if (kpResult != null) {
+                return kpResult
+            }
             if (!searchFailed) {
                 tmdbDao.upsert(
                     TmdbPosterMappingEntity.negative(
@@ -310,13 +354,30 @@ class TmdbPosterResolverImpl(
         }
 
         val rating = bestMatch.rating ?: resolveRating(bestMatch.id, kind)
-        val images = try {
+        val seriesImages = try {
             tmdbClient.getPosterAndBackdrop(bestMatch.id, tmdbType)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Log.e(TAG, "TMDB images failed for ${bestMatch.name}: ${e.message}")
             null
+        }
+
+        // Try season-specific images when a season number is present in the URL.
+        val seasonNumber = seasonNumberRegex.find(detailsUrl)
+            ?.groupValues?.getOrNull(1)?.toIntOrNull()
+        val images = if (kind == ReleaseKind.SERIES && seasonNumber != null) {
+            val seasonImages = try {
+                tmdbClient.getSeasonImages(bestMatch.id, seasonNumber)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "TMDB season images failed for ${bestMatch.name} S$seasonNumber: ${e.message}")
+                null
+            }
+            mergeSeasonAndSeriesImages(seasonImages, seriesImages)
+        } else {
+            seriesImages
         }
 
         if (images == null && rating.isNullOrBlank()) {
@@ -358,6 +419,96 @@ class TmdbPosterResolverImpl(
         )
     }
 
+    private suspend fun tryKinoPoiskFallback(
+        cacheKey: String,
+        detailsUrl: String,
+        titleRu: String,
+        englishSlug: String?,
+        kind: ReleaseKind,
+    ): TmdbImageUrls? {
+        val kpClient = kinoPoiskClient ?: return null
+
+        try {
+            // Search KP by Russian title first, then by English slug.
+            val kpMatch = kpClient.searchByKeyword(titleRu)
+                ?: englishSlug?.takeIf { it.isNotBlank() }?.let { kpClient.searchByKeyword(it) }
+                ?: return null
+
+            Log.d(TAG, "KP fallback match: filmId=${kpMatch.filmId}, name='${kpMatch.nameRu ?: kpMatch.nameEn}'")
+
+            val filmDetails = kpClient.getFilmDetails(kpMatch.filmId)
+
+            val posterUrl = filmDetails?.posterUrl ?: kpMatch.posterUrl.orEmpty()
+            val backdropUrl = filmDetails?.coverUrl.orEmpty()
+            val rating = filmDetails?.ratingKinopoisk?.let { "%.1f".format(java.util.Locale.US, it) }
+                ?: kpMatch.rating
+
+            // Resolve episode synopsis from KP.
+            val seasonNumber = seasonNumberRegex.find(detailsUrl)
+                ?.groupValues?.getOrNull(1)?.toIntOrNull()
+            val episodeNumber = episodeNumberRegex.find(detailsUrl)
+                ?.groupValues?.getOrNull(1)?.toIntOrNull()
+
+            var episodeOverview: TmdbEpisodeOverview? = null
+            if (kind == ReleaseKind.SERIES && seasonNumber != null && episodeNumber != null) {
+                kpClient.getEpisodeSynopsis(kpMatch.filmId, seasonNumber, episodeNumber)
+                    ?.let { synopsis ->
+                        episodeOverview = TmdbEpisodeOverview(
+                            text = synopsis,
+                            source = TmdbEpisodeOverviewSource.KINOPOISK,
+                        )
+                    }
+            }
+
+            val seriesOverview = if (kind == ReleaseKind.SERIES) {
+                filmDetails?.description
+            } else {
+                null
+            }
+            val movieOverview = if (kind == ReleaseKind.MOVIE) {
+                filmDetails?.description
+            } else {
+                null
+            }
+
+            val tmdbType = when (kind) {
+                ReleaseKind.SERIES -> TmdbMediaType.TV
+                ReleaseKind.MOVIE -> TmdbMediaType.MOVIE
+            }
+
+            val entity = TmdbPosterMappingEntity.create(
+                detailsUrl = cacheKey,
+                tmdbId = kpMatch.filmId,
+                tmdbType = tmdbType.name,
+                posterUrl = posterUrl,
+                backdropUrl = backdropUrl,
+                fetchedAt = clock(),
+                rating = rating,
+            )
+            tmdbDao.upsert(entity)
+            inMemoryTmdbIdCache[cacheKey] = kpMatch.filmId
+
+            val images = TmdbImageUrls(
+                posterUrl = posterUrl,
+                backdropUrl = backdropUrl,
+                episodeOverviewRu = episodeOverview?.text,
+                episodeOverviewSource = episodeOverview?.source?.name,
+                seriesOverviewRu = seriesOverview,
+                movieOverviewRu = movieOverview,
+                rating = rating,
+            )
+            inMemoryCache[cacheKey] = images.copy(episodeOverviewRu = null, episodeOverviewSource = null)
+
+            Log.d(TAG, "KP fallback success: poster=${posterUrl.take(60)}..., rating=$rating")
+            return images
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "KP fallback failed for $titleRu: ${e.message}")
+            return null
+        }
+    }
+
     private suspend fun resolveOverviews(
         detailsUrl: String,
         tmdbId: Int?,
@@ -370,7 +521,7 @@ class TmdbPosterResolverImpl(
         val overviews = coroutineScope {
             listOf(
                 async { resolveEpisodeOverview(detailsUrl, tmdbId, kind) },
-                async { resolveSeriesOverview(tmdbId, kind) },
+                async { resolveSeriesOverview(detailsUrl, tmdbId, kind) },
                 async { resolveMovieOverview(tmdbId, kind) },
             ).awaitAll()
         }
@@ -424,12 +575,53 @@ class TmdbPosterResolverImpl(
     }
 
     private suspend fun resolveSeriesOverview(
+        detailsUrl: String,
         tmdbId: Int,
         kind: ReleaseKind,
     ): String? {
         if (kind != ReleaseKind.SERIES || tmdbId <= 0) {
             return null
         }
+
+        // Try season-specific overview first.
+        val seasonNumber = seasonNumberRegex.find(detailsUrl)
+            ?.groupValues?.getOrNull(1)?.toIntOrNull()
+        if (seasonNumber != null) {
+            val seasonCacheKey = tmdbId * 1000 + seasonNumber
+            seasonOverviewCache[seasonCacheKey]?.let { return it }
+            seasonOverviewNegativeCache[seasonCacheKey]?.let { cachedAt ->
+                if (clock() - cachedAt < SEASON_OVERVIEW_NEGATIVE_TTL_MS) return null
+            }
+            try {
+                // Rate-limit season overview calls to avoid TMDB 429.
+                seasonOverviewMutex.withLock {
+                    seasonOverviewCache[seasonCacheKey]?.let { return@withLock it }
+                    seasonOverviewNegativeCache[seasonCacheKey]?.let { cachedAt ->
+                        if (clock() - cachedAt < SEASON_OVERVIEW_NEGATIVE_TTL_MS) return@withLock null
+                    }
+                    val now = clock()
+                    val elapsed = now - lastSeasonOverviewCallMs
+                    if (elapsed < SEASON_OVERVIEW_RATE_LIMIT_MS) {
+                        delay(SEASON_OVERVIEW_RATE_LIMIT_MS - elapsed)
+                    }
+                    lastSeasonOverviewCallMs = clock()
+                    tmdbClient.getSeasonOverviewRu(tmdbId, seasonNumber)?.let { overview ->
+                        seasonOverviewCache[seasonCacheKey] = overview
+                        return@withLock overview
+                    } ?: run {
+                        seasonOverviewNegativeCache[seasonCacheKey] = clock()
+                        return@withLock null
+                    }
+                }?.let { return it }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "TMDB season overview failed for id=$tmdbId s=$seasonNumber: ${e.message}")
+                seasonOverviewNegativeCache[seasonCacheKey] = clock()
+            }
+        }
+
+        // Fall back to series-level overview.
         seriesOverviewCache[tmdbId]?.let { return it }
 
         return try {
@@ -465,10 +657,18 @@ class TmdbPosterResolverImpl(
             ?: return null
         val overviewKey = "$tmdbId:$seasonNumber:$episodeNumber"
         episodeOverviewCache[overviewKey]?.let { return it }
+        episodeOverviewNegativeCache[overviewKey]?.let { cachedAt ->
+            if (clock() - cachedAt < EPISODE_OVERVIEW_NEGATIVE_TTL_MS) return null
+        }
 
         return try {
-            tmdbClient.getEpisodeOverview(tmdbId, seasonNumber, episodeNumber)
-                ?.also { episodeOverviewCache[overviewKey] = it }
+            val result = tmdbClient.getEpisodeOverview(tmdbId, seasonNumber, episodeNumber)
+            if (result != null) {
+                episodeOverviewCache[overviewKey] = result
+            } else {
+                episodeOverviewNegativeCache[overviewKey] = clock()
+            }
+            result
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -561,10 +761,33 @@ class TmdbPosterResolverImpl(
             ?.replace('_', ' ')
     }
 
+    /**
+     * Prefer season-specific poster/backdrop; fall back to series-level images for
+     * whichever field the season endpoint did not provide.
+     */
+    private fun mergeSeasonAndSeriesImages(
+        seasonImages: TmdbImageUrls?,
+        seriesImages: TmdbImageUrls?,
+    ): TmdbImageUrls? {
+        if (seasonImages == null) return seriesImages
+        if (seriesImages == null) return seasonImages
+        val posterUrl = seasonImages.posterUrl.ifBlank { seriesImages.posterUrl }
+        val backdropUrl = seasonImages.backdropUrl.ifBlank { seriesImages.backdropUrl }
+        if (posterUrl.isBlank() && backdropUrl.isBlank()) return null
+        return TmdbImageUrls(posterUrl = posterUrl, backdropUrl = backdropUrl)
+    }
+
     private fun tmdbCacheKey(detailsUrl: String, kind: ReleaseKind): String {
-        val seriesMatch = seriesCacheKeyRegex.find(detailsUrl)
-        if (kind == ReleaseKind.SERIES && seriesMatch != null) {
-            return "${seriesMatch.groupValues[1]}/"
+        if (kind == ReleaseKind.SERIES) {
+            // Prefer season-level key (/series/<slug>/season_N/) when URL contains season.
+            val seasonMatch = seriesSeasonCacheKeyRegex.find(detailsUrl)
+            if (seasonMatch != null) {
+                return "${seasonMatch.groupValues[1]}/"
+            }
+            val seriesMatch = seriesCacheKeyRegex.find(detailsUrl)
+            if (seriesMatch != null) {
+                return "${seriesMatch.groupValues[1]}/"
+            }
         }
 
         val movieMatch = movieCacheKeyRegex.find(detailsUrl)

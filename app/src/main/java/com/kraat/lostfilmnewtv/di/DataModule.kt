@@ -6,6 +6,7 @@ import com.kraat.lostfilmnewtv.data.auth.EncryptedSessionStore
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
 import com.kraat.lostfilmnewtv.data.db.TmdbPosterDao
 import com.kraat.lostfilmnewtv.data.network.AuthBridgeClient
+import com.kraat.lostfilmnewtv.data.network.KinoPoiskClient
 import com.kraat.lostfilmnewtv.data.network.LostFilmSessionVerifier
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.network.TmdbPosterClient
@@ -53,7 +54,8 @@ object DataModule {
     fun provideTmdbPosterResolver(
         tmdbClient: TmdbPosterClient,
         tmdbDao: TmdbPosterDao,
-    ): TmdbPosterResolver = TmdbPosterResolverImpl(tmdbClient, tmdbDao)
+        kinoPoiskClient: KinoPoiskClient,
+    ): TmdbPosterResolver = TmdbPosterResolverImpl(tmdbClient, tmdbDao, kinoPoiskClient)
 
     @Provides
     @Singleton

@@ -93,7 +93,13 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                 .collectAsStateWithLifecycle()
 
             LaunchedEffect(Unit) { homeViewModel.onStart() }
-            LaunchedEffect(isAuthenticated) { homeViewModel.onFavoriteContentInvalidated() }
+            var previousAuthState by remember { mutableStateOf(isAuthenticated) }
+            LaunchedEffect(isAuthenticated) {
+                if (isAuthenticated != previousAuthState) {
+                    previousAuthState = isAuthenticated
+                    homeViewModel.onFavoriteContentInvalidated()
+                }
+            }
 
             LaunchedEffect(watchedDetailsUrl, watchedChangedState) {
                 val url = watchedDetailsUrl

@@ -12,27 +12,27 @@ import httpx
 logger = logging.getLogger(__name__)
 
 
-class TmdbProxyDisabledError(Exception):
-    """Raised when TMDB proxy credentials are not configured."""
+class KinopoiskProxyDisabledError(Exception):
+    """Raised when KinoPoisk proxy credentials are not configured."""
 
 
-class TmdbProxyPathError(Exception):
-    """Raised when a client asks for an unsupported TMDB endpoint."""
+class KinopoiskProxyPathError(Exception):
+    """Raised when a client asks for an unsupported KinoPoisk endpoint."""
 
 
-class TmdbProxyUpstreamError(Exception):
-    """Raised when TMDB cannot complete the request."""
+class KinopoiskProxyUpstreamError(Exception):
+    """Raised when KinoPoisk cannot complete the request."""
 
 
 @dataclass(frozen=True)
-class TmdbProxyResponse:
+class KinopoiskProxyResponse:
     body: bytes
     status_code: int
     content_type: str
 
 
 @dataclass(frozen=True)
-class TmdbProxySnapshot:
+class KinopoiskProxySnapshot:
     configured: bool
     cache_entries: int
     requests: int
@@ -48,53 +48,44 @@ class TmdbProxySnapshot:
 
 
 @dataclass
-class _CachedTmdbResponse:
-    response: TmdbProxyResponse
+class _CachedKinopoiskResponse:
+    response: KinopoiskProxyResponse
     expires_at: float
 
 
-_SEARCH_RE = re.compile(r"^search/(tv|movie)$")
-_IMAGES_RE = re.compile(r"^(tv|movie)/[1-9]\d*/images$")
-_SEASON_IMAGES_RE = re.compile(r"^tv/[1-9]\d*/season/[1-9]\d*/images$")
-_DETAILS_RE = re.compile(r"^(tv|movie)/[1-9]\d*$")
-_SEASON_DETAILS_RE = re.compile(r"^tv/[1-9]\d*/season/[1-9]\d*$")
-_EPISODE_RE = re.compile(r"^tv/[1-9]\d*/season/[1-9]\d*/episode/[1-9]\d*$")
+_SEARCH_RE = re.compile(r"^v2\.1/films/search-by-keyword$")
+_DETAILS_RE = re.compile(r"^v2\.2/films/[1-9]\d*$")
+_SEASONS_RE = re.compile(r"^v2\.2/films/[1-9]\d*/seasons$")
 
 _ALLOWED_QUERY_PARAMS = {
-    "query",
-    "language",
-    "include_adult",
-    "first_air_date_year",
-    "release_year",
-    "include_image_language",
+    "keyword",
+    "page",
 }
 
 
-class TmdbProxyService:
+class KinopoiskProxyService:
     def __init__(
         self,
         api_key: str,
-        bearer_token: str,
         base_url: str,
         timeout_seconds: float,
         cache_max_entries: int = 5000,
         cache_ttl_search_seconds: int = 7 * 24 * 60 * 60,
-        cache_ttl_images_seconds: int = 30 * 24 * 60 * 60,
         cache_ttl_details_seconds: int = 7 * 24 * 60 * 60,
+        cache_ttl_seasons_seconds: int = 7 * 24 * 60 * 60,
         cache_ttl_negative_seconds: int = 24 * 60 * 60,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         self._api_key = api_key.strip()
-        self._bearer_token = bearer_token.strip()
         self._base_url = base_url.rstrip("/")
         self._timeout = httpx.Timeout(timeout_seconds)
         self._transport = transport
         self._cache_max_entries = max(0, cache_max_entries)
         self._cache_ttl_search_seconds = max(0, cache_ttl_search_seconds)
-        self._cache_ttl_images_seconds = max(0, cache_ttl_images_seconds)
         self._cache_ttl_details_seconds = max(0, cache_ttl_details_seconds)
+        self._cache_ttl_seasons_seconds = max(0, cache_ttl_seasons_seconds)
         self._cache_ttl_negative_seconds = max(0, cache_ttl_negative_seconds)
-        self._cache: OrderedDict[str, _CachedTmdbResponse] = OrderedDict()
+        self._cache: OrderedDict[str, _CachedKinopoiskResponse] = OrderedDict()
         self._locks: dict[str, RLock] = {}
         self._lock = RLock()
         self._requests = 0
@@ -107,12 +98,12 @@ class TmdbProxyService:
 
     @property
     def configured(self) -> bool:
-        return bool(self._api_key or self._bearer_token)
+        return bool(self._api_key)
 
-    def snapshot(self) -> TmdbProxySnapshot:
+    def snapshot(self) -> KinopoiskProxySnapshot:
         with self._lock:
             self._prune_expired_cache_locked(time.time())
-            return TmdbProxySnapshot(
+            return KinopoiskProxySnapshot(
                 configured=self.configured,
                 cache_entries=len(self._cache),
                 requests=self._requests,
@@ -124,7 +115,7 @@ class TmdbProxyService:
                 rejected_requests=self._rejected_requests,
             )
 
-    def fetch(self, path: str, query_params: list[tuple[str, str]]) -> TmdbProxyResponse:
+    def fetch(self, path: str, query_params: list[tuple[str, str]]) -> KinopoiskProxyResponse:
         with self._lock:
             self._requests += 1
 
@@ -133,13 +124,13 @@ class TmdbProxyService:
         if allowed_kind is None:
             with self._lock:
                 self._rejected_requests += 1
-            raise TmdbProxyPathError("Unsupported TMDB endpoint.")
+            raise KinopoiskProxyPathError("Unsupported KinoPoisk endpoint.")
 
         filtered_query = self._filter_query(query_params)
         if not self.configured:
             with self._lock:
                 self._disabled_errors += 1
-            raise TmdbProxyDisabledError("TMDB proxy credentials are not configured.")
+            raise KinopoiskProxyDisabledError("KinoPoisk proxy credentials are not configured.")
 
         cache_key = self._cache_key(normalized_path, filtered_query)
         cached = self._get_cached(cache_key)
@@ -162,13 +153,12 @@ class TmdbProxyService:
         self,
         normalized_path: str,
         query_params: list[tuple[str, str]],
-    ) -> TmdbProxyResponse:
+    ) -> KinopoiskProxyResponse:
         params = list(query_params)
-        headers = {"Accept": "application/json"}
-        if self._bearer_token:
-            headers["Authorization"] = f"Bearer {self._bearer_token}"
-        elif self._api_key:
-            params.append(("api_key", self._api_key))
+        headers = {
+            "Accept": "application/json",
+            "X-API-KEY": self._api_key,
+        }
 
         query = urlencode(params, doseq=True)
         url = f"{self._base_url}/{normalized_path}"
@@ -181,23 +171,23 @@ class TmdbProxyService:
             with httpx.Client(transport=self._transport, timeout=self._timeout) as client:
                 upstream = client.get(url, headers=headers)
         except httpx.HTTPError as exc:
-            logger.warning("TMDB proxy request failed: %s", exc)
+            logger.warning("KinoPoisk proxy request failed: %s", exc)
             with self._lock:
                 self._upstream_errors += 1
-            raise TmdbProxyUpstreamError("TMDB upstream is unavailable.") from exc
+            raise KinopoiskProxyUpstreamError("KinoPoisk upstream is unavailable.") from exc
 
         if upstream.status_code >= 500:
             with self._lock:
                 self._upstream_errors += 1
-            raise TmdbProxyUpstreamError("TMDB upstream returned an error.")
+            raise KinopoiskProxyUpstreamError("KinoPoisk upstream returned an error.")
 
-        return TmdbProxyResponse(
+        return KinopoiskProxyResponse(
             body=upstream.content,
             status_code=upstream.status_code,
             content_type=upstream.headers.get("content-type", "application/json"),
         )
 
-    def _get_cached(self, cache_key: str) -> TmdbProxyResponse | None:
+    def _get_cached(self, cache_key: str) -> KinopoiskProxyResponse | None:
         if self._cache_max_entries <= 0:
             return None
         with self._lock:
@@ -214,11 +204,11 @@ class TmdbProxyService:
             self._successes += 1
             return cached.response
 
-    def _put_cached(self, cache_key: str, response: TmdbProxyResponse, ttl_seconds: int) -> None:
+    def _put_cached(self, cache_key: str, response: KinopoiskProxyResponse, ttl_seconds: int) -> None:
         if self._cache_max_entries <= 0 or ttl_seconds <= 0:
             return
         with self._lock:
-            self._cache[cache_key] = _CachedTmdbResponse(
+            self._cache[cache_key] = _CachedKinopoiskResponse(
                 response=response,
                 expires_at=time.time() + ttl_seconds,
             )
@@ -239,15 +229,15 @@ class TmdbProxyService:
                 self._locks[cache_key] = lock
             return lock
 
-    def _ttl_for(self, allowed_kind: str, response: TmdbProxyResponse) -> int:
+    def _ttl_for(self, allowed_kind: str, response: KinopoiskProxyResponse) -> int:
         if response.status_code >= 400 and response.status_code != 404:
             return 0
-        if response.status_code == 404 or response.body in (b"", b"{}", b'{"results":[],"total_results":0}'):
+        if response.status_code == 404 or response.body in (b"", b"{}", b'{"items":[],"total":0}'):
             return self._cache_ttl_negative_seconds
         if allowed_kind == "search":
             return self._cache_ttl_search_seconds
-        if allowed_kind == "images":
-            return self._cache_ttl_images_seconds
+        if allowed_kind == "seasons":
+            return self._cache_ttl_seasons_seconds
         return self._cache_ttl_details_seconds
 
     def _cache_key(self, normalized_path: str, query_params: list[tuple[str, str]]) -> str:
@@ -268,14 +258,8 @@ class TmdbProxyService:
     def _allowed_kind(self, normalized_path: str) -> str | None:
         if _SEARCH_RE.fullmatch(normalized_path):
             return "search"
-        if _IMAGES_RE.fullmatch(normalized_path):
-            return "images"
-        if _SEASON_IMAGES_RE.fullmatch(normalized_path):
-            return "images"
         if _DETAILS_RE.fullmatch(normalized_path):
             return "details"
-        if _SEASON_DETAILS_RE.fullmatch(normalized_path):
-            return "details"
-        if _EPISODE_RE.fullmatch(normalized_path):
-            return "details"
+        if _SEASONS_RE.fullmatch(normalized_path):
+            return "seasons"
         return None
