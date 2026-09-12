@@ -117,8 +117,14 @@ open class TmdbPosterClient(
             null
         }
 
-        mergeImages(russianImages, englishImages)
-            ?: fetchImages(imagesBaseUrl, language = null)
+        val merged = mergeImages(russianImages, englishImages)
+        if (merged != null && merged.posterUrl.isNotBlank()) {
+            return@withContext merged
+        }
+        // Even when ru/en returned a backdrop, they can have zero posters (e.g. Brothers/66515).
+        // Fall back to unfiltered images to pick up posters in other languages (tl, etc.).
+        val fallback = fetchImages(imagesBaseUrl, language = null)
+        return@withContext mergeImages(merged, fallback) ?: fallback ?: merged
     }
 
     private suspend fun fetchImages(baseUrl: String, language: String?): TmdbImageUrls? {
@@ -305,8 +311,12 @@ open class TmdbPosterClient(
             null
         }
 
-        mergeImages(russianImages, englishImages)
-            ?: fetchImages(imagesBaseUrl, language = null)
+        val merged = mergeImages(russianImages, englishImages)
+        if (merged != null && merged.posterUrl.isNotBlank()) {
+            return@withContext merged
+        }
+        val fallback = fetchImages(imagesBaseUrl, language = null)
+        return@withContext mergeImages(merged, fallback) ?: fallback ?: merged
     }
 
     /**

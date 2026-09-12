@@ -244,6 +244,16 @@ class TmdbPosterResolverImpl(
         }
 
         if (cached.posterUrl.isBlank() || cached.backdropUrl.isBlank()) {
+            // KP fallback posters (kinopoisk/yandex) are valid without backdrop — reusing the
+            // mapping avoids repeated TMDB/KP searches. Without this they would be re-resolved
+            // on every process start because the generic rule requires both fields non-blank.
+            val posterLower = cached.posterUrl.lowercase()
+            val isKpPoster = posterLower.contains("kinopoisk") ||
+                posterLower.contains("avatars.mds.yandex") ||
+                posterLower.contains("st.kp.yandex")
+            if (isKpPoster && cached.posterUrl.isNotBlank()) {
+                return true
+            }
             return false
         }
 
@@ -438,7 +448,8 @@ class TmdbPosterResolverImpl(
 
             val filmDetails = kpClient.getFilmDetails(kpMatch.filmId)
 
-            val posterUrl = filmDetails?.posterUrl ?: kpMatch.posterUrl.orEmpty()
+            val rawPosterUrl = filmDetails?.posterUrl ?: kpMatch.posterUrl.orEmpty()
+            val posterUrl = normalizeKinoPoiskPosterUrl(rawPosterUrl)
             val backdropUrl = filmDetails?.coverUrl.orEmpty()
             val rating = filmDetails?.ratingKinopoisk?.let { "%.1f".format(java.util.Locale.US, it) }
                 ?: kpMatch.rating
@@ -775,6 +786,20 @@ class TmdbPosterResolverImpl(
         val backdropUrl = seasonImages.backdropUrl.ifBlank { seriesImages.backdropUrl }
         if (posterUrl.isBlank() && backdropUrl.isBlank()) return null
         return TmdbImageUrls(posterUrl = posterUrl, backdropUrl = backdropUrl)
+    }
+
+    private fun normalizeKinoPoiskPosterUrl(url: String): String {
+        if (url.isBlank()) return url
+        // kinopoiskapiunofficial.tech is unreachable from many networks — rewrite to the
+        // Yandex CDN mirror that actually serves KP posters (verified reachable from device).
+        // Keep original URL as fallback if the mirror format is unknown.
+        val raw = url.trim()
+        return if (raw.contains("kinopoiskapiunofficial.tech/images/posters/kp/")) {
+            val filmId = raw.substringAfterLast("/").substringBefore(".")
+            if (filmId.all { it.isDigit() } && filmId.isNotBlank()) {
+                "https://st.kp.yandex.net/images/film_big/$filmId.jpg"
+            } else raw
+        } else raw
     }
 
     private fun tmdbCacheKey(detailsUrl: String, kind: ReleaseKind): String {

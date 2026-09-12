@@ -50,8 +50,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.kraat.lostfilmnewtv.ui.components.PosterImage
 import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
@@ -322,10 +322,16 @@ private fun SearchResultCard(
                             .size(posterWidthPx, posterHeightPx)
                             .build()
                     }
-                    AsyncImage(
+                    PosterImage(
                         model = request,
                         contentDescription = item.titleRu,
                         contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+                } else {
+                    PosterImage(
+                        model = null,
+                        contentDescription = item.titleRu,
                         modifier = Modifier.fillMaxSize(),
                     )
                 }

@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
+import com.kraat.lostfilmnewtv.ui.components.PosterImage
 import com.kraat.lostfilmnewtv.ui.components.ShimmerSkeletonBox
 import com.kraat.lostfilmnewtv.ui.components.rememberShimmerSkeletonBrush
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
@@ -328,10 +329,16 @@ private fun MovieOverviewContent(details: ReleaseDetails?) {
                                 .size(posterWidthPx, posterHeightPx)
                                 .build()
                         }
-                        AsyncImage(
+                        PosterImage(
                             model = request,
                             contentDescription = safeDetails.titleRu,
                             contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    } else {
+                        PosterImage(
+                            model = null,
+                            contentDescription = safeDetails.titleRu,
                             modifier = Modifier.fillMaxSize(),
                         )
                     }

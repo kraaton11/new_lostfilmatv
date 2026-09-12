@@ -49,8 +49,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.kraat.lostfilmnewtv.ui.components.PosterImage
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ScheduleDay
 import com.kraat.lostfilmnewtv.data.model.ScheduleItem
@@ -544,7 +544,7 @@ private fun ScheduleItemImage(
     ) {
         if (posterUrl != null) {
             val request = rememberScheduleImageRequest(posterUrl)
-            AsyncImage(
+            PosterImage(
                 model = request,
                 contentDescription = item.title,
                 contentScale = ContentScale.Crop,
