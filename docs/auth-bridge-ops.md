@@ -17,7 +17,7 @@
 ## Android-клиент
 
 - Package name: `com.kraat.lostfilmnewtv`
-- Минимальная версия Android: `API 26` / Android 8.0
+- Минимальная версия Android: `API 28` / Android 9.0
 - Auth bridge base URL в приложении: `https://auth.bazuka.pp.ua`
 - TMDB proxy base URL в приложении: `https://auth.bazuka.pp.ua/api/tmdb`
 - Основная проверка клиента:

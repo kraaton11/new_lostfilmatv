@@ -2,7 +2,7 @@
 
 Приложение для Android TV, которое показывает новые релизы, фильмы и избранные сериалы с [lostfilm.today](https://www.lostfilm.today) в удобном интерфейсе для пульта дистанционного управления.
 
-![Android](https://img.shields.io/badge/Android%20TV-API%2026%2B-brightgreen?logo=android)
+![Android](https://img.shields.io/badge/Android%20TV-API%2028%2B-brightgreen?logo=android)
 ![Kotlin](https://img.shields.io/badge/Kotlin-2.x-7F52FF?logo=kotlin)
 ![Jetpack Compose](https://img.shields.io/badge/Jetpack%20Compose-TV-4285F4?logo=jetpackcompose)
 ![License](https://img.shields.io/badge/license-private-lightgrey)
@@ -50,7 +50,7 @@
 | | |
 |---|---|
 | **Платформа** | Android TV / Google TV |
-| **Минимальный Android** | API 26 (Android 8.0 Oreo) |
+| **Минимальный Android** | API 28 (Android 9.0 Pie) |
 | **TorrServe** | Должен быть запущен на устройстве (`127.0.0.1:8090`) |
 | **Аккаунт LostFilm** | Необязателен для просмотра новинок и фильмов, требуется для Избранного |
 
@@ -227,7 +227,7 @@ docker compose up -d auth-backend
 
 - Android Studio Hedgehog или новее
 - JDK 17+
-- Android SDK с API 26–35
+- Android SDK с API 28–35
 
 ### Сборка и тесты
 

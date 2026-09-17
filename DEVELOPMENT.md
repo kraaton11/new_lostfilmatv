@@ -7,7 +7,7 @@
 | Зависимость | Версия |
 |---|---|
 | JDK | 17 |
-| Android SDK | compileSdk 35, minSdk 26 |
+| Android SDK | compileSdk 35, minSdk 28 |
 | Gradle | 8.x (wrapper включен) |
 | Python | 3.12+ (для auth bridge) |
 | Docker | Опционально, для auth bridge |
