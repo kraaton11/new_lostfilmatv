@@ -11,6 +11,9 @@ sealed class SettingsFocusTarget {
     data object TorrServeSave : SettingsFocusTarget()
     data object TorrServeCheck : SettingsFocusTarget()
     data object TorrServeReset : SettingsFocusTarget()
+    data object LostFilmHost : SettingsFocusTarget()
+    data object LostFilmHostSave : SettingsFocusTarget()
+    data object LostFilmHostReset : SettingsFocusTarget()
     data object HomeFavoritesToggle : SettingsFocusTarget()
     data object HomeFavoriteSeriesToggle : SettingsFocusTarget()
     data object HomeMoviesToggle : SettingsFocusTarget()
@@ -37,6 +40,9 @@ fun SettingsFocusTarget.toTag(): String = when (this) {
     SettingsFocusTarget.TorrServeSave -> "settings-torrserve-save"
     SettingsFocusTarget.TorrServeCheck -> "settings-torrserve-check"
     SettingsFocusTarget.TorrServeReset -> "settings-torrserve-reset"
+    SettingsFocusTarget.LostFilmHost -> "settings-lostfilm-host"
+    SettingsFocusTarget.LostFilmHostSave -> "settings-lostfilm-host-save"
+    SettingsFocusTarget.LostFilmHostReset -> "settings-lostfilm-host-reset"
     SettingsFocusTarget.HomeFavoritesToggle -> "settings-home-favorites-toggle"
     SettingsFocusTarget.HomeFavoriteSeriesToggle -> "settings-home-favorite-series-toggle"
     SettingsFocusTarget.HomeMoviesToggle -> "settings-home-movies-toggle"

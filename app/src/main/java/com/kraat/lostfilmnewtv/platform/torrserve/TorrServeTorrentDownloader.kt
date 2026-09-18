@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.Log
 import androidx.core.content.FileProvider
 import com.kraat.lostfilmnewtv.data.network.OkHttpLostFilmHttpClient
+import com.kraat.lostfilmnewtv.data.parser.BASE_URL
 import java.io.File
 import java.io.IOException
 import java.net.InetAddress
@@ -34,7 +35,7 @@ class TorrServeTorrentDownloader(
             .url(rawUrl)
             .header("User-Agent", OkHttpLostFilmHttpClient.USER_AGENT_PUBLIC)
             .header("Accept", "application/x-bittorrent,application/octet-stream,*/*")
-            .header("Referer", "https://www.lostfilm.today/")
+            .header("Referer", "$BASE_URL/")
             .header("Cache-Control", "no-cache")
             .build()
 

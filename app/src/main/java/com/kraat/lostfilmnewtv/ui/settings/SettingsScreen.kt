@@ -72,6 +72,11 @@ fun SettingsScreen(
     onSaveTorrServeClick: () -> Unit = {},
     onResetTorrServeClick: () -> Unit = {},
     onCheckTorrServeClick: () -> Unit = {},
+    lostFilmHost: String = "",
+    lostFilmHostStatusText: String? = null,
+    onLostFilmHostChanged: (String) -> Unit = {},
+    onSaveLostFilmHostClick: () -> Unit = {},
+    onResetLostFilmHostClick: () -> Unit = {},
     isAuthenticated: Boolean = false,
     onAuthClick: () -> Unit = {},
     installedVersionText: String,
@@ -123,6 +128,9 @@ fun SettingsScreen(
             put(SettingsFocusTarget.TorrServeSave.toTag(), FocusRequester())
             put(SettingsFocusTarget.TorrServeCheck.toTag(), FocusRequester())
             put(SettingsFocusTarget.TorrServeReset.toTag(), FocusRequester())
+            put(SettingsFocusTarget.LostFilmHost.toTag(), FocusRequester())
+            put(SettingsFocusTarget.LostFilmHostSave.toTag(), FocusRequester())
+            put(SettingsFocusTarget.LostFilmHostReset.toTag(), FocusRequester())
             put(SettingsFocusTarget.CheckForUpdates.toTag(), FocusRequester())
             put(SettingsFocusTarget.InstallUpdate.toTag(), FocusRequester())
             put(SettingsFocusTarget.AccountAuth.toTag(), FocusRequester())
@@ -138,6 +146,7 @@ fun SettingsScreen(
                 SettingsSection.HOME_SCREEN.name to SettingsFocusTarget.HomeFavoritesToggle,
                 SettingsSection.CHANNEL.name to SettingsFocusTarget.ChannelMode(selectedChannelMode),
                 SettingsSection.TORRSERVE.name to SettingsFocusTarget.TorrServeBaseUrl,
+                SettingsSection.SERVER.name to SettingsFocusTarget.LostFilmHost,
                 SettingsSection.UPDATES.name to SettingsFocusTarget.UpdateChannel(selectedUpdateMode),
                 SettingsSection.ACCOUNT.name to SettingsFocusTarget.AccountAuth,
             ),
@@ -184,6 +193,8 @@ fun SettingsScreen(
         !torrServeStatusText.isNullOrBlank() -> torrServeStatusText
         else -> torrServeBaseUrl.ifBlank { "По умолчанию" }
     }
+    val serverSummary = lostFilmHostStatusText?.takeIf { it.isNotBlank() }
+        ?: lostFilmHost.ifBlank { "По умолчанию" }
     val accountSummary = if (isAuthenticated) "Вход выполнен" else "Без входа"
     val aboutSummary = BuildConfig.VERSION_NAME
 
@@ -213,6 +224,7 @@ fun SettingsScreen(
                 channelSummary = channelSummary,
                 homeScreenSummary = homeScreenSummary,
                 torrServeSummary = torrServeSummary,
+                serverSummary = serverSummary,
                 accountSummary = accountSummary,
                 aboutSummary = aboutSummary,
                 sections = visibleSections,
@@ -575,6 +587,64 @@ fun SettingsScreen(
                             }
                         }
 
+                        SettingsSection.SERVER -> {
+                            SettingsOptionsSection {
+                                SettingsOverviewCard(
+                                    title = "Адрес хоста",
+                                    subtitle = "Адрес сервера LostFilm, к которому обращается приложение. По умолчанию https://www.lostfilm.today.",
+                                    modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(14.dp)),
+                                ) {
+                                    SettingsOverviewValue(text = lostFilmHostStatusText ?: "Сейчас: ${lostFilmHost.ifBlank { "по умолчанию" }}")
+                                }
+                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    SettingsTextField(
+                                        value = lostFilmHost,
+                                        onValueChange = onLostFilmHostChanged,
+                                        label = "Адрес хоста",
+                                        tag = SettingsFocusTarget.LostFilmHost.toTag(),
+                                        onFocused = {
+                                            rememberedActionBySection = rememberedActionBySection + (
+                                                SettingsSection.SERVER.name to SettingsFocusTarget.LostFilmHost
+                                            )
+                                        },
+                                        modifier = Modifier.focusRequester(contentRequesters.getValue(SettingsFocusTarget.LostFilmHost.toTag())),
+                                    )
+                                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                        SettingsRowButton(
+                                            title = "Сохранить",
+                                            description = "Применить указанный адрес хоста.",
+                                            value = "Сохранить",
+                                            onClick = onSaveLostFilmHostClick,
+                                            tag = SettingsFocusTarget.LostFilmHostSave.toTag(),
+                                            onFocused = {
+                                                rememberedActionBySection = rememberedActionBySection + (
+                                                    SettingsSection.SERVER.name to SettingsFocusTarget.LostFilmHostSave
+                                                )
+                                            },
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .focusRequester(contentRequesters.getValue(SettingsFocusTarget.LostFilmHostSave.toTag())),
+                                        )
+                                        SettingsRowButton(
+                                            title = "Сбросить",
+                                            description = "Вернуть адрес по умолчанию (lostfilm.today).",
+                                            value = "Сбросить",
+                                            onClick = onResetLostFilmHostClick,
+                                            tag = SettingsFocusTarget.LostFilmHostReset.toTag(),
+                                            onFocused = {
+                                                rememberedActionBySection = rememberedActionBySection + (
+                                                    SettingsSection.SERVER.name to SettingsFocusTarget.LostFilmHostReset
+                                                )
+                                            },
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .focusRequester(contentRequesters.getValue(SettingsFocusTarget.LostFilmHostReset.toTag())),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
                         SettingsSection.UPDATES -> {
                             SettingsOptionsSection {
                                 UpdatesSectionContent(
@@ -716,6 +786,7 @@ enum class SettingsSection(
     HOME_SCREEN("Главный экран", "settings-section-home-screen", "settings-section-home-screen-summary"),
     CHANNEL("Android TV", "settings-section-channel", "settings-section-channel-summary"),
     TORRSERVE("TorrServe", "settings-section-torrserve", "settings-section-torrserve-summary"),
+    SERVER("Сервер", "settings-section-server", "settings-section-server-summary"),
     UPDATES("Обновления", "settings-section-updates", "settings-section-updates-summary"),
     ACCOUNT("Аккаунт", "settings-section-account", "settings-section-account-summary"),
     ABOUT("О приложении", "settings-section-about", "settings-section-about-summary");
@@ -740,6 +811,7 @@ private fun SettingsSectionRail(
     channelSummary: String,
     homeScreenSummary: String,
     torrServeSummary: String,
+    serverSummary: String,
     accountSummary: String,
     aboutSummary: String,
     sections: List<SettingsSection>,
@@ -765,6 +837,7 @@ private fun SettingsSectionRail(
                     SettingsSection.TORRSERVE -> torrServeSummary
                     SettingsSection.UPDATES -> updateSummary
                     SettingsSection.ACCOUNT -> accountSummary
+                    SettingsSection.SERVER -> serverSummary
                     SettingsSection.ABOUT -> aboutSummary
                 },
                 summaryTag = section.summaryTag,
@@ -951,6 +1024,7 @@ private fun targetContentTag(
         section == SettingsSection.TORRSERVE -> SettingsFocusTarget.TorrServeBaseUrl
         section == SettingsSection.UPDATES -> SettingsFocusTarget.UpdateChannel(selectedUpdateMode)
         section == SettingsSection.ACCOUNT -> SettingsFocusTarget.AccountAuth
+        section == SettingsSection.SERVER -> SettingsFocusTarget.LostFilmHost
         section == SettingsSection.ABOUT -> SettingsFocusTarget.AboutGitHubLink
         else -> SettingsFocusTarget.PlaybackQuality(selectedQuality)
     }

@@ -119,4 +119,25 @@ fun normalizeTorrServeBaseUrl(raw: String): String? {
         .trimEnd('/')
 }
 
+/**
+ * Normalizes a user-entered LostFilm host. Accepts a bare host or a full URL, adds the
+ * `https://` scheme when it is missing and trims trailing slashes, query and fragment.
+ * Returns null for empty or malformed input, or for non-HTTPS schemes (the app talks to
+ * LostFilm over HTTPS only).
+ */
+fun normalizeLostFilmHost(raw: String): String? {
+    val trimmed = raw.trim()
+    if (trimmed.isBlank()) return null
+    val withScheme = if ("://" in trimmed) trimmed else "https://$trimmed"
+    val parsed = withScheme.toHttpUrlOrNull() ?: return null
+    if (parsed.scheme != "https") return null
+    if (parsed.host.isBlank()) return null
+    return parsed.newBuilder()
+        .query(null)
+        .fragment(null)
+        .build()
+        .toString()
+        .trimEnd('/')
+}
+
 private fun Boolean?.orFalse(): Boolean = this == true

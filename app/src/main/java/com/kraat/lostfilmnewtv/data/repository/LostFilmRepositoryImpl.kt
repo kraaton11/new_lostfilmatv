@@ -67,8 +67,8 @@ private const val SERIES_CATALOG_PAGE_SIZE = 20
 private const val CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000L
 private const val YEAR_AWARE_TMDB_MATCHING_MIN_FETCHED_AT_MS = 1777852800000L // 2026-05-04
 private val paginatorRegex = Regex("""/new/page_(\d+)""")
-private val seriesFavoritePageRegex = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)/season_\d+/episode_\d+/?""")
-private val seriesRootUrlRegex = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)(?:/.*)?/?""")
+private fun seriesFavoritePageRegex() = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)/season_\d+/episode_\d+/?""")
+private fun seriesRootUrlRegex() = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)(?:/.*)?/?""")
 private val searchWhitespaceRegex = Regex("""\s+""")
 
 private data class FavoriteMetadataPage(
@@ -1189,7 +1189,7 @@ class LostFilmRepositoryImpl(
 
     private fun favoriteMetadataPageUrl(detailsUrl: String): String {
         val normalizedDetailsUrl = resolveUrl(detailsUrl)
-        val seriesMatch = seriesFavoritePageRegex.matchEntire(normalizedDetailsUrl)
+        val seriesMatch = seriesFavoritePageRegex().matchEntire(normalizedDetailsUrl)
         return if (seriesMatch != null) {
             "$BASE_URL/series/${seriesMatch.groupValues[1]}/"
         } else {
@@ -1249,7 +1249,7 @@ class LostFilmRepositoryImpl(
 
     private fun seriesRootUrl(detailsUrl: String): String? {
         val normalizedDetailsUrl = resolveUrl(detailsUrl).trimEnd('/')
-        val match = seriesRootUrlRegex.matchEntire(normalizedDetailsUrl) ?: return null
+        val match = seriesRootUrlRegex().matchEntire(normalizedDetailsUrl) ?: return null
         return "$BASE_URL/series/${match.groupValues[1]}/"
     }
 
