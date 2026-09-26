@@ -482,4 +482,94 @@ class TmdbPosterClientTest {
 
         assertEquals(null, result)
     }
+
+    @Test
+    fun getSeriesOverviewRu_retriesAfterTooManyRequests() = runTest {
+        var calls = 0
+        val client = clientReturning(
+            onEachCall = { calls++ },
+            code = { if (calls == 1) 429 else 200 },
+            body = """{"overview": "Описание сериала."}""",
+        )
+
+        val result = client.getSeriesOverviewRu(tmdbId = 10974)
+
+        assertEquals("Описание после 429 должно прийти с повтора", "Описание сериала.", result)
+        assertEquals(2, calls)
+    }
+
+    @Test
+    fun getMovieOverviewRu_retriesAfterTooManyRequests() = runTest {
+        var calls = 0
+        val client = clientReturning(
+            onEachCall = { calls++ },
+            code = { if (calls == 1) 429 else 200 },
+            body = """{"overview": "Описание фильма."}""",
+        )
+
+        assertEquals("Описание фильма.", client.getMovieOverviewRu(tmdbId = 10974))
+        assertEquals(2, calls)
+    }
+
+    @Test
+    fun getEpisodeOverview_retriesAfterTooManyRequests() = runTest {
+        var calls = 0
+        val client = clientReturning(
+            onEachCall = { calls++ },
+            code = { if (calls <= 2) 429 else 200 },
+            body = """{"overview": "Описание серии."}""",
+        )
+
+        val result = client.getEpisodeOverview(tmdbId = 236235, seasonNumber = 2, episodeNumber = 5)
+
+        assertEquals("Описание серии.", result?.text)
+        assertEquals(3, calls)
+    }
+
+    @Test
+    fun getSeriesOverviewRu_doesNotRetry_whenResourceIsMissing() = runTest {
+        var calls = 0
+        val client = clientReturning(
+            onEachCall = { calls++ },
+            code = { 404 },
+            body = """{"status_message": "The resource you requested could not be found."}""",
+        )
+
+        assertEquals(null, client.getSeriesOverviewRu(tmdbId = 1))
+        assertEquals("404 означает «нет», повторять нечего", 1, calls)
+    }
+
+    @Test
+    fun getSeriesOverviewRu_givesUpAfterBoundedAttempts_whenPersistentlyRateLimited() = runTest {
+        var calls = 0
+        val client = clientReturning(
+            onEachCall = { calls++ },
+            code = { 429 },
+            body = """{"status_message": "Too many requests."}""",
+        )
+
+        assertEquals(null, client.getSeriesOverviewRu(tmdbId = 1))
+        assertEquals("Повторы обязаны быть ограниченными", 3, calls)
+    }
+
+    private fun clientReturning(
+        onEachCall: () -> Unit,
+        code: () -> Int,
+        body: String,
+    ) = TmdbPosterClient(
+        okHttpClient = OkHttpClient.Builder()
+            .addInterceptor(Interceptor { chain ->
+                onEachCall()
+                Response.Builder()
+                    .request(chain.request())
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(code())
+                    .message("stub")
+                    .body(body.toResponseBody())
+                    .build()
+            })
+            .build(),
+        apiKey = "test",
+        overviewRetryDelayMs = { 0L },
+    )
 }
