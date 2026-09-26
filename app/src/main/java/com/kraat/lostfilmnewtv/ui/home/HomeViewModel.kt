@@ -382,7 +382,7 @@ class HomeViewModel @Inject constructor(
             observeAllNewPage()
             return
         }
-        loadPageDirect(pageNumber, isPagingRequest)
+        collectNextPage(pageNumber, isPagingRequest)
     }
 
     private fun observeAllNewPage() {
@@ -468,7 +468,7 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private fun loadPageDirect(pageNumber: Int, isPagingRequest: Boolean) {
+    private fun collectNextPage(pageNumber: Int, isPagingRequest: Boolean) {
         if (!isPagingRequest) {
             allNewLoadJob?.cancel()
         }
@@ -491,8 +491,10 @@ class HomeViewModel @Inject constructor(
                     when (result) {
                         is PageState.Content -> {
                             // Кэш-эмиссия при пагинации — не новые данные: спиннер
-                            // должен остаться, пока не придёт свежая страница.
-                            if (result.isStale) return@collect
+                            // должен остаться, пока не придёт свежая страница. Но если
+                            // кэш отдаёт pagingErrorMessage, эмиссию применять нужно —
+                            // иначе пользователь теряет сообщение и кнопку повтора.
+                            if (result.isStale && result.pagingErrorMessage == null) return@collect
                             appliedEmission = true
                             val updatedItems = result.items
                             _uiState.update { state ->

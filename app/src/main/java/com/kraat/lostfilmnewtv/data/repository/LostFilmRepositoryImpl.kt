@@ -135,7 +135,6 @@ class LostFilmRepositoryImpl(
                 items = pageItems,
                 hasNextPage = fetchedPage.hasNextPage,
                 isStale = false,
-                isAppend = pageNumber > 1,
             )
         } catch (exception: CancellationException) {
             throw exception

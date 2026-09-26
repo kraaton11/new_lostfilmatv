@@ -1249,6 +1249,110 @@ class HomeViewModelTest {
         assertEquals("Прогрессивный постер второй страницы должен заменить плейсхолдер", "https://image.tmdb.org/t/p/w780/p2.jpg", items.last().posterUrl)
         assertFalse(viewModel.uiState.value.isPaging)
     }
+
+    @Test
+    fun paging_staleCacheEmission_keepsSpinnerAndItemsUntilFreshPage() = runTest(dispatcher) {
+        // SharedFlow даёт контроль над таймингом: stale-кэш и свежая страница
+        // приходят в разные моменты, между ними состояние можно проверить.
+        val pageTwoFlow = MutableSharedFlow<PageState>(replay = 0, extraBufferCapacity = 4)
+        val firstPageItem = summary("https://www.lostfilm.today/series/q1/season_1/episode_1/")
+        val secondPageItem = summary("https://www.lostfilm.today/series/q2/season_1/episode_1/")
+        val staleCachedItem = summary("https://www.lostfilm.today/series/q1/season_1/episode_9/")
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(
+                    pageNumber = 1,
+                    items = listOf(firstPageItem),
+                    hasNextPage = true,
+                    isStale = false,
+                ),
+            ),
+            observePageFlows = mapOf(2 to pageTwoFlow),
+        )
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+        viewModel.onEndReached()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.uiState.value.isPaging)
+
+        // Stale-кэш без pagingErrorMessage — не новые данные: список и спиннер
+        // не должны меняться. Состав отличается от текущего, поэтому при
+        // применении эмиссии ассерты поймали бы регресс.
+        pageTwoFlow.tryEmit(
+            PageState.Content(
+                pageNumber = 2,
+                items = listOf(firstPageItem, staleCachedItem),
+                hasNextPage = true,
+                isStale = true,
+            )
+        )
+        advanceUntilIdle()
+
+        assertTrue("Спиннер пагинации должен остаться до свежей страницы", viewModel.uiState.value.isPaging)
+        assertEquals(listOf(firstPageItem), viewModel.uiState.value.items)
+
+        pageTwoFlow.tryEmit(
+            PageState.Content(
+                pageNumber = 2,
+                items = listOf(firstPageItem, secondPageItem),
+                hasNextPage = false,
+                isStale = false,
+            )
+        )
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isPaging)
+        assertEquals(listOf(firstPageItem, secondPageItem), viewModel.uiState.value.items)
+    }
+
+    @Test
+    fun paging_staleCacheOnlyEmission_clearsSpinnerWhenFlowCompletes() = runTest(dispatcher) {
+        val firstPageItem = summary("https://www.lostfilm.today/series/w1/season_1/episode_1/")
+        val staleCachedItem = summary("https://www.lostfilm.today/series/w1/season_1/episode_9/")
+        // Поток второй страницы отдаёт только stale-кэш и сразу завершается:
+        // свежей эмиссии не будет, значит спиннер обязан погасить finally.
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(
+                    pageNumber = 1,
+                    items = listOf(firstPageItem),
+                    hasNextPage = true,
+                    isStale = false,
+                ),
+            ),
+            observePageEmissions = mapOf(
+                2 to listOf(
+                    PageState.Content(
+                        pageNumber = 2,
+                        items = listOf(firstPageItem, staleCachedItem),
+                        hasNextPage = true,
+                        isStale = true,
+                    ),
+                ),
+            ),
+        )
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+        viewModel.onEndReached()
+        advanceUntilIdle()
+
+        assertFalse("Спиннер не должен крутиться вечно после завершения потока", viewModel.uiState.value.isPaging)
+        assertEquals(listOf(firstPageItem), viewModel.uiState.value.items)
+        assertNull(viewModel.uiState.value.pagingErrorMessage)
+    }
 }
 
 private class FakeLostFilmRepository(
