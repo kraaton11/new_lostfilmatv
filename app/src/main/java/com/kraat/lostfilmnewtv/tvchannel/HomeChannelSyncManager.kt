@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.tvchannel
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -35,6 +36,10 @@ class HomeChannelSyncManager(
                     }
                 }
                 logger.d(TAG, "syncNow() completed successfully")
+            } catch (error: CancellationException) {
+                // Отмена не должна выглядеть ошибкой канала и обязана дойти до
+                // вызывающего: иначе отменённая синхронизация продолжит работу.
+                throw error
             } catch (error: Throwable) {
                 logger.e(TAG, "Channel sync failed", error)
                 onSyncFailure(error)

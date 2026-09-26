@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.tvchannel
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -114,6 +115,37 @@ class HomeChannelSyncManagerTest {
 
         assertTrue(true)
     }
+
+    @Test
+    fun syncNow_propagatesCancellation_insteadOfReportingItAsFailure() = runTest {
+        val failures = mutableListOf<Throwable>()
+        val manager = HomeChannelSyncManager(
+            programSource = CancellingProgramSource,
+            preferences = FakeChannelPreferences(mode = AndroidTvChannelMode.ALL_NEW, channelId = 42L),
+            publisher = RecordingHomeChannelPublisher(primaryChannelId = 42L),
+            logger = NoOpChannelLogger(),
+            onSyncFailure = { failures += it },
+        )
+
+        val thrown = runCatching { manager.syncNow() }.exceptionOrNull()
+
+        assertTrue(
+            "Отмена обязана пробрасываться вызывающему, а не глотаться",
+            thrown is CancellationException,
+        )
+        assertEquals(
+            "Отменённая синхронизация — не ошибка канала",
+            emptyList<Throwable>(),
+            failures,
+        )
+    }
+}
+
+private object CancellingProgramSource : HomeChannelProgramSource {
+    override suspend fun loadPrograms(
+        mode: AndroidTvChannelMode,
+        limit: Int,
+    ): List<HomeChannelProgram> = throw CancellationException("scope cancelled")
 }
 
 private class FakeProgramSource(

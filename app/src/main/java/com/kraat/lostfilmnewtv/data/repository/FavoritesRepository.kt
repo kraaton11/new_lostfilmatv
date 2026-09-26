@@ -118,7 +118,7 @@ class FavoritesRepositoryImpl @Inject constructor(
                 (clock() - cached.fetchedAt) < FAVORITE_RELEASES_CACHE_TTL_MS
 
             val (allItems, favoriteSeriesCount) = if (canReuseInMemoryCache) {
-                cached!!.allItems to cached.favoriteSeriesCount
+                cached.allItems to cached.favoriteSeriesCount
             } else {
                 val roomMetadata = releaseDao.getFavoriteReleaseCacheMetadata()
                 val roomCacheFresh = roomMetadata != null &&
