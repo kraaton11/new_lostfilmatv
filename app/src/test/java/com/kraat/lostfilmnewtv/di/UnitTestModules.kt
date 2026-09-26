@@ -25,6 +25,7 @@ import dagger.hilt.testing.TestInstallIn
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flowOf
 import okhttp3.OkHttpClient
 
@@ -53,6 +54,7 @@ object UnitTestDataModule {
     fun provideTmdbEnrichmentService(): TmdbEnrichmentService = object : TmdbEnrichmentService {
         override suspend fun enrichSummaries(items: List<ReleaseSummary>, persistToCache: Boolean) = items
         override suspend fun enrichSearchItems(items: List<LostFilmSearchItem>) = items
+        override fun enrichProgressively(items: List<ReleaseSummary>): Flow<ReleaseSummary> = emptyFlow()
     }
 
     @Provides

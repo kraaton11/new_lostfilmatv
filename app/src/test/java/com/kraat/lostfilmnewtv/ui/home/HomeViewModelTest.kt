@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -1376,6 +1377,7 @@ private fun createViewModel(
         tmdbEnrichmentService = object : TmdbEnrichmentService {
             override suspend fun enrichSummaries(items: List<ReleaseSummary>, persistToCache: Boolean) = items
             override suspend fun enrichSearchItems(items: List<LostFilmSearchItem>) = items
+            override fun enrichProgressively(items: List<ReleaseSummary>): Flow<ReleaseSummary> = emptyFlow()
         },
         savedStateHandle = savedStateHandle,
         preferencesStore = preferencesStore,
