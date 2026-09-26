@@ -166,10 +166,35 @@ interface ReleaseDao {
         summaries: List<ReleaseSummaryEntity>,
         metadata: PageCacheMetadataEntity,
     ) {
+        // Постеры и описания набираются прогрессивным обогащением уже после
+        // разбора страницы. Перезапись страницы их затирала, и карточки, чьё
+        // обогащение успело записаться, оставались без картинки — в ленте это
+        // выглядело как «загрузились только первые 15». Парсер страницы artwork
+        // не приносит, поэтому сохраняем всё, что уже накоплено, и обновляем
+        // только разобранные поля: название, дату, отметку просмотра.
+        val storedArtwork = getSummariesByUrls(summaries.map { it.detailsUrl }).associateBy { it.detailsUrl }
+        val merged = summaries.map { incoming ->
+            val stored = storedArtwork[incoming.detailsUrl] ?: return@map incoming
+            incoming.copy(
+                posterUrl = incoming.posterUrl.ifBlank { stored.posterUrl },
+                backdropUrl = incoming.backdropUrl.nonBlankOr(stored.backdropUrl),
+                episodeOverviewRu = incoming.episodeOverviewRu.nonBlankOr(stored.episodeOverviewRu),
+                episodeOverviewSource = incoming.episodeOverviewSource.nonBlankOr(stored.episodeOverviewSource),
+                seriesOverviewRu = incoming.seriesOverviewRu.nonBlankOr(stored.seriesOverviewRu),
+                movieOverviewRu = incoming.movieOverviewRu.nonBlankOr(stored.movieOverviewRu),
+                tmdbRating = incoming.tmdbRating.nonBlankOr(stored.tmdbRating),
+            )
+        }
         deleteSummariesForPage(pageNumber)
-        upsertSummaries(summaries)
+        upsertSummaries(merged)
         upsertPageMetadata(metadata)
     }
+
+    @Query("SELECT * FROM release_summaries WHERE detailsUrl IN (:urls)")
+    suspend fun getSummariesByUrls(urls: List<String>): List<ReleaseSummaryEntity>
+
+    private fun String?.nonBlankOr(fallback: String?): String? =
+        if (!this.isNullOrBlank()) this else fallback
 
     @Transaction
     suspend fun deleteExpiredData(threshold: Long) {
