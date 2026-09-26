@@ -153,38 +153,40 @@ class TmdbPosterResolverImpl(
             return CachedMapping(null)
         }
 
-        val cached = tmdbDao.getByDetailsUrl(cacheKey) ?: return null
-        if (canReuseNegativeMapping(cached) && !hasTmdbIdOverride) {
+        val dbCached = tmdbDao.getByDetailsUrl(cacheKey) ?: return null
+        if (canReuseNegativeMapping(dbCached) && !hasTmdbIdOverride) {
             negativeMemoryCache[cacheKey] = Unit
             return CachedMapping(null)
         }
-        if (!canReuseCachedMapping(cached, originalReleaseYear)) {
+        if (!canReuseCachedMapping(dbCached, originalReleaseYear)) {
             return null
         }
 
         val overviews = resolveOverviews(
             detailsUrl = detailsUrl,
-            tmdbId = cached.tmdbId,
+            tmdbId = dbCached.tmdbId,
             kind = kind,
         )
         val urls = TmdbImageUrls(
-            posterUrl = cached.posterUrl,
-            backdropUrl = cached.backdropUrl,
+            posterUrl = dbCached.posterUrl,
+            backdropUrl = dbCached.backdropUrl,
             episodeOverviewRu = overviews.episodeOverview?.text,
             episodeOverviewSource = overviews.episodeOverview?.source?.name,
             seriesOverviewRu = overviews.seriesOverviewRu,
             movieOverviewRu = overviews.movieOverviewRu,
-            rating = cached.rating,
+            rating = dbCached.rating,
         )
         inMemoryCache[cacheKey] = urls.copy(episodeOverviewRu = null, episodeOverviewSource = null)
-        inMemoryTmdbIdCache[cacheKey] = cached.tmdbId
+        inMemoryTmdbIdCache[cacheKey] = dbCached.tmdbId
         return CachedMapping(urls)
     }
 
     private data class CachedMapping(
         /**
-         * null — точный промах, закешированный как negative. Репозиторий
-         * трактует его так же, как отсутствие результата.
+         * Контракт двухуровневый: null от [lookupCached] — «в кеше ничего нет»,
+         * вызывающий идёт в сеть; CachedMapping(null) — «промах, закешированный
+         * как negative», вызывающий возвращает null, НЕ беря ключ-лок. Значения
+         * не взаимозаменяемы: подмена одного другим — баг, а не упрощение.
          */
         val urls: TmdbImageUrls?,
     )
