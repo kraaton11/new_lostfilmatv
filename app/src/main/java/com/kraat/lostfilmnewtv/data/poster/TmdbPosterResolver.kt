@@ -297,7 +297,15 @@ class TmdbPosterResolverImpl(
         val tmdbIdOverride = tmdbIdOverride(englishSlug, kind)
         val releaseYearHint = when (kind) {
             ReleaseKind.MOVIE -> originalReleaseYear ?: englishSlug.extractYearFromSlug()
-            ReleaseKind.SERIES -> englishSlug.extractYearFromSlug()
+            // Год в ленте — это год выхода сериала, и без него «Остров сокровищ»
+            // 2026 года получал японский сериал 1978-го. Но на строке эпизода
+            // в ленте стоит год самой серии, а не год премьеры, и ограничение по
+            // нему отсекло бы верный матч долгоиграющего сериала.
+            ReleaseKind.SERIES -> if (seasonNumberRegex.containsMatchIn(detailsUrl)) {
+                englishSlug.extractYearFromSlug()
+            } else {
+                originalReleaseYear ?: englishSlug.extractYearFromSlug()
+            }
         }
         var searchFailed = false
 
@@ -868,11 +876,18 @@ class TmdbPosterResolverImpl(
     private fun List<TmdbSearchResult>.bestByYearThenPopularity(releaseYearHint: Int?): TmdbSearchResult? {
         if (isEmpty()) return null
 
-        return maxWithOrNull(
-            compareBy<TmdbSearchResult> {
-                if (releaseYearHint != null && it.releaseYear == releaseYearHint) 1 else 0
-            }.thenBy { it.popularity },
-        )
+        if (releaseYearHint != null) {
+            val sameYear = filter { it.releaseYear != null && kotlin.math.abs(it.releaseYear - releaseYearHint) <= 1 }
+            if (sameYear.isNotEmpty()) return sameYear.maxByOrNull { it.popularity }
+            // Год неизвестен — кандидата не опровергли, только не подтвердили.
+            val yearless = filter { it.releaseYear == null }
+            if (yearless.isNotEmpty()) return yearless.maxByOrNull { it.popularity }
+            // Остались заведомо другие годы: «Остров сокровищ» 2026 года не
+            // японский сериал 1978-го. Лучше ничего, чем чужой постер.
+            return null
+        }
+
+        return maxByOrNull { it.popularity }
     }
 
     private fun String.normalizeForTmdbMatch(): String {
