@@ -20,6 +20,14 @@ data class TmdbPosterMappingEntity(
     val fetchedAt: Long,
     val isNegative: Boolean = false,
     val rating: String? = null,
+    /**
+     * Откуда взят [tmdbId]. TMDB и Кинопоиск используют разные пространства
+     * идентификаторов, поэтому [tmdbId] из фолбэка на Кинопоиск нельзя
+     * использовать в запросах к TMDB — они уйдут в 404. Хранить источник
+     * явно обязательно: иначе колонка молча смешивает два пространства, и
+     * описание не приходит неделями.
+     */
+    val source: String = SOURCE_TMDB,
 ) {
     fun isExpired(clock: () -> Long = { System.currentTimeMillis() }): Boolean {
         val ttl = if (isNegative) TMDB_NEGATIVE_CACHE_TTL_MS else TMDB_CACHE_TTL_MS
@@ -27,6 +35,9 @@ data class TmdbPosterMappingEntity(
     }
 
     companion object {
+        const val SOURCE_TMDB = "TMDB"
+        const val SOURCE_KINOPOISK = "KINOPOISK"
+
         fun create(
             detailsUrl: String,
             tmdbId: Int,
@@ -36,6 +47,7 @@ data class TmdbPosterMappingEntity(
             fetchedAt: Long = System.currentTimeMillis(),
             isNegative: Boolean = false,
             rating: String? = null,
+            source: String = SOURCE_TMDB,
         ) = TmdbPosterMappingEntity(
             detailsUrl = detailsUrl,
             tmdbId = tmdbId,
@@ -45,6 +57,7 @@ data class TmdbPosterMappingEntity(
             fetchedAt = fetchedAt,
             isNegative = isNegative,
             rating = rating,
+            source = source,
         )
 
         fun negative(

@@ -297,6 +297,24 @@ val MIGRATION_20_21 = object : Migration(20, 21) {
     }
 }
 
+/**
+ * Разводит TMDB- и Кинопоиск-id по разным колонкам.
+ *
+ * Фолбэк на Кинопоиск писал свой filmId в `tmdbId`, из-за чего описание
+ * запрашивалось у TMDB с чужим идентификатором и уходило в 404 на 7 дней.
+ * Существующие строки считаем TMDB, а маппинги Кинопоиска удаляем: их постер
+ * уже лежит в release_summaries, а следующая попытка найдёт настоящий матч
+ * (например, 615 вместо 79920 у Futurama — 79920 принадлежит чужому сериалу).
+ */
+val MIGRATION_21_22 = object : Migration(21, 22) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "ALTER TABLE `tmdb_poster_mappings` ADD COLUMN `source` TEXT NOT NULL DEFAULT 'TMDB'",
+        )
+        db.execSQL("DELETE FROM `tmdb_poster_mappings` WHERE `posterUrl` LIKE '%kp.yandex%'")
+    }
+}
+
 /** Список всех миграций для передачи в Room.databaseBuilder. */
 val ALL_MIGRATIONS = arrayOf(
     MIGRATION_5_6,
@@ -315,6 +333,7 @@ val ALL_MIGRATIONS = arrayOf(
     MIGRATION_18_19,
     MIGRATION_19_20,
     MIGRATION_20_21,
+    MIGRATION_21_22,
 )
 
 private fun SupportSQLiteDatabase.hasColumn(tableName: String, columnName: String): Boolean {

@@ -63,7 +63,7 @@ class TmdbPosterResolverImpl(
 ) : TmdbPosterResolver {
     private val inMemoryCache = LruMemoryCache<String, TmdbImageUrls>(MEMORY_CACHE_MAX_SIZE)
     private val negativeMemoryCache = LruMemoryCache<String, Unit>(MEMORY_CACHE_MAX_SIZE)
-    private val inMemoryTmdbIdCache = LruMemoryCache<String, Int>(MEMORY_CACHE_MAX_SIZE)
+    private val inMemoryTmdbIdCache = LruMemoryCache<String, CachedTmdbId>(MEMORY_CACHE_MAX_SIZE)
     private val episodeOverviewCache = LruMemoryCache<String, TmdbEpisodeOverview>(MEMORY_CACHE_MAX_SIZE)
     private val episodeOverviewNegativeCache = LruMemoryCache<String, Long>(MEMORY_CACHE_MAX_SIZE)
     private val seriesOverviewCache = LruMemoryCache<Int, String>(MEMORY_CACHE_MAX_SIZE)
@@ -122,10 +122,10 @@ class TmdbPosterResolverImpl(
         hasTmdbIdOverride: Boolean,
     ): CachedMapping? {
         inMemoryCache[cacheKey]?.let { cached ->
-            val cachedTmdbId = inMemoryTmdbIdCache[cacheKey]
+            val cachedId = inMemoryTmdbIdCache[cacheKey]
             if (cached.seriesOverviewRu != null || cached.movieOverviewRu != null) {
-                val episodeOverview = if (cached.episodeOverviewRu == null && cachedTmdbId != null) {
-                    resolveEpisodeOverview(detailsUrl, cachedTmdbId, kind)
+                val episodeOverview = if (cached.episodeOverviewRu == null && cachedId?.isFromTmdb == true) {
+                    resolveEpisodeOverview(detailsUrl, cachedId.id, kind)
                 } else null
                 return CachedMapping(
                     cached.copy(
@@ -134,11 +134,15 @@ class TmdbPosterResolverImpl(
                     ),
                 )
             }
-            val overviews = resolveOverviews(
-                detailsUrl = detailsUrl,
-                tmdbId = cachedTmdbId,
-                kind = kind,
-            )
+            val overviews = if (cachedId?.isFromTmdb == true) {
+                resolveOverviews(
+                    detailsUrl = detailsUrl,
+                    tmdbId = cachedId.id,
+                    kind = kind,
+                )
+            } else {
+                ResolvedOverviews()
+            }
             return CachedMapping(
                 cached.copy(
                     episodeOverviewRu = overviews.episodeOverview?.text,
@@ -162,11 +166,15 @@ class TmdbPosterResolverImpl(
             return null
         }
 
-        val overviews = resolveOverviews(
-            detailsUrl = detailsUrl,
-            tmdbId = dbCached.tmdbId,
-            kind = kind,
-        )
+        val overviews = if (dbCached.isFromTmdb) {
+            resolveOverviews(
+                detailsUrl = detailsUrl,
+                tmdbId = dbCached.tmdbId,
+                kind = kind,
+            )
+        } else {
+            ResolvedOverviews()
+        }
         val urls = TmdbImageUrls(
             posterUrl = dbCached.posterUrl,
             backdropUrl = dbCached.backdropUrl,
@@ -177,8 +185,15 @@ class TmdbPosterResolverImpl(
             rating = dbCached.rating,
         )
         inMemoryCache[cacheKey] = urls.copy(episodeOverviewRu = null, episodeOverviewSource = null)
-        inMemoryTmdbIdCache[cacheKey] = dbCached.tmdbId
+        inMemoryTmdbIdCache[cacheKey] = CachedTmdbId(dbCached.tmdbId, dbCached.source)
         return CachedMapping(urls)
+    }
+
+    private val TmdbPosterMappingEntity.isFromTmdb: Boolean
+        get() = source == TmdbPosterMappingEntity.SOURCE_TMDB
+
+    private data class CachedTmdbId(val id: Int, val source: String) {
+        val isFromTmdb: Boolean get() = source == TmdbPosterMappingEntity.SOURCE_TMDB
     }
 
     private data class CachedMapping(
@@ -412,7 +427,7 @@ class TmdbPosterResolverImpl(
             rating = rating,
         )
         tmdbDao.upsert(entity)
-        inMemoryTmdbIdCache[cacheKey] = bestMatch.id
+        inMemoryTmdbIdCache[cacheKey] = CachedTmdbId(bestMatch.id, TmdbPosterMappingEntity.SOURCE_TMDB)
 
         return resolvedImages.copy(
             episodeOverviewRu = overviews.episodeOverview?.text,
@@ -489,9 +504,13 @@ class TmdbPosterResolverImpl(
                 backdropUrl = backdropUrl,
                 fetchedAt = clock(),
                 rating = rating,
+                source = TmdbPosterMappingEntity.SOURCE_KINOPOISK,
             )
             tmdbDao.upsert(entity)
-            inMemoryTmdbIdCache[cacheKey] = kpMatch.filmId
+            inMemoryTmdbIdCache[cacheKey] = CachedTmdbId(
+                id = kpMatch.filmId,
+                source = TmdbPosterMappingEntity.SOURCE_KINOPOISK,
+            )
 
             val images = TmdbImageUrls(
                 posterUrl = posterUrl,
