@@ -93,6 +93,7 @@ class LostFilmRepositoryTest {
         seedPage(pageNumber = 1, fetchedAt = NOW - SIX_HOURS_MS - 2_000L)
         val repository = createRepository(
             pageHandler = { throw IOException("offline") },
+            tmdbResolver = PosterTmdbResolver(),
         )
 
         val result = repository.loadPage(1)
@@ -101,6 +102,10 @@ class LostFilmRepositoryTest {
         result as PageState.Content
         assertTrue(result.isStale)
         assertEquals("9-1-1", result.items.first().titleRu)
+        assertTrue(
+            "loadPage обогащает кэш перед возвратом",
+            result.items.all { it.posterUrl.isNotBlank() },
+        )
     }
 
     @Test
@@ -2394,6 +2399,7 @@ class LostFilmRepositoryTest {
         seedPage(pageNumber = 1, fetchedAt = NOW - SEVEN_DAYS_MS / 2)
         val repository = createRepository(
             pageHandler = { throw IOException("offline") },
+            tmdbResolver = PosterTmdbResolver(),
         )
 
         val emissions = repository.observePage(1).toList()
@@ -2401,6 +2407,10 @@ class LostFilmRepositoryTest {
         val contents = emissions.filterIsInstance<PageState.Content>()
         assertEquals(2, contents.size)
         assertTrue(contents.all { it.isStale })
+        assertTrue(
+            "Путь ленты не должен блокироваться на обогащении кэша",
+            contents.all { content -> content.items.all { it.posterUrl.isBlank() } },
+        )
     }
 
     private class GatedObservation(
@@ -2541,6 +2551,19 @@ class LostFilmRepositoryTest {
             clock = { NOW },
         )
     }
+}
+
+private class PosterTmdbResolver : TmdbPosterResolver {
+    override suspend fun resolve(
+        detailsUrl: String,
+        titleRu: String,
+        releaseDateRu: String,
+        kind: com.kraat.lostfilmnewtv.data.model.ReleaseKind,
+        originalReleaseYear: Int?,
+    ): TmdbImageUrls = TmdbImageUrls(
+        posterUrl = "https://image.tmdb.org/t/p/w780/$detailsUrl.jpg",
+        backdropUrl = "https://image.tmdb.org/t/p/w1280/$detailsUrl.jpg",
+    )
 }
 
 private class GatedTmdbResolver(
