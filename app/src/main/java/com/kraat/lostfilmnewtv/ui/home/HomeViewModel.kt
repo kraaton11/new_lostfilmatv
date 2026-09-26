@@ -9,7 +9,6 @@ import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.data.repository.FavoritesRepository
-import com.kraat.lostfilmnewtv.data.poster.TmdbEnrichmentService
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import com.kraat.lostfilmnewtv.updates.AppUpdateCoordinator
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
@@ -37,7 +36,6 @@ private val favoriteSeriesSlugRegex = Regex("""/series/([^/]+)""")
 class HomeViewModel @Inject constructor(
     private val repository: LostFilmRepository,
     private val favoritesRepository: FavoritesRepository,
-    private val tmdbEnrichmentService: TmdbEnrichmentService,
     private val savedStateHandle: SavedStateHandle,
     private val preferencesStore: PlaybackPreferencesStore,
     private val homeChannelSyncManager: HomeChannelSyncManager,
@@ -381,13 +379,13 @@ class HomeViewModel @Inject constructor(
 
     private fun loadPage(pageNumber: Int, isPagingRequest: Boolean) {
         if (pageNumber == 1 && !isPagingRequest) {
-            observeNewReleases()
+            observeAllNewPage()
             return
         }
         loadPageDirect(pageNumber, isPagingRequest)
     }
 
-    private fun observeNewReleases() {
+    private fun observeAllNewPage() {
         allNewLoadJob?.cancel()
         _uiState.update { state ->
             state.copy(
@@ -403,6 +401,7 @@ class HomeViewModel @Inject constructor(
         }
         allNewLoadJob = viewModelScope.launch(ioDispatcher) {
             var hadCacheEmission = false
+            var didSyncChannel = false
             try {
                 repository.observePage(1).collect { result ->
                     when (result) {
@@ -423,11 +422,15 @@ class HomeViewModel @Inject constructor(
                                     )
                                 }.resolveSelection()
                             }
-                            if (isStale) {
-                                hadCacheEmission = true
-                            } else {
-                                lastAllNewRefreshAt = clock()
-                                homeChannelSyncManager.syncNow()
+                            when {
+                                isStale -> hadCacheEmission = true
+                                // Прогрессивные эмиссии постеров не должны заново
+                                // синхронизировать домашний канал.
+                                !didSyncChannel -> {
+                                    didSyncChannel = true
+                                    lastAllNewRefreshAt = clock()
+                                    homeChannelSyncManager.syncNow()
+                                }
                             }
                         }
                         is PageState.Error -> {
@@ -482,45 +485,58 @@ class HomeViewModel @Inject constructor(
             }
         }
         allNewLoadJob = viewModelScope.launch(ioDispatcher) {
-            when (val result = repository.loadPage(pageNumber)) {
-                is PageState.Content -> {
-                    val existingItems = _uiState.value.items
-                    val updatedItems = if (result.isAppend) {
-                        (existingItems + result.items).distinctBy { it.detailsUrl }
-                    } else {
-                        result.items
-                    }
-                    _uiState.update { state ->
-                        state.copy(
-                            isInitialLoading = false,
-                            fullScreenErrorMessage = null,
-                        ).updateMode(HomeFeedMode.AllNew) { md ->
-                            md.copy(
-                                items = updatedItems,
-                                isPaging = false,
-                                pagingErrorMessage = result.pagingErrorMessage,
-                                nextPage = result.pageNumber + 1,
-                                hasNextPage = result.hasNextPage,
-                                contentState = HomeModeContentState.Content(updatedItems),
-                            )
-                        }.resolveSelection()
-                    }
-                    if (!isPagingRequest) {
-                        homeChannelSyncManager.syncNow()
+            var appliedEmission = false
+            try {
+                repository.observePage(pageNumber).collect { result ->
+                    when (result) {
+                        is PageState.Content -> {
+                            // Кэш-эмиссия при пагинации — не новые данные: спиннер
+                            // должен остаться, пока не придёт свежая страница.
+                            if (result.isStale) return@collect
+                            appliedEmission = true
+                            val updatedItems = result.items
+                            _uiState.update { state ->
+                                state.copy(
+                                    isInitialLoading = false,
+                                    fullScreenErrorMessage = null,
+                                ).updateMode(HomeFeedMode.AllNew) { md ->
+                                    md.copy(
+                                        items = updatedItems,
+                                        isPaging = false,
+                                        pagingErrorMessage = result.pagingErrorMessage,
+                                        nextPage = result.pageNumber + 1,
+                                        hasNextPage = result.hasNextPage,
+                                        contentState = HomeModeContentState.Content(updatedItems),
+                                    )
+                                }.resolveSelection()
+                            }
+                            if (!isPagingRequest) {
+                                homeChannelSyncManager.syncNow()
+                            }
+                        }
+                        is PageState.Error -> {
+                            appliedEmission = true
+                            _uiState.update { state ->
+                                state.copy(
+                                    isInitialLoading = false,
+                                    fullScreenErrorMessage = result.message,
+                                ).updateMode(HomeFeedMode.AllNew) { md ->
+                                    md.copy(
+                                        isPaging = false,
+                                        pagingErrorMessage = null,
+                                        contentState = HomeModeContentState.Error(result.message),
+                                    )
+                                }.resolveSelection()
+                            }
+                        }
                     }
                 }
-                is PageState.Error -> {
+            } finally {
+                // Оффлайн с кэшем: stale-эмиссия пропущена, но flow завершился —
+                // гасим спиннер, иначе он крутится вечно.
+                if (!appliedEmission) {
                     _uiState.update { state ->
-                        state.copy(
-                            isInitialLoading = false,
-                            fullScreenErrorMessage = result.message,
-                        ).updateMode(HomeFeedMode.AllNew) { md ->
-                            md.copy(
-                                isPaging = false,
-                                pagingErrorMessage = null,
-                                contentState = HomeModeContentState.Error(result.message),
-                            )
-                        }.resolveSelection()
+                        state.updateMode(HomeFeedMode.AllNew) { md -> md.copy(isPaging = false) }
                     }
                 }
             }

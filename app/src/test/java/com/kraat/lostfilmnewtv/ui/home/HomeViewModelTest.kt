@@ -13,8 +13,6 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.data.repository.FavoritesRepository
-import com.kraat.lostfilmnewtv.data.poster.TmdbEnrichmentService
-import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPreferences
@@ -32,7 +30,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.drop
-import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -1030,7 +1027,7 @@ class HomeViewModelTest {
         val freshItem = summary(detailsUrl = "https://www.lostfilm.today/series/fresh/season_1/episode_1/")
         val repository = FakeLostFilmRepository(
             pageResults = emptyMap(),
-            newReleasesFlows = mapOf(1 to sharedFlow),
+            observePageFlows = mapOf(1 to sharedFlow),
         )
         val viewModel = createViewModel(
             repository = repository,
@@ -1061,7 +1058,7 @@ class HomeViewModelTest {
             HomeModeContentState.Content(listOf(cachedItem)),
             afterCache.allNewModeState,
         )
-        assertEquals(1, repository.observeNewReleasesCalls)
+        assertEquals(listOf(1), repository.observePageCalls)
 
         // 2. Fresh-эмиссия: заменяет items, lastAllNewRefreshAt обновляется.
         sharedFlow.tryEmit(
@@ -1078,7 +1075,7 @@ class HomeViewModelTest {
         assertEquals(listOf(freshItem), afterFresh.items)
         assertFalse(afterFresh.isInitialLoading)
         assertNull(afterFresh.fullScreenErrorMessage)
-        assertEquals(1, repository.observeNewReleasesCalls)
+        assertEquals(listOf(1), repository.observePageCalls)
     }
 
     @Test
@@ -1103,13 +1100,13 @@ class HomeViewModelTest {
         viewModel.onStart()
         advanceUntilIdle()
 
-        // Без кастомного flow observeNewReleases fallback'ит на однократный loadPage —
+        // Без кастомного flow observePage fallback'ит на однократный loadPage —
         // ведёт себя как до изменений: спиннер, потом данные.
         assertEquals(listOf(freshItem), viewModel.uiState.value.items)
         assertFalse(viewModel.uiState.value.isInitialLoading)
         assertNull(viewModel.uiState.value.fullScreenErrorMessage)
         assertEquals(listOf(1), repository.pageRequests)
-        assertEquals(1, repository.observeNewReleasesCalls)
+        assertEquals(listOf(1), repository.observePageCalls)
     }
 
     @Test
@@ -1117,7 +1114,7 @@ class HomeViewModelTest {
         val cachedItem = summary(detailsUrl = "https://www.lostfilm.today/series/cached/season_1/episode_1/")
         val repository = FakeLostFilmRepository(
             pageResults = emptyMap(),
-            newReleasesEmissions = mapOf(
+            observePageEmissions = mapOf(
                 1 to listOf(
                     PageState.Content(
                         pageNumber = 1,
@@ -1149,7 +1146,7 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun loadPage_paginationUsesDirectPath_notObserveNewReleases() = runTest(dispatcher) {
+    fun loadPage_paginationUsesObservePage() = runTest(dispatcher) {
         val firstPageItem = summary(detailsUrl = "https://www.lostfilm.today/series/page1/season_1/episode_1/")
         val secondPageItem = summary(detailsUrl = "https://www.lostfilm.today/series/page2/season_1/episode_1/")
         val repository = FakeLostFilmRepository(
@@ -1162,10 +1159,9 @@ class HomeViewModelTest {
                 ),
                 2 to PageState.Content(
                     pageNumber = 2,
-                    items = listOf(secondPageItem),
+                    items = listOf(firstPageItem, secondPageItem),
                     hasNextPage = true,
                     isStale = false,
-                    isAppend = true,
                 ),
             ),
         )
@@ -1177,22 +1173,86 @@ class HomeViewModelTest {
 
         viewModel.onStart()
         advanceUntilIdle()
-        // observeNewReleases был вызван для page=1 (onStart).
-        assertEquals(1, repository.observeNewReleasesCalls)
+        // observePage был вызван для page=1 (onStart).
+        assertEquals(listOf(1), repository.observePageCalls)
         assertEquals(listOf(1), repository.pageRequests)
 
-        // Пагинация должна идти напрямую через loadPage, не через observeNewReleases.
+        // Пагинация тоже идёт через observePage.
         viewModel.onEndReached()
         advanceUntilIdle()
 
-        assertEquals(1, repository.observeNewReleasesCalls) // не увеличилось
+        assertEquals(listOf(1, 2), repository.observePageCalls)
         assertEquals(listOf(1, 2), repository.pageRequests)
         assertEquals(listOf(firstPageItem, secondPageItem), viewModel.uiState.value.items)
+    }
+
+    @Test
+    fun progressivePosterEmissions_syncHomeChannelOnlyOnce() = runTest(dispatcher) {
+        val placeholder = summary("https://www.lostfilm.today/series/a/season_1/episode_1/").copy(posterUrl = "")
+        val withPoster = placeholder.copy(posterUrl = "https://image.tmdb.org/t/p/w780/a.jpg")
+        val repository = FakeLostFilmRepository(
+            observePageEmissions = mapOf(
+                1 to listOf(
+                    PageState.Content(pageNumber = 1, items = listOf(placeholder), hasNextPage = true, isStale = false),
+                    PageState.Content(pageNumber = 1, items = listOf(placeholder), hasNextPage = true, isStale = false),
+                    PageState.Content(pageNumber = 1, items = listOf(withPoster), hasNextPage = true, isStale = false),
+                    PageState.Content(pageNumber = 1, items = listOf(withPoster), hasNextPage = true, isStale = false),
+                ),
+            ),
+        )
+        var channelSyncs = 0
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            onChannelContentChanged = { channelSyncs += 1 },
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+
+        assertEquals(listOf(withPoster), viewModel.uiState.value.items)
+        assertEquals("Прогрессивные эмиссии не должны заново синхронизировать канал", 1, channelSyncs)
+    }
+
+    @Test
+    fun progressivePagingEmissions_replaceItemsWithoutDuplicates() = runTest(dispatcher) {
+        val firstPageItem = summary("https://www.lostfilm.today/series/p1/season_1/episode_1/")
+        val secondPageItem = summary("https://www.lostfilm.today/series/p2/season_1/episode_1/")
+        val secondPageWithPoster = secondPageItem.copy(posterUrl = "https://image.tmdb.org/t/p/w780/p2.jpg")
+        val repository = FakeLostFilmRepository(
+            observePageEmissions = mapOf(
+                1 to listOf(
+                    PageState.Content(pageNumber = 1, items = listOf(firstPageItem), hasNextPage = true, isStale = false),
+                ),
+                2 to listOf(
+                    PageState.Content(pageNumber = 2, items = listOf(firstPageItem), hasNextPage = true, isStale = true),
+                    PageState.Content(pageNumber = 2, items = listOf(firstPageItem, secondPageItem), hasNextPage = true, isStale = false),
+                    PageState.Content(pageNumber = 2, items = listOf(firstPageItem, secondPageWithPoster), hasNextPage = true, isStale = false),
+                ),
+            ),
+        )
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+        viewModel.onEndReached()
+        advanceUntilIdle()
+
+        val items = viewModel.uiState.value.items
+        assertEquals(2, items.size)
+        assertEquals(2, items.map { it.detailsUrl }.distinct().size)
+        assertEquals("Прогрессивный постер второй страницы должен заменить плейсхолдер", "https://image.tmdb.org/t/p/w780/p2.jpg", items.last().posterUrl)
+        assertFalse(viewModel.uiState.value.isPaging)
     }
 }
 
 private class FakeLostFilmRepository(
-    private val pageResults: Map<Int, PageState>,
+    private val pageResults: Map<Int, PageState> = emptyMap(),
     val movieResults: MutableMap<Int, PageState> = mutableMapOf(
         1 to PageState.Content(pageNumber = 1, items = emptyList(), hasNextPage = false, isStale = false),
     ),
@@ -1203,23 +1263,23 @@ private class FakeLostFilmRepository(
         FavoriteSeriesResult.Unavailable(),
     ),
     /**
-     * Кастомные flow для [observeNewReleases] (для тестов stale-while-revalidate).
-     * Если для pageNumber нет записи, [observeNewReleases] возвращает однократный
+     * Кастомные flow для [observePage] (для тестов stale-while-revalidate).
+     * Если для pageNumber нет записи, [observePage] возвращает однократный
      * вызов [loadPage] (как default-метод интерфейса).
      */
-    val newReleasesFlows: Map<Int, Flow<PageState>> = emptyMap(),
+    val observePageFlows: Map<Int, Flow<PageState>> = emptyMap(),
     /**
-     * Список эмиссий для [observeNewReleases] (для простых тестов с фиксированной
-     * последовательностью cache → fresh). Удобнее [newReleasesFlows] когда не нужен
+     * Список эмиссий для [observePage] (для простых тестов с фиксированной
+     * последовательностью cache → fresh). Удобнее [observePageFlows] когда не нужен
      * контроль тайминга между эмиссиями.
      */
-    val newReleasesEmissions: Map<Int, List<PageState>> = emptyMap(),
+    val observePageEmissions: Map<Int, List<PageState>> = emptyMap(),
 ) : LostFilmRepository, FavoritesRepository {
     val pageRequests = mutableListOf<Int>()
     val movieRequests = mutableListOf<Int>()
     val favoriteReleaseRequests = mutableListOf<Int>()
     var favoriteReleaseCalls = 0
-    var observeNewReleasesCalls = 0
+    val observePageCalls = mutableListOf<Int>()
 
     override suspend fun loadPage(pageNumber: Int): PageState {
         pageRequests += pageNumber
@@ -1229,9 +1289,9 @@ private class FakeLostFilmRepository(
     }
 
     override fun observePage(pageNumber: Int): Flow<PageState> {
-        observeNewReleasesCalls += 1
-        newReleasesFlows[pageNumber]?.let { return it }
-        newReleasesEmissions[pageNumber]?.let { return it.asFlow() }
+        observePageCalls += pageNumber
+        observePageFlows[pageNumber]?.let { return it }
+        observePageEmissions[pageNumber]?.let { return it.asFlow() }
         // Fallback: однократный вызов loadPage, имитируя default-метод интерфейса.
         return flow { emit(loadPage(pageNumber)) }
     }
@@ -1374,11 +1434,6 @@ private fun createViewModel(
     return HomeViewModel(
         repository = repository,
         favoritesRepository = repository as FavoritesRepository,
-        tmdbEnrichmentService = object : TmdbEnrichmentService {
-            override suspend fun enrichSummaries(items: List<ReleaseSummary>, persistToCache: Boolean) = items
-            override suspend fun enrichSearchItems(items: List<LostFilmSearchItem>) = items
-            override fun enrichProgressively(items: List<ReleaseSummary>): Flow<ReleaseSummary> = emptyFlow()
-        },
         savedStateHandle = savedStateHandle,
         preferencesStore = preferencesStore,
         homeChannelSyncManager = homeChannelSyncManager,
