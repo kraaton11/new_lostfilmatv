@@ -25,6 +25,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 private const val TAG = "TmdbPosterResolver"
+
+/** 71 совпадение на «Надежду» — это четыре страницы по 20. */
+private const val MAX_SEARCH_PAGES = 4
 private const val TMDB_CACHE_TTL_MS = 7L * 24 * 60 * 60 * 1000
 private const val YEAR_AWARE_MATCHING_CACHE_MIN_FETCHED_AT_MS = 1777852800000L // 2026-05-04
 private const val SERIES_YEAR_HINT_FIX_CACHE_MIN_FETCHED_AT_MS = 1777867930731L // 2026-05-04
@@ -298,8 +301,11 @@ class TmdbPosterResolverImpl(
         val slugResults = if (tmdbIdOverride != null) {
             emptyList()
         } else if (englishSlug != null && englishSlug.isNotBlank()) {
+            val slugQuery = englishSlug.removeYearSuffix()
             try {
-                tmdbClient.searchByTitle(englishSlug.removeYearSuffix(), releaseYearHint, tmdbType)
+                searchPages(tmdbType, releaseYearHint, slugQuery, onFailure = { searchFailed = true }) { found ->
+                    found.any { it.matchesSlug(slugQuery.normalizeForTmdbMatch()) }
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -332,7 +338,9 @@ class TmdbPosterResolverImpl(
         // Exact English slug matches are good enough to skip the Russian title query.
         val titleResults = if (exactSlugMatch == null) {
             try {
-                tmdbClient.searchByTitle(titleRu, releaseYearHint, tmdbType)
+                searchPages(tmdbType, releaseYearHint, titleRu, onFailure = { searchFailed = true }) { found ->
+                    pickVerifiedTitleOnlyMatch(titleRu, releaseYearHint, found) != null
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -344,7 +352,12 @@ class TmdbPosterResolverImpl(
             emptyList()
         }
 
-        val bestMatch = exactSlugMatch ?: pickBestMatch(englishSlug, releaseYearHint, slugResults, titleResults)
+        // Если slug на TMDB ничего не нашёл, остаётся только русское название, и
+        // это уже догадка: год становится ограничением, а не подсказкой.
+        val bestMatch = exactSlugMatch ?: when {
+            slugResults.isEmpty() -> pickVerifiedTitleOnlyMatch(titleRu, releaseYearHint, titleResults)
+            else -> pickBestMatch(englishSlug, releaseYearHint, slugResults, titleResults)
+        }
 
         Log.d(TAG, "TMDB search: slug='$englishSlug'→${slugResults.size} results, title='$titleRu'→${titleResults.size} results, pick=${bestMatch?.name}(id=${bestMatch?.id})")
 
@@ -723,6 +736,86 @@ class TmdbPosterResolverImpl(
             Log.e(TAG, "TMDB episode overview failed for $detailsUrl: ${e.message}")
             null
         }
+    }
+
+    /**
+     * Листает выдачу TMDB, пока [isEnough] не satisfied или страницы не кончились.
+     *
+     * Поиск отдаёт по 20 записей, а одноимённых названий вроде «Надежда» бывает
+     * 71, поэтому нужный фильм нередко лежит за пределами первой страницы.
+     * Останавливаемся и тогда, когда страница не добавила новых id: прокси может
+     * не пропускать параметр page и вечно отдавать первую страницу.
+     */
+    private suspend fun searchPages(
+        type: TmdbMediaType,
+        releaseYearHint: Int?,
+        query: String,
+        onFailure: () -> Unit,
+        isEnough: (List<TmdbSearchResult>) -> Boolean,
+    ): List<TmdbSearchResult> {
+        val collected = mutableListOf<TmdbSearchResult>()
+        val seenIds = mutableSetOf<Int>()
+
+        for (page in 1..MAX_SEARCH_PAGES) {
+            val results = try {
+                tmdbClient.searchByTitle(query, releaseYearHint, type, page)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                onFailure()
+                Log.e(TAG, "TMDB search failed for '$query' (page $page): ${e.message}")
+                break
+            }
+            if (results.isEmpty()) break
+
+            val fresh = results.filter { seenIds.add(it.id) }
+            if (fresh.isEmpty()) {
+                Log.d(TAG, "TMDB search '$query': page $page не добавила новых id, листание прекращено")
+                break
+            }
+            collected += fresh
+            if (isEnough(collected)) break
+        }
+
+        Log.d(TAG, "TMDB search '$query': собрано ${collected.size} результатов")
+        return collected
+    }
+
+    /**
+     * Отбор матча, который держится только на русском названии.
+     *
+     * «Надежда» — название, общее у десятка фильмов, а slug бывает битым, так
+     * что выбрать можно неверно. Прежний код брал «самую популярную» среди
+     * одноимённых и показывал её рейтинг: карточка невышедшего фильма 2026 года
+     * получала постер и оценку 10.0 от фильма 1955 года с одним голосом.
+     *
+     * Поэтому год здесь ограничение, а не подсказка: если год известен, кандидат
+     * должен попасть в него (±1 — даты проката различаются по территориям), иначе
+     * это другой фильм. Года нет — подходит лишь однозначное название.
+     */
+    private fun pickVerifiedTitleOnlyMatch(
+        titleRu: String,
+        releaseYearHint: Int?,
+        candidates: List<TmdbSearchResult>,
+    ): TmdbSearchResult? {
+        if (candidates.isEmpty()) return null
+
+        val normalizedTitle = titleRu.normalizeForTmdbMatch()
+        // «Надежда» — и русское название, и локализованное имя корейского «호ф»
+        // в TMDB, поэтому сверяемся и с name, и с originalName.
+        val sameTitle = candidates.filter {
+            it.name.normalizeForTmdbMatch() == normalizedTitle ||
+                it.originalName.normalizeForTmdbMatch() == normalizedTitle
+        }
+
+        if (releaseYearHint != null) {
+            val sameTitleAndYear = sameTitle.filter { candidate ->
+                candidate.releaseYear?.let { kotlin.math.abs(it - releaseYearHint) <= 1 } == true
+            }
+            return sameTitleAndYear.singleOrNull()
+        }
+
+        return sameTitle.singleOrNull() ?: candidates.singleOrNull()
     }
 
     private fun pickBestMatch(

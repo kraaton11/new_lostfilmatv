@@ -2992,7 +2992,7 @@ private class FakeTmdbPosterClient : com.kraat.lostfilmnewtv.data.network.TmdbPo
     okHttpClient = okhttp3.OkHttpClient.Builder().build(),
     apiKey = "fake",
 ) {
-    override suspend fun searchByTitle(query: String, year: Int?, type: com.kraat.lostfilmnewtv.data.model.TmdbMediaType) =
+    override suspend fun searchByTitle(query: String, year: Int?, type: com.kraat.lostfilmnewtv.data.model.TmdbMediaType, page: Int) =
         emptyList<com.kraat.lostfilmnewtv.data.model.TmdbSearchResult>()
 
     override suspend fun getPosterAndBackdrop(tmdbId: Int, type: com.kraat.lostfilmnewtv.data.model.TmdbMediaType) =

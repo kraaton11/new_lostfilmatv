@@ -46,6 +46,7 @@ open class TmdbPosterClient(
         query: String,
         year: Int?,
         type: TmdbMediaType,
+        page: Int = 1,
     ): List<TmdbSearchResult> = withContext(Dispatchers.IO) {
         val endpoint = when (type) {
             TmdbMediaType.TV -> "/search/tv"
@@ -55,7 +56,8 @@ open class TmdbPosterClient(
             TmdbMediaType.TV -> year?.let { "&first_air_date_year=$it" }.orEmpty()
             TmdbMediaType.MOVIE -> year?.let { "&release_year=$it" }.orEmpty()
         }
-        val url = "${baseUrl.trimEnd('/')}$endpoint?query=${query.encodeUrl()}&include_adult=true$yearParam"
+        val pageParam = if (page > 1) "&page=$page" else ""
+        val url = "${baseUrl.trimEnd('/')}$endpoint?query=${query.encodeUrl()}&include_adult=true$yearParam$pageParam"
             .withTmdbApiKey()
 
         val request = Request.Builder()

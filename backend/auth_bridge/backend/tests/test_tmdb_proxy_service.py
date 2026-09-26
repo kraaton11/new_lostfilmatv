@@ -91,6 +91,51 @@ class TmdbProxyServiceTest(unittest.TestCase):
         self.assertIn("query", calls[0].url.params)
         self.assertNotIn("append_to_response", calls[0].url.params)
 
+    def test_fetch_forwards_page_param(self) -> None:
+        # Без page клиент видит только первые 20 результатов поиска. Название
+        # вроде «Надежда» даёт 71 совпадение, и нужный фильм находится дальше
+        # двадцатого, поэтому поиск обязан уметь листать выдачу.
+        calls: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls.append(request)
+            return httpx.Response(200, json={"results": [], "total_results": 71})
+
+        service = TmdbProxyService(
+            api_key="tmdb-key",
+            bearer_token="",
+            base_url="https://api.themoviedb.org/3",
+            timeout_seconds=5.0,
+            transport=httpx.MockTransport(handler),
+        )
+
+        service.fetch("search/movie", [("query", "Надежда"), ("page", "3")])
+
+        self.assertIn("page", calls[0].url.params)
+        self.assertEqual("3", calls[0].url.params["page"])
+
+    def test_fetch_gives_each_page_its_own_cache_entry(self) -> None:
+        calls: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            calls.append(request)
+            page = request.url.params.get("page", "1")
+            return httpx.Response(200, json={"results": [{"id": int(page)}], "total_results": 71})
+
+        service = TmdbProxyService(
+            api_key="tmdb-key",
+            bearer_token="",
+            base_url="https://api.themoviedb.org/3",
+            timeout_seconds=5.0,
+            transport=httpx.MockTransport(handler),
+        )
+
+        service.fetch("search/movie", [("query", "Надежда")])
+        service.fetch("search/movie", [("query", "Надежда"), ("page", "2")])
+        service.fetch("search/movie", [("query", "Надежда"), ("page", "2")])
+
+        self.assertEqual(2, len(calls), "вторая страница обязана кэшироваться отдельно")
+
     def test_concurrent_same_key_requests_share_one_upstream_call(self) -> None:
         calls = 0
         calls_lock = threading.Lock()
