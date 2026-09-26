@@ -62,6 +62,35 @@ interface ReleaseDao {
     @Upsert
     suspend fun upsertSummaries(summaries: List<ReleaseSummaryEntity>)
 
+    /**
+     * Обновляет только art-поля карточки. Полный [upsertSummaries] откатил бы
+     * isWatched, если пользователь отметил эпизод просмотренным, пока шло
+     * обогащение постерами.
+     */
+    @Query(
+        """
+        UPDATE release_summaries SET
+            posterUrl = :posterUrl,
+            backdropUrl = :backdropUrl,
+            episodeOverviewRu = :episodeOverviewRu,
+            episodeOverviewSource = :episodeOverviewSource,
+            seriesOverviewRu = :seriesOverviewRu,
+            movieOverviewRu = :movieOverviewRu,
+            tmdbRating = :tmdbRating
+        WHERE detailsUrl = :detailsUrl
+        """,
+    )
+    suspend fun updateSummaryArtwork(
+        detailsUrl: String,
+        posterUrl: String,
+        backdropUrl: String?,
+        episodeOverviewRu: String?,
+        episodeOverviewSource: String?,
+        seriesOverviewRu: String?,
+        movieOverviewRu: String?,
+        tmdbRating: String?,
+    ): Int
+
     @Upsert
     suspend fun upsertDetails(details: ReleaseDetailsEntity)
 
