@@ -1353,6 +1353,77 @@ class HomeViewModelTest {
         assertEquals(listOf(firstPageItem), viewModel.uiState.value.items)
         assertNull(viewModel.uiState.value.pagingErrorMessage)
     }
+
+    @Test
+    fun paging_staleCacheWithErrorMessage_isAppliedSoUserCanRetry() = runTest(dispatcher) {
+        // Оффлайн-пагинация: fallbackPageState отдаёт stale-кэш вместе с
+        // pagingErrorMessage. Такую эмиссию пропускать нельзя — иначе пользователь
+        // не видит ошибку, а onPagingRetry выходит по null-сообщению.
+        val pageTwoFlow = MutableSharedFlow<PageState>(replay = 0, extraBufferCapacity = 4)
+        val firstPageItem = summary("https://www.lostfilm.today/series/e1/season_1/episode_1/")
+        val cachedSecondPageItem = summary("https://www.lostfilm.today/series/e2/season_1/episode_1/")
+        val retriedPageItem = summary("https://www.lostfilm.today/series/e3/season_1/episode_1/")
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(
+                    pageNumber = 1,
+                    items = listOf(firstPageItem),
+                    hasNextPage = true,
+                    isStale = false,
+                ),
+                // Повтор запрашивает md.nextPage, который collectNextPage выставил
+                // в result.pageNumber + 1, то есть страницу 3.
+                3 to PageState.Content(
+                    pageNumber = 3,
+                    items = listOf(firstPageItem, cachedSecondPageItem, retriedPageItem),
+                    hasNextPage = false,
+                    isStale = false,
+                ),
+            ),
+            observePageFlows = mapOf(2 to pageTwoFlow),
+        )
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+        viewModel.onEndReached()
+        advanceUntilIdle()
+
+        pageTwoFlow.tryEmit(
+            PageState.Content(
+                pageNumber = 2,
+                items = listOf(firstPageItem, cachedSecondPageItem),
+                hasNextPage = true,
+                isStale = true,
+                pagingErrorMessage = "Unable to load page 2",
+            )
+        )
+        advanceUntilIdle()
+
+        // Эмиссия применена: мягкая ошибка видна, список заменён кэшем, спиннер погашен.
+        assertEquals("Unable to load page 2", viewModel.uiState.value.pagingErrorMessage)
+        assertEquals(listOf(firstPageItem, cachedSecondPageItem), viewModel.uiState.value.items)
+        assertFalse(viewModel.uiState.value.isPaging)
+
+        val callsBeforeRetry = repository.observePageCalls.size
+        viewModel.onPagingRetry()
+        advanceUntilIdle()
+
+        // Главная проверка: повтор действительно собрал поток заново. Если бы
+        // onPagingRetry вышел по null-сообщению, observePageCalls не вырос бы.
+        assertEquals(callsBeforeRetry + 1, repository.observePageCalls.size)
+        assertEquals(3, repository.observePageCalls.last())
+        // Повтор дошёл до данных и снял ошибку.
+        assertEquals(
+            listOf(firstPageItem, cachedSecondPageItem, retriedPageItem),
+            viewModel.uiState.value.items,
+        )
+        assertNull(viewModel.uiState.value.pagingErrorMessage)
+    }
 }
 
 private class FakeLostFilmRepository(
