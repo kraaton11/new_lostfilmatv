@@ -5,7 +5,7 @@ from auth_bridge.services.pairing_service import PairingService
 
 
 def build_health_router(pairing_service: PairingService) -> APIRouter:
-    router = APIRouter(prefix="/health", tags=["health"])
+    router = APIRouter(tags=["health"])
 
     @router.get("")
     def health() -> dict[str, str]:
@@ -48,6 +48,16 @@ def build_health_router(pairing_service: PairingService) -> APIRouter:
         service = getattr(request.app.state, "tmdb_proxy_service", None)
         if service is None:
             raise HTTPException(status_code=503, detail="TMDB proxy service is not available.")
+        return service.snapshot().to_dict()
+
+    @router.get("/kinopoisk")
+    def kinopoisk(request: Request) -> dict[str, int | bool]:
+        """
+        KinoPoisk proxy health and counters. Does not call KinoPoisk and does not expose secrets.
+        """
+        service = getattr(request.app.state, "kinopoisk_proxy_service", None)
+        if service is None:
+            raise HTTPException(status_code=503, detail="KinoPoisk proxy service is not available.")
         return service.snapshot().to_dict()
 
     return router

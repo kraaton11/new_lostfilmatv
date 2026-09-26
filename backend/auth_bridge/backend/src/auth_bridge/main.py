@@ -4,12 +4,13 @@ import asyncio
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
-from fastapi import FastAPI
+from fastapi import APIRouter, FastAPI
 
 from auth_bridge.api.health import build_health_router
 from auth_bridge.api.pairings import build_pairings_router
 from auth_bridge.api.phone_flow import attach_phone_flow_router
 from auth_bridge.api.tmdb import build_tmdb_router
+from auth_bridge.api.kinopoisk import build_kinopoisk_router
 from auth_bridge.api.translation import build_translation_router
 from auth_bridge.api.wildcard_proxy import attach_wildcard_proxy_router
 from auth_bridge.config import get_settings
@@ -22,6 +23,7 @@ from auth_bridge.services.pairing_store import InMemoryPairingStore
 from auth_bridge.services.proxy_session_store import ProxySessionStore
 from auth_bridge.services.trusted_device_service import TrustedDeviceService
 from auth_bridge.services.tmdb_proxy_service import TmdbProxyService
+from auth_bridge.services.kinopoisk_proxy_service import KinopoiskProxyService
 from auth_bridge.services.translation_service import DeeplTranslationService
 
 
@@ -129,6 +131,10 @@ def create_app() -> FastAPI:
         max_requests=settings.tmdb_rate_limit_max_requests,
         window_seconds=settings.tmdb_rate_limit_window_seconds,
     )
+    kinopoisk_rate_limiter = SlidingWindowRateLimiter(
+        max_requests=settings.kinopoisk_rate_limit_max_requests,
+        window_seconds=settings.kinopoisk_rate_limit_window_seconds,
+    )
     lostfilm_auth_detector = LostFilmAuthDetector()
     trusted_device_service = TrustedDeviceService(
         db_path=settings.trusted_device_db_path,
@@ -165,6 +171,16 @@ def create_app() -> FastAPI:
         cache_ttl_details_seconds=settings.tmdb_cache_ttl_details_seconds,
         cache_ttl_negative_seconds=settings.tmdb_cache_ttl_negative_seconds,
     )
+    kinopoisk_proxy_service = KinopoiskProxyService(
+        api_key=settings.kinopoisk_api_key,
+        base_url=settings.kinopoisk_api_base_url,
+        timeout_seconds=settings.kinopoisk_timeout_seconds,
+        cache_max_entries=settings.kinopoisk_cache_max_entries,
+        cache_ttl_search_seconds=settings.kinopoisk_cache_ttl_search_seconds,
+        cache_ttl_details_seconds=settings.kinopoisk_cache_ttl_details_seconds,
+        cache_ttl_seasons_seconds=settings.kinopoisk_cache_ttl_seasons_seconds,
+        cache_ttl_negative_seconds=settings.kinopoisk_cache_ttl_negative_seconds,
+    )
 
     app.state.pairing_service = pairing_service
     app.state.proxy_session_store = proxy_session_store
@@ -173,17 +189,22 @@ def create_app() -> FastAPI:
     app.state.proxy_rate_limiter = proxy_rate_limiter
     app.state.translation_rate_limiter = translation_rate_limiter
     app.state.tmdb_rate_limiter = tmdb_rate_limiter
+    app.state.kinopoisk_rate_limiter = kinopoisk_rate_limiter
     app.state.trusted_proxy_networks = settings.trusted_proxy_networks
     app.state.lostfilm_auth_detector = lostfilm_auth_detector
     app.state.trusted_device_service = trusted_device_service
     app.state.lostfilm_proxy_service = lostfilm_proxy_service
     app.state.translation_service = translation_service
     app.state.tmdb_proxy_service = tmdb_proxy_service
+    app.state.kinopoisk_proxy_service = kinopoisk_proxy_service
 
-    app.include_router(build_health_router(pairing_service))
-    app.include_router(build_pairings_router(pairing_service))
-    app.include_router(build_tmdb_router())
-    app.include_router(build_translation_router())
+    # Register API routers before the wildcard catch-all so they take precedence.
+    # The wildcard proxy returns 404 for known API paths as a safety net.
+    app.include_router(build_health_router(pairing_service), prefix="/health")
+    app.include_router(build_pairings_router(pairing_service), prefix="/api/pairings")
+    app.include_router(build_tmdb_router(), prefix="/api/tmdb")
+    app.include_router(build_kinopoisk_router(), prefix="/api/kinopoisk")
+    app.include_router(build_translation_router(), prefix="/api/translate")
     attach_phone_flow_router(app, pairing_service)
     attach_wildcard_proxy_router(app, pairing_service)
 

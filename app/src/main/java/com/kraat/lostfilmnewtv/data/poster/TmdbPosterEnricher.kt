@@ -11,7 +11,11 @@ object TmdbPosterEnricher {
         tmdbUrls: TmdbImageUrls?,
     ): ReleaseSummary {
         if (tmdbUrls == null) {
-            return summary.copy(posterUrl = "")
+            // «Ничего не нашлось» — это отсутствие новых данных, а не повод
+            // затереть то, что уже есть. Раньше здесь обнулялся posterUrl, и
+            // карточка с постером Кинопоиска (у него всегда нет фона, поэтому
+            // hasCompleteArt() ложно) теряла постер и записывала пустоту в Room.
+            return summary
         }
         return summary.copy(
             posterUrl = tmdbUrls.posterUrl.ifBlank { "" },
@@ -29,7 +33,7 @@ object TmdbPosterEnricher {
         tmdbUrls: TmdbImageUrls?,
     ): ReleaseDetails {
         if (tmdbUrls == null) {
-            return details.copy(posterUrl = "")
+            return details
         }
         return details.copy(
             posterUrl = tmdbUrls.posterUrl.ifBlank { "" },

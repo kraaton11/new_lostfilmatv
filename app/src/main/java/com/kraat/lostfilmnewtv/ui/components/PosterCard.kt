@@ -27,7 +27,6 @@ import androidx.tv.material3.Card
 import androidx.tv.material3.CardDefaults
 import androidx.tv.material3.Glow
 import androidx.tv.material3.Border
-import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
@@ -55,7 +54,7 @@ fun PosterCard(
     val borderColor = if (isFocused) FocusBorder.copy(alpha = 0.88f) else HomePanelBorder.copy(alpha = 0.14f)
     val overlayColor = if (isFocused) FocusBackground.copy(alpha = 0.82f) else HomePanelSurface.copy(alpha = 0.62f)
     val watchedBadgeColor = if (isFocused) HomeAccentGoldGlow.copy(alpha = 0.86f) else HomePanelSurfaceStrong.copy(alpha = 0.86f)
-    val posterRequest = rememberPosterImageRequest(item.posterUrl)
+    val posterRequest = item.posterUrl.takeIf { it.isNotBlank() }?.let { rememberPosterImageRequest(it) }
 
     Card(
         onClick = onClick,
@@ -85,7 +84,7 @@ fun PosterCard(
         )
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            AsyncImage(
+            PosterImage(
                 model = posterRequest,
                 contentDescription = item.titleRu,
                 contentScale = ContentScale.Crop,

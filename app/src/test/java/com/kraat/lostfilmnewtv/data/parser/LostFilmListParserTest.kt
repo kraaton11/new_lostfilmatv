@@ -40,6 +40,21 @@ class LostFilmListParserTest {
     }
 
     @Test
+    fun parsesReleaseYear_fromMoviesRailRow() {
+        // Лента фильмов кладёт год в плоский details-pane строкой «Год выхода:»,
+        // а не во вложенные .alpha/.beta, как страница «Новые». Без этого года
+        // сопоставление с TMDB шло вслепую: у «Надежды» 71 одноимённый фильм,
+        // и выбирался чужой.
+        val html = fixture("movies-rail.html")
+
+        val results = LostFilmListParser().parse(html, pageNumber = 1)
+        val nadezhda = results.first { it.titleRu == "Надежда" }
+
+        assertEquals(2026, nadezhda.originalReleaseYear)
+        assertEquals(2003, results.first { it.titleRu == "Подержанные львы" }.originalReleaseYear)
+    }
+
+    @Test
     fun parsesWatchedStateFromHaveSeenButton() {
         val html = fixture("new-page-1.html")
             .replaceFirst(

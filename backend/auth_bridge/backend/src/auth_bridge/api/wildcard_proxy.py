@@ -68,6 +68,16 @@ def attach_wildcard_proxy_router(app, pairing_service: PairingService) -> None:
         if proxy_path == "":
             return wildcard_entry(request)
 
+        # /api/... and /health are handled by dedicated mounted sub-apps.
+        # /pair/... is handled by the phone flow router.
+        # Let them fall through to the 404 handler so Starlette can try mounts.
+        if proxy_path.startswith("api/") or proxy_path.startswith("health") or proxy_path.startswith("pair/"):
+            return Response(
+                content="Not found",
+                status_code=status.HTTP_404_NOT_FOUND,
+                media_type="text/plain",
+            )
+
         if not (request.method == "GET" and proxy_path == "login"):
             try:
                 _check_proxy_rate_limit_for_request(app, pairing_service, request)

@@ -20,7 +20,7 @@ from auth_bridge.services.pairing_service import (
 
 
 def build_pairings_router(pairing_service: PairingService) -> APIRouter:
-    router = APIRouter(prefix="/api/pairings", tags=["pairings"])
+    router = APIRouter(tags=["pairings"])
 
     @router.post("", response_model=PairingCreateResponse, status_code=status.HTTP_201_CREATED)
     def create_pairing(request: Request) -> PairingCreateResponse:

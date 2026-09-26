@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.kraat.lostfilmnewtv.ui.components.PosterImage
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.TmdbEpisodeOverviewSource
@@ -938,14 +939,16 @@ private fun PosterCard(details: ReleaseDetails?) {
             .border(1.dp, DetailsBorderDefault.copy(alpha = 0.74f), RoundedCornerShape(22.dp)),
     ) {
         if (details != null) {
-            val request = remember(context, details.posterUrl, posterWidthPx, posterHeightPx) {
-                ImageRequest.Builder(context)
-                    .data(details.posterUrl)
-                    .size(posterWidthPx, posterHeightPx)
-                    .build()
+            val posterModel = details.posterUrl.takeIf { it.isNotBlank() }?.let { url ->
+                remember(context, url, posterWidthPx, posterHeightPx) {
+                    ImageRequest.Builder(context)
+                        .data(url)
+                        .size(posterWidthPx, posterHeightPx)
+                        .build()
+                }
             }
-            AsyncImage(
-                model = request,
+            PosterImage(
+                model = posterModel,
                 contentDescription = details.titleRu,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize(),

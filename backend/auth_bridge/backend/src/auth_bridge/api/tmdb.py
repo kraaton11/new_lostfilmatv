@@ -14,7 +14,7 @@ from auth_bridge.services.tmdb_proxy_service import (
 
 
 def build_tmdb_router() -> APIRouter:
-    router = APIRouter(prefix="/api/tmdb", tags=["tmdb"])
+    router = APIRouter(tags=["tmdb"])
 
     @router.get("/{path:path}")
     async def proxy_tmdb(path: str, request: Request) -> Response:

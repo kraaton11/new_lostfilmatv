@@ -32,13 +32,22 @@ import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolverImpl
 import java.io.IOException
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.last
 import com.kraat.lostfilmnewtv.data.repository.FavoritesRepository
 import com.kraat.lostfilmnewtv.data.repository.FavoritesRepositoryImpl
 import com.kraat.lostfilmnewtv.data.poster.TmdbEnrichmentService
 import com.kraat.lostfilmnewtv.data.poster.TmdbEnrichmentServiceImpl
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -84,6 +93,7 @@ class LostFilmRepositoryTest {
         seedPage(pageNumber = 1, fetchedAt = NOW - SIX_HOURS_MS - 2_000L)
         val repository = createRepository(
             pageHandler = { throw IOException("offline") },
+            tmdbResolver = PosterTmdbResolver(),
         )
 
         val result = repository.loadPage(1)
@@ -92,6 +102,10 @@ class LostFilmRepositoryTest {
         result as PageState.Content
         assertTrue(result.isStale)
         assertEquals("9-1-1", result.items.first().titleRu)
+        assertTrue(
+            "loadPage обогащает кэш перед возвратом",
+            result.items.all { it.posterUrl.isNotBlank() },
+        )
     }
 
     @Test
@@ -109,7 +123,7 @@ class LostFilmRepositoryTest {
     }
 
     @Test
-    fun observeNewReleases_skipsNetwork_whenRoomCacheIsFresh() = runTest {
+    fun observePage_skipsNetwork_whenRoomCacheIsFresh() = runTest {
         // Seed Room with cache fetched 5 minutes ago — within 10-min TTL.
         seedPage(pageNumber = 1, fetchedAt = NOW - 5 * 60 * 1000L)
         val repository = createRepository(
@@ -117,7 +131,7 @@ class LostFilmRepositoryTest {
             pageHandler = { error("Fresh Room cache should prevent network request") },
         )
 
-        val emissions = repository.observeNewReleases(1).toList()
+        val emissions = repository.observePage(1).toList()
 
         assertEquals(1, emissions.size)
         val result = emissions.single() as PageState.Content
@@ -126,14 +140,14 @@ class LostFilmRepositoryTest {
     }
 
     @Test
-    fun observeNewReleases_hitsNetwork_whenRoomCacheIsStale() = runTest {
+    fun observePage_hitsNetwork_whenRoomCacheIsStale() = runTest {
         // Seed Room with cache fetched 15 minutes ago — outside 10-min TTL.
         seedPage(pageNumber = 1, fetchedAt = NOW - 15 * 60 * 1000L)
         val repository = createRepository(
             pageHandler = { fixture("new-page-1.html") },
         )
 
-        val emissions = repository.observeNewReleases(1).toList()
+        val emissions = repository.observePage(1).toList()
 
         // Expect 2 emissions: stale Room cache, then fresh network result.
         assertEquals(2, emissions.size)
@@ -2266,6 +2280,198 @@ class LostFilmRepositoryTest {
         assertTrue(releaseDao.getFavoriteReleaseCacheMetadata() == null)
     }
 
+    @Test
+    fun observePage_emitsFreshPageBeforeEnrichmentCompletes() = runTest {
+        val releaseGate = CompletableDeferred<Unit>()
+
+        val observation = observePageWithGatedEnrichment(releaseGate)
+
+        val fresh = observation.fresh
+        assertTrue(fresh.items.isNotEmpty())
+        assertTrue(fresh.items.all { it.posterUrl.isBlank() })
+
+        releaseGate.complete(Unit)
+        observation.job.joinWithin5s()
+
+        val enriched = observation.emissions.filterIsInstance<PageState.Content>().last()
+        assertTrue(enriched.items.any { it.posterUrl.isNotBlank() })
+    }
+
+    @Test
+    fun observePage_persistsArtworkIntoRoomAsItResolves() = runTest {
+        val releaseGate = CompletableDeferred<Unit>()
+
+        val observation = observePageWithGatedEnrichment(releaseGate)
+
+        val whileGated = releaseDao.getSummariesUpToPage(1)
+        assertTrue(whileGated.isNotEmpty())
+        assertTrue(
+            "Пока постеры не пришли, в Room должен лежать пустой арт",
+            whileGated.all { it.posterUrl.isBlank() },
+        )
+
+        releaseGate.complete(Unit)
+        observation.job.joinWithin5s()
+
+        val afterGate = releaseDao.getSummariesUpToPage(1)
+        assertTrue("Арт должен быть записан в Room", afterGate.any { it.posterUrl.isNotBlank() })
+    }
+
+    @Test
+    fun observePage_keepsWatchedFlagSetDuringEnrichment() = runTest {
+        val releaseGate = CompletableDeferred<Unit>()
+
+        val observation = observePageWithGatedEnrichment(releaseGate)
+        val targetUrl = observation.fresh.items.first().detailsUrl
+
+        releaseDao.updateSummaryWatched(targetUrl, true)
+        releaseGate.complete(Unit)
+        observation.job.joinWithin5s()
+
+        val stored = releaseDao.getSummary(targetUrl)
+        requireNotNull(stored)
+        assertTrue("Прогрессивное обогащение не должно сбрасывать isWatched", stored.isWatched)
+    }
+
+    @Test
+    fun observePage_keepsWatchedFlagChangedAfterFetch_inEmittedItems() = runTest {
+        val releaseGate = CompletableDeferred<Unit>()
+
+        val observation = observePageWithGatedEnrichment(releaseGate)
+        val targetUrl = observation.fresh.items.first().detailsUrl
+
+        releaseDao.updateSummaryWatched(targetUrl, true)
+        releaseGate.complete(Unit)
+        observation.job.joinWithin5s()
+
+        val lastEmission = observation.emissions.filterIsInstance<PageState.Content>().last()
+        val target = lastEmission.items.first { it.detailsUrl == targetUrl }
+        assertTrue("Прогрессивная эмиссия не должна откатывать отметку просмотра", target.isWatched)
+    }
+
+    @Test
+    fun observePage_emitsError_whenNetworkFailsWithoutCache() = runTest {
+        val repository = createRepository(
+            pageHandler = { throw IOException("offline") },
+        )
+
+        val emissions = repository.observePage(1).toList()
+
+        assertEquals(1, emissions.size)
+        val error = emissions.single() as PageState.Error
+        assertEquals("offline", error.message)
+    }
+
+    @Test
+    fun observePage_propagatesCancellation_midEnrichment() = runTest {
+        val releaseGate = CompletableDeferred<Unit>()
+
+        val observation = observePageWithGatedEnrichment(releaseGate)
+
+        observation.job.cancel()
+        observation.job.joinWithin5s()
+
+        assertFalse(
+            "Отмена коллектора должна пробрасываться, а не проглатываться",
+            observation.completedNormally.await(),
+        )
+    }
+
+    @Test
+    fun observePage_sweepsExpiredCache_onFreshInstallPath() = runTest {
+        seedPage(pageNumber = 1, fetchedAt = NOW - 5 * 60 * 1000L)
+        // Протухшая вторая страница: её не трогает replacePage первой, видно только
+        // результат cleanupExpiredDataIfNeeded.
+        seedPage(pageNumber = 2, fetchedAt = NOW - SEVEN_DAYS_MS - 2_000L)
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+        )
+
+        repository.observePage(1).toList()
+
+        assertTrue("Свежая страница должна остаться", releaseDao.getPageSummaries(1).isNotEmpty())
+        assertTrue("Протухшая страница должна быть вычищена", releaseDao.getPageSummaries(2).isEmpty())
+        assertTrue("Метаданные протухшей страницы должны быть вычищены", releaseDao.getPageMetadata(2) == null)
+    }
+
+    @Test
+    fun observePage_emitsOnlyStaleContent_whenNetworkFailsWithCache() = runTest {
+        seedPage(pageNumber = 1, fetchedAt = NOW - SEVEN_DAYS_MS / 2)
+        val repository = createRepository(
+            pageHandler = { throw IOException("offline") },
+            tmdbResolver = PosterTmdbResolver(),
+        )
+
+        val emissions = repository.observePage(1).toList()
+
+        val contents = emissions.filterIsInstance<PageState.Content>()
+        assertEquals(2, contents.size)
+        assertTrue(contents.all { it.isStale })
+        assertTrue(
+            "Путь ленты не должен блокироваться на обогащении кэша",
+            contents.all { content -> content.items.all { it.posterUrl.isBlank() } },
+        )
+    }
+
+    private class GatedObservation(
+        val emissions: MutableList<PageState>,
+        val fresh: PageState.Content,
+        val completedNormally: Deferred<Boolean>,
+        val job: Job,
+    )
+
+    /**
+     * Собирает [LostFilmRepository.observePage] с резолвером, который висит на гейте:
+     * возвращает управление сразу после свежей эмиссии, до того как пришёл хоть один постер.
+     * Таймауты ждём на реальном диспетчере: executor запросов Room невидим для
+     * TestCoroutineScheduler, и runTest на нём прокрутит виртуальное время до таймаута
+     * и отменит сбор корректного flow.
+     */
+    private suspend fun TestScope.observePageWithGatedEnrichment(
+        gate: CompletableDeferred<Unit>,
+    ): GatedObservation {
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            tmdbResolver = GatedTmdbResolver(gate),
+        )
+        val emissions = mutableListOf<PageState>()
+        val freshEmission = CompletableDeferred<PageState.Content>()
+        val completedNormally = CompletableDeferred<Boolean>()
+        val job = launch(Dispatchers.Default) {
+            try {
+                repository.observePage(1).collect { state ->
+                    emissions += state
+                    if (state is PageState.Content && !state.isStale && !freshEmission.isCompleted) {
+                        freshEmission.complete(state)
+                    }
+                }
+                completedNormally.complete(true)
+            } catch (exception: CancellationException) {
+                completedNormally.complete(false)
+            }
+        }
+        val fresh = requireNotNull(
+            withContext(Dispatchers.IO) {
+                withTimeoutOrNull(5_000) { freshEmission.await() }
+            },
+        ) { "Свежая страница должна прийти до того, как резолвер что-то отдаст" }
+        return GatedObservation(
+            emissions = emissions,
+            fresh = fresh,
+            completedNormally = completedNormally,
+            job = job,
+        )
+    }
+
+    private suspend fun Job.joinWithin5s() {
+        assertTrue(
+            "Коллектор observePage не завершился за 5 секунд",
+            withContext(Dispatchers.IO) {
+                withTimeoutOrNull(5_000) { this@joinWithin5s.join() }
+            } != null,
+        )
+    }
+
     private suspend fun seedPage(pageNumber: Int, fetchedAt: Long) {
         val parsed = LostFilmListParser().parse(
             html = fixture("new-page-1.html"),
@@ -2343,6 +2549,37 @@ class LostFilmRepositoryTest {
             tmdbEnrichmentService = tmdbEnrichmentService,
             favoritesRepository = dagger.internal.DoubleCheck.lazy { favoritesRepository },
             clock = { NOW },
+        )
+    }
+}
+
+private class PosterTmdbResolver : TmdbPosterResolver {
+    override suspend fun resolve(
+        detailsUrl: String,
+        titleRu: String,
+        releaseDateRu: String,
+        kind: com.kraat.lostfilmnewtv.data.model.ReleaseKind,
+        originalReleaseYear: Int?,
+    ): TmdbImageUrls = TmdbImageUrls(
+        posterUrl = "https://image.tmdb.org/t/p/w780/$detailsUrl.jpg",
+        backdropUrl = "https://image.tmdb.org/t/p/w1280/$detailsUrl.jpg",
+    )
+}
+
+private class GatedTmdbResolver(
+    private val gate: CompletableDeferred<Unit>,
+) : TmdbPosterResolver {
+    override suspend fun resolve(
+        detailsUrl: String,
+        titleRu: String,
+        releaseDateRu: String,
+        kind: com.kraat.lostfilmnewtv.data.model.ReleaseKind,
+        originalReleaseYear: Int?,
+    ): TmdbImageUrls {
+        gate.await()
+        return TmdbImageUrls(
+            posterUrl = "https://image.tmdb.org/t/p/w780/$detailsUrl.jpg",
+            backdropUrl = "https://image.tmdb.org/t/p/w1280/$detailsUrl.jpg",
         )
     }
 }
@@ -2755,7 +2992,7 @@ private class FakeTmdbPosterClient : com.kraat.lostfilmnewtv.data.network.TmdbPo
     okHttpClient = okhttp3.OkHttpClient.Builder().build(),
     apiKey = "fake",
 ) {
-    override suspend fun searchByTitle(query: String, year: Int?, type: com.kraat.lostfilmnewtv.data.model.TmdbMediaType) =
+    override suspend fun searchByTitle(query: String, year: Int?, type: com.kraat.lostfilmnewtv.data.model.TmdbMediaType, page: Int, language: String?) =
         emptyList<com.kraat.lostfilmnewtv.data.model.TmdbSearchResult>()
 
     override suspend fun getPosterAndBackdrop(tmdbId: Int, type: com.kraat.lostfilmnewtv.data.model.TmdbMediaType) =

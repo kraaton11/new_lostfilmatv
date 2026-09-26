@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kraat.lostfilmnewtv.data.model.SeriesOverview
+import com.kraat.lostfilmnewtv.ui.components.PosterImage
 import com.kraat.lostfilmnewtv.ui.components.ShimmerSkeletonBox
 import com.kraat.lostfilmnewtv.ui.components.rememberShimmerSkeletonBrush
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
@@ -383,10 +384,16 @@ private fun OverviewContent(overview: SeriesOverview?) {
                                 .size(posterWidthPx, posterHeightPx)
                                 .build()
                         }
-                        AsyncImage(
+                        PosterImage(
                             model = request,
                             contentDescription = safeOverview.titleRu,
                             contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    } else {
+                        PosterImage(
+                            model = null,
+                            contentDescription = safeOverview.titleRu,
                             modifier = Modifier.fillMaxSize(),
                         )
                     }

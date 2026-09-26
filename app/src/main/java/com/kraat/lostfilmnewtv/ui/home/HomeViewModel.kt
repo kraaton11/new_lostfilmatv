@@ -9,7 +9,6 @@ import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.data.repository.FavoritesRepository
-import com.kraat.lostfilmnewtv.data.poster.TmdbEnrichmentService
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import com.kraat.lostfilmnewtv.updates.AppUpdateCoordinator
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
@@ -26,6 +25,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -37,7 +37,6 @@ private val favoriteSeriesSlugRegex = Regex("""/series/([^/]+)""")
 class HomeViewModel @Inject constructor(
     private val repository: LostFilmRepository,
     private val favoritesRepository: FavoritesRepository,
-    private val tmdbEnrichmentService: TmdbEnrichmentService,
     private val savedStateHandle: SavedStateHandle,
     private val preferencesStore: PlaybackPreferencesStore,
     private val homeChannelSyncManager: HomeChannelSyncManager,
@@ -381,13 +380,13 @@ class HomeViewModel @Inject constructor(
 
     private fun loadPage(pageNumber: Int, isPagingRequest: Boolean) {
         if (pageNumber == 1 && !isPagingRequest) {
-            observeNewReleases()
+            observeAllNewPage()
             return
         }
-        loadPageDirect(pageNumber, isPagingRequest)
+        collectNextPage(pageNumber, isPagingRequest)
     }
 
-    private fun observeNewReleases() {
+    private fun observeAllNewPage() {
         allNewLoadJob?.cancel()
         _uiState.update { state ->
             state.copy(
@@ -403,72 +402,103 @@ class HomeViewModel @Inject constructor(
         }
         allNewLoadJob = viewModelScope.launch(ioDispatcher) {
             var hadCacheEmission = false
+            var sawFreshContent = false
             try {
-                repository.observeNewReleases(1).collect { result ->
-                    when (result) {
-                        is PageState.Content -> {
-                            val isStale = result.isStale
-                            _uiState.update { state ->
-                                state.copy(
-                                    isInitialLoading = false,
-                                    fullScreenErrorMessage = null,
-                                ).updateMode(HomeFeedMode.AllNew) { md ->
-                                    md.copy(
-                                        items = result.items,
-                                        isPaging = false,
-                                        pagingErrorMessage = result.pagingErrorMessage,
-                                        nextPage = result.pageNumber + 1,
-                                        hasNextPage = result.hasNextPage,
-                                        contentState = HomeModeContentState.Content(result.items),
-                                    )
-                                }.resolveSelection()
-                            }
-                            if (isStale) {
-                                hadCacheEmission = true
-                            } else {
-                                lastAllNewRefreshAt = clock()
+                repository.observePage(1)
+                    .onCompletion { cause ->
+                        // Синхронизацию канала снимаем с пути сбора: syncNow()
+                        // ждёт сеть (до 30 резолвов TMDB) и в вызове emit
+                        // заблокировал бы поток на всё обогащение — лента стояла бы
+                        // без постеров. Запускаем после завершения потока, когда
+                        // кэши резолвера уже прогреты, и в отдельной корутине, чтобы
+                        // коллектор вернулся сразу.
+                        //
+                        // Отмену пропускаем. Сбор первой страницы отменяют пагинация
+                        // и повторная загрузка страницы 1 из onResume/onRetry, а сам
+                        // ViewModel — при очистке; во всех случаях лента недогружена,
+                        // поэтому публиковать её в канал рано, а syncNow идемпотентен
+                        // и отработает при следующей успешной загрузке.
+                        if (cause == null && sawFreshContent) {
+                            viewModelScope.launch(ioDispatcher) {
                                 homeChannelSyncManager.syncNow()
                             }
                         }
-                        is PageState.Error -> {
-                            if (hadCacheEmission) {
+                    }
+                    .collect { result ->
+                        when (result) {
+                            is PageState.Content -> {
+                                val isStale = result.isStale
                                 _uiState.update { state ->
                                     state.copy(
                                         isInitialLoading = false,
+                                        fullScreenErrorMessage = null,
                                     ).updateMode(HomeFeedMode.AllNew) { md ->
                                         md.copy(
+                                            items = result.items,
                                             isPaging = false,
-                                            pagingErrorMessage = result.message,
+                                            pagingErrorMessage = result.pagingErrorMessage,
+                                            nextPage = result.pageNumber + 1,
+                                            hasNextPage = result.hasNextPage,
+                                            contentState = HomeModeContentState.Content(result.items),
                                         )
                                     }.resolveSelection()
                                 }
-                            } else {
-                                _uiState.update { state ->
-                                    state.copy(
-                                        isInitialLoading = false,
-                                        fullScreenErrorMessage = result.message,
-                                    ).updateMode(HomeFeedMode.AllNew) { md ->
-                                        md.copy(
-                                            isPaging = false,
-                                            pagingErrorMessage = null,
-                                            contentState = HomeModeContentState.Error(result.message),
-                                        )
-                                    }.resolveSelection()
+                                when {
+                                    isStale -> hadCacheEmission = true
+                                    // sawFreshContent отмечает приход свежей страницы
+                                    // (isStale = false) — только тогда канал
+                                    // синхронизируется, как и до прогрессивной ленты.
+                                    // Свежий кэш попадает сюда тоже (в observePage
+                                    // isStale = !cacheFresh), и там это оправдано;
+                                    // stale-эмиссия и ошибка — нет.
+                                    // lastAllNewRefreshAt — про гейт onResume, не про канал.
+                                    else -> if (!sawFreshContent) {
+                                        sawFreshContent = true
+                                        lastAllNewRefreshAt = clock()
+                                    }
+                                }
+                            }
+                            is PageState.Error -> {
+                                if (hadCacheEmission) {
+                                    _uiState.update { state ->
+                                        state.copy(
+                                            isInitialLoading = false,
+                                        ).updateMode(HomeFeedMode.AllNew) { md ->
+                                            md.copy(
+                                                isPaging = false,
+                                                pagingErrorMessage = result.message,
+                                            )
+                                        }.resolveSelection()
+                                    }
+                                } else {
+                                    _uiState.update { state ->
+                                        state.copy(
+                                            isInitialLoading = false,
+                                            fullScreenErrorMessage = result.message,
+                                        ).updateMode(HomeFeedMode.AllNew) { md ->
+                                            md.copy(
+                                                isPaging = false,
+                                                pagingErrorMessage = null,
+                                                contentState = HomeModeContentState.Error(result.message),
+                                            )
+                                        }.resolveSelection()
+                                    }
                                 }
                             }
                         }
                     }
-                }
             } catch (exception: CancellationException) {
                 throw exception
             }
         }
     }
 
-    private fun loadPageDirect(pageNumber: Int, isPagingRequest: Boolean) {
-        if (!isPagingRequest) {
-            allNewLoadJob?.cancel()
-        }
+    private fun collectNextPage(pageNumber: Int, isPagingRequest: Boolean) {
+        // Отменяем предыдущую загрузку всегда, а не только вне пагинации: сюда
+        // попадает только пагинация, а поток первой страницы живёт до конца
+        // прогрессивного обогащения. Без отмены его эмиссия постера перезапишет
+        // уже применённую страницу и список откатится на первую страницу.
+        allNewLoadJob?.cancel()
         _uiState.update { state ->
             state.copy(
                 isInitialLoading = !isPagingRequest,
@@ -482,45 +512,63 @@ class HomeViewModel @Inject constructor(
             }
         }
         allNewLoadJob = viewModelScope.launch(ioDispatcher) {
-            when (val result = repository.loadPage(pageNumber)) {
-                is PageState.Content -> {
-                    val existingItems = _uiState.value.items
-                    val updatedItems = if (result.isAppend) {
-                        (existingItems + result.items).distinctBy { it.detailsUrl }
-                    } else {
-                        result.items
-                    }
-                    _uiState.update { state ->
-                        state.copy(
-                            isInitialLoading = false,
-                            fullScreenErrorMessage = null,
-                        ).updateMode(HomeFeedMode.AllNew) { md ->
-                            md.copy(
-                                items = updatedItems,
-                                isPaging = false,
-                                pagingErrorMessage = result.pagingErrorMessage,
-                                nextPage = result.pageNumber + 1,
-                                hasNextPage = result.hasNextPage,
-                                contentState = HomeModeContentState.Content(updatedItems),
-                            )
-                        }.resolveSelection()
-                    }
-                    if (!isPagingRequest) {
-                        homeChannelSyncManager.syncNow()
+            var appliedEmission = false
+            try {
+                repository.observePage(pageNumber).collect { result ->
+                    when (result) {
+                        is PageState.Content -> {
+                            // Кэш-эмиссия при пагинации — не новые данные: спиннер
+                            // должен остаться, пока не придёт свежая страница. Но если
+                            // кэш отдаёт pagingErrorMessage, эмиссию применять нужно —
+                            // иначе пользователь теряет сообщение и кнопку повтора.
+                            if (result.isStale && result.pagingErrorMessage == null) return@collect
+                            appliedEmission = true
+                            val updatedItems = result.items
+                            _uiState.update { state ->
+                                state.copy(
+                                    isInitialLoading = false,
+                                    fullScreenErrorMessage = null,
+                                ).updateMode(HomeFeedMode.AllNew) { md ->
+                                    md.copy(
+                                        items = updatedItems,
+                                        isPaging = false,
+                                        pagingErrorMessage = result.pagingErrorMessage,
+                                        nextPage = result.pageNumber + 1,
+                                        hasNextPage = result.hasNextPage,
+                                        contentState = HomeModeContentState.Content(updatedItems),
+                                    )
+                                }.resolveSelection()
+                            }
+                            if (!isPagingRequest) {
+                                homeChannelSyncManager.syncNow()
+                            }
+                        }
+                        is PageState.Error -> {
+                            appliedEmission = true
+                            _uiState.update { state ->
+                                state.copy(
+                                    isInitialLoading = false,
+                                    fullScreenErrorMessage = result.message,
+                                ).updateMode(HomeFeedMode.AllNew) { md ->
+                                    md.copy(
+                                        isPaging = false,
+                                        pagingErrorMessage = null,
+                                        contentState = HomeModeContentState.Error(result.message),
+                                    )
+                                }.resolveSelection()
+                            }
+                        }
                     }
                 }
-                is PageState.Error -> {
+            } finally {
+                // Страховка для реализаций репозитория, чей observePage завершается
+                // после одной cache-эмиссии: эмиссия пропущена, а flow уже закрыт —
+                // гасим спиннер, иначе он крутится вечно. Нынешний
+                // LostFilmRepositoryImpl так не заканчивает, но полагаться на это
+                // нельзя.
+                if (!appliedEmission) {
                     _uiState.update { state ->
-                        state.copy(
-                            isInitialLoading = false,
-                            fullScreenErrorMessage = result.message,
-                        ).updateMode(HomeFeedMode.AllNew) { md ->
-                            md.copy(
-                                isPaging = false,
-                                pagingErrorMessage = null,
-                                contentState = HomeModeContentState.Error(result.message),
-                            )
-                        }.resolveSelection()
+                        state.updateMode(HomeFeedMode.AllNew) { md -> md.copy(isPaging = false) }
                     }
                 }
             }
@@ -553,7 +601,9 @@ class HomeViewModel @Inject constructor(
         favoriteLoadJob = viewModelScope.launch(ioDispatcher) {
             try {
                 favoritesRepository.observeFavoriteReleases(pageNumber).collect { result ->
-                    if (favoriteRequestToken != requestToken) return@collect
+                    if (favoriteRequestToken != requestToken) {
+                        return@collect
+                    }
                     _uiState.update { state ->
                         val md = state.modeData(HomeFeedMode.Favorites)
                         when (result) {

@@ -51,8 +51,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.kraat.lostfilmnewtv.ui.components.PosterImage
 import com.kraat.lostfilmnewtv.data.model.SeriesGuideEpisode
 import com.kraat.lostfilmnewtv.data.model.SeriesGuideSeason
 import com.kraat.lostfilmnewtv.ui.components.ShimmerSkeletonBox
@@ -415,12 +415,18 @@ private fun GuideHeroSection(
                         .size(posterWidthPx, posterHeightPx)
                         .build()
                 }
-                AsyncImage(
+                PosterImage(
                     model = request,
                     contentDescription = title,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
                     alpha = 0.94f,
+                )
+            } else {
+                PosterImage(
+                    model = null,
+                    contentDescription = title,
+                    modifier = Modifier.fillMaxSize(),
                 )
             }
         }

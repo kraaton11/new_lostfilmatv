@@ -83,8 +83,10 @@ class LostFilmListParser {
         val availabilityLabel = contentLink.selectFirst(".picture-box .small-block")
             .textOrEmpty()
             .takeIf { it.isNotBlank() }
+        val detailsPane = contentLink.selectFirst(".details-pane")
         val detailsPaneValues = contentLink.select(".details-pane .alpha, .details-pane .beta")
             .map { it.text().normalizeText() }
+            .ifEmpty { listOfNotNull(detailsPane?.text()?.normalizeText()) }
 
         val posterUrl = ""
         val isWatched = row.selectFirst(".haveseen-btn.checked") != null
@@ -93,9 +95,15 @@ class LostFilmListParser {
             ?.substringAfter(':')
             ?.trim()
             .orEmpty()
+        // Лента фильмов кладёт год строкой «Год выхода: 2026» прямо в
+        // details-pane, а страница «Новые» — во вложенный .alpha/.beta с
+        // подписью «Дата выхода Eng:». Читаем оба варианта.
         val originalReleaseYear = detailsPaneValues
             .firstOrNull { it.startsWith("Дата выхода Eng:", ignoreCase = true) }
             ?.extractYear()
+            ?: detailsPaneValues
+                .firstOrNull { it.startsWith("Год выхода:", ignoreCase = true) }
+                ?.extractYear()
 
         val (seasonNumber, episodeNumber) = if (isMovie) {
             null to null
