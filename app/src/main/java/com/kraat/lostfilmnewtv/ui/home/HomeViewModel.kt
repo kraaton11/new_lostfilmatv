@@ -469,9 +469,11 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun collectNextPage(pageNumber: Int, isPagingRequest: Boolean) {
-        if (!isPagingRequest) {
-            allNewLoadJob?.cancel()
-        }
+        // Отменяем предыдущую загрузку всегда, а не только вне пагинации: сюда
+        // попадает только пагинация, а поток первой страницы живёт до конца
+        // прогрессивного обогащения. Без отмены его эмиссия постера перезапишет
+        // уже применённую страницу и список откатится на первую страницу.
+        allNewLoadJob?.cancel()
         _uiState.update { state ->
             state.copy(
                 isInitialLoading = !isPagingRequest,
@@ -534,8 +536,11 @@ class HomeViewModel @Inject constructor(
                     }
                 }
             } finally {
-                // Оффлайн с кэшем: stale-эмиссия пропущена, но flow завершился —
-                // гасим спиннер, иначе он крутится вечно.
+                // Страховка для реализаций репозитория, чей observePage завершается
+                // после одной cache-эмиссии: эмиссия пропущена, а flow уже закрыт —
+                // гасим спиннер, иначе он крутится вечно. Нынешний
+                // LostFilmRepositoryImpl так не заканчивает, но полагаться на это
+                // нельзя.
                 if (!appliedEmission) {
                     _uiState.update { state ->
                         state.updateMode(HomeFeedMode.AllNew) { md -> md.copy(isPaging = false) }
