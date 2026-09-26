@@ -110,6 +110,15 @@ object NetworkModule {
     ): TmdbPosterClient {
         // TMDB lookups are not account-specific either; give them their own small cache so they
         // don't compete for space with (or get evicted by) the LostFilm page cache.
+        //
+        // Проверено на устройстве 2026-09-26: этот кеш можно удалить без потери
+        // скорости, но выигрыша он не даёт. Прокси не отдаёт ни Cache-Control, ни
+        // ETag, ни Last-Modified, поэтому хитрейт слоя нулевой и реальное кеширование
+        // живёт одним уровнем выше (прокси: 94% по /health/tmdb). Гипотеза о том, что
+        // DiskLruCache сериализует обогащение с Semaphore(6), не подтвердилась —
+        // замеренная contention 377 мс против 382 мс без кеша. Замер без кеша дал
+        // более частый ритм (p50 901→831 мс) но заметно тяжелее хвост (p95
+        // 3027→6358 мс), поэтому кеш оставлен.
         val cachedClient = okHttpClient.newBuilder()
             .cache(Cache(File(context.cacheDir, "okhttp_cache_tmdb"), 10L * 1024 * 1024))
             .build()
