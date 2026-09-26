@@ -48,7 +48,7 @@ Android TV приложение для просмотра новых релиз�
 
 ## Требования
 
-- **Устройство:** Android TV / Google TV с Android 8.0+ (API 26+)
+- **Устройство:** Android TV / Google TV с Android 9.0+ (API 28+)
 - **TorrServe:** Обязателен для воспроизведения видео ([скачать TorrServe](https://github.com/YouROK/TorrServe/releases))
 - **Аккаунт LostFilm:** Не обязателен для просмотра новых релизов и фильмов, но нужен для избранного и персональных функций
 

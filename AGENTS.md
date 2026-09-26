@@ -51,7 +51,7 @@ scripts/
 | Зависимость | Версия |
 |---|---|
 | JDK | 17 (Temurin) |
-| Android SDK | compileSdk 35, minSdk 26 |
+| Android SDK | compileSdk 35, minSdk 28 |
 | Python | 3.12 |
 | Gradle | через wrapper `./gradlew` |
 
