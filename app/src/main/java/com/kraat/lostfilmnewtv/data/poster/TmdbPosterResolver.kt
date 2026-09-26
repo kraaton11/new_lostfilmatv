@@ -26,6 +26,9 @@ import kotlinx.coroutines.sync.withLock
 
 private const val TAG = "TmdbPosterResolver"
 
+/** Русские названия нужны, чтобы сверять русское имя lostfilm с выдачей TMDB. */
+private const val RUSSIAN_SEARCH_LANGUAGE = "ru-RU"
+
 /** 71 совпадение на «Надежду» — это четыре страницы по 20. */
 private const val MAX_SEARCH_PAGES = 4
 private const val TMDB_CACHE_TTL_MS = 7L * 24 * 60 * 60 * 1000
@@ -338,7 +341,13 @@ class TmdbPosterResolverImpl(
         // Exact English slug matches are good enough to skip the Russian title query.
         val titleResults = if (exactSlugMatch == null) {
             try {
-                searchPages(tmdbType, releaseYearHint, titleRu, onFailure = { searchFailed = true }) { found ->
+                searchPages(
+                    type = tmdbType,
+                    releaseYearHint = releaseYearHint,
+                    query = titleRu,
+                    onFailure = { searchFailed = true },
+                    language = RUSSIAN_SEARCH_LANGUAGE,
+                ) { found ->
                     pickVerifiedTitleOnlyMatch(titleRu, releaseYearHint, found) != null
                 }
             } catch (e: CancellationException) {
@@ -751,6 +760,7 @@ class TmdbPosterResolverImpl(
         releaseYearHint: Int?,
         query: String,
         onFailure: () -> Unit,
+        language: String? = null,
         isEnough: (List<TmdbSearchResult>) -> Boolean,
     ): List<TmdbSearchResult> {
         val collected = mutableListOf<TmdbSearchResult>()
@@ -758,7 +768,7 @@ class TmdbPosterResolverImpl(
 
         for (page in 1..MAX_SEARCH_PAGES) {
             val results = try {
-                tmdbClient.searchByTitle(query, releaseYearHint, type, page)
+                tmdbClient.searchByTitle(query, releaseYearHint, type, page, language)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {

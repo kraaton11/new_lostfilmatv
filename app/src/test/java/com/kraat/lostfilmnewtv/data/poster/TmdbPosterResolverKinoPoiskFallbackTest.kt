@@ -45,6 +45,7 @@ class TmdbPosterResolverKinoPoiskFallbackTest {
                 year: Int?,
                 type: TmdbMediaType,
                 page: Int,
+            language: String?,
             ): List<TmdbSearchResult> = emptyList()
 
             override suspend fun getPosterAndBackdrop(tmdbId: Int, type: TmdbMediaType): TmdbImageUrls? {
@@ -116,6 +117,7 @@ class TmdbPosterResolverKinoPoiskFallbackTest {
                 year: Int?,
                 type: TmdbMediaType,
                 page: Int,
+            language: String?,
             ): List<TmdbSearchResult> = emptyList()
 
             override suspend fun getPosterAndBackdrop(tmdbId: Int, type: TmdbMediaType): TmdbImageUrls? = null
@@ -205,6 +207,7 @@ class TmdbPosterResolverKinoPoiskFallbackTest {
             year: Int?,
             type: TmdbMediaType,
             page: Int,
+            language: String?,
         ): List<TmdbSearchResult> = emptyList()
 
         override suspend fun getPosterAndBackdrop(tmdbId: Int, type: TmdbMediaType): TmdbImageUrls? = null

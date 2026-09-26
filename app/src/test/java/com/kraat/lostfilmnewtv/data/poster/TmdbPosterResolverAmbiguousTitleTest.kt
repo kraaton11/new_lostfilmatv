@@ -171,10 +171,31 @@ class TmdbPosterResolverAmbiguousTitleTest {
         assertEquals(listOf(745), fixture.requestedIds)
     }
 
+    @Test
+    fun resolve_asksTmdbForRussianTitles_whenSearchingByRussianTitle() = runTest {
+        // Без language=title в выдаче приходит английский: у корейского «хоф»
+        // title = Hope, original_title = хоф, и русского «Надежда» в результатах
+        // нет вовсе — сверять не с чем. По slug наоборот нужен оригинальный
+        // язык, там идёт сравнение с английским slug.
+        val fixture = fixture(titlePages = listOf(hope2026))
+
+        fixture.resolver.resolve(
+            detailsUrl = HOPEU,
+            titleRu = "Надежда",
+            releaseDateRu = "Скоро",
+            originalReleaseYear = 2026,
+            kind = ReleaseKind.MOVIE,
+        )
+
+        assertEquals("ru-RU", fixture.languages["Надежда"])
+        assertNull("slug ищется в оригинальном языке", fixture.languages["Hopeu"])
+    }
+
     private class Fixture(
         val resolver: TmdbPosterResolverImpl,
         val requestedIds: MutableList<Int>,
         val pageRequests: MutableList<Int>,
+        val languages: MutableMap<String, String?> = mutableMapOf(),
     )
 
     private fun fixture(
@@ -183,6 +204,7 @@ class TmdbPosterResolverAmbiguousTitleTest {
     ): Fixture {
         val requestedIds = mutableListOf<Int>()
         val pageRequests = mutableListOf<Int>()
+        val languages = mutableMapOf<String, String?>()
         val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
             // Slug из URL — латиница, русское название — кириллица.
             override suspend fun searchByTitle(
@@ -190,8 +212,10 @@ class TmdbPosterResolverAmbiguousTitleTest {
                 year: Int?,
                 type: TmdbMediaType,
                 page: Int,
+                language: String?,
             ): List<TmdbSearchResult> {
                 pageRequests += page
+                languages[query] = language
                 val pages = if (query.all { it.code < 128 }) listOf(slugResults) else titlePages
                 return pages.getOrElse(page - 1) { emptyList() }
             }
@@ -216,6 +240,7 @@ class TmdbPosterResolverAmbiguousTitleTest {
             ),
             requestedIds = requestedIds,
             pageRequests = pageRequests,
+            languages = languages,
         )
     }
 

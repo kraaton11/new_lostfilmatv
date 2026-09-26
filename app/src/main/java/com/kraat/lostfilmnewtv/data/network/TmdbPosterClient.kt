@@ -47,6 +47,7 @@ open class TmdbPosterClient(
         year: Int?,
         type: TmdbMediaType,
         page: Int = 1,
+        language: String? = null,
     ): List<TmdbSearchResult> = withContext(Dispatchers.IO) {
         val endpoint = when (type) {
             TmdbMediaType.TV -> "/search/tv"
@@ -57,7 +58,10 @@ open class TmdbPosterClient(
             TmdbMediaType.MOVIE -> year?.let { "&release_year=$it" }.orEmpty()
         }
         val pageParam = if (page > 1) "&page=$page" else ""
-        val url = "${baseUrl.trimEnd('/')}$endpoint?query=${query.encodeUrl()}&include_adult=true$yearParam$pageParam"
+        // Без языка TMDB отдаёт английские названия, и русское имя в выдаче
+        // отсутствует: у корейского «хоф» title = Hope, original_title = хоф.
+        val languageParam = language?.let { "&language=$it" }.orEmpty()
+        val url = "${baseUrl.trimEnd('/')}$endpoint?query=${query.encodeUrl()}&include_adult=true$yearParam$pageParam$languageParam"
             .withTmdbApiKey()
 
         val request = Request.Builder()

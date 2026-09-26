@@ -24,7 +24,7 @@ class TmdbPosterResolverTest {
     fun resolve_fetchesRussianEpisodeOverview_forSeriesEpisode() = runTest {
         val dao = FakeTmdbPosterDao()
         val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
-            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int): List<TmdbSearchResult> {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int, language: String?): List<TmdbSearchResult> {
                 return listOf(TmdbSearchResult(id = 777, name = "Example Show", popularity = 10.0, rating = "8.4"))
             }
 
@@ -76,7 +76,7 @@ class TmdbPosterResolverTest {
         var seriesOverviewCalls = 0
         var movieOverviewCalls = 0
         val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
-            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int): List<TmdbSearchResult> {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int, language: String?): List<TmdbSearchResult> {
                 return listOf(TmdbSearchResult(id = 524, name = "Casino", popularity = 10.0))
             }
 
@@ -119,7 +119,7 @@ class TmdbPosterResolverTest {
     fun resolve_returnsRating_whenTmdbImagesAreMissing() = runTest {
         val dao = FakeTmdbPosterDao()
         val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
-            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int): List<TmdbSearchResult> {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int, language: String?): List<TmdbSearchResult> {
                 return listOf(TmdbSearchResult(id = 42, name = "Catalog Movie", popularity = 10.0, rating = "7.6"))
             }
 
@@ -149,7 +149,7 @@ class TmdbPosterResolverTest {
         val dao = FakeTmdbPosterDao()
         var searchCalls = 0
         val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
-            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int): List<TmdbSearchResult> {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int, language: String?): List<TmdbSearchResult> {
                 searchCalls += 1
                 assertEquals("Example and Show", query)
                 return listOf(TmdbSearchResult(id = 259731, name = "Example & Show", popularity = 10.0, rating = "6.9"))
@@ -188,7 +188,7 @@ class TmdbPosterResolverTest {
         )
         var searchCalls = 0
         val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
-            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int): List<TmdbSearchResult> {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int, language: String?): List<TmdbSearchResult> {
                 searchCalls += 1
                 return emptyList()
             }
@@ -240,7 +240,7 @@ class TmdbPosterResolverTest {
             ),
         )
         val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
-            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int): List<TmdbSearchResult> {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int, language: String?): List<TmdbSearchResult> {
                 return listOf(TmdbSearchResult(id = 99, name = "9-1-1", popularity = 10.0))
             }
 
@@ -278,7 +278,7 @@ class TmdbPosterResolverTest {
             ),
         )
         val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
-            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int): List<TmdbSearchResult> {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int, language: String?): List<TmdbSearchResult> {
                 return listOf(TmdbSearchResult(id = 287527, name = "The Testaments", popularity = 10.0))
             }
 
@@ -308,7 +308,7 @@ class TmdbPosterResolverTest {
         val dao = FakeTmdbPosterDao()
         val searchQueries = mutableListOf<String>()
         val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
-            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int): List<TmdbSearchResult> {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int, language: String?): List<TmdbSearchResult> {
                 searchQueries += query
                 return when (query) {
                     "Paradise" -> listOf(
@@ -379,7 +379,7 @@ class TmdbPosterResolverTest {
         val dao = FakeTmdbPosterDao()
         val searchRequests = mutableListOf<Pair<String, Int?>>()
         val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
-            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int): List<TmdbSearchResult> {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int, language: String?): List<TmdbSearchResult> {
                 searchRequests += query to year
                 return listOf(
                     TmdbSearchResult(
@@ -444,7 +444,7 @@ class TmdbPosterResolverTest {
         var searchCalls = 0
         var imageCalls = 0
         val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
-            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int): List<TmdbSearchResult> {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int, language: String?): List<TmdbSearchResult> {
                 searchCalls += 1
                 return emptyList()
             }
@@ -486,7 +486,7 @@ class TmdbPosterResolverTest {
         )
         var searchCalls = 0
         val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
-            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int): List<TmdbSearchResult> {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int, language: String?): List<TmdbSearchResult> {
                 searchCalls += 1
                 return listOf(
                     TmdbSearchResult(
@@ -525,7 +525,7 @@ class TmdbPosterResolverTest {
     fun resolve_persistsNegativeMapping_whenSearchHasNoMatches() = runTest {
         val dao = FakeTmdbPosterDao()
         val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
-            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int): List<TmdbSearchResult> {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int, language: String?): List<TmdbSearchResult> {
                 return emptyList()
             }
 
@@ -559,7 +559,7 @@ class TmdbPosterResolverTest {
         )
         var searchCalls = 0
         val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
-            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int): List<TmdbSearchResult> {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int, language: String?): List<TmdbSearchResult> {
                 searchCalls += 1
                 return emptyList()
             }
@@ -590,7 +590,7 @@ class TmdbPosterResolverTest {
         )
         var searchCalls = 0
         val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
-            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int): List<TmdbSearchResult> {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int, language: String?): List<TmdbSearchResult> {
                 searchCalls += 1
                 return listOf(
                     TmdbSearchResult(
@@ -629,7 +629,7 @@ class TmdbPosterResolverTest {
         val dao = FakeTmdbPosterDao()
         val searchRequests = mutableListOf<Pair<String, Int?>>()
         val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
-            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int): List<TmdbSearchResult> {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int, language: String?): List<TmdbSearchResult> {
                 searchRequests += query to year
                 return listOf(
                     TmdbSearchResult(
@@ -670,7 +670,7 @@ class TmdbPosterResolverTest {
         val dao = FakeTmdbPosterDao()
         var searchCalls = 0
         val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
-            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int): List<TmdbSearchResult> {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int, language: String?): List<TmdbSearchResult> {
                 searchCalls += 1
                 return listOf(
                     TmdbSearchResult(
@@ -714,7 +714,7 @@ class TmdbPosterResolverTest {
     fun resolve_doesNotPersistNegativeMapping_whenSearchFails() = runTest {
         val dao = FakeTmdbPosterDao()
         val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
-            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int): List<TmdbSearchResult> {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int, language: String?): List<TmdbSearchResult> {
                 throw java.io.IOException("offline")
             }
         }
@@ -735,7 +735,7 @@ class TmdbPosterResolverTest {
     fun resolve_usesSeasonPoster_whenAvailable() = runTest {
         val dao = FakeTmdbPosterDao()
         val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
-            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int): List<TmdbSearchResult> {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int, language: String?): List<TmdbSearchResult> {
                 return listOf(TmdbSearchResult(id = 888, name = "The Terror", popularity = 10.0, rating = "8.1"))
             }
 
@@ -772,7 +772,7 @@ class TmdbPosterResolverTest {
     fun resolve_fallsBackToSeriesPoster_whenSeasonHasNoImages() = runTest {
         val dao = FakeTmdbPosterDao()
         val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
-            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int): List<TmdbSearchResult> {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int, language: String?): List<TmdbSearchResult> {
                 return listOf(TmdbSearchResult(id = 888, name = "The Terror", popularity = 10.0, rating = "8.1"))
             }
 
@@ -805,7 +805,7 @@ class TmdbPosterResolverTest {
     fun resolve_usesSeasonOverview_whenAvailable() = runTest {
         val dao = FakeTmdbPosterDao()
         val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
-            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int): List<TmdbSearchResult> {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int, language: String?): List<TmdbSearchResult> {
                 return listOf(TmdbSearchResult(id = 888, name = "The Terror", popularity = 10.0, rating = "8.1"))
             }
 
