@@ -161,6 +161,8 @@ class TmdbEnrichmentServiceTest {
                 .collect { firstEmission.complete(it) }
         }
 
+        // Таймаут ждём на реальном диспетчере: executor запросов Room невидим для TestCoroutineScheduler,
+        // и runTest на нём прокрутит виртуальное время до таймаута и отменит сбор корректного flow.
         val received = withContext(Dispatchers.IO) {
             withTimeoutOrNull(5_000) { firstEmission.await() }
         }
