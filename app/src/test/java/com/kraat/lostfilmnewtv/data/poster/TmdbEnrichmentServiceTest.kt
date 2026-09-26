@@ -8,10 +8,17 @@ import com.kraat.lostfilmnewtv.data.db.ReleaseSummaryEntity
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.model.TmdbImageUrls
+import java.util.concurrent.CopyOnWriteArrayList
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -82,7 +89,7 @@ class TmdbEnrichmentServiceTest {
 
     @Test
     fun enrichProgressively_skipsItemsThatAlreadyHaveCompleteArtwork() = runTest {
-        val resolvedUrls = mutableListOf<String>()
+        val resolvedUrls = CopyOnWriteArrayList<String>()
         val service = createService { detailsUrl ->
             resolvedUrls += detailsUrl
             TmdbImageUrls(posterUrl = "p", backdropUrl = "b")
@@ -107,7 +114,66 @@ class TmdbEnrichmentServiceTest {
         assertTrue(emitted.isEmpty())
     }
 
-    private fun createService(resolve: (String) -> TmdbImageUrls?) = TmdbEnrichmentServiceImpl(
+    @Test
+    fun enrichProgressively_preservesExistingOverview_whenResolverOmitsIt() = runTest {
+        val cachedOverview = "Описание из кэша"
+        releaseDao.upsertSummaries(
+            listOf(entity(FIRST_URL).copy(movieOverviewRu = cachedOverview)),
+        )
+        val service = createService {
+            TmdbImageUrls(
+                posterUrl = "https://image.tmdb.org/t/p/w780/p.jpg",
+                backdropUrl = "https://image.tmdb.org/t/p/w1280/b.jpg",
+                movieOverviewRu = null,
+            )
+        }
+
+        service.enrichProgressively(
+            listOf(summary(FIRST_URL).copy(movieOverviewRu = cachedOverview)),
+        ).toList()
+
+        val stored = releaseDao.getSummary(FIRST_URL)
+        requireNotNull(stored)
+        assertEquals(
+            "Передавать нужно обогащённый summary, а не сырые поля TmdbImageUrls",
+            cachedOverview,
+            stored.movieOverviewRu,
+        )
+    }
+
+    @Test
+    fun enrichProgressively_emitsFirstItemBeforeSecondResolves() = runTest {
+        releaseDao.upsertSummaries(listOf(entity(FIRST_URL), entity(SECOND_URL)))
+        val secondGate = CompletableDeferred<Unit>()
+        val service = createService { detailsUrl ->
+            if (detailsUrl == SECOND_URL) {
+                secondGate.await()
+            }
+            TmdbImageUrls(
+                posterUrl = "https://image.tmdb.org/t/p/w780/p.jpg",
+                backdropUrl = "https://image.tmdb.org/t/p/w1280/b.jpg",
+            )
+        }
+
+        val firstEmission = CompletableDeferred<ReleaseSummary>()
+        val collector = launch(Dispatchers.Default) {
+            service.enrichProgressively(listOf(summary(FIRST_URL), summary(SECOND_URL)))
+                .collect { firstEmission.complete(it) }
+        }
+
+        val received = withContext(Dispatchers.IO) {
+            withTimeoutOrNull(5_000) { firstEmission.await() }
+        }
+
+        assertNotNull("Первый item должен прийти, не дожидаясь второго", received)
+        assertEquals(FIRST_URL, received?.detailsUrl)
+        assertTrue("Второй item не должен быть разрешён до первой эмиссии", !secondGate.isCompleted)
+
+        secondGate.complete(Unit)
+        collector.cancel()
+    }
+
+    private fun createService(resolve: suspend (String) -> TmdbImageUrls?) = TmdbEnrichmentServiceImpl(
         tmdbResolver = object : TmdbPosterResolver {
             override suspend fun resolve(
                 detailsUrl: String,
