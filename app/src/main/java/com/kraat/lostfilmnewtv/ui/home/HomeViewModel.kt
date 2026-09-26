@@ -413,9 +413,11 @@ class HomeViewModel @Inject constructor(
                         // кэши резолвера уже прогреты, и в отдельной корутине, чтобы
                         // коллектор вернулся сразу.
                         //
-                        // Отмену пропускаем: поток прерван нами же (пагинация, смена
-                        // режима), лента недогружена, а syncNow идемпотентен и
-                        // отработает при следующей успешной загрузке.
+                        // Отмену пропускаем. Сбор первой страницы отменяют пагинация
+                        // и повторная загрузка страницы 1 из onResume/onRetry, а сам
+                        // ViewModel — при очистке; во всех случаях лента недогружена,
+                        // поэтому публиковать её в канал рано, а syncNow идемпотентен
+                        // и отработает при следующей успешной загрузке.
                         if (cause == null && sawFreshContent) {
                             viewModelScope.launch(ioDispatcher) {
                                 homeChannelSyncManager.syncNow()
@@ -443,8 +445,13 @@ class HomeViewModel @Inject constructor(
                                 }
                                 when {
                                     isStale -> hadCacheEmission = true
-                                    // Отметка свежести — про данные и 30-минутный гейт
-                                    // onResume, не про канал.
+                                    // sawFreshContent отмечает приход свежей страницы
+                                    // (isStale = false) — только тогда канал
+                                    // синхронизируется, как и до прогрессивной ленты.
+                                    // Свежий кэш попадает сюда тоже (в observePage
+                                    // isStale = !cacheFresh), и там это оправдано;
+                                    // stale-эмиссия и ошибка — нет.
+                                    // lastAllNewRefreshAt — про гейт onResume, не про канал.
                                     else -> if (!sawFreshContent) {
                                         sawFreshContent = true
                                         lastAllNewRefreshAt = clock()

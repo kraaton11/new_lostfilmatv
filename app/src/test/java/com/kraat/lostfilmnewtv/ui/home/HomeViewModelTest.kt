@@ -1585,6 +1585,66 @@ class HomeViewModelTest {
 
         assertEquals(1, syncsCompleted)
     }
+
+    @Test
+    fun channelSync_isSkipped_whenFirstPageCollectionIsCancelledByPagination() = runTest(dispatcher) {
+        // SharedFlow первой страницы сам не завершается, поэтому закрывает сбор
+        // только отмена — пагинация отменяет allNewLoadJob. Именно этот путь
+        // (onCompletion с cause != null) синхронизировать канал не должен: лента
+        // недогружена. Поток, завершившийся нормально, эту ветку не задевает —
+        // его закрывает onEndReached_doesNotTriggerChannelSyncForPagination.
+        val pageOneFlow = MutableSharedFlow<PageState>(replay = 0, extraBufferCapacity = 4)
+        val firstPageItem = summary("https://www.lostfilm.today/series/x1/season_1/episode_1/")
+        val secondPageItem = summary("https://www.lostfilm.today/series/x2/season_1/episode_1/")
+        val repository = FakeLostFilmRepository(
+            observePageFlows = mapOf(1 to pageOneFlow),
+            observePageEmissions = mapOf(
+                2 to listOf(
+                    PageState.Content(
+                        pageNumber = 2,
+                        items = listOf(firstPageItem, secondPageItem),
+                        hasNextPage = false,
+                        isStale = false,
+                    ),
+                ),
+            ),
+        )
+        var channelSyncs = 0
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            onChannelContentChanged = { channelSyncs += 1 },
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+
+        // Свежая страница 1 пришла: свежесть зафиксирована, но сбор ещё жив.
+        pageOneFlow.tryEmit(
+            PageState.Content(
+                pageNumber = 1,
+                items = listOf(firstPageItem),
+                hasNextPage = true,
+                isStale = false,
+            )
+        )
+        advanceUntilIdle()
+
+        assertEquals(listOf(firstPageItem), viewModel.uiState.value.items)
+        assertEquals(0, channelSyncs)
+
+        // Пагинация отменяет сбор первой страницы — тот самый случай.
+        viewModel.onEndReached()
+        advanceUntilIdle()
+
+        assertEquals(listOf(firstPageItem, secondPageItem), viewModel.uiState.value.items)
+        assertEquals(
+            "Отменённая загрузка первой страницы не должна синхронизировать канал",
+            0,
+            channelSyncs,
+        )
+    }
 }
 
 private class FakeLostFilmRepository(
