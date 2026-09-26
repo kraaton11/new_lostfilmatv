@@ -117,6 +117,31 @@ class TmdbEnrichmentServiceTest {
     }
 
     @Test
+    fun enrichProgressively_keepsExistingPoster_whenResolverFindsNothing() = runTest {
+        val cachedPoster = "https://st.kp.yandex.net/images/film_big/79920.jpg"
+        // Постер есть, фона нет — штатное состояние после фолбэка на Кинопоиск.
+        // hasCompleteArt() требует оба, поэтому карточка раз в запуск
+        // переобогащается, и ответ «ничего не нашлось» не должен затирать постер.
+        releaseDao.upsertSummaries(
+            listOf(entity(FIRST_URL).copy(posterUrl = cachedPoster, backdropUrl = null)),
+        )
+        val service = createService { null }
+
+        val emitted = service.enrichProgressively(
+            listOf(summary(FIRST_URL).copy(posterUrl = cachedPoster, backdropUrl = null)),
+        ).toList()
+
+        assertTrue("Ответ «ничего не нашлось» не должен приводить к эмиссии", emitted.isEmpty())
+        val stored = releaseDao.getSummary(FIRST_URL)
+        requireNotNull(stored)
+        assertEquals(
+            "Пустой результат резолвера не должен затирать постер, уже лежащий в Room",
+            cachedPoster,
+            stored.posterUrl,
+        )
+    }
+
+    @Test
     fun enrichProgressively_preservesExistingOverview_whenResolverOmitsIt() = runTest {
         val cachedOverview = "Описание из кэша"
         releaseDao.upsertSummaries(
