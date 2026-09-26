@@ -66,6 +66,10 @@ interface ReleaseDao {
      * Обновляет только art-поля карточки. Полный [upsertSummaries] откатил бы
      * isWatched, если пользователь отметил эпизод просмотренным, пока шло
      * обогащение постерами.
+     *
+     * Nullable-аргументы перезаписывают сохранённые значения на NULL, поэтому
+     * передавать нужно уже обогащённый summary (результат
+     * TmdbPosterEnricher.enrichSummary), а не сырые поля TmdbImageUrls.
      */
     @Query(
         """

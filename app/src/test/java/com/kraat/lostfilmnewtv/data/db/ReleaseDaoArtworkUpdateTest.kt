@@ -2,6 +2,8 @@ package com.kraat.lostfilmnewtv.data.db
 
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
+import com.kraat.lostfilmnewtv.data.model.ReleaseKind
+import com.kraat.lostfilmnewtv.data.model.TmdbEpisodeOverviewSource
 import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -49,7 +51,7 @@ class ReleaseDaoArtworkUpdateTest {
             posterUrl = "https://image.tmdb.org/t/p/w780/poster.jpg",
             backdropUrl = "https://image.tmdb.org/t/p/w1280/backdrop.jpg",
             episodeOverviewRu = "Эпизод идёт",
-            episodeOverviewSource = "TMDB_RU",
+            episodeOverviewSource = TmdbEpisodeOverviewSource.TMDB_RU.name,
             seriesOverviewRu = "Обзор сериала",
             movieOverviewRu = null,
             tmdbRating = "8.4",
@@ -61,7 +63,7 @@ class ReleaseDaoArtworkUpdateTest {
         assertEquals("https://image.tmdb.org/t/p/w780/poster.jpg", stored.posterUrl)
         assertEquals("https://image.tmdb.org/t/p/w1280/backdrop.jpg", stored.backdropUrl)
         assertEquals("Эпизод идёт", stored.episodeOverviewRu)
-        assertEquals("TMDB_RU", stored.episodeOverviewSource)
+        assertEquals(TmdbEpisodeOverviewSource.TMDB_RU.name, stored.episodeOverviewSource)
         assertEquals("Обзор сериала", stored.seriesOverviewRu)
         assertNull(stored.movieOverviewRu)
         assertEquals("8.4", stored.tmdbRating)
@@ -85,10 +87,16 @@ class ReleaseDaoArtworkUpdateTest {
         val stored = releaseDao.getSummary(DETAILS_URL)
         requireNotNull(stored)
         assertTrue("isWatched не должен сбрасываться точечным UPDATE", stored.isWatched)
-        assertEquals(3, stored.positionInPage)
-        assertEquals(2, stored.pageNumber)
-        assertEquals(SEED_FETCHED_AT, stored.fetchedAt)
+        assertEquals(ReleaseKind.SERIES.name, stored.kind)
         assertEquals("Казино", stored.titleRu)
+        assertEquals("Маменькин сынок", stored.episodeTitleRu)
+        assertEquals(1, stored.seasonNumber)
+        assertEquals(1, stored.episodeNumber)
+        assertEquals("14 марта 2026", stored.releaseDateRu)
+        assertEquals(2, stored.pageNumber)
+        assertEquals(3, stored.positionInPage)
+        assertEquals(SEED_FETCHED_AT, stored.fetchedAt)
+        assertEquals(2019, stored.originalReleaseYear)
     }
 
     @Test
@@ -111,9 +119,9 @@ class ReleaseDaoArtworkUpdateTest {
 
     private fun seedEntity(isWatched: Boolean = false) = ReleaseSummaryEntity(
         detailsUrl = DETAILS_URL,
-        kind = "SERIES",
+        kind = ReleaseKind.SERIES.name,
         titleRu = "Казино",
-        episodeTitleRu = null,
+        episodeTitleRu = "Маменькин сынок",
         seasonNumber = 1,
         episodeNumber = 1,
         releaseDateRu = "14 марта 2026",
@@ -122,5 +130,7 @@ class ReleaseDaoArtworkUpdateTest {
         positionInPage = 3,
         fetchedAt = SEED_FETCHED_AT,
         isWatched = isWatched,
+        movieOverviewRu = "Описание фильма",
+        originalReleaseYear = 2019,
     )
 }
