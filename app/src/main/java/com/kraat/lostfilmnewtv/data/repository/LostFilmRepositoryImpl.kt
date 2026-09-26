@@ -164,6 +164,8 @@ class LostFilmRepositoryImpl(
     }
 
     override fun observePage(pageNumber: Int): Flow<PageState> = flow {
+        cleanupExpiredDataIfNeeded()
+
         // 1. Сначала отдаём кэш из Room (если он есть), без обращения к сети.
         //    Скелетон в HomeScreen не показывается, если items непустые и isInitialLoading=false —
         //    поэтому в HomeViewModel на cache-эмиссии нужно одновременно сбросить этот флаг
@@ -179,7 +181,6 @@ class LostFilmRepositoryImpl(
                     items = cachedItems,
                     hasNextPage = metadata?.hasNextPage ?: true,
                     isStale = !cacheFresh,
-                    isAppend = pageNumber > 1,
                 ),
             )
             // Если кэш свежий — пропускаем сетевой запрос.
@@ -237,7 +238,6 @@ class LostFilmRepositoryImpl(
                 items = currentItems,
                 hasNextPage = pageHasNext,
                 isStale = false,
-                isAppend = pageNumber > 1,
             ),
         )
 
@@ -263,7 +263,6 @@ class LostFilmRepositoryImpl(
                         items = currentItems,
                         hasNextPage = pageHasNext,
                         isStale = false,
-                        isAppend = pageNumber > 1,
                     ),
                 )
             }

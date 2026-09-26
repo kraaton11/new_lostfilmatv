@@ -2390,6 +2390,23 @@ class LostFilmRepositoryTest {
     }
 
     @Test
+    fun observePage_sweepsExpiredCache_onFreshInstallPath() = runTest {
+        seedPage(pageNumber = 1, fetchedAt = NOW - 5 * 60 * 1000L)
+        // Протухшая вторая страница: её не трогает replacePage первой, видно только
+        // результат cleanupExpiredDataIfNeeded.
+        seedPage(pageNumber = 2, fetchedAt = NOW - SEVEN_DAYS_MS - 2_000L)
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+        )
+
+        repository.observePage(1).toList()
+
+        assertTrue("Свежая страница должна остаться", releaseDao.getPageSummaries(1).isNotEmpty())
+        assertTrue("Протухшая страница должна быть вычищена", releaseDao.getPageSummaries(2).isEmpty())
+        assertTrue("Метаданные протухшей страницы должны быть вычищены", releaseDao.getPageMetadata(2) == null)
+    }
+
+    @Test
     fun observePage_emitsOnlyStaleContent_whenNetworkFailsWithCache() = runTest {
         seedPage(pageNumber = 1, fetchedAt = NOW - SEVEN_DAYS_MS / 2)
         val repository = createRepository(
