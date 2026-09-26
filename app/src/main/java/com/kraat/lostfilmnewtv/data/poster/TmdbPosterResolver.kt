@@ -915,13 +915,19 @@ class TmdbPosterResolverImpl(
             ?.toIntOrNull()
 
     private fun String.removeYearSuffix(): String =
-        replace(slugYearSuffixRegex, "").trim()
+        trim().replace(slugYearSuffixRegex, "").trim()
 
+    /**
+     * Английский slug из URL. lostfilm иногда присылает лишний пробел
+     * («/series/Dark_Matter_2024 /season_2/»), из-за которого год в конце не
+     * отбрасывался и поиск уходил по «Dark Matter 2024» мимо каталога.
+     */
     private fun extractEnglishSlug(detailsUrl: String): String? {
         val match = seriesSlugRegex.find(detailsUrl)
             ?: movieSlugRegex.find(detailsUrl)
         return match?.groupValues?.getOrNull(1)
             ?.replace('_', ' ')
+            ?.trim()
     }
 
     /**

@@ -21,6 +21,65 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class TmdbPosterResolverTest {
     @Test
+    fun resolve_trimsTrailingSpaceInSlug_beforeSearching() = runTest {
+        // lostfilm отдаёт часть URL с лишним пробелом в slug:
+        // «/series/Dark_Matter_2024 /season_2/». Год в конце строки из-за
+        // пробела не отбрасывался, поиск уходил по «Dark Matter 2024»,
+        // промахивался, и сериал уезжал в Кинопоиск без описаний эпизодов.
+        var slugQuery: String? = null
+        val requestedIds = mutableListOf<Int>()
+        val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
+            override suspend fun searchByTitle(
+                query: String,
+                year: Int?,
+                type: TmdbMediaType,
+                page: Int,
+                language: String?,
+            ): List<TmdbSearchResult> {
+                if (query.all { it.code < 128 }) {
+                    slugQuery = query
+                    return listOf(
+                        TmdbSearchResult(
+                            id = 196_322,
+                            name = "Dark Matter",
+                            originalName = "Dark Matter",
+                            popularity = 10.0,
+                            releaseYear = 2024,
+                        ),
+                    )
+                }
+                return emptyList()
+            }
+
+            override suspend fun getPosterAndBackdrop(tmdbId: Int, type: TmdbMediaType): TmdbImageUrls {
+                requestedIds += tmdbId
+                return TmdbImageUrls(posterUrl = "p", backdropUrl = "b")
+            }
+
+            override suspend fun getEpisodeOverview(
+                tmdbId: Int,
+                seasonNumber: Int,
+                episodeNumber: Int,
+            ): TmdbEpisodeOverview = TmdbEpisodeOverview(
+                text = "Спокойная жизнь.",
+                source = TmdbEpisodeOverviewSource.TMDB_RU,
+            )
+        }
+        val resolver = TmdbPosterResolverImpl(client, FakeTmdbPosterDao())
+
+        val result = resolver.resolve(
+            detailsUrl = "https://www.lostfilm.today/series/Dark_Matter_2024 /season_2/episode_1/",
+            titleRu = "Тёмная материя",
+            releaseDateRu = "01.01.2026",
+            kind = ReleaseKind.SERIES,
+        )
+
+        assertEquals("Год в конце slug'а должен отбрасываться, а пробел — не мешать", "Dark Matter", slugQuery)
+        assertEquals(listOf(196_322), requestedIds)
+        assertEquals("Спокойная жизнь.", result?.episodeOverviewRu)
+    }
+
+    @Test
     fun resolve_retriesEpisodeOverview_afterEarlierRequestFailed() = runTest {
         // Отрицательный кэш на 24 часа глушил описание после одной неудачи, а
         // вместе с фильтром «готовности» это означало, что описание не
