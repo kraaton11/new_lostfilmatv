@@ -84,15 +84,54 @@ class TmdbPosterResolverImpl(
         val cacheKey = tmdbCacheKey(detailsUrl, kind)
         val hasTmdbIdOverride = tmdbIdOverride(extractEnglishSlug(detailsUrl), kind) != null
 
+        lookupCached(
+            cacheKey = cacheKey,
+            detailsUrl = detailsUrl,
+            kind = kind,
+            originalReleaseYear = originalReleaseYear,
+            hasTmdbIdOverride = hasTmdbIdOverride,
+        )?.let { return it.urls }
+
+        return withKeyLock(cacheKey) {
+            // Под локом кеш могли заполнить параллельные вызовы.
+            lookupCached(
+                cacheKey = cacheKey,
+                detailsUrl = detailsUrl,
+                kind = kind,
+                originalReleaseYear = originalReleaseYear,
+                hasTmdbIdOverride = hasTmdbIdOverride,
+            )?.let { return@withKeyLock it.urls }
+
+            val result = performSearch(cacheKey, detailsUrl, titleRu, kind, originalReleaseYear)
+            result?.let {
+                inMemoryCache[cacheKey] = it.copy(episodeOverviewRu = null, episodeOverviewSource = null)
+            }
+            result
+        }
+    }
+
+    /**
+     * Общий cache-hit путь для [resolve]: LRU в памяти, negative-кэш и Room.
+     * null означает «в кеше ничего нет, иди в сеть».
+     */
+    private suspend fun lookupCached(
+        cacheKey: String,
+        detailsUrl: String,
+        kind: ReleaseKind,
+        originalReleaseYear: Int?,
+        hasTmdbIdOverride: Boolean,
+    ): CachedMapping? {
         inMemoryCache[cacheKey]?.let { cached ->
             val cachedTmdbId = inMemoryTmdbIdCache[cacheKey]
             if (cached.seriesOverviewRu != null || cached.movieOverviewRu != null) {
                 val episodeOverview = if (cached.episodeOverviewRu == null && cachedTmdbId != null) {
                     resolveEpisodeOverview(detailsUrl, cachedTmdbId, kind)
                 } else null
-                return cached.copy(
-                    episodeOverviewRu = episodeOverview?.text,
-                    episodeOverviewSource = episodeOverview?.source?.name,
+                return CachedMapping(
+                    cached.copy(
+                        episodeOverviewRu = episodeOverview?.text,
+                        episodeOverviewSource = episodeOverview?.source?.name,
+                    ),
                 )
             }
             val overviews = resolveOverviews(
@@ -100,102 +139,55 @@ class TmdbPosterResolverImpl(
                 tmdbId = cachedTmdbId,
                 kind = kind,
             )
-            return cached.copy(
-                episodeOverviewRu = overviews.episodeOverview?.text,
-                episodeOverviewSource = overviews.episodeOverview?.source?.name,
-                seriesOverviewRu = overviews.seriesOverviewRu,
-                movieOverviewRu = overviews.movieOverviewRu,
-                rating = cached.rating,
-            )
-        }
-        if (!hasTmdbIdOverride && negativeMemoryCache[cacheKey] != null) {
-            return null
-        }
-
-        val cached = tmdbDao.getByDetailsUrl(cacheKey)
-        if (cached != null && canReuseNegativeMapping(cached) && !hasTmdbIdOverride) {
-            negativeMemoryCache[cacheKey] = Unit
-            return null
-        }
-        if (cached != null && canReuseCachedMapping(cached, originalReleaseYear)) {
-            val overviews = resolveOverviews(
-                detailsUrl = detailsUrl,
-                tmdbId = cached.tmdbId,
-                kind = kind,
-            )
-            val urls = TmdbImageUrls(
-                posterUrl = cached.posterUrl,
-                backdropUrl = cached.backdropUrl,
-                episodeOverviewRu = overviews.episodeOverview?.text,
-                episodeOverviewSource = overviews.episodeOverview?.source?.name,
-                seriesOverviewRu = overviews.seriesOverviewRu,
-                movieOverviewRu = overviews.movieOverviewRu,
-                rating = cached.rating,
-            )
-            inMemoryCache[cacheKey] = urls.copy(episodeOverviewRu = null, episodeOverviewSource = null)
-            inMemoryTmdbIdCache[cacheKey] = cached.tmdbId
-            return urls
-        }
-
-        return withKeyLock(cacheKey) {
-            inMemoryCache[cacheKey]?.let { cached ->
-                val cachedTmdbId = inMemoryTmdbIdCache[cacheKey]
-                if (cached.seriesOverviewRu != null || cached.movieOverviewRu != null) {
-                    val episodeOverview = if (cached.episodeOverviewRu == null && cachedTmdbId != null) {
-                        resolveEpisodeOverview(detailsUrl, cachedTmdbId, kind)
-                    } else null
-                    return@withKeyLock cached.copy(
-                        episodeOverviewRu = episodeOverview?.text,
-                        episodeOverviewSource = episodeOverview?.source?.name,
-                    )
-                }
-                val overviews = resolveOverviews(
-                    detailsUrl = detailsUrl,
-                    tmdbId = cachedTmdbId,
-                    kind = kind,
-                )
-                return@withKeyLock cached.copy(
+            return CachedMapping(
+                cached.copy(
                     episodeOverviewRu = overviews.episodeOverview?.text,
                     episodeOverviewSource = overviews.episodeOverview?.source?.name,
                     seriesOverviewRu = overviews.seriesOverviewRu,
                     movieOverviewRu = overviews.movieOverviewRu,
                     rating = cached.rating,
-                )
-            }
-            if (!hasTmdbIdOverride && negativeMemoryCache[cacheKey] != null) {
-                return@withKeyLock null
-            }
-
-            val rechecked = tmdbDao.getByDetailsUrl(cacheKey)
-            if (rechecked != null && canReuseNegativeMapping(rechecked) && !hasTmdbIdOverride) {
-                negativeMemoryCache[cacheKey] = Unit
-                return@withKeyLock null
-            }
-            if (rechecked != null && canReuseCachedMapping(rechecked, originalReleaseYear)) {
-                val overviews = resolveOverviews(
-                    detailsUrl = detailsUrl,
-                    tmdbId = rechecked.tmdbId,
-                    kind = kind,
-                )
-                val urls = TmdbImageUrls(
-                    posterUrl = rechecked.posterUrl,
-                    backdropUrl = rechecked.backdropUrl,
-                    episodeOverviewRu = overviews.episodeOverview?.text,
-                    episodeOverviewSource = overviews.episodeOverview?.source?.name,
-                    seriesOverviewRu = overviews.seriesOverviewRu,
-                    movieOverviewRu = overviews.movieOverviewRu,
-                    rating = rechecked.rating,
-                )
-                inMemoryCache[cacheKey] = urls.copy(episodeOverviewRu = null, episodeOverviewSource = null)
-                inMemoryTmdbIdCache[cacheKey] = rechecked.tmdbId
-                return@withKeyLock urls
-            }
-
-            val result = performSearch(cacheKey, detailsUrl, titleRu, kind, originalReleaseYear)
-            result?.let { inMemoryCache[cacheKey] = it.copy(episodeOverviewRu = null, episodeOverviewSource = null) }
-            result
+                ),
+            )
         }
+        if (!hasTmdbIdOverride && negativeMemoryCache[cacheKey] != null) {
+            return CachedMapping(null)
+        }
+
+        val cached = tmdbDao.getByDetailsUrl(cacheKey) ?: return null
+        if (canReuseNegativeMapping(cached) && !hasTmdbIdOverride) {
+            negativeMemoryCache[cacheKey] = Unit
+            return CachedMapping(null)
+        }
+        if (!canReuseCachedMapping(cached, originalReleaseYear)) {
+            return null
+        }
+
+        val overviews = resolveOverviews(
+            detailsUrl = detailsUrl,
+            tmdbId = cached.tmdbId,
+            kind = kind,
+        )
+        val urls = TmdbImageUrls(
+            posterUrl = cached.posterUrl,
+            backdropUrl = cached.backdropUrl,
+            episodeOverviewRu = overviews.episodeOverview?.text,
+            episodeOverviewSource = overviews.episodeOverview?.source?.name,
+            seriesOverviewRu = overviews.seriesOverviewRu,
+            movieOverviewRu = overviews.movieOverviewRu,
+            rating = cached.rating,
+        )
+        inMemoryCache[cacheKey] = urls.copy(episodeOverviewRu = null, episodeOverviewSource = null)
+        inMemoryTmdbIdCache[cacheKey] = cached.tmdbId
+        return CachedMapping(urls)
     }
+
+    private data class CachedMapping(
+        /**
+         * null — точный промах, закешированный как negative. Репозиторий
+         * трактует его так же, как отсутствие результата.
+         */
+        val urls: TmdbImageUrls?,
+    )
 
     private suspend fun <T> withKeyLock(key: String, block: suspend () -> T): T {
         val entry = locks.compute(key) { _, existing ->
