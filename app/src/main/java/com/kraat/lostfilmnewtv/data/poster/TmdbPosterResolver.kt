@@ -9,6 +9,8 @@ import com.kraat.lostfilmnewtv.data.model.TmdbImageUrls
 import com.kraat.lostfilmnewtv.data.model.TmdbMediaType
 import com.kraat.lostfilmnewtv.data.model.TmdbSearchResult
 import com.kraat.lostfilmnewtv.data.model.TmdbEpisodeOverviewSource
+import com.kraat.lostfilmnewtv.data.network.KINOPOISK_FILM_TYPES
+import com.kraat.lostfilmnewtv.data.network.KINOPOISK_SERIES_TYPES
 import com.kraat.lostfilmnewtv.data.network.KinoPoiskClient
 import com.kraat.lostfilmnewtv.data.network.TmdbPosterClient
 import java.util.LinkedHashMap
@@ -355,6 +357,7 @@ class TmdbPosterResolverImpl(
                 titleRu = titleRu,
                 englishSlug = englishSlug,
                 kind = kind,
+                originalReleaseYear = originalReleaseYear,
             )
             if (kpResult != null) {
                 return kpResult
@@ -444,14 +447,35 @@ class TmdbPosterResolverImpl(
         titleRu: String,
         englishSlug: String?,
         kind: ReleaseKind,
+        originalReleaseYear: Int?,
     ): TmdbImageUrls? {
         val kpClient = kinoPoiskClient ?: return null
 
+        // КП отдаёт десятки films с одинаковым русским названием, поэтому поиск
+        // обязан знать, что мы ищем: фильм или сериал. Без этого карточка фильма
+        // получала постер и описание одноимённого сериала.
+        val acceptedTypes = when (kind) {
+            ReleaseKind.MOVIE -> KINOPOISK_FILM_TYPES
+            ReleaseKind.SERIES -> KINOPOISK_SERIES_TYPES
+        }
+        val expectedYear = originalReleaseYear?.toString()
+        val expectedNameEn = englishSlug?.takeIf { it.isNotBlank() }
+
         try {
             // Search KP by Russian title first, then by English slug.
-            val kpMatch = kpClient.searchByKeyword(titleRu)
-                ?: englishSlug?.takeIf { it.isNotBlank() }?.let { kpClient.searchByKeyword(it) }
-                ?: return null
+            val kpMatch = kpClient.searchByKeyword(
+                query = titleRu,
+                acceptedTypes = acceptedTypes,
+                expectedYear = expectedYear,
+                expectedNameEn = expectedNameEn,
+            ) ?: englishSlug?.takeIf { it.isNotBlank() }?.let {
+                kpClient.searchByKeyword(
+                    query = it,
+                    acceptedTypes = acceptedTypes,
+                    expectedYear = expectedYear,
+                    expectedNameEn = expectedNameEn,
+                )
+            } ?: return null
 
             Log.d(TAG, "KP fallback match: filmId=${kpMatch.filmId}, name='${kpMatch.nameRu ?: kpMatch.nameEn}'")
 

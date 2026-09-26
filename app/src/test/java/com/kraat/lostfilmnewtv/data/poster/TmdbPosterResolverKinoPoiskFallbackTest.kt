@@ -10,6 +10,7 @@ import com.kraat.lostfilmnewtv.data.model.TmdbEpisodeOverviewSource
 import com.kraat.lostfilmnewtv.data.model.TmdbImageUrls
 import com.kraat.lostfilmnewtv.data.model.TmdbMediaType
 import com.kraat.lostfilmnewtv.data.model.TmdbSearchResult
+import com.kraat.lostfilmnewtv.data.network.KINOPOISK_FILM_TYPES
 import com.kraat.lostfilmnewtv.data.network.KinoPoiskClient
 import com.kraat.lostfilmnewtv.data.network.TmdbPosterClient
 import kotlinx.coroutines.test.runTest
@@ -156,8 +157,71 @@ class TmdbPosterResolverKinoPoiskFallbackTest {
         assertEquals("Описание сериала из TMDB.", result?.seriesOverviewRu)
     }
 
+    @Test
+    fun resolve_asksKinoPoiskForFilmsOnly_whenMatchingAMovie() = runTest {
+        val requestedTypes = mutableListOf<Set<String>>()
+        val resolver = TmdbPosterResolverImpl(
+            tmdbClient = emptyTmdbPosterClient(),
+            tmdbDao = FixedTmdbPosterDao(null),
+            kinoPoiskClient = object : KinoPoiskClient(OkHttpClient(), "http://localhost") {
+                override suspend fun searchByKeyword(
+                    query: String,
+                    acceptedTypes: Set<String>,
+                    expectedYear: String?,
+                    expectedNameEn: String?,
+                ): KinoPoiskSearchResult {
+                    requestedTypes += acceptedTypes
+                    return KinoPoiskSearchResult(
+                        filmId = 2544,
+                        nameRu = "В поисках галактики",
+                        nameEn = "Galaxy Quest",
+                        type = "FILM",
+                        year = "1999",
+                        rating = "8.0",
+                        posterUrl = "https://st.kp.yandex.net/images/film_big/2544.jpg",
+                    )
+                }
+            },
+        )
+
+        resolver.resolve(
+            detailsUrl = "/movies/В_поисках_галактики/",
+            titleRu = "В поисках галактики",
+            releaseDateRu = "01.01.2026",
+            kind = ReleaseKind.MOVIE,
+        )
+
+        assertTrue(
+            "Для фильма КП должен искать только среди фильмов, а не сериалов: $requestedTypes",
+            requestedTypes.isNotEmpty() && requestedTypes.all { it == KINOPOISK_FILM_TYPES },
+        )
+    }
+
+    private fun emptyTmdbPosterClient() = object : TmdbPosterClient(OkHttpClient(), "http://localhost") {
+        override suspend fun searchByTitle(
+            query: String,
+            year: Int?,
+            type: TmdbMediaType,
+        ): List<TmdbSearchResult> = emptyList()
+
+        override suspend fun getPosterAndBackdrop(tmdbId: Int, type: TmdbMediaType): TmdbImageUrls? = null
+
+        override suspend fun getSeriesOverviewRu(tmdbId: Int): String? = null
+
+        override suspend fun getEpisodeOverview(
+            tmdbId: Int,
+            seasonNumber: Int,
+            episodeNumber: Int,
+        ): TmdbEpisodeOverview? = null
+    }
+
     private fun kinoPoiskFallback() = object : KinoPoiskClient(OkHttpClient(), "http://localhost") {
-        override suspend fun searchByKeyword(query: String): KinoPoiskSearchResult = KinoPoiskSearchResult(
+        override suspend fun searchByKeyword(
+            query: String,
+            acceptedTypes: Set<String>,
+            expectedYear: String?,
+            expectedNameEn: String?,
+        ): KinoPoiskSearchResult = KinoPoiskSearchResult(
             filmId = kpFilmId,
             nameRu = "Подноготная",
             nameEn = "The Lowdown",

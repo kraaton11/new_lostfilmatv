@@ -10,12 +10,34 @@ import okhttp3.Request
 import org.json.JSONObject
 
 private const val TAG = "KinoPoiskClient"
+private val NON_ALPHANUMERIC_REGEX = Regex("[^a-z0-9]+")
+
+/** Типы, которые считаем фильмом. */
+val KINOPOISK_FILM_TYPES = setOf("FILM")
+
+/** Типы, которые считаем сериалом. */
+val KINOPOISK_SERIES_TYPES = setOf("TV_SERIES", "MINI_SERIES")
 
 open class KinoPoiskClient(
     private val okHttpClient: OkHttpClient,
     private val baseUrl: String,
 ) {
-    open suspend fun searchByKeyword(query: String): KinoPoiskSearchResult? = withContext(Dispatchers.IO) {
+    /**
+     * Ищет фильм по ключевому слову.
+     *
+     * Кинопоиск отдаёт до几十ти films с одинаковым русским названием: фильм,
+     * одноимённый сериал, переводы и ремейки. Поэтому отбор обязателен: сначала
+     * фильтруем по типу (иначе карточка фильма получала постер и описание
+     * сериала), затем при равном типе предпочитаем совпадение английского
+     * названия и года. Если подходящих типов нет — возвращаем null, потому что
+     * лучше пусто, чем чужой фильм.
+     */
+    open suspend fun searchByKeyword(
+        query: String,
+        acceptedTypes: Set<String> = KINOPOISK_FILM_TYPES,
+        expectedYear: String? = null,
+        expectedNameEn: String? = null,
+    ): KinoPoiskSearchResult? = withContext(Dispatchers.IO) {
         try {
             val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
             val url = "${baseUrl.trimEnd('/')}/v2.1/films/search-by-keyword?keyword=$encodedQuery"
@@ -40,22 +62,28 @@ open class KinoPoiskClient(
 
                 Log.d(TAG, "KP search '$query' returned ${films.length()} results")
 
-                // Prefer TV_SERIES match, fall back to first FILM
-                var bestMatch: JSONObject? = null
-                for (i in 0 until films.length()) {
-                    val film = films.getJSONObject(i)
-                    val type = film.optString("type", "")
-                    if (type == "TV_SERIES") {
-                        bestMatch = film
-                        break
-                    }
-                    if (bestMatch == null && (type == "FILM" || type == "MINI_SERIES")) {
-                        bestMatch = film
+                val candidates = buildList {
+                    for (i in 0 until films.length()) {
+                        val film = films.getJSONObject(i)
+                        if (film.optString("type", "") in acceptedTypes) {
+                            add(film)
+                        }
                     }
                 }
-                if (bestMatch == null) {
-                    bestMatch = films.getJSONObject(0)
+                if (candidates.isEmpty()) {
+                    Log.w(
+                        TAG,
+                        "KP search '$query': ни одного из $acceptedTypes, берём null вместо чужого фильма",
+                    )
+                    return@withContext null
                 }
+
+                val wantedName = expectedNameEn?.let { normalizeForCompare(it) }
+                val bestMatch = candidates.firstOrNull { film ->
+                    wantedName != null && normalizeForCompare(film.optString("nameEn", "")) == wantedName
+                } ?: candidates.firstOrNull { film ->
+                    expectedYear != null && film.optString("year", "") == expectedYear
+                } ?: candidates.first()
 
                 KinoPoiskSearchResult(
                     filmId = bestMatch.getInt("filmId"),
@@ -72,6 +100,9 @@ open class KinoPoiskClient(
             null
         }
     }
+
+    private fun normalizeForCompare(value: String): String =
+        value.lowercase().replace(NON_ALPHANUMERIC_REGEX, " ").trim()
 
     open suspend fun getFilmDetails(filmId: Int): KinoPoiskFilmDetails? = withContext(Dispatchers.IO) {
         try {
