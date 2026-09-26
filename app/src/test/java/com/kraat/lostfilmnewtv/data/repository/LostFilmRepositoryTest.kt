@@ -2356,6 +2356,40 @@ class LostFilmRepositoryTest {
     }
 
     @Test
+    fun observePage_keepsWatchedFlagChangedAfterFetch_inEmittedItems() = runTest {
+        val releaseGate = CompletableDeferred<Unit>()
+        val repository = createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            tmdbResolver = GatedTmdbResolver(releaseGate),
+        )
+
+        val emissions = mutableListOf<PageState>()
+        val freshEmission = CompletableDeferred<PageState.Content>()
+        val job = launch(Dispatchers.Default) {
+            repository.observePage(1).collect { state ->
+                emissions += state
+                if (state is PageState.Content && !state.isStale && !freshEmission.isCompleted) {
+                    freshEmission.complete(state)
+                }
+            }
+        }
+        val fresh = requireNotNull(
+            withContext(Dispatchers.IO) {
+                withTimeoutOrNull(5_000) { freshEmission.await() }
+            },
+        )
+        val targetUrl = fresh.items.first().detailsUrl
+
+        releaseDao.updateSummaryWatched(targetUrl, true)
+        releaseGate.complete(Unit)
+        job.join()
+
+        val lastEmission = emissions.filterIsInstance<PageState.Content>().last()
+        val target = lastEmission.items.first { it.detailsUrl == targetUrl }
+        assertTrue("Прогрессивная эмиссия не должна откатывать отметку просмотра", target.isWatched)
+    }
+
+    @Test
     fun observePage_emitsOnlyStaleContent_whenNetworkFailsWithCache() = runTest {
         seedPage(pageNumber = 1, fetchedAt = NOW - SEVEN_DAYS_MS / 2)
         val repository = createRepository(

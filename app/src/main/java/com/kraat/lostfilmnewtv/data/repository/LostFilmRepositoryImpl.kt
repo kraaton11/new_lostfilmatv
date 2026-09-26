@@ -246,8 +246,16 @@ class LostFilmRepositoryImpl(
         //    поэтому гасим всё, кроме отмены.
         try {
             tmdbEnrichmentService.enrichProgressively(itemsToPersist).collect { enriched ->
+                // Отметку просмотра берём из Room: пока постер ехал, пользователь
+                // мог посмотреть серию, и в currentItems её значение ещё старое.
+                val watchedByDetailsUrl = releaseDao.getSummariesUpToPage(pageNumber)
+                    .associate { it.detailsUrl to it.isWatched }
                 currentItems = currentItems.map { item ->
-                    if (item.detailsUrl == enriched.detailsUrl) enriched else item
+                    if (item.detailsUrl == enriched.detailsUrl) {
+                        enriched.copy(isWatched = watchedByDetailsUrl[item.detailsUrl] ?: item.isWatched)
+                    } else {
+                        item
+                    }
                 }
                 emit(
                     PageState.Content(
