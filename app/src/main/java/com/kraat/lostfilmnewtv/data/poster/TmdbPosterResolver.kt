@@ -37,7 +37,6 @@ private const val SERIES_YEAR_HINT_FIX_CACHE_MIN_FETCHED_AT_MS = 1777867930731L 
 private const val TMDB_RATING_CACHE_MIN_FETCHED_AT_MS = 1778025600000L // 2026-05-06
 private const val TMDB_BEST_IMAGE_CACHE_MIN_FETCHED_AT_MS = 1778716800000L // 2026-05-14
 private const val MEMORY_CACHE_MAX_SIZE = 500
-private const val EPISODE_OVERVIEW_NEGATIVE_TTL_MS = 24L * 60 * 60 * 1000 // 24 hours
 private const val SEASON_OVERVIEW_NEGATIVE_TTL_MS = 24L * 60 * 60 * 1000 // 24 hours
 private const val SEASON_OVERVIEW_RATE_LIMIT_MS = 150L
 private val seasonNumberRegex = Regex("""/season_(\d+)/""")
@@ -73,7 +72,6 @@ class TmdbPosterResolverImpl(
     private val negativeMemoryCache = LruMemoryCache<String, Unit>(MEMORY_CACHE_MAX_SIZE)
     private val inMemoryTmdbIdCache = LruMemoryCache<String, CachedTmdbId>(MEMORY_CACHE_MAX_SIZE)
     private val episodeOverviewCache = LruMemoryCache<String, TmdbEpisodeOverview>(MEMORY_CACHE_MAX_SIZE)
-    private val episodeOverviewNegativeCache = LruMemoryCache<String, Long>(MEMORY_CACHE_MAX_SIZE)
     private val seriesOverviewCache = LruMemoryCache<Int, String>(MEMORY_CACHE_MAX_SIZE)
     private val seasonOverviewCache = LruMemoryCache<Int, String>(MEMORY_CACHE_MAX_SIZE)
     private val seasonOverviewNegativeCache = LruMemoryCache<Int, Long>(MEMORY_CACHE_MAX_SIZE)
@@ -735,16 +733,15 @@ class TmdbPosterResolverImpl(
             ?: return null
         val overviewKey = "$tmdbId:$seasonNumber:$episodeNumber"
         episodeOverviewCache[overviewKey]?.let { return it }
-        episodeOverviewNegativeCache[overviewKey]?.let { cachedAt ->
-            if (clock() - cachedAt < EPISODE_OVERVIEW_NEGATIVE_TTL_MS) return null
-        }
-
         return try {
             val result = tmdbClient.getEpisodeOverview(tmdbId, seasonNumber, episodeNumber)
+            // Негативного кэша здесь намеренно нет: fetchOverview отдаёт null и
+            // когда описания нет, и когда запрос не удался, а срок в сутки
+            // превращал одну сетевую неудачу в постоянно пустое описание. Кешем
+            // служит release_summaries: описание, попавшее в базу, больше не
+            // запрашивается, а отсутствующее стоит дешёвого повтора.
             if (result != null) {
                 episodeOverviewCache[overviewKey] = result
-            } else {
-                episodeOverviewNegativeCache[overviewKey] = clock()
             }
             result
         } catch (e: CancellationException) {

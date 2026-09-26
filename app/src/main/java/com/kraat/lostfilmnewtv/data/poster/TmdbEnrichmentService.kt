@@ -3,6 +3,7 @@ package com.kraat.lostfilmnewtv.data.poster
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
 import com.kraat.lostfilmnewtv.data.db.ReleaseSummaryEntity
 import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
+import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.model.TmdbImageUrls
 import com.kraat.lostfilmnewtv.data.parser.extractYear
@@ -188,8 +189,21 @@ class TmdbEnrichmentServiceImpl @Inject constructor(
             movieOverviewRu == other.movieOverviewRu &&
             tmdbRating == other.tmdbRating
 
-    private fun ReleaseSummary.hasCompleteArt(): Boolean =
-        posterUrl.isNotBlank() && !backdropUrl.isNullOrBlank()
+    /**
+     * Готовой считаем карточку, у которой есть и картинка, и то описание,
+     * которое показывает лента. Раньше проверялись только постер с фоном,
+     * поэтому эпизод с постером, но без описания выпадал из обработки
+     * навсегда: описание могло прийти только в том же прогоне, что и постер,
+     * и если запрос тогда не удался, карточка больше не обогащалась никогда.
+     */
+    private fun ReleaseSummary.hasCompleteArt(): Boolean {
+        if (posterUrl.isBlank() || backdropUrl.isNullOrBlank()) return false
+        return when {
+            seasonNumber != null -> !episodeOverviewRu.isNullOrBlank()
+            kind == ReleaseKind.MOVIE -> !movieOverviewRu.isNullOrBlank()
+            else -> true
+        }
+    }
 
     private suspend fun upsertChangedSummaries(entities: List<ReleaseSummaryEntity>) {
         if (entities.isEmpty()) return

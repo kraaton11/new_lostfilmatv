@@ -21,6 +21,52 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class TmdbPosterResolverTest {
     @Test
+    fun resolve_retriesEpisodeOverview_afterEarlierRequestFailed() = runTest {
+        // Отрицательный кэш на 24 часа глушил описание после одной неудачи, а
+        // вместе с фильтром «готовности» это означало, что описание не
+        // появлялось никогда. Повтор должен опрашивать TMDB заново.
+        var attempts = 0
+        val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
+            override suspend fun searchByTitle(
+                query: String,
+                year: Int?,
+                type: TmdbMediaType,
+                page: Int,
+                language: String?,
+            ): List<TmdbSearchResult> = listOf(
+                TmdbSearchResult(id = 777, name = "Example Show", popularity = 10.0, releaseYear = 2026),
+            )
+
+            override suspend fun getPosterAndBackdrop(tmdbId: Int, type: TmdbMediaType) =
+                TmdbImageUrls(posterUrl = "p", backdropUrl = "b")
+
+            override suspend fun getEpisodeOverview(
+                tmdbId: Int,
+                seasonNumber: Int,
+                episodeNumber: Int,
+            ): TmdbEpisodeOverview? {
+                attempts++
+                return if (attempts == 1) {
+                    null
+                } else {
+                    TmdbEpisodeOverview(
+                        text = "Описание серии из TMDB.",
+                        source = TmdbEpisodeOverviewSource.TMDB_RU,
+                    )
+                }
+            }
+        }
+        val resolver = TmdbPosterResolverImpl(client, FakeTmdbPosterDao())
+        val url = "https://www.lostfilm.today/series/Example_Show/season_2/episode_8/"
+
+        assertNull(resolver.resolve(detailsUrl = url, titleRu = "Пример", releaseDateRu = "14.03.2026", kind = ReleaseKind.SERIES)?.episodeOverviewRu)
+        val second = resolver.resolve(detailsUrl = url, titleRu = "Пример", releaseDateRu = "14.03.2026", kind = ReleaseKind.SERIES)
+
+        assertEquals(2, attempts)
+        assertEquals("Описание серии из TMDB.", second?.episodeOverviewRu)
+    }
+
+    @Test
     fun resolve_fetchesRussianEpisodeOverview_forSeriesEpisode() = runTest {
         val dao = FakeTmdbPosterDao()
         val client = object : TmdbPosterClient(OkHttpClient(), "fake") {

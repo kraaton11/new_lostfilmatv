@@ -99,12 +99,60 @@ class TmdbEnrichmentServiceTest {
         val complete = summary(FIRST_URL).copy(
             posterUrl = "https://image.tmdb.org/t/p/w780/old.jpg",
             backdropUrl = "https://image.tmdb.org/t/p/w1280/old.jpg",
+            episodeOverviewRu = "Описание серии",
         )
 
         val emitted = service.enrichProgressively(listOf(complete)).toList()
 
         assertTrue(emitted.isEmpty())
         assertTrue("Резолвер не должен вызываться для готовых карточек", resolvedUrls.isEmpty())
+    }
+
+    @Test
+    fun enrichProgressively_stillEnriches_whenPosterIsThereButEpisodeOverviewIsNot() = runTest {
+        // Готовой считалась только картинка. Эпизод с постером, но без описания
+        // выпадал из обработки навсегда, и описание не появлялось никогда.
+        val resolvedUrls = CopyOnWriteArrayList<String>()
+        val service = createService { detailsUrl ->
+            resolvedUrls += detailsUrl
+            TmdbImageUrls(
+                posterUrl = "p",
+                backdropUrl = "b",
+                episodeOverviewRu = "Описание серии",
+            )
+        }
+        val withPosterOnly = summary(FIRST_URL).copy(
+            posterUrl = "https://image.tmdb.org/t/p/w780/old.jpg",
+            backdropUrl = "https://image.tmdb.org/t/p/w1280/old.jpg",
+            episodeOverviewRu = null,
+        )
+
+        val emitted = service.enrichProgressively(listOf(withPosterOnly)).toList()
+
+        assertEquals(listOf(FIRST_URL), resolvedUrls)
+        assertEquals("Описание серии", emitted.single().episodeOverviewRu)
+    }
+
+    @Test
+    fun enrichProgressively_stillEnriches_whenPosterIsThereButMovieOverviewIsNot() = runTest {
+        val resolvedUrls = CopyOnWriteArrayList<String>()
+        val service = createService { detailsUrl ->
+            resolvedUrls += detailsUrl
+            TmdbImageUrls(posterUrl = "p", backdropUrl = "b", movieOverviewRu = "Описание фильма")
+        }
+        val movie = summary(FIRST_URL).copy(
+            kind = ReleaseKind.MOVIE,
+            seasonNumber = null,
+            episodeNumber = null,
+            posterUrl = "https://image.tmdb.org/t/p/w780/old.jpg",
+            backdropUrl = "https://image.tmdb.org/t/p/w1280/old.jpg",
+            movieOverviewRu = null,
+        )
+
+        val emitted = service.enrichProgressively(listOf(movie)).toList()
+
+        assertEquals(listOf(FIRST_URL), resolvedUrls)
+        assertEquals("Описание фильма", emitted.single().movieOverviewRu)
     }
 
     @Test
