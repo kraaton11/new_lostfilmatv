@@ -24,13 +24,16 @@ import com.kraat.lostfilmnewtv.tvchannel.HomeChannelSyncManager
 import com.kraat.lostfilmnewtv.updates.AppUpdateAvailabilityStore
 import com.kraat.lostfilmnewtv.updates.AppUpdateCoordinator
 import com.kraat.lostfilmnewtv.updates.AppUpdateInfo
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -1509,6 +1512,79 @@ class HomeViewModelTest {
         assertEquals(3, viewModel.uiState.value.nextPage)
         assertFalse(viewModel.uiState.value.isPaging)
     }
+
+    @Test
+    fun homeChannelSync_doesNotBlockFeedWhileItRuns() = runTest(dispatcher) {
+        // syncNow() в проде ждёт сеть на резолверах TMDB. Если он вызывается из
+        // коллектора, emit не возвращается и поток ленты стоит на первой странице
+        // без постеров. Здесь синхронизация заперта на гейте, а эмиссии страницы
+        // идут через Channel: его можно закрыть, чтобы поток завершился.
+        val pageOneChannel = Channel<PageState>(Channel.UNLIMITED)
+        val syncGate = CompletableDeferred<Unit>()
+        val syncStarted = CompletableDeferred<Unit>()
+        val firstPageItem = summary("https://www.lostfilm.today/series/s1/season_1/episode_1/").copy(posterUrl = "")
+        val firstPageWithPoster = firstPageItem.copy(posterUrl = "https://image.tmdb.org/t/p/w780/s1.jpg")
+        val repository = FakeLostFilmRepository(
+            observePageFlows = mapOf(1 to pageOneChannel.receiveAsFlow()),
+        )
+        var syncsCompleted = 0
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            onChannelContentChanged = { syncsCompleted += 1 },
+            onChannelSyncStarted = { syncStarted.complete(Unit) },
+            channelSyncGate = syncGate,
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onStart()
+        advanceUntilIdle()
+
+        // Свежая страница без постеров приехала, лента перерисовалась.
+        pageOneChannel.send(
+            PageState.Content(
+                pageNumber = 1,
+                items = listOf(firstPageItem),
+                hasNextPage = false,
+                isStale = false,
+            )
+        )
+        advanceUntilIdle()
+
+        assertFalse(viewModel.uiState.value.isInitialLoading)
+        assertEquals(listOf(firstPageItem), viewModel.uiState.value.items)
+
+        // Обогащение ещё идёт: постер приходит, пока синхронизация НЕ началась.
+        pageOneChannel.send(
+            PageState.Content(
+                pageNumber = 1,
+                items = listOf(firstPageWithPoster),
+                hasNextPage = false,
+                isStale = false,
+            )
+        )
+        advanceUntilIdle()
+
+        assertFalse("Синхронизация канала не должна была начаться до конца потока", syncStarted.isCompleted)
+        assertEquals(
+            "Постер обязан применяться, даже если синхронизация канала ещё не стартовала",
+            listOf(firstPageWithPoster),
+            viewModel.uiState.value.items,
+        )
+
+        // Поток завершился — синхронизация стартовала, но заперта на гейте.
+        pageOneChannel.close()
+        advanceUntilIdle()
+
+        assertTrue("Синхронизация должна запускаться после завершения потока", syncStarted.isCompleted)
+        assertEquals("Пока гейт закрыт, синхронизация не завершена", 0, syncsCompleted)
+
+        // Гейт открыт: синхронизация доходит до конца ровно один раз.
+        syncGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(1, syncsCompleted)
+    }
 }
 
 private class FakeLostFilmRepository(
@@ -1634,6 +1710,8 @@ private fun createViewModel(
     initialSelectedMode: HomeFeedMode = HomeFeedMode.AllNew,
     initialFavoritesRailVisible: Boolean = false,
     onChannelContentChanged: () -> Unit = {},
+    onChannelSyncStarted: () -> Unit = {},
+    channelSyncGate: CompletableDeferred<Unit>? = null,
     ioDispatcher: CoroutineDispatcher,
     clock: () -> Long = { System.currentTimeMillis() },
 ): HomeViewModel {
@@ -1681,6 +1759,11 @@ private fun createViewModel(
                 existingChannelId: Long?,
                 programs: List<HomeChannelProgram>,
             ): HomeChannelPublisherResult {
+                // channelSyncGate имитирует дорогую синхронизацию: в проде syncNow()
+                // ждёт сеть на резолверах TMDB. Без гейта вызов мгновенный и
+                // блокировку сбора проверить нечем.
+                onChannelSyncStarted()
+                channelSyncGate?.await()
                 onChannelContentChanged()
                 return HomeChannelPublisherResult(channelId = existingChannelId ?: 1L)
             }

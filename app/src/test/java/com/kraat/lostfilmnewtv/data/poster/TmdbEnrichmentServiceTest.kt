@@ -11,6 +11,7 @@ import com.kraat.lostfilmnewtv.data.model.TmdbImageUrls
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
@@ -28,6 +29,7 @@ import org.robolectric.annotation.Config
 
 private const val FIRST_URL = "https://www.lostfilm.tv/series/first/season_1/episode_1/"
 private const val SECOND_URL = "https://www.lostfilm.tv/series/second/season_1/episode_1/"
+private const val THIRD_URL = "https://www.lostfilm.tv/series/third/season_1/episode_1/"
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35])
@@ -173,6 +175,64 @@ class TmdbEnrichmentServiceTest {
 
         secondGate.complete(Unit)
         collector.cancel()
+    }
+
+    @Test
+    fun enrichProgressively_holdsLaterItemsUntilGatedHeadResolves() = runTest {
+        // Контракт KDoc: постеры проявляются слева направо. Поэтому закрытый
+        // первый item должен держать весь хвост, даже если второй и третий уже
+        // разрешились: иначе лента показывала бы карточки не по порядку.
+        releaseDao.upsertSummaries(listOf(entity(FIRST_URL), entity(SECOND_URL), entity(THIRD_URL)))
+        val headGate = CompletableDeferred<Unit>()
+        val secondResolved = CompletableDeferred<Unit>()
+        val thirdResolved = CompletableDeferred<Unit>()
+        val service = createService { detailsUrl ->
+            when (detailsUrl) {
+                FIRST_URL -> headGate.await()
+                SECOND_URL -> secondResolved.complete(Unit)
+                THIRD_URL -> thirdResolved.complete(Unit)
+            }
+            TmdbImageUrls(
+                posterUrl = "https://image.tmdb.org/t/p/w780/p.jpg",
+                backdropUrl = "https://image.tmdb.org/t/p/w1280/b.jpg",
+            )
+        }
+
+        val emitted = CopyOnWriteArrayList<ReleaseSummary>()
+        val allEmitted = CompletableDeferred<Unit>()
+        val collector = launch(Dispatchers.Default) {
+            service.enrichProgressively(
+                listOf(summary(FIRST_URL), summary(SECOND_URL), summary(THIRD_URL)),
+            ).collect {
+                emitted += it
+                if (emitted.size == 3) allEmitted.complete(Unit)
+            }
+        }
+
+        // Хвост разрешился, голова — нет. Таймауты ждём на реальном диспетчере:
+        // executor запросов Room невидим для TestCoroutineScheduler.
+        withContext(Dispatchers.IO) {
+            assertNotNull("Второй item должен быть отправлен в резолвер", withTimeoutOrNull(5_000) { secondResolved.await() })
+            assertNotNull("Третий item должен быть отправлен в резолвер", withTimeoutOrNull(5_000) { thirdResolved.await() })
+            // Даём хвосту время на эмиссию: иначе проверка ниже прошла бы потому,
+            // что send ещё не успел выполниться, а не потому, что порядок соблюдён.
+            delay(200)
+        }
+        assertTrue(
+            "Пока не разрешён первый item, хвост эмитить нельзя — иначе порядок слева направо нарушен",
+            emitted.isEmpty(),
+        )
+
+        headGate.complete(Unit)
+        withContext(Dispatchers.IO) {
+            assertNotNull("Все три item должны прийти после разблокировки", withTimeoutOrNull(5_000) { allEmitted.await() })
+        }
+        collector.cancel()
+
+        assertEquals(
+            listOf(FIRST_URL, SECOND_URL, THIRD_URL),
+            emitted.map { it.detailsUrl },
+        )
     }
 
     private fun createService(resolve: suspend (String) -> TmdbImageUrls?) = TmdbEnrichmentServiceImpl(
