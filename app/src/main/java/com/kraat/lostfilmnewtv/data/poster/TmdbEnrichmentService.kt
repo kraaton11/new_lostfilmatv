@@ -12,6 +12,8 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import java.util.concurrent.ConcurrentHashMap
@@ -24,6 +26,13 @@ interface TmdbEnrichmentService {
     ): List<ReleaseSummary>
 
     suspend fun enrichSearchItems(items: List<LostFilmSearchItem>): List<LostFilmSearchItem>
+
+    /**
+     * Обогащает постеры постепенно: эмитит каждый item по мере готовности и
+     * точечно пишет art-поля в Room. Холодный flow — обогащение отменяется
+     * вместе с коллектором.
+     */
+    fun enrichProgressively(items: List<ReleaseSummary>): Flow<ReleaseSummary>
 }
 
 class TmdbEnrichmentServiceImpl @Inject constructor(
@@ -118,6 +127,58 @@ class TmdbEnrichmentServiceImpl @Inject constructor(
             }.awaitAll()
         }
     }
+
+    override fun enrichProgressively(items: List<ReleaseSummary>): Flow<ReleaseSummary> = channelFlow {
+        val pending = items.filterNot { it.hasCompleteArt() }
+        if (pending.isEmpty()) {
+            return@channelFlow
+        }
+
+        val semaphore = Semaphore(6)
+        val deferred = pending.map { item ->
+            async {
+                semaphore.withPermit {
+                    item to tmdbResolver.resolve(
+                        detailsUrl = item.detailsUrl,
+                        titleRu = item.titleRu,
+                        releaseDateRu = item.releaseDateRu,
+                        kind = item.kind,
+                        originalReleaseYear = item.originalReleaseYear,
+                    )
+                }
+            }
+        }
+
+        // Порядок эмиссии — порядок item'ов в странице: постеры проявляются
+        // слева направо, а не в случайном порядке завершения.
+        for (deferredItem in deferred) {
+            val (item, urls) = deferredItem.await()
+            val enriched = TmdbPosterEnricher.enrichSummary(item, urls)
+            if (enriched.hasSameArtworkAs(item)) {
+                continue
+            }
+            releaseDao.updateSummaryArtwork(
+                detailsUrl = enriched.detailsUrl,
+                posterUrl = enriched.posterUrl,
+                backdropUrl = enriched.backdropUrl,
+                episodeOverviewRu = enriched.episodeOverviewRu,
+                episodeOverviewSource = enriched.episodeOverviewSource,
+                seriesOverviewRu = enriched.seriesOverviewRu,
+                movieOverviewRu = enriched.movieOverviewRu,
+                tmdbRating = enriched.tmdbRating,
+            )
+            send(enriched)
+        }
+    }
+
+    private fun ReleaseSummary.hasSameArtworkAs(other: ReleaseSummary): Boolean =
+        posterUrl == other.posterUrl &&
+            backdropUrl == other.backdropUrl &&
+            episodeOverviewRu == other.episodeOverviewRu &&
+            episodeOverviewSource == other.episodeOverviewSource &&
+            seriesOverviewRu == other.seriesOverviewRu &&
+            movieOverviewRu == other.movieOverviewRu &&
+            tmdbRating == other.tmdbRating
 
     private fun ReleaseSummary.hasCompleteArt(): Boolean =
         posterUrl.isNotBlank() && !backdropUrl.isNullOrBlank()
