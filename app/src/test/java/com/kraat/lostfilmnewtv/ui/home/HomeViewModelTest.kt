@@ -1228,7 +1228,7 @@ private class FakeLostFilmRepository(
         }
     }
 
-    override fun observeNewReleases(pageNumber: Int): Flow<PageState> {
+    override fun observePage(pageNumber: Int): Flow<PageState> {
         observeNewReleasesCalls += 1
         newReleasesFlows[pageNumber]?.let { return it }
         newReleasesEmissions[pageNumber]?.let { return it.asFlow() }

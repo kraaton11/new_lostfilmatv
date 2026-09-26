@@ -60,7 +60,7 @@ private const val FRESH_WINDOW_MS = 6 * 60 * 60 * 1000L
 private const val RETENTION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000L
 
 // How long the Room-persisted page 1 cache stays fresh. While the cache is fresh,
-// observeNewReleases skips the network request and serves data directly from Room.
+// observePage skips the network request and serves data directly from Room.
 private const val NEW_RELEASES_ROOM_FRESH_MS = 10 * 60 * 1000L
 private const val MOVIES_PAGE_SIZE = 20
 private const val SERIES_CATALOG_PAGE_SIZE = 20
@@ -163,14 +163,14 @@ class LostFilmRepositoryImpl(
         }
     }
 
-    override fun observeNewReleases(pageNumber: Int): Flow<PageState> = flow {
+    override fun observePage(pageNumber: Int): Flow<PageState> = flow {
         // 1. Сначала отдаём кэш из Room (если он есть), без обращения к сети.
         //    Скелетон в HomeScreen не показывается, если items непустые и isInitialLoading=false —
         //    поэтому в HomeViewModel на cache-эмиссии нужно одновременно сбросить этот флаг
         //    и fullScreenErrorMessage, иначе UI решит, что данных нет.
         val cachedItems = releaseDao.getSummariesUpToPage(pageNumber).toSummaryModels()
-        val metadata = if (cachedItems.isNotEmpty()) releaseDao.getPageMetadata(pageNumber) else null
         if (cachedItems.isNotEmpty()) {
+            val metadata = releaseDao.getPageMetadata(pageNumber)
             val cacheFresh = metadata != null &&
                 (clock() - metadata.fetchedAt) < NEW_RELEASES_ROOM_FRESH_MS
             emit(
@@ -179,15 +179,91 @@ class LostFilmRepositoryImpl(
                     items = cachedItems,
                     hasNextPage = metadata?.hasNextPage ?: true,
                     isStale = !cacheFresh,
+                    isAppend = pageNumber > 1,
                 ),
             )
             // Если кэш свежий — пропускаем сетевой запрос.
             if (cacheFresh) return@flow
         }
-        // 2. Запускаем свежую загрузку. Если сеть упала, а кэш был показан,
-        //    HomeViewModel сам решит не стирать items (retainVisibleItemsOnFailure-семантика).
-        //    Контекст исполнения приходит от коллектора (ViewModel запускает collect на ioDispatcher).
-        emit(loadPage(pageNumber))
+
+        // 2. Загружаем страницу и сразу отдаём её без постеров, чтобы лента
+        //    отрисовалась, не дожидаясь обогащения всей страницы.
+        val fetchedAt = clock()
+        val hasAuthenticatedSession = hasAuthenticatedSession()
+        val itemsToPersist: List<ReleaseSummary>
+        val pageHasNext: Boolean
+        try {
+            val html = anonymousHttpClient.fetchNewPage(pageNumber)
+            val parsedItems = withContext(Dispatchers.Default) {
+                listParser.parse(
+                    html = html,
+                    pageNumber = pageNumber,
+                    fetchedAt = fetchedAt,
+                )
+            }
+            itemsToPersist = mergeWatchedState(
+                pageNumber = pageNumber,
+                html = html,
+                parsedItems = parsedItems,
+                hasAuthenticatedSession = hasAuthenticatedSession,
+            )
+
+            pageHasNext = hasNextPage(html, pageNumber, parsedItems.isNotEmpty())
+            releaseDao.replacePage(
+                pageNumber = pageNumber,
+                summaries = itemsToPersist.toSummaryEntities(),
+                metadata = PageCacheMetadataEntity(
+                    pageNumber = pageNumber,
+                    fetchedAt = fetchedAt,
+                    itemCount = parsedItems.size,
+                    hasNextPage = pageHasNext,
+                ),
+            )
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (exception: Exception) {
+            if (exception is IOException || exception is IllegalStateException) {
+                emit(fallbackPageState(pageNumber, exception))
+            } else {
+                throw exception
+            }
+            return@flow
+        }
+
+        var currentItems = releaseDao.getSummariesUpToPage(pageNumber).toSummaryModels()
+        emit(
+            PageState.Content(
+                pageNumber = pageNumber,
+                items = currentItems,
+                hasNextPage = pageHasNext,
+                isStale = false,
+                isAppend = pageNumber > 1,
+            ),
+        )
+
+        // 3. Постеры догружаются по одному; каждый emit заменяет item в списке.
+        //    Ошибка обогащения не должна ронять ленту: страница уже на экране,
+        //    поэтому гасим всё, кроме отмены.
+        try {
+            tmdbEnrichmentService.enrichProgressively(itemsToPersist).collect { enriched ->
+                currentItems = currentItems.map { item ->
+                    if (item.detailsUrl == enriched.detailsUrl) enriched else item
+                }
+                emit(
+                    PageState.Content(
+                        pageNumber = pageNumber,
+                        items = currentItems,
+                        hasNextPage = pageHasNext,
+                        isStale = false,
+                        isAppend = pageNumber > 1,
+                    ),
+                )
+            }
+        } catch (exception: CancellationException) {
+            throw exception
+        } catch (exception: Exception) {
+            Log.w(TAG, "TMDB enrichment failed for page $pageNumber: ${exception.message}")
+        }
     }
 
     override suspend fun loadMovies(pageNumber: Int): PageState {

@@ -404,7 +404,7 @@ class HomeViewModel @Inject constructor(
         allNewLoadJob = viewModelScope.launch(ioDispatcher) {
             var hadCacheEmission = false
             try {
-                repository.observeNewReleases(1).collect { result ->
+                repository.observePage(1).collect { result ->
                     when (result) {
                         is PageState.Content -> {
                             val isStale = result.isStale

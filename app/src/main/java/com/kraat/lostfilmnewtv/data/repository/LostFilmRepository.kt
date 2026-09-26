@@ -71,12 +71,13 @@ interface LostFilmRepository {
     suspend fun loadPage(pageNumber: Int): PageState
 
     /**
-     * Stale-while-revalidate для главного экрана: первая эмиссия — кэш из Room
-     * (если он есть, с `isStale=true`), вторая — свежий результат [loadPage].
-     * Реализация по умолчанию эмитит только свежий результат — перекрывается в
-     * реальной реализации.
+     * Источник страницы ленты «Все новое». Первая эмиссия — кэш из Room
+     * (если он есть, с `isStale=true`). Если кэш протух, сначала эмитится
+     * свежая страница без артов, затем постеры приезжают по одному.
+     * Реализация по умолчанию эмитит только свежий результат [loadPage] —
+     * перекрывается в реальной реализации.
      */
-    fun observeNewReleases(pageNumber: Int = 1): Flow<PageState> = flow {
+    fun observePage(pageNumber: Int = 1): Flow<PageState> = flow {
         emit(loadPage(pageNumber))
     }
 
