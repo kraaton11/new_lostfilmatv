@@ -18,6 +18,8 @@ data class SettingsUiState(
     val isHomeMenuLabelsEnabled: Boolean = true,
     val watchedMarkingMode: WatchedMarkingMode,
     val torrServeBaseUrl: String,
+    val lostFilmHost: String = "",
+    val lostFilmHostStatusText: String? = null,
     val torrServeStatusText: String? = null,
     val isCheckingTorrServe: Boolean = false,
     val dataStatusText: String? = null,

@@ -13,12 +13,16 @@ import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import com.kraat.lostfilmnewtv.data.db.LostFilmDatabase
 import javax.inject.Inject
+import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
+import com.kraat.lostfilmnewtv.data.parser.LostFilmBaseUrl
 
 @HiltAndroidApp
 class LostFilmApplication : Application(), Configuration.Provider, ImageLoaderFactory {
 
     @Inject
     lateinit var workerConfiguration: Configuration
+    @Inject
+    lateinit var playbackPreferencesStore: PlaybackPreferencesStore
     @Inject
     lateinit var okHttpClient: dagger.Lazy<OkHttpClient>
     @Inject
@@ -29,6 +33,8 @@ class LostFilmApplication : Application(), Configuration.Provider, ImageLoaderFa
 
     override fun onCreate() {
         super.onCreate()
+        // Apply the user-configured LostFilm host before any networking can happen.
+        LostFilmBaseUrl.set(playbackPreferencesStore.readLostFilmBaseUrl())
         // Фоновый предпрогрев тяжелых синглтонов
         CoroutineScope(Dispatchers.IO).launch {
             okHttpClient.get()

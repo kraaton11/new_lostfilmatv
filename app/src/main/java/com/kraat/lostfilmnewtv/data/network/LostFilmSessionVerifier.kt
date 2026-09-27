@@ -1,6 +1,7 @@
 package com.kraat.lostfilmnewtv.data.network
 
 import com.kraat.lostfilmnewtv.data.model.LostFilmSession
+import com.kraat.lostfilmnewtv.data.parser.BASE_URL
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -9,27 +10,27 @@ import okhttp3.Request
 
 class LostFilmSessionVerifier(
     private val okHttpClient: OkHttpClient,
-    private val probeUrl: String = DEFAULT_PROBE_URL,
+    private val probeUrl: String = "",
 ) {
     suspend fun verify(session: LostFilmSession): Boolean = withContext(Dispatchers.IO) {
+        val target = probeUrl.ifBlank { "$BASE_URL/" }
         val request = Request.Builder()
-            .url(probeUrl)
+            .url(target)
             .header("User-Agent", USER_AGENT)
             .header("Cookie", session.toCookieString())
             .build()
 
         okHttpClient.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
-                throw IOException("HTTP ${response.code} for $probeUrl")
+                throw IOException("HTTP ${response.code} for $target")
             }
 
-            val body = response.body?.string() ?: throw IOException("Empty response body for $probeUrl")
+            val body = response.body?.string() ?: throw IOException("Empty response body for $target")
             return@withContext lostFilmResponseLooksAuthenticated(body)
         }
     }
 
     private companion object {
-        const val DEFAULT_PROBE_URL = "https://www.lostfilm.today/"
         const val USER_AGENT = "Mozilla/5.0 (Android TV; LostFilmNewTV) AppleWebKit/537.36 Chrome/132.0.0.0 Safari/537.36"
     }
 }

@@ -6,7 +6,7 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 
-const val BASE_URL = "https://www.lostfilm.today"
+val BASE_URL: String get() = LostFilmBaseUrl.get()
 private val seasonEpisodeRegex = Regex("""(\d+)\s+сезон\s+(\d+)\s+серия""")
 private val specialEpisodeRegex = Regex("""спецэпизод\s+(\d+)""", RegexOption.IGNORE_CASE)
 private val additionalEpisodeUrlRegex = Regex(""".*/additional/episode_(\d+)/?""")

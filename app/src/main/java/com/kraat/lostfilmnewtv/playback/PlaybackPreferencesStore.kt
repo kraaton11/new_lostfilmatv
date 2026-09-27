@@ -4,6 +4,7 @@ import android.content.Context
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.ui.home.HomeFeedMode
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
+import com.kraat.lostfilmnewtv.data.parser.LostFilmBaseUrl
 import com.kraat.lostfilmnewtv.playback.WatchedMarkingMode
 
 class PlaybackPreferencesStore(
@@ -168,6 +169,24 @@ class PlaybackPreferencesStore(
             .apply()
     }
 
+    fun readLostFilmBaseUrl(): String {
+        return prefs.getString(KEY_LOSTFILM_BASE_URL, null)
+            ?.takeIf { it.isNotBlank() }
+            ?: DEFAULT_LOSTFILM_BASE_URL
+    }
+
+    fun writeLostFilmBaseUrl(value: String) {
+        prefs.edit()
+            .putString(KEY_LOSTFILM_BASE_URL, value)
+            .apply()
+    }
+
+    fun resetLostFilmBaseUrl() {
+        prefs.edit()
+            .remove(KEY_LOSTFILM_BASE_URL)
+            .apply()
+    }
+
     fun readHomeSelectedFeedMode(): HomeFeedMode {
         return HomeFeedMode.fromStorageValue(
             prefs.getString(KEY_HOME_SELECTED_FEED_MODE, null),
@@ -195,6 +214,8 @@ class PlaybackPreferencesStore(
         const val KEY_HOME_SELECTED_FEED_MODE = "home_selected_feed_mode"
         const val KEY_WATCHED_MARKING_MODE = "watched_marking_mode"
         const val KEY_TORRSERVE_BASE_URL = "torrserve_base_url"
+        const val KEY_LOSTFILM_BASE_URL = "lostfilm_base_url"
+        const val DEFAULT_LOSTFILM_BASE_URL = LostFilmBaseUrl.DEFAULT
         const val DEFAULT_TORRSERVE_BASE_URL = "http://127.0.0.1:8090"
     }
 }

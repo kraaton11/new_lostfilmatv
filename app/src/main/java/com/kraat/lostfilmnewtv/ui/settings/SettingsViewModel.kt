@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kraat.lostfilmnewtv.BuildConfig
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
+import com.kraat.lostfilmnewtv.data.parser.LostFilmBaseUrl
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.playback.WatchedMarkingMode
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
@@ -70,6 +71,7 @@ class SettingsViewModel @Inject constructor(
             isHomeMenuLabelsEnabled = preferencesStore.readHomeMenuLabelsEnabled(),
             watchedMarkingMode = preferencesStore.readWatchedMarkingMode(),
             torrServeBaseUrl = preferencesStore.readTorrServeBaseUrl(),
+            lostFilmHost = preferencesStore.readLostFilmBaseUrl(),
             installedVersionText = BuildConfig.VERSION_NAME,
             savedAppUpdate = initialSavedUpdate,
             installUrl = initialSavedUpdate?.apkUrl,
@@ -207,6 +209,38 @@ class SettingsViewModel @Inject constructor(
             it.copy(
                 torrServeBaseUrl = preferencesStore.readTorrServeBaseUrl(),
                 torrServeStatusText = "Адрес сброшен",
+            )
+        }
+    }
+
+    fun onLostFilmHostChanged(value: String) {
+        _uiState.update { it.copy(lostFilmHost = value, lostFilmHostStatusText = null) }
+    }
+
+    fun onSaveLostFilmHostClick() {
+        val normalized = normalizeLostFilmHost(_uiState.value.lostFilmHost)
+        if (normalized == null) {
+            _uiState.update { it.copy(lostFilmHostStatusText = "Неверный адрес сервера") }
+            return
+        }
+        preferencesStore.writeLostFilmBaseUrl(normalized)
+        LostFilmBaseUrl.set(normalized)
+        _uiState.update {
+            it.copy(
+                lostFilmHost = normalized,
+                lostFilmHostStatusText = "Адрес сохранен",
+            )
+        }
+    }
+
+    fun onResetLostFilmHostClick() {
+        preferencesStore.resetLostFilmBaseUrl()
+        val restored = preferencesStore.readLostFilmBaseUrl()
+        LostFilmBaseUrl.set(restored)
+        _uiState.update {
+            it.copy(
+                lostFilmHost = restored,
+                lostFilmHostStatusText = "Адрес сброшен",
             )
         }
     }

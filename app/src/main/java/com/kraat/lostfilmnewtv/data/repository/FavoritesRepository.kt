@@ -74,8 +74,8 @@ class FavoritesRepositoryImpl @Inject constructor(
     private var favoriteReleasesCache: FavoriteReleasesCache? = null
 
     private val favoriteSeriesRoute = "/my/type_1"
-    private val seriesFavoritePageRegex = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)/season_\d+/episode_\d+/?""")
-    private val seriesRootUrlRegex = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)(?:/.*)?/?""")
+    private fun seriesFavoritePageRegex() = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)/season_\d+/episode_\d+/?""")
+    private fun seriesRootUrlRegex() = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)(?:/.*)?/?""")
     private val favoriteReleaseDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy")
 
     // Watched marks cache in memory to avoid repetitive AJAX network hits
@@ -466,7 +466,7 @@ class FavoritesRepositoryImpl @Inject constructor(
 
     private fun favoriteMetadataPageUrl(detailsUrl: String): String {
         val normalizedDetailsUrl = resolveUrl(detailsUrl)
-        val seriesMatch = seriesFavoritePageRegex.matchEntire(normalizedDetailsUrl)
+        val seriesMatch = seriesFavoritePageRegex().matchEntire(normalizedDetailsUrl)
         return if (seriesMatch != null) {
             "$BASE_URL/series/${seriesMatch.groupValues[1]}/"
         } else {
@@ -518,7 +518,7 @@ class FavoritesRepositoryImpl @Inject constructor(
 
     private fun seriesRootUrl(detailsUrl: String): String? {
         val normalizedDetailsUrl = resolveUrl(detailsUrl).trimEnd('/')
-        val match = seriesRootUrlRegex.matchEntire(normalizedDetailsUrl) ?: return null
+        val match = seriesRootUrlRegex().matchEntire(normalizedDetailsUrl) ?: return null
         return "$BASE_URL/series/${match.groupValues[1]}/"
     }
 

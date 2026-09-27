@@ -14,7 +14,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
-private const val SCHEDULE_PAGE_URL = "$BASE_URL/schedule/my_0/type_0"
+private fun schedulePageUrl(): String = "$BASE_URL/schedule/my_0/type_0"
 
 interface LostFilmHttpClient {
     suspend fun fetchNewPage(pageNumber: Int): String
@@ -23,7 +23,7 @@ interface LostFilmHttpClient {
 
     suspend fun fetchSeriesCatalogPage(pageNumber: Int = 1): String = fetchDetails(seriesCatalogPageUrl(pageNumber))
 
-    suspend fun fetchSchedulePage(): String = fetchDetails(SCHEDULE_PAGE_URL)
+    suspend fun fetchSchedulePage(): String = fetchDetails(schedulePageUrl())
 
     suspend fun fetchDetails(detailsUrl: String): String
 
@@ -77,7 +77,7 @@ class OkHttpLostFilmHttpClient(
     }
 
     override suspend fun fetchSchedulePage(): String = withContext(Dispatchers.IO) {
-        executeLostFilm(SCHEDULE_PAGE_URL)
+        executeLostFilm(schedulePageUrl())
     }
 
     override suspend fun fetchDetails(detailsUrl: String): String = withContext(Dispatchers.IO) {
@@ -363,7 +363,7 @@ private fun executeToggleFavorite(
 
 private fun requireLostFilmUrl(url: String): HttpUrl {
     val parsed = url.toHttpUrlOrNull() ?: throw IOException("Invalid LostFilm URL")
-    if (parsed.scheme != "https" || parsed.host !in LOSTFILM_COOKIE_HOSTS) {
+    if (parsed.scheme != "https" || parsed.host !in lostFilmCookieHosts()) {
         throw IOException("Rejected non-LostFilm URL: ${parsed.redactedForError()}")
     }
     return parsed
@@ -371,7 +371,7 @@ private fun requireLostFilmUrl(url: String): HttpUrl {
 
 private fun requireTorrentPageUrl(url: String): HttpUrl {
     val parsed = url.toHttpUrlOrNull() ?: throw IOException("Invalid torrent URL")
-    if (parsed.scheme != "https" || parsed.host !in TORRENT_PAGE_HOSTS) {
+    if (parsed.scheme != "https" || parsed.host !in torrentPageHosts()) {
         throw IOException("Rejected torrent URL: ${parsed.redactedForError()}")
     }
     return parsed
@@ -383,5 +383,17 @@ private fun HttpUrl.redactedForError(): String = newBuilder()
     .build()
     .toString()
 
-private val LOSTFILM_COOKIE_HOSTS = setOf("www.lostfilm.today", "lostfilm.today")
-private val TORRENT_PAGE_HOSTS = LOSTFILM_COOKIE_HOSTS + setOf("n.tracktor.site")
+private const val FALLBACK_LOSTFILM_HOST = "www.lostfilm.today"
+private const val TORRENT_PAGE_HOST = "n.tracktor.site"
+
+/**
+ * Hosts allowed for LostFilm requests, derived from the currently configured base URL
+ * (`BASE_URL`). Changing the host in Settings therefore also updates this allowlist.
+ */
+private fun lostFilmCookieHosts(): Set<String> {
+    val host = BASE_URL.toHttpUrlOrNull()?.host?.takeIf { it.isNotBlank() } ?: FALLBACK_LOSTFILM_HOST
+    val bareHost = host.removePrefix("www.")
+    return setOf(bareHost, "www.$bareHost")
+}
+
+private fun torrentPageHosts(): Set<String> = lostFilmCookieHosts() + TORRENT_PAGE_HOST
