@@ -61,8 +61,31 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
-        run: >
-          gh release create "${{ steps.version.outputs.version_name }}"
-          app/build/outputs/apk/release/*.apk
-          --title "${{ steps.version.outputs.version_name }}"
-          --target "$GITHUB_SHA"
+        run: |
+          # Постоянная часть описания: то, что человеку нужно знать перед
+          # установкой. Список изменений ниже добавляется автоматически из
+          # смерженных PR и коммитов, поэтому руками его вести не нужно.
+          NOTES="$(cat <<'HEADER'
+          ## Перед установкой
+
+          **Обновите auth-bridge на сервере.** Подбор постеров и описаний ходит
+          в TMDB через ваш бэкенд, и он должен пропускать параметр `page` при
+          поиске: без него доступны только первые 20 результатов выдачи, и часть
+          карточек останется без обложки.
+
+          **TorrServe.** Воспроизведение требует либо адреса на этом же ТВ по
+          `127.0.0.1`, либо HTTPS. cleartext для произвольных адресов не
+          разрешён: `network-security-config` не умеет задавать диапазоны IP, и
+          статический конфиг заблокировал бы TorrServe в локальной сети.
+
+          **Другой адрес LostFilm** задаётся в настройках, секция «Сервер».
+          Поддерживается только HTTPS, по умолчанию поведение прежнее.
+          HEADER
+          )"
+
+          gh release create "${{ steps.version.outputs.version_name }}" \
+            app/build/outputs/apk/release/*.apk \
+            --title "${{ steps.version.outputs.version_name }}" \
+            --target "$GITHUB_SHA" \
+            --notes "$NOTES" \
+            --generate-notes
