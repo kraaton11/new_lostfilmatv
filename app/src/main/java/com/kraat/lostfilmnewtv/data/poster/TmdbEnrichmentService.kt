@@ -3,6 +3,7 @@ package com.kraat.lostfilmnewtv.data.poster
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
 import com.kraat.lostfilmnewtv.data.db.ReleaseSummaryEntity
 import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
+import android.util.Log
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.model.TmdbImageUrls
@@ -43,6 +44,8 @@ interface TmdbEnrichmentService {
      */
     fun enrichProgressively(items: List<ReleaseSummary>): Flow<ReleaseSummary>
 }
+
+private const val TAG = "TmdbEnrichmentService"
 
 class TmdbEnrichmentServiceImpl @Inject constructor(
     private val tmdbResolver: TmdbPosterResolver,
@@ -163,6 +166,15 @@ class TmdbEnrichmentServiceImpl @Inject constructor(
         for (deferredItem in deferred) {
             val (item, urls) = deferredItem.await()
             val enriched = TmdbPosterEnricher.enrichSummary(item, urls)
+            // Решение «записать или пропустить» принималось молча, и по логам
+            // нельзя было отличить «резолвер не дал описания» от «описание уже
+            // было». Теперь видно, что пришло от резолвера и что записано.
+            Log.d(
+                TAG,
+                "enrich ${item.detailsUrl}: poster=${!urls?.posterUrl.isNullOrBlank()} " +
+                    "episodeRu=${urls?.episodeOverviewRu?.length ?: 0} " +
+                    "→ ${if (enriched.hasSameArtworkAs(item)) "пропущено" else "записано"}",
+            )
             if (enriched.hasSameArtworkAs(item)) {
                 continue
             }

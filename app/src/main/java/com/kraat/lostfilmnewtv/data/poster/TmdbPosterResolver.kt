@@ -733,6 +733,10 @@ class TmdbPosterResolverImpl(
             ?: return null
         val overviewKey = "$tmdbId:$seasonNumber:$episodeNumber"
         episodeOverviewCache[overviewKey]?.let { return it }
+        // Раньше исход запроса описания эпизода не попадал в лог вовсе, и
+        // карточка без описания выглядела одинаково — «TMDB молчит» и «запроса
+        // не было». Теперь видно, что запрашивалось и чем закончилось.
+        Log.d(TAG, "Episode overview request: id=$tmdbId s${seasonNumber}e${episodeNumber} for $detailsUrl")
         return try {
             val result = tmdbClient.getEpisodeOverview(tmdbId, seasonNumber, episodeNumber)
             // Негативного кэша здесь намеренно нет: fetchOverview отдаёт null и
@@ -740,6 +744,11 @@ class TmdbPosterResolverImpl(
             // превращал одну сетевую неудачу в постоянно пустое описание. Кешем
             // служит release_summaries: описание, попавшее в базу, больше не
             // запрашивается, а отсутствующее стоит дешёвого повтора.
+            Log.d(
+                TAG,
+                "Episode overview result: id=$tmdbId s${seasonNumber}e${episodeNumber} -> " +
+                    if (result == null) "empty" else "${result.text.length} симв., ${result.source}",
+            )
             if (result != null) {
                 episodeOverviewCache[overviewKey] = result
             }
