@@ -184,6 +184,8 @@ def create_app() -> FastAPI:
         cache_dir=settings.tmdb_image_cache_dir,
         max_cache_bytes=settings.tmdb_image_cache_max_bytes,
         timeout_seconds=settings.tmdb_image_timeout_seconds,
+        retry_attempts=settings.tmdb_image_retry_attempts,
+        retry_backoff_seconds=settings.tmdb_image_retry_backoff_seconds,
     )
     kinopoisk_proxy_service = KinopoiskProxyService(
         api_key=settings.kinopoisk_api_key,

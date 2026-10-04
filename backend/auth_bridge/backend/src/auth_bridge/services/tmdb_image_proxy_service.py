@@ -75,13 +75,17 @@ class TmdbImageProxyService:
         base_url: str = "https://image.tmdb.org/t/p",
         cache_dir: str | Path = "/data/tmdb_image_cache",
         max_cache_bytes: int = 1024 * 1024 * 1024,
-        timeout_seconds: float = 15.0,
+        timeout_seconds: float = 40.0,
+        retry_attempts: int = 3,
+        retry_backoff_seconds: float = 0.25,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._cache_dir = Path(cache_dir).resolve()
         self._max_cache_bytes = max(0, max_cache_bytes)
         self._timeout = httpx.Timeout(timeout_seconds)
+        self._retry_attempts = max(1, retry_attempts)
+        self._retry_backoff_seconds = max(0.0, retry_backoff_seconds)
         self._transport = transport
 
         self._locks: dict[str, RLock] = {}
@@ -170,8 +174,37 @@ class TmdbImageProxyService:
         target_path.parent.mkdir(parents=True, exist_ok=True)
         upstream_url = f"{self._base_url}/{size}/{filename}"
 
+        last_error: Exception | None = None
+        for attempt in range(1, self._retry_attempts + 1):
+            try:
+                self._download_once(upstream_url, filename, target_path)
+                return
+            except TmdbImageNotFoundError:
+                # 404 — ответ однозначный: картинки не существует, повтор лишь
+                # потратит время на заведомо бесполезные запросы.
+                raise
+            except (TmdbImageUpstreamError, httpx.HTTPError) as exc:
+                last_error = exc
+                if attempt >= self._retry_attempts:
+                    break
+                logger.warning(
+                    "Не удалось скачать картинку TMDB %s; повтор %d/%d: %s",
+                    upstream_url,
+                    attempt,
+                    self._retry_attempts,
+                    exc,
+                )
+                self._sleep_before_retry(attempt)
+
+        with self._lock:
+            self._upstream_errors += 1
+        raise TmdbImageUpstreamError(f"TMDB image download error: {last_error}") from last_error
+
+    def _download_once(self, upstream_url: str, filename: str, target_path: Path) -> None:
         # Пишем во временный файл и переименовываем: читатель кэша никогда не
         # увидит наполовину скачанную картинку, даже если контейнер убьют.
+        # Имя с меткой времени и pid очищает предыдущий недокачанный остаток:
+        # режим wb на каждой попытке создаётся заново.
         tmp_path = target_path.with_name(
             f"{filename}{_TEMP_MARKER}{os.getpid()}.{threading.get_ident()}.{int(time.time() * 1000)}"
         )
@@ -187,13 +220,6 @@ class TmdbImageProxyService:
                             self._not_found_errors += 1
                         raise TmdbImageNotFoundError(f"TMDB не отдал картинку: {upstream_url}")
                     if response.status_code != 200:
-                        logger.warning(
-                            "TMDB image upstream вернул статус %d для %s",
-                            response.status_code,
-                            upstream_url,
-                        )
-                        with self._lock:
-                            self._upstream_errors += 1
                         raise TmdbImageUpstreamError(
                             f"TMDB image upstream вернул статус {response.status_code}"
                         )
@@ -206,9 +232,6 @@ class TmdbImageProxyService:
 
             tmp_path.replace(target_path)
         except httpx.HTTPError as exc:
-            logger.warning("Не удалось скачать картинку TMDB %s: %s", upstream_url, exc)
-            with self._lock:
-                self._upstream_errors += 1
             raise TmdbImageUpstreamError(f"TMDB image download error: {exc}") from exc
         finally:
             if tmp_path.exists():
@@ -216,6 +239,11 @@ class TmdbImageProxyService:
                     tmp_path.unlink()
                 except OSError:
                     pass
+
+    def _sleep_before_retry(self, attempt: int) -> None:
+        if self._retry_backoff_seconds <= 0:
+            return
+        time.sleep(self._retry_backoff_seconds * attempt)
 
     def _build_result(self, target_path: Path, filename: str) -> TmdbImageResult:
         stat = target_path.stat()

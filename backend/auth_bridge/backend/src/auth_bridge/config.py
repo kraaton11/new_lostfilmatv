@@ -53,7 +53,9 @@ class Settings(BaseSettings):
     tmdb_image_base_url: str = "https://image.tmdb.org/t/p"
     tmdb_image_cache_dir: str = "/data/tmdb_image_cache"
     tmdb_image_cache_max_bytes: int = 1024 * 1024 * 1024
-    tmdb_image_timeout_seconds: float = 15.0
+    tmdb_image_timeout_seconds: float = 40.0
+    tmdb_image_retry_attempts: int = 3
+    tmdb_image_retry_backoff_seconds: float = 0.25
     tmdb_image_rate_limit_max_requests: int = 1200
     tmdb_image_rate_limit_window_seconds: int = 60
     kinopoisk_api_key: str = ""
@@ -100,6 +102,7 @@ class Settings(BaseSettings):
         "tmdb_image_cache_max_bytes",
         "tmdb_image_rate_limit_max_requests",
         "tmdb_image_rate_limit_window_seconds",
+        "tmdb_image_retry_attempts",
         "tmdb_cache_max_entries",
         "tmdb_cache_ttl_search_seconds",
         "tmdb_cache_ttl_images_seconds",
@@ -129,6 +132,7 @@ class Settings(BaseSettings):
         "deepl_timeout_seconds",
         "tmdb_timeout_seconds",
         "tmdb_image_timeout_seconds",
+        "tmdb_image_retry_backoff_seconds",
         "kinopoisk_timeout_seconds",
     )
     @classmethod

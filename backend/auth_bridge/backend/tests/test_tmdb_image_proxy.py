@@ -152,6 +152,110 @@ class TmdbImageProxyServiceTest(unittest.TestCase):
         self.assertEqual([], leftovers)
         self.assertEqual(0, service.snapshot().cached_files_count)
 
+    def test_get_image_retries_transient_upstream_failure(self) -> None:
+        # TMDB периодически отдаёт постер не с первого раза: картинка в 164 КБ
+        # может скачиваться 10 с и падать по таймауту. Повтор обязателен,
+        # иначе клиент годами видит серый квадрат вместо постера.
+        image_content = b"\xff\xd8\xff\xe0\x00\x10JFIF" + b"eventually_ok"
+        upstream_calls = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal upstream_calls
+            upstream_calls += 1
+            if upstream_calls == 1:
+                return httpx.Response(503, text="Service Unavailable")
+            return httpx.Response(200, content=image_content)
+
+        service = TmdbImageProxyService(
+            cache_dir=self.cache_dir,
+            transport=httpx.MockTransport(handler),
+            retry_backoff_seconds=0,
+        )
+
+        result = service.get_image("w780", "flaky.jpg")
+
+        self.assertEqual(2, upstream_calls)
+        self.assertEqual(image_content, result.file_path.read_bytes())
+        # Неудачные попытки — тоже запросы к апстриму, но ошибкой считается
+        # лишь итоговое поражение, иначе счётчики в /health врут.
+        self.assertEqual(2, service.snapshot().upstream_requests)
+        self.assertEqual(0, service.snapshot().upstream_errors)
+
+    def test_get_image_retries_then_succeeds_after_timeouts(self) -> None:
+        # Именно этот случай наблюдался на проксе: httpx.ReadTimeout дважды
+        # подряд, а на третий раз файл скачался.
+        image_content = b"\xff\xd8\xff\xe0\x00\x10JFIF" + b"slow_but_fine"
+        upstream_calls = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal upstream_calls
+            upstream_calls += 1
+            if upstream_calls <= 2:
+                raise httpx.ReadTimeout("timed out", request=request)
+            return httpx.Response(200, content=image_content)
+
+        service = TmdbImageProxyService(
+            cache_dir=self.cache_dir,
+            transport=httpx.MockTransport(handler),
+            retry_backoff_seconds=0,
+        )
+
+        result = service.get_image("w780", "slow.jpg")
+
+        self.assertEqual(3, upstream_calls)
+        self.assertEqual(image_content, result.file_path.read_bytes())
+        self.assertEqual(0, service.snapshot().upstream_errors)
+
+    def test_get_image_gives_up_after_all_attempts(self) -> None:
+        upstream_calls = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal upstream_calls
+            upstream_calls += 1
+            raise httpx.ReadTimeout("timed out", request=request)
+
+        service = TmdbImageProxyService(
+            cache_dir=self.cache_dir,
+            transport=httpx.MockTransport(handler),
+            retry_backoff_seconds=0,
+        )
+
+        with self.assertRaises(TmdbImageUpstreamError):
+            service.get_image("w780", "never.jpg")
+
+        self.assertEqual(3, upstream_calls)
+        self.assertEqual(1, service.snapshot().upstream_errors)
+        # Ни целевого, ни временного файла: оборванная попытка не должна
+        # оставлять после себя мусор, который потом не отдаётся, но занимает
+        # место в кэше до следующей уборки.
+        self.assertEqual([], [p for p in self.cache_dir.rglob("*") if p.is_file()])
+
+    def test_get_image_does_not_retry_404(self) -> None:
+        # 404 — однозначный ответ: повтор только потратит время на заведомо
+        # бесполезные запросы к TMDB.
+        upstream_calls = 0
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal upstream_calls
+            upstream_calls += 1
+            return httpx.Response(404, text="Not Found")
+
+        service = TmdbImageProxyService(
+            cache_dir=self.cache_dir,
+            transport=httpx.MockTransport(handler),
+            retry_backoff_seconds=0,
+        )
+
+        with self.assertRaises(TmdbImageNotFoundError):
+            service.get_image("w780", "absent.jpg")
+
+        self.assertEqual(1, upstream_calls)
+
+    def test_default_timeout_is_raised_for_slow_posters(self) -> None:
+        # 164 КБ за 10 секунд — норма для TMDB при загруженном CDN, поэтому
+        # таймаут 15 с срабатывал на живых постеров.
+        self.assertEqual(40.0, TmdbImageProxyService(cache_dir=self.cache_dir)._timeout.read)
+
     def test_prune_if_needed(self) -> None:
         service = TmdbImageProxyService(
             cache_dir=self.cache_dir,
