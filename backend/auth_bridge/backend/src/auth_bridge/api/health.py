@@ -50,6 +50,16 @@ def build_health_router(pairing_service: PairingService) -> APIRouter:
             raise HTTPException(status_code=503, detail="TMDB proxy service is not available.")
         return service.snapshot().to_dict()
 
+    @router.get("/tmdb-images")
+    def tmdb_images(request: Request) -> dict[str, int]:
+        """
+        TMDB image proxy counters and on-disk cache usage. Does not call TMDB.
+        """
+        service = getattr(request.app.state, "tmdb_image_proxy_service", None)
+        if service is None:
+            raise HTTPException(status_code=503, detail="TMDB image proxy service is not available.")
+        return service.snapshot().to_dict()
+
     @router.get("/kinopoisk")
     def kinopoisk(request: Request) -> dict[str, int | bool]:
         """

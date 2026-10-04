@@ -50,6 +50,12 @@ class Settings(BaseSettings):
     tmdb_cache_ttl_images_seconds: int = 30 * 24 * 60 * 60
     tmdb_cache_ttl_details_seconds: int = 7 * 24 * 60 * 60
     tmdb_cache_ttl_negative_seconds: int = 24 * 60 * 60
+    tmdb_image_base_url: str = "https://image.tmdb.org/t/p"
+    tmdb_image_cache_dir: str = "/data/tmdb_image_cache"
+    tmdb_image_cache_max_bytes: int = 1024 * 1024 * 1024
+    tmdb_image_timeout_seconds: float = 15.0
+    tmdb_image_rate_limit_max_requests: int = 1200
+    tmdb_image_rate_limit_window_seconds: int = 60
     kinopoisk_api_key: str = ""
     kinopoisk_api_base_url: str = "https://kinopoiskapiunofficial.tech/api"
     kinopoisk_timeout_seconds: float = 10.0
@@ -91,6 +97,9 @@ class Settings(BaseSettings):
         "translation_rate_limit_window_seconds",
         "tmdb_rate_limit_max_requests",
         "tmdb_rate_limit_window_seconds",
+        "tmdb_image_cache_max_bytes",
+        "tmdb_image_rate_limit_max_requests",
+        "tmdb_image_rate_limit_window_seconds",
         "tmdb_cache_max_entries",
         "tmdb_cache_ttl_search_seconds",
         "tmdb_cache_ttl_images_seconds",
@@ -114,7 +123,14 @@ class Settings(BaseSettings):
             raise ValueError("value must not be negative")
         return value
 
-    @field_validator("upstream_timeout_seconds", "upstream_retry_backoff_seconds", "deepl_timeout_seconds", "tmdb_timeout_seconds", "kinopoisk_timeout_seconds")
+    @field_validator(
+        "upstream_timeout_seconds",
+        "upstream_retry_backoff_seconds",
+        "deepl_timeout_seconds",
+        "tmdb_timeout_seconds",
+        "tmdb_image_timeout_seconds",
+        "kinopoisk_timeout_seconds",
+    )
     @classmethod
     def validate_non_negative_float(cls, value: float) -> float:
         if value < 0:

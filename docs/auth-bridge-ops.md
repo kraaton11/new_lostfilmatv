@@ -222,6 +222,7 @@ curl -fsS https://auth.bazuka.pp.ua/health/live
 curl -fsS https://auth.bazuka.pp.ua/health/ready
 curl -fsS https://auth.bazuka.pp.ua/health/translation
 curl -fsS https://auth.bazuka.pp.ua/health/tmdb
+curl -fsS https://auth.bazuka.pp.ua/health/tmdb-images
 ```
 
 Ожидаемые ответы для базовых endpoints:
@@ -231,6 +232,49 @@ curl -fsS https://auth.bazuka.pp.ua/health/tmdb
 ```
 
 `/health/translation` и `/health/tmdb` возвращают counters/config status без секретов и без внешних запросов к DeepL/TMDB.
+
+## Проверка прокси картинок TMDB
+
+Картинки отдаются через `/api/tmdb/t/p/{size}/{file}` и кэшируются на диске
+в `/data/tmdb_image_cache` (тот же volume, что и база доверенных устройств).
+Ответ помечен `Cache-Control: public, max-age=31536000, immutable`, поэтому
+повторный запрос с `If-None-Match` возвращает `304` и не ходит в TMDB.
+
+```bash
+# Возьмите file_path из ответа /api/tmdb/tv/1399/images, здесь /zZqpAXxVSBtxV9qPBcscfXBcL2w.jpg
+FILE=zZqpAXxVSBtxV9qPBcscfXBcL2w
+
+# Получить картинку и посмотреть заголовки
+curl -fsSI https://auth.bazuka.pp.ua/api/tmdb/t/p/w780/$FILE.jpg
+
+# Повторить с ETag — должен вернуться 304
+curl -fsS -o /dev/null -w '%{http_code}\n' \
+  -H "If-None-Match: \"$FILE\"" \
+  https://auth.bazuka.pp.ua/api/tmdb/t/p/w780/$FILE.jpg
+```
+
+Состояние кэша:
+
+```bash
+curl -fsS https://auth.bazuka.pp.ua/health/tmdb-images
+```
+
+Кэш ограничен по размеру (`AUTH_BRIDGE_TMDB_IMAGE_CACHE_MAX_BYTES`, по
+умолчанию 1 ГБ) и сам чистится в фоновом цикле: при превышении квоты
+удаляются самые давно не запрашивавшиеся файлы. Размер каталога на диске:
+
+```bash
+docker compose exec auth-backend du -sh /data/tmdb_image_cache
+```
+
+Чтобы освободить кэш вручную:
+
+```bash
+docker compose exec auth-backend sh -c 'rm -rf /data/tmdb_image_cache/*'
+```
+
+Если прокси недоступен (сервер перезапускается, ходит запрос к TMDB
+напрямую), приложение прозрачно переключается на `image.tmdb.org`.
 
 ## Проверка QR-flow
 

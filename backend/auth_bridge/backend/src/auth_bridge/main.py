@@ -23,6 +23,7 @@ from auth_bridge.services.pairing_store import InMemoryPairingStore
 from auth_bridge.services.proxy_session_store import ProxySessionStore
 from auth_bridge.services.trusted_device_service import TrustedDeviceService
 from auth_bridge.services.tmdb_proxy_service import TmdbProxyService
+from auth_bridge.services.tmdb_image_proxy_service import TmdbImageProxyService
 from auth_bridge.services.kinopoisk_proxy_service import KinopoiskProxyService
 from auth_bridge.services.translation_service import DeeplTranslationService
 
@@ -95,6 +96,9 @@ async def _run_cleanup_loop(app: FastAPI, interval_seconds: int) -> None:
                 trusted_count,
             )
             await app.state.trusted_device_service.prune_expired()
+            image_proxy = getattr(app.state, "tmdb_image_proxy_service", None)
+            if image_proxy is not None:
+                await asyncio.to_thread(image_proxy.prune_if_needed)
         except Exception:
             logger.exception("Pairing cleanup failed")
 
@@ -130,6 +134,10 @@ def create_app() -> FastAPI:
     tmdb_rate_limiter = SlidingWindowRateLimiter(
         max_requests=settings.tmdb_rate_limit_max_requests,
         window_seconds=settings.tmdb_rate_limit_window_seconds,
+    )
+    tmdb_image_rate_limiter = SlidingWindowRateLimiter(
+        max_requests=settings.tmdb_image_rate_limit_max_requests,
+        window_seconds=settings.tmdb_image_rate_limit_window_seconds,
     )
     kinopoisk_rate_limiter = SlidingWindowRateLimiter(
         max_requests=settings.kinopoisk_rate_limit_max_requests,
@@ -171,6 +179,12 @@ def create_app() -> FastAPI:
         cache_ttl_details_seconds=settings.tmdb_cache_ttl_details_seconds,
         cache_ttl_negative_seconds=settings.tmdb_cache_ttl_negative_seconds,
     )
+    tmdb_image_proxy_service = TmdbImageProxyService(
+        base_url=settings.tmdb_image_base_url,
+        cache_dir=settings.tmdb_image_cache_dir,
+        max_cache_bytes=settings.tmdb_image_cache_max_bytes,
+        timeout_seconds=settings.tmdb_image_timeout_seconds,
+    )
     kinopoisk_proxy_service = KinopoiskProxyService(
         api_key=settings.kinopoisk_api_key,
         base_url=settings.kinopoisk_api_base_url,
@@ -189,6 +203,7 @@ def create_app() -> FastAPI:
     app.state.proxy_rate_limiter = proxy_rate_limiter
     app.state.translation_rate_limiter = translation_rate_limiter
     app.state.tmdb_rate_limiter = tmdb_rate_limiter
+    app.state.tmdb_image_rate_limiter = tmdb_image_rate_limiter
     app.state.kinopoisk_rate_limiter = kinopoisk_rate_limiter
     app.state.trusted_proxy_networks = settings.trusted_proxy_networks
     app.state.lostfilm_auth_detector = lostfilm_auth_detector
@@ -196,6 +211,7 @@ def create_app() -> FastAPI:
     app.state.lostfilm_proxy_service = lostfilm_proxy_service
     app.state.translation_service = translation_service
     app.state.tmdb_proxy_service = tmdb_proxy_service
+    app.state.tmdb_image_proxy_service = tmdb_image_proxy_service
     app.state.kinopoisk_proxy_service = kinopoisk_proxy_service
 
     # Register API routers before the wildcard catch-all so they take precedence.

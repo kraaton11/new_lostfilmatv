@@ -202,9 +202,11 @@ curl -fsS https://auth.bazuka.pp.ua/health/ready
 curl -fsS https://auth.bazuka.pp.ua/health/live
 curl -fsS https://auth.bazuka.pp.ua/health/translation
 curl -fsS https://auth.bazuka.pp.ua/health/tmdb
+curl -fsS https://auth.bazuka.pp.ua/health/tmdb-images
 ```
 
-`/health/translation` и `/health/tmdb` не раскрывают секреты и не делают внешние запросы.
+`/health/translation` и `/health/tmdb` не раскрывают секреты и не делают внешних запросов.
+`/health/tmdb-images` дополнительно показывает состояние дискового кэша картинок.
 
 ### 3. Контракт создания pairing
 

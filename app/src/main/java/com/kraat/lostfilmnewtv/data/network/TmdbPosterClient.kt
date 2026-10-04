@@ -34,6 +34,7 @@ open class TmdbPosterClient(
     private val bearerToken: String = "",
     private val englishToRussianTranslator: (suspend (String) -> String?)? = null,
     private val baseUrl: String = DEFAULT_TMDB_BASE_URL,
+    private val imageBaseUrl: String = TMDB_IMAGE_BASE,
     /**
      * Пауза перед повтором описания после 429. В тестах передаётся заглушка,
      * чтобы не ждать реальное время.
@@ -42,6 +43,8 @@ open class TmdbPosterClient(
         OVERVIEW_RETRY_BASE_DELAY_MS shl attempt
     },
 ) {
+    private val normalizedImageBaseUrl: String =
+        if (imageBaseUrl.endsWith("/")) imageBaseUrl else "$imageBaseUrl/"
     open suspend fun searchByTitle(
         query: String,
         year: Int?,
@@ -170,8 +173,8 @@ open class TmdbPosterClient(
             if (posterPath == null && backdropPath == null) return null
 
             return TmdbImageUrls(
-                posterUrl = posterPath?.let { "$TMDB_IMAGE_BASE$POSTER_SIZE$it" }.orEmpty(),
-                backdropUrl = backdropPath?.let { "$TMDB_IMAGE_BASE$BACKDROP_SIZE$it" }.orEmpty(),
+                posterUrl = posterPath?.let { "$normalizedImageBaseUrl$POSTER_SIZE$it" }.orEmpty(),
+                backdropUrl = backdropPath?.let { "$normalizedImageBaseUrl$BACKDROP_SIZE$it" }.orEmpty(),
             )
         }
     }

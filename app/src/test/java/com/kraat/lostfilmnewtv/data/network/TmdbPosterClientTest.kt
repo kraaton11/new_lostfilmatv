@@ -552,6 +552,102 @@ class TmdbPosterClientTest {
         assertEquals("Повторы обязаны быть ограниченными", 3, calls)
     }
 
+    @Test
+    fun getPosterAndBackdrop_usesCustomImageBaseUrl_whenConfigured() = runTest {
+        val client = TmdbPosterClient(
+            okHttpClient = OkHttpClient.Builder()
+                .addInterceptor(Interceptor { chain ->
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body(
+                            """
+                            {
+                              "posters": [{"file_path": "/ru-poster.jpg"}],
+                              "backdrops": [{"file_path": "/ru-backdrop.jpg"}]
+                            }
+                            """.trimIndent().toResponseBody(),
+                        )
+                        .build()
+                })
+                .build(),
+            apiKey = "test",
+            imageBaseUrl = "https://auth.bazuka.pp.ua/api/tmdb/t/p/",
+        )
+
+        val result = client.getPosterAndBackdrop(123, TmdbMediaType.TV)
+
+        requireNotNull(result)
+        assertEquals("https://auth.bazuka.pp.ua/api/tmdb/t/p/w780/ru-poster.jpg", result.posterUrl)
+        assertEquals("https://auth.bazuka.pp.ua/api/tmdb/t/p/w1280/ru-backdrop.jpg", result.backdropUrl)
+    }
+
+    @Test
+    fun getPosterAndBackdrop_normalizesImageBaseUrl_withoutTrailingSlash() = runTest {
+        val client = TmdbPosterClient(
+            okHttpClient = OkHttpClient.Builder()
+                .addInterceptor(Interceptor { chain ->
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body(
+                            """
+                            {
+                              "posters": [{"file_path": "/ru-poster.jpg"}],
+                              "backdrops": [{"file_path": "/ru-backdrop.jpg"}]
+                            }
+                            """.trimIndent().toResponseBody(),
+                        )
+                        .build()
+                })
+                .build(),
+            apiKey = "test",
+            imageBaseUrl = "https://auth.bazuka.pp.ua/api/tmdb/t/p",
+        )
+
+        val result = client.getPosterAndBackdrop(123, TmdbMediaType.TV)
+
+        requireNotNull(result)
+        assertEquals("https://auth.bazuka.pp.ua/api/tmdb/t/p/w780/ru-poster.jpg", result.posterUrl)
+        assertEquals("https://auth.bazuka.pp.ua/api/tmdb/t/p/w1280/ru-backdrop.jpg", result.backdropUrl)
+    }
+
+    @Test
+    fun getSeasonImages_usesCustomImageBaseUrl_whenConfigured() = runTest {
+        val client = TmdbPosterClient(
+            okHttpClient = OkHttpClient.Builder()
+                .addInterceptor(Interceptor { chain ->
+                    Response.Builder()
+                        .request(chain.request())
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body(
+                            """
+                            {
+                              "posters": [{"file_path": "/season-poster.jpg"}],
+                              "backdrops": [{"file_path": "/season-backdrop.jpg"}]
+                            }
+                            """.trimIndent().toResponseBody(),
+                        )
+                        .build()
+                })
+                .build(),
+            apiKey = "test",
+            imageBaseUrl = "https://auth.bazuka.pp.ua/api/tmdb/t/p/",
+        )
+
+        val result = client.getSeasonImages(tmdbId = 456, seasonNumber = 3)
+
+        requireNotNull(result)
+        assertEquals("https://auth.bazuka.pp.ua/api/tmdb/t/p/w780/season-poster.jpg", result.posterUrl)
+        assertEquals("https://auth.bazuka.pp.ua/api/tmdb/t/p/w1280/season-backdrop.jpg", result.backdropUrl)
+    }
+
     private fun clientReturning(
         onEachCall: () -> Unit,
         code: () -> Int,

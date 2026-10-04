@@ -15,6 +15,7 @@ import com.kraat.lostfilmnewtv.data.db.LostFilmDatabase
 import javax.inject.Inject
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import com.kraat.lostfilmnewtv.data.parser.LostFilmBaseUrl
+import com.kraat.lostfilmnewtv.data.network.TmdbImageFallbackInterceptor
 
 @HiltAndroidApp
 class LostFilmApplication : Application(), Configuration.Provider, ImageLoaderFactory {
@@ -54,6 +55,9 @@ class LostFilmApplication : Application(), Configuration.Provider, ImageLoaderFa
                     .directory(cacheDir.resolve("coil_image_cache"))
                     .maxSizePercent(0.05)
                     .build()
+            }
+            .components {
+                add(TmdbImageFallbackInterceptor())
             }
             .crossfade(false)
             .build()

@@ -128,6 +128,7 @@ object NetworkModule {
             bearerToken = "",
             englishToRussianTranslator = authBridgeClient::translateEnglishToRussian,
             baseUrl = "$AUTH_BRIDGE_BASE_URL/api/tmdb",
+            imageBaseUrl = "$AUTH_BRIDGE_BASE_URL/api/tmdb/t/p/",
         )
     }
 
