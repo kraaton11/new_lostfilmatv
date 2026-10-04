@@ -50,6 +50,9 @@ private val seriesSlugRegex = Regex("""/series/([^/?#]+)""")
 private val movieSlugRegex = Regex("""/movies/([^/?#]+)""")
 private val seriesCacheKeyRegex = Regex("""^(.*/series/[^/?#]+)""")
 private val seriesSeasonCacheKeyRegex = Regex("""^(.*/series/[^/?#]+/season_\d+)""")
+
+/** Карточка сезона целиком, без вложенного эпизода: «.../series/Brothers/season_1/». */
+private val seasonLevelUrlRegex = Regex("""/season_\d+/?$""")
 private val movieCacheKeyRegex = Regex("""^(.*/movies/[^/?#]+)""")
 
 interface TmdbPosterResolver {
@@ -127,7 +130,20 @@ class TmdbPosterResolverImpl(
         originalReleaseYear: Int?,
         hasTmdbIdOverride: Boolean,
     ): CachedMapping? {
-        inMemoryCache[cacheKey]?.let { cached ->
+        // Сезон и эпизод пишутся под сезонным ключом, а сериал — под корневым.
+        // Если корневой маппинг уже известен, он и есть верный id:seasonный
+        // мог остаться от эпизода, обогатившегося раньше и выбравшего
+        // однофамильца. Пока season-level id с ним расходится, кеш не
+        // заслуживает доверия — иначе приложение до переустановки показывало
+        // бы постер чужого сериала.
+        val seriesRootId = if (kind == ReleaseKind.SERIES && !hasTmdbIdOverride) {
+            lookupSeriesRootTmdbId(detailsUrl)
+        } else {
+            null
+        }
+        inMemoryCache[cacheKey]?.takeIf {
+            seriesRootId == null || inMemoryTmdbIdCache[cacheKey]?.id == seriesRootId
+        }?.let { cached ->
             val cachedId = inMemoryTmdbIdCache[cacheKey]
             if (cached.seriesOverviewRu != null || cached.movieOverviewRu != null) {
                 val episodeOverview = if (cached.episodeOverviewRu == null && cachedId?.isFromTmdb == true) {
@@ -164,6 +180,10 @@ class TmdbPosterResolverImpl(
         }
 
         val dbCached = tmdbDao.getByDetailsUrl(cacheKey) ?: return null
+        if (seriesRootId != null && dbCached.isFromTmdb && dbCached.tmdbId != seriesRootId) {
+            Log.d(TAG, "Season mapping $cacheKey has id=${dbCached.tmdbId}, series id=$seriesRootId: переищем")
+            return null
+        }
         if (canReuseNegativeMapping(dbCached) && !hasTmdbIdOverride) {
             negativeMemoryCache[cacheKey] = Unit
             return CachedMapping(null)
@@ -293,16 +313,39 @@ class TmdbPosterResolverImpl(
 
         val englishSlug = extractEnglishSlug(detailsUrl)
         val tmdbIdOverride = tmdbIdOverride(englishSlug, kind)
+
+        // Эпизод пишется под ключом сезона, поэтому его собственный поиск без
+        // года перезаписывал сезонный маппинг чужим сериалом: «Братья» из
+        // «Ang Probinsyano». Если маппинг сериала уже есть, берём его: он найден
+        // по году премьеры и потому точнее. Порядок обогащения не гарантирован,
+        // поэтому при его отсутствии эпизод ищет самостоятельно, как раньше.
+        if (tmdbIdOverride == null && kind == ReleaseKind.SERIES && episodeNumberRegex.containsMatchIn(detailsUrl)) {
+            lookupSeriesRootTmdbId(detailsUrl)?.let { rootId ->
+                return buildImagesFromTmdbId(
+                    cacheKey = cacheKey,
+                    detailsUrl = detailsUrl,
+                    tmdbId = rootId,
+                    kind = kind,
+                )
+            }
+        }
         val releaseYearHint = when (kind) {
             ReleaseKind.MOVIE -> originalReleaseYear ?: englishSlug.extractYearFromSlug()
             // Год в ленте — это год выхода сериала, и без него «Остров сокровищ»
             // 2026 года получал японский сериал 1978-го. Но на строке эпизода
             // в ленте стоит год самой серии, а не год премьеры, и ограничение по
             // нему отсекло бы верный матч долгоиграющего сериала.
-            ReleaseKind.SERIES -> if (seasonNumberRegex.containsMatchIn(detailsUrl)) {
-                englishSlug.extractYearFromSlug()
-            } else {
-                originalReleaseYear ?: englishSlug.extractYearFromSlug()
+            //
+            // На карточке сезона год премьеры, наоборот, известен точно: там стоит
+            // дата выхода сезона. Раз сериал идёт второй сезон, год в ленте больше
+            // не первой премьеры — и он уводил «Братьев» (2026) на «Ang
+            // Probinsyano» (2015), у которого популярность выше.
+            ReleaseKind.SERIES -> when {
+                !seasonNumberRegex.containsMatchIn(detailsUrl) ->
+                    originalReleaseYear ?: englishSlug.extractYearFromSlug()
+                seasonLevelUrlRegex.containsMatchIn(detailsUrl) ->
+                    originalReleaseYear ?: englishSlug.extractYearFromSlug()
+                else -> englishSlug.extractYearFromSlug()
             }
         }
         var searchFailed = false
@@ -403,6 +446,22 @@ class TmdbPosterResolverImpl(
             return null
         }
 
+        // Поиск занял время, и за это время мог обогатиться сам сериал. Если он
+        // уже известен, он и есть ответ: собственный матч эпизода получен без
+        // года и в таких сериалах, как «Братья», уводит на однофамильца.
+        if (tmdbIdOverride == null && kind == ReleaseKind.SERIES) {
+            val freshRootId = lookupSeriesRootTmdbId(detailsUrl)
+            if (freshRootId != null && freshRootId != bestMatch.id) {
+                Log.d(TAG, "Series id=$freshRootId appeared during search, dropping id=${bestMatch.id} for $detailsUrl")
+                return buildImagesFromTmdbId(
+                    cacheKey = cacheKey,
+                    detailsUrl = detailsUrl,
+                    tmdbId = freshRootId,
+                    kind = kind,
+                )
+            }
+        }
+
         val rating = bestMatch.rating ?: resolveRating(bestMatch.id, kind)
         val seriesImages = try {
             tmdbClient.getPosterAndBackdrop(bestMatch.id, tmdbType)
@@ -459,6 +518,130 @@ class TmdbPosterResolverImpl(
         )
         tmdbDao.upsert(entity)
         inMemoryTmdbIdCache[cacheKey] = CachedTmdbId(bestMatch.id, TmdbPosterMappingEntity.SOURCE_TMDB)
+        invalidateStaleSeasonMappings(cacheKey)
+
+        return resolvedImages.copy(
+            episodeOverviewRu = overviews.episodeOverview?.text,
+            episodeOverviewSource = overviews.episodeOverview?.source?.name,
+            seriesOverviewRu = overviews.seriesOverviewRu,
+            movieOverviewRu = overviews.movieOverviewRu,
+            rating = rating,
+        )
+    }
+
+    /**
+     * Сбрасывает сезонные маппинги сериала, найденные раньше него самого.
+     *
+     * Порядок обогащения не гарантирован: эпизод мог обогатиться до карточки
+     * сериала, выбрать однофамильца и записать его под сезонным ключом. Теперь,
+     * когда известен верный id сериала, такая запись больше не нужна — её
+     * пересоздаст уже правильный поиск по году.
+     */
+    private suspend fun invalidateStaleSeasonMappings(seriesRootKey: String) {
+        // Под сезонным ключом чистить нечего: запись, которую только что
+        // создали, и есть сезонный маппинг. Удалив её, мы оставили бы в
+        // inMemoryCache постер без tmdbId, и описание эпизода больше не
+        // перезапрашивалось бы.
+        if (seriesSeasonCacheKeyRegex.containsMatchIn(seriesRootKey)) return
+        if (!seriesRootKey.endsWith("/")) return
+        val seriesMatch = seriesCacheKeyRegex.find(seriesRootKey) ?: return
+        val prefix = seriesMatch.groupValues[1]
+        val seasonKeyPrefix = "$prefix/season_"
+        try {
+            tmdbDao.deleteSeasonMappingsUnder(prefix)
+            // Сезонный ключ мог остаться в памяти: иначе следующий эпизод
+            // возьмёт из кэша уже отброшенный id.
+            inMemoryTmdbIdCache.removeIf { it.startsWith(seasonKeyPrefix) }
+            inMemoryCache.removeIf { it.startsWith(seasonKeyPrefix) }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Не удалось сбросить сезонные маппинги для $seriesRootKey: ${e.message}")
+        }
+    }
+
+    /**
+     * TMDB id сериала, уже найденный для корневого URL «/series/<slug>/».
+     *
+     * Сезон и эпизод пишутся в базу под своим ключом, поэтому собственный
+     * поиск эпизода заново выбирал кандидата — и перезаписывал сезонный
+     * маппинг сериалом-однофамильцем.
+     */
+    private suspend fun lookupSeriesRootTmdbId(detailsUrl: String): Int? {
+        val rootKey = seriesCacheKeyRegex.find(detailsUrl)?.groupValues?.get(1)?.let { "$it/" }
+            ?: return null
+        if (rootKey == tmdbCacheKey(detailsUrl, ReleaseKind.SERIES)) return null
+
+        val cachedId = inMemoryTmdbIdCache[rootKey]
+        if (cachedId != null) return cachedId.id.takeIf { cachedId.isFromTmdb }
+
+        return tmdbDao.getByDetailsUrl(rootKey)
+            ?.takeIf { it.isFromTmdb && it.source == TmdbPosterMappingEntity.SOURCE_TMDB }
+            ?.tmdbId
+    }
+
+    /**
+     * Переиспользует уже найденный id сериала: постеры и описание запрашиваются
+     * у TMDB, но в базу карта попадает под ключом сезона или эпизода.
+     */
+    private suspend fun buildImagesFromTmdbId(
+        cacheKey: String,
+        detailsUrl: String,
+        tmdbId: Int,
+        kind: ReleaseKind,
+    ): TmdbImageUrls? {
+        val tmdbType = when (kind) {
+            ReleaseKind.SERIES -> TmdbMediaType.TV
+            ReleaseKind.MOVIE -> TmdbMediaType.MOVIE
+        }
+        val seriesImages = try {
+            tmdbClient.getPosterAndBackdrop(tmdbId, tmdbType)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "TMDB images failed for reused id=$tmdbId: ${e.message}")
+            null
+        }
+
+        val seasonNumber = seasonNumberRegex.find(detailsUrl)
+            ?.groupValues?.getOrNull(1)?.toIntOrNull()
+        val images = if (kind == ReleaseKind.SERIES && seasonNumber != null) {
+            val seasonImages = try {
+                tmdbClient.getSeasonImages(tmdbId, seasonNumber)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "TMDB season images failed for reused id=$tmdbId S$seasonNumber: ${e.message}")
+                null
+            }
+            mergeSeasonAndSeriesImages(seasonImages, seriesImages)
+        } else {
+            seriesImages
+        }
+
+        val rating = resolveRating(tmdbId, kind)
+        if (images == null && rating.isNullOrBlank()) return null
+
+        val overviews = resolveOverviews(detailsUrl = detailsUrl, tmdbId = tmdbId, kind = kind)
+        val resolvedImages = images ?: TmdbImageUrls(
+            posterUrl = "",
+            backdropUrl = "",
+            rating = rating,
+        )
+        Log.d(TAG, "Reused series id=$tmdbId for $detailsUrl: poster=${resolvedImages.posterUrl.take(60)}...")
+
+        tmdbDao.upsert(
+            TmdbPosterMappingEntity.create(
+                detailsUrl = cacheKey,
+                tmdbId = tmdbId,
+                tmdbType = tmdbType.name,
+                posterUrl = resolvedImages.posterUrl,
+                backdropUrl = resolvedImages.backdropUrl,
+                fetchedAt = clock(),
+                rating = rating,
+            ),
+        )
+        inMemoryTmdbIdCache[cacheKey] = CachedTmdbId(tmdbId, TmdbPosterMappingEntity.SOURCE_TMDB)
 
         return resolvedImages.copy(
             episodeOverviewRu = overviews.episodeOverview?.text,
@@ -1019,6 +1202,12 @@ private class LruMemoryCache<K, V>(
     operator fun set(key: K, value: V) {
         synchronized(lock) {
             values[key] = value
+        }
+    }
+
+    fun removeIf(predicate: (K) -> Boolean) {
+        synchronized(lock) {
+            values.keys.filter(predicate).forEach { values.remove(it) }
         }
     }
 }

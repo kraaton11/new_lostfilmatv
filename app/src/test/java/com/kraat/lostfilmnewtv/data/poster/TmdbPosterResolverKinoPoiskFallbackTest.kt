@@ -262,6 +262,8 @@ private open class FixedTmdbPosterDao(
 
     override suspend fun deleteExpired(threshold: Long) = Unit
 
+    override suspend fun deleteSeasonMappingsUnder(seriesPrefix: String) = Unit
+
     override suspend fun deleteAll() = Unit
 }
 

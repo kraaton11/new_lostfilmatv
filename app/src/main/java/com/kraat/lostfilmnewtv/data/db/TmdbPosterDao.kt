@@ -12,6 +12,12 @@ interface TmdbPosterDao {
     @Upsert
     suspend fun upsert(entity: TmdbPosterMappingEntity)
 
+    @Query(
+        "DELETE FROM tmdb_poster_mappings " +
+            "WHERE detailsUrl LIKE :seriesPrefix || '/season\\_%' ESCAPE '\\'",
+    )
+    suspend fun deleteSeasonMappingsUnder(seriesPrefix: String)
+
     @Query("DELETE FROM tmdb_poster_mappings WHERE fetchedAt < :threshold")
     suspend fun deleteExpired(threshold: Long)
 

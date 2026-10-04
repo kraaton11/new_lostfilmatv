@@ -14,6 +14,7 @@ import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -907,6 +908,100 @@ class TmdbPosterResolverTest {
     }
 
     @Test
+    fun resolve_usesSeasonYearHint_onSeasonCard_soNewerBrothersWins() = runTest {
+        // «Братья» без года в slug. У 66515 в TMDB английское имя тоже
+        // «Brothers» (original_name = «Ang Probinsyano»), поэтому точное
+        // совпадение по slug проходят сразу два кандидата, и без подсказки
+        // по году побеждал более популярный, но чужой.
+        val dao = FakeTmdbPosterDao()
+        val searchRequests = mutableListOf<Int?>()
+        val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int, language: String?): List<TmdbSearchResult> {
+                searchRequests += year
+                return listOf(
+                    TmdbSearchResult(
+                        id = 66515,
+                        name = "Brothers",
+                        originalName = "Ang Probinsyano",
+                        popularity = 63.5,
+                        releaseYear = 2015,
+                    ),
+                    TmdbSearchResult(
+                        id = 250203,
+                        name = "Brothers",
+                        originalName = "Brothers",
+                        popularity = 41.1,
+                        releaseYear = 2026,
+                    ),
+                )
+            }
+
+            override suspend fun getPosterAndBackdrop(tmdbId: Int, type: TmdbMediaType): TmdbImageUrls =
+                TmdbImageUrls(
+                    posterUrl = "https://image.tmdb.org/t/p/w780/$tmdbId.jpg",
+                    backdropUrl = "https://image.tmdb.org/t/p/original/$tmdbId-backdrop.jpg",
+                )
+        }
+        val resolver = TmdbPosterResolverImpl(client, dao)
+
+        val season = resolver.resolve(
+            detailsUrl = "https://www.lostfilm.one/series/Brothers/season_1/",
+            titleRu = "\u0411\u0440\u0430\u0442\u044c\u044f",
+            releaseDateRu = "22.09.2026",
+            kind = ReleaseKind.SERIES,
+            originalReleaseYear = 2026,
+        )
+
+        assertEquals("https://image.tmdb.org/t/p/w780/250203.jpg", season?.posterUrl)
+        assertEquals(250203, dao.upserted?.tmdbId)
+        assertEquals("https://www.lostfilm.one/series/Brothers/season_1/", dao.upserted?.detailsUrl)
+        // Год обязан уходить в поиск: без него TMDB не отсекает 2015-й год.
+        assertTrue("год должен уходить в поиск, было: $searchRequests", searchRequests.any { it == 2026 })
+    }
+
+    @Test
+    fun resolve_doesNotUseEpisodeYearHint_onEpisodeCard() = runTest {
+        // Год в ленте на строке эпизода — это год самой серии, а не год
+        // премьеры. Долгоиграющий сериал обязан оставаться в своём матче.
+        val dao = FakeTmdbPosterDao()
+        val searchRequests = mutableListOf<Pair<String, Int?>>()
+        val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
+            override suspend fun searchByTitle(query: String, year: Int?, type: TmdbMediaType, page: Int, language: String?): List<TmdbSearchResult> {
+                searchRequests += query to year
+                return listOf(
+                    TmdbSearchResult(
+                        id = 75219,
+                        name = "9-1-1",
+                        originalName = "9-1-1",
+                        popularity = 100.0,
+                        releaseYear = 2018,
+                    ),
+                )
+            }
+
+            override suspend fun getPosterAndBackdrop(tmdbId: Int, type: TmdbMediaType): TmdbImageUrls =
+                TmdbImageUrls(
+                    posterUrl = "https://image.tmdb.org/t/p/w780/911-poster.jpg",
+                    backdropUrl = "https://image.tmdb.org/t/p/original/911-backdrop.jpg",
+                )
+        }
+        val resolver = TmdbPosterResolverImpl(client, dao)
+
+        val episode = resolver.resolve(
+            detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_17/",
+            titleRu = "9-1-1",
+            releaseDateRu = "02.05.2026",
+            kind = ReleaseKind.SERIES,
+            originalReleaseYear = 2026,
+        )
+
+        assertEquals("https://image.tmdb.org/t/p/w780/911-poster.jpg", episode?.posterUrl)
+        assertEquals(75219, dao.upserted?.tmdbId)
+        // Подсказка по году не должна уходить в поиск на строке эпизода.
+        assertTrue(searchRequests.all { it.second == null })
+    }
+
+    @Test
     fun resolve_usesSeasonOverview_whenAvailable() = runTest {
         val dao = FakeTmdbPosterDao()
         val client = object : TmdbPosterClient(OkHttpClient(), "fake") {
@@ -958,6 +1053,8 @@ private class FakeTmdbPosterDao(
     }
 
     override suspend fun deleteExpired(threshold: Long) = Unit
+
+    override suspend fun deleteSeasonMappingsUnder(seriesPrefix: String) = Unit
 
     override suspend fun deleteAll() = Unit
 }

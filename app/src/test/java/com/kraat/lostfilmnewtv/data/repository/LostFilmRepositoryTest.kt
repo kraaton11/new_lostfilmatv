@@ -2947,7 +2947,8 @@ private fun createFakeTmdbResolver(): TmdbPosterResolver {
     val fakeDao = object : TmdbPosterDao {
         override suspend fun getByDetailsUrl(detailsUrl: String) = null
         override suspend fun upsert(entity: com.kraat.lostfilmnewtv.data.db.TmdbPosterMappingEntity) {}
-        override suspend fun deleteExpired(threshold: Long) {}
+override suspend fun deleteExpired(threshold: Long) {}
+        override suspend fun deleteSeasonMappingsUnder(seriesPrefix: String) {}
         override suspend fun deleteAll() {}
     }
     val fakeClient = FakeTmdbPosterClient()
