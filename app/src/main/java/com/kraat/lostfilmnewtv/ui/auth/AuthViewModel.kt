@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.kraat.lostfilmnewtv.data.auth.AuthCompletionResult
 import com.kraat.lostfilmnewtv.data.auth.AuthRepositoryContract
 import com.kraat.lostfilmnewtv.data.model.PairingStatus
+import com.kraat.lostfilmnewtv.tvchannel.AndroidChannelLogger
+import com.kraat.lostfilmnewtv.tvchannel.ChannelLogger
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
@@ -23,6 +25,7 @@ import kotlinx.coroutines.launch
 class AuthViewModel @Inject constructor(
     private val authRepository: AuthRepositoryContract,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val logger: ChannelLogger = AndroidChannelLogger(),
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
@@ -63,8 +66,11 @@ class AuthViewModel @Inject constructor(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                // Технические детали уходят в лог: «read timed out» в интерфейсе
+                // пользователю ничего не объясняет и не подсказывает, что делать.
+                logger.e(TAG, "Cannot start pairing session", e)
                 _uiState.value = AuthUiState.RecoverableError(
-                    message = e.message ?: "Не удалось начать вход. Получите новый код.",
+                    "Не удалось начать вход. Проверьте подключение к интернету и попробуйте ещё раз.",
                 )
             } finally {
                 if (authJob == currentCoroutineContext()[Job]) {
@@ -75,12 +81,38 @@ class AuthViewModel @Inject constructor(
     }
 
     private suspend fun startPollingLoop() {
+        var waitedWithoutProgress = 0L
         while (true) {
             val pairing = authRepository.pollPairingStatus()
                 ?: run {
                     _uiState.value = AuthUiState.RecoverableError("Не удалось завершить вход. Получите новый код.")
                     return
                 }
+
+            val awaitingConfirmation =
+                pairing.status == PairingStatus.PENDING || pairing.status == PairingStatus.IN_PROGRESS
+
+            // Бесконечный опрос выглядел у пользователя как вечная загрузка.
+            // Отсчитываем время только пока подтверждения нет: смена статуса на
+            // IN_PROGRESS означает, что пользователь что-то сделал, и отсчёт
+            // начинается заново. Счёт идёт по интервалу опроса, а не по
+            // системным часам, чтобы вести себя предсказуемо в тестах.
+            if (awaitingConfirmation) {
+                val pollIntervalMillis =
+                    pairing.pollInterval.coerceAtLeast(MIN_POLL_INTERVAL_SECONDS) * 1000L
+                if (waitedWithoutProgress >= POLLING_DEADLINE_MILLIS) {
+                    logger.w(TAG, "Pairing not confirmed within the deadline")
+                    _uiState.value = AuthUiState.RecoverableError(
+                        "Не удалось подтвердить вход за $POLLING_DEADLINE_MINUTES " +
+                            "${minutesWord(POLLING_DEADLINE_MINUTES)}. Проверьте подключение к " +
+                            "интернету и попробуйте ещё раз.",
+                    )
+                    return
+                }
+                waitedWithoutProgress += pollIntervalMillis
+            } else {
+                waitedWithoutProgress = 0L
+            }
 
             when (pairing.status) {
                 PairingStatus.PENDING -> _uiState.value = AuthUiState.WaitingForPhoneOpen(pairing)
@@ -146,7 +178,16 @@ class AuthViewModel @Inject constructor(
         else -> "Не удалось завершить вход. Получите новый код."
     }
 
+    private fun minutesWord(minutes: Int): String = when {
+        minutes % 10 == 1 && minutes % 100 != 11 -> "минуту"
+        minutes % 10 in 2..4 && minutes % 100 !in 12..14 -> "минуты"
+        else -> "минут"
+    }
+
     private companion object {
         const val MIN_POLL_INTERVAL_SECONDS = 2
+        const val POLLING_DEADLINE_MINUTES = 10
+        const val POLLING_DEADLINE_MILLIS = POLLING_DEADLINE_MINUTES * 60L * 1000L
+        const val TAG = "AuthViewModel"
     }
 }

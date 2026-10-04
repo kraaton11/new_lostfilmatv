@@ -5,6 +5,7 @@ import com.kraat.lostfilmnewtv.data.auth.AuthRepositoryContract
 import com.kraat.lostfilmnewtv.data.model.AuthState
 import com.kraat.lostfilmnewtv.data.model.PairingSession
 import com.kraat.lostfilmnewtv.data.model.PairingStatus
+import com.kraat.lostfilmnewtv.tvchannel.NoOpChannelLogger
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.awaitCancellation
@@ -14,6 +15,8 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -29,6 +32,7 @@ class AuthViewModelTest {
         val viewModel = AuthViewModel(
             authRepository = repository,
             ioDispatcher = dispatcher,
+            logger = NoOpChannelLogger(),
         )
 
         viewModel.startAuth()
@@ -53,6 +57,7 @@ class AuthViewModelTest {
         val viewModel = AuthViewModel(
             authRepository = repository,
             ioDispatcher = dispatcher,
+            logger = NoOpChannelLogger(),
         )
 
         viewModel.startAuth()
@@ -74,6 +79,7 @@ class AuthViewModelTest {
         val viewModel = AuthViewModel(
             authRepository = repository,
             ioDispatcher = dispatcher,
+            logger = NoOpChannelLogger(),
         )
 
         viewModel.startAuth()
@@ -96,6 +102,7 @@ class AuthViewModelTest {
         val viewModel = AuthViewModel(
             authRepository = repository,
             ioDispatcher = dispatcher,
+            logger = NoOpChannelLogger(),
         )
 
         viewModel.startAuth()
@@ -110,6 +117,37 @@ class AuthViewModelTest {
     }
 
     @Test
+    fun pairingNeverConfirmed_stopsPollingAndExplainsInsteadOfLoadingForever() = runTest(dispatcher) {
+        // Очередь из одних и тех же PENDING: подтверждение не приходит никогда,
+        // поэтому цикл обязан упереться в собственный предел ожидания.
+        val pending = pairing(status = PairingStatus.PENDING, pollInterval = 2)
+        val repository = FakeAuthRepository(
+            startPairingResult = pending,
+            pollResults = ArrayDeque(List(400) { pending }),
+        )
+        val viewModel = AuthViewModel(
+            authRepository = repository,
+            ioDispatcher = dispatcher,
+            logger = NoOpChannelLogger(),
+        )
+
+        viewModel.startAuth()
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue(state is AuthUiState.RecoverableError)
+        val message = (state as AuthUiState.RecoverableError).message
+        assertTrue(
+            "Ожидалось объяснение вместо бесконечной загрузки, получено: $message",
+            message.contains("подтвердить вход"),
+        )
+        assertFalse(
+            "Технические детали не должны попадать в интерфейс: $message",
+            message.contains("timed out"),
+        )
+    }
+
+    @Test
     fun cancelAuth_closesPairingAndReturnsToIdle() = runTest(dispatcher) {
         val repository = FakeAuthRepository(
             startPairingResult = pairing(status = PairingStatus.PENDING),
@@ -118,6 +156,7 @@ class AuthViewModelTest {
         val viewModel = AuthViewModel(
             authRepository = repository,
             ioDispatcher = dispatcher,
+            logger = NoOpChannelLogger(),
         )
 
         viewModel.startAuth()
@@ -140,6 +179,7 @@ class AuthViewModelTest {
         val viewModel = AuthViewModel(
             authRepository = repository,
             ioDispatcher = dispatcher,
+            logger = NoOpChannelLogger(),
         )
 
         advanceUntilIdle()
