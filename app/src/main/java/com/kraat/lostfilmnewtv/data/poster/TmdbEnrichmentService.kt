@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.data.poster
 
+import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.SUMMARY_ENRICHMENT_CONCURRENCY
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
 import com.kraat.lostfilmnewtv.data.db.ReleaseSummaryEntity
 import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
@@ -69,7 +70,7 @@ class TmdbEnrichmentServiceImpl @Inject constructor(
             return items
         }
 
-        val semaphore = Semaphore(6) // Formerly LostFilmConcurrencyLimits.SUMMARY_ENRICHMENT_CONCURRENCY
+        val semaphore = Semaphore(SUMMARY_ENRICHMENT_CONCURRENCY)
         val enrichedItems = coroutineScope {
             items.map { item ->
                 async {

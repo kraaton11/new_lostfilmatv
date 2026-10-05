@@ -12,6 +12,8 @@ import com.kraat.lostfilmnewtv.data.model.FavoriteToggleNetworkResult
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
+import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.FAVORITE_PUBLISH_CHECK_CONCURRENCY
+import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.FAVORITE_SERIES_LOAD_CONCURRENCY
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.parser.BASE_URL
 import com.kraat.lostfilmnewtv.data.parser.FavoriteSeriesRef
@@ -48,8 +50,6 @@ private const val FAVORITE_RELEASES_PAGE_SIZE = 30
 private const val FAVORITE_RELEASES_MAX_SEASONS_PER_SERIES = 1
 private const val FAVORITE_RELEASES_CACHE_TTL_MS = 2 * 60 * 1000L
 private const val FAVORITE_RELEASES_ROOM_FRESH_MS = 15 * 60 * 1000L
-private const val FAVORITE_SERIES_LOAD_CONCURRENCY = 6
-private const val FAVORITE_PUBLISH_CHECK_CONCURRENCY = 6
 
 interface FavoritesRepository {
     fun observeFavoriteReleases(pageNumber: Int = 1): Flow<FavoriteReleasesResult>

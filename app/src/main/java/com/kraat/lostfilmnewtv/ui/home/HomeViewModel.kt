@@ -12,8 +12,6 @@ import com.kraat.lostfilmnewtv.data.repository.FavoritesRepository
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import com.kraat.lostfilmnewtv.updates.AppUpdateCoordinator
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.stateIn
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelSyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -1021,16 +1019,6 @@ private fun resolvedInitialMode(
         initialSelectedMode
     } else {
         HomeFeedMode.AllNew
-    }
-}
-
-private fun isModeVisible(state: HomeUiState, mode: HomeFeedMode): Boolean {
-    return when (mode) {
-        HomeFeedMode.AllNew -> true
-        HomeFeedMode.Favorites -> state.isFavoritesRailVisible
-        HomeFeedMode.FavoriteSeries -> state.isFavoriteSeriesModeVisible
-        HomeFeedMode.Movies -> state.isMoviesModeVisible
-        HomeFeedMode.Series -> state.isSeriesModeVisible
     }
 }
 

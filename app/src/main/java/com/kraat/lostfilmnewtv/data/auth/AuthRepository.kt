@@ -3,7 +3,6 @@ package com.kraat.lostfilmnewtv.data.auth
 import com.kraat.lostfilmnewtv.data.model.AuthState
 import com.kraat.lostfilmnewtv.data.model.LostFilmSession
 import com.kraat.lostfilmnewtv.data.model.PairingSession
-import com.kraat.lostfilmnewtv.data.model.PairingStatus
 import com.kraat.lostfilmnewtv.data.network.AuthBridgeHttpException
 import com.kraat.lostfilmnewtv.data.network.AuthBridgeClient
 import com.kraat.lostfilmnewtv.data.network.LostFilmSessionVerifier

@@ -19,7 +19,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundSurface
-import com.kraat.lostfilmnewtv.ui.theme.DetailsBorderDefault
 import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceSoft
 
 @Composable

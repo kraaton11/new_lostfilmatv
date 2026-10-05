@@ -1,8 +1,5 @@
 package com.kraat.lostfilmnewtv.data.repository
 
-import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
-import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
-import com.kraat.lostfilmnewtv.data.model.FavoriteSeriesResult
 import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
@@ -10,7 +7,6 @@ import com.kraat.lostfilmnewtv.data.model.ScheduleMonth
 import com.kraat.lostfilmnewtv.data.model.SeriesGuide
 import com.kraat.lostfilmnewtv.data.model.SeriesOverview
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.flow
 
 sealed interface DetailsResult {

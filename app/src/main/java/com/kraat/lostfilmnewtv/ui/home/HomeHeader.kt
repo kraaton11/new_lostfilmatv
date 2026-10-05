@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
@@ -58,15 +57,12 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kraat.lostfilmnewtv.R
-import com.kraat.lostfilmnewtv.ui.theme.FocusBorder
 import com.kraat.lostfilmnewtv.ui.theme.FocusBackground
 import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGold
 import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGoldGlow
-import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurface
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 import com.kraat.lostfilmnewtv.ui.theme.HomeTextMuted
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
-import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 
 private val ExpandedMenuWidth = 204.dp
 private val CollapsedMenuWidth = 68.dp
@@ -1056,16 +1052,6 @@ private fun SettingsLineIcon(color: Color) {
             center = Offset(cx, cy),
             style = stroke,
         )
-    }
-}
-
-private fun Modifier.applyDownFocus(downTarget: FocusRequester?): Modifier {
-    return if (downTarget == null) {
-        this
-    } else {
-        this.focusProperties {
-            down = downTarget
-        }
     }
 }
 

@@ -13,13 +13,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.playback.WatchedMarkingMode
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeActionHandler
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeLinkBuilder
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeOpenResult
-import javax.inject.Inject
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch

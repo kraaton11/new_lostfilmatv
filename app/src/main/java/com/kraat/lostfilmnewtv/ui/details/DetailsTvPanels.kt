@@ -16,11 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.PlatformTextStyle
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kraat.lostfilmnewtv.ui.theme.DetailsAccentBlue
@@ -28,7 +24,6 @@ import com.kraat.lostfilmnewtv.ui.theme.DetailsAccentGold
 import com.kraat.lostfilmnewtv.ui.theme.DetailsBorderDefault
 import com.kraat.lostfilmnewtv.ui.theme.DetailsStatusError
 import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceReadable
-import com.kraat.lostfilmnewtv.ui.theme.DetailsTextMuted
 import com.kraat.lostfilmnewtv.ui.theme.DetailsTextSecondary
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 
