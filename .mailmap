@@ -1,0 +1,11 @@
+# Сопоставление авторов коммитов с аккаунтом GitHub.
+#
+# Формат строки: <каноническое имя> <канонический email> <имя из коммита> <email из коммита>
+# Каноническая часть идёт ПЕРВОЙ и указывает, кому принадлежит вклад.
+#
+# Без этого файла GitHub не связывает коммиты, сделанные вне GitHub-клиента,
+# с аккаунтом kraaton11 и показывает их как анонимных авторов.
+
+kraaton11 <164393575+kraaton11@users.noreply.github.com> Al <al@ai.local>
+kraaton11 <164393575+kraaton11@users.noreply.github.com> AutoCoder <autocoder@local>
+kraaton11 <164393575+kraaton11@users.noreply.github.com> AutoCorCoder <autocoder@local>
