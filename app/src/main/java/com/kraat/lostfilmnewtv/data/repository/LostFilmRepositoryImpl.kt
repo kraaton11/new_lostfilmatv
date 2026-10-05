@@ -9,7 +9,6 @@ import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
-import com.kraat.lostfilmnewtv.data.model.ScheduleMonth
 import com.kraat.lostfilmnewtv.data.model.SeriesGuide
 import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.SEARCH_ENRICHMENT_CONCURRENCY
 import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.WATCHED_MARKS_LOAD_CONCURRENCY
@@ -68,12 +67,6 @@ private val paginatorRegex = Regex("""/new/page_(\d+)""")
 private fun seriesFavoritePageRegex() = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)/season_\d+/episode_\d+/?""")
 private fun seriesRootUrlRegex() = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)(?:/.*)?/?""")
 private val searchWhitespaceRegex = Regex("""\s+""")
-
-private data class FavoriteMetadataPage(
-    val url: String,
-    val html: String,
-    val metadata: FavoriteMetadata,
-)
 
 private data class FetchedPage(
     val items: List<ReleaseSummary>,
@@ -667,34 +660,6 @@ class LostFilmRepositoryImpl(
         }
     }
 
-    private suspend fun enrichSearchItems(items: List<LostFilmSearchItem>): List<LostFilmSearchItem> {
-        if (items.isEmpty()) {
-            return emptyList()
-        }
-
-        val semaphore = Semaphore(SEARCH_ENRICHMENT_CONCURRENCY)
-        return coroutineScope {
-            items.map { item ->
-                async {
-                    semaphore.withPermit {
-                        val tmdbUrls = tmdbResolver.resolve(
-                            detailsUrl = item.targetUrl,
-                            titleRu = item.titleRu,
-                            releaseDateRu = item.subtitle.orEmpty(),
-                            kind = item.kind,
-                            originalReleaseYear = item.subtitle?.extractYear(),
-                        )
-                        item.copy(
-                            posterUrl = tmdbUrls?.posterUrl?.ifBlank { item.posterUrl.orEmpty() }
-                                ?.takeIf { it.isNotBlank() }
-                                ?: item.posterUrl,
-                            tmdbRating = tmdbUrls?.rating?.takeIf { it.isNotBlank() } ?: item.tmdbRating,
-                        )
-                    }
-                }
-            }.awaitAll()
-        }
-    }
 
     override suspend fun setEpisodeWatched(
         detailsUrl: String,
@@ -1183,15 +1148,6 @@ class LostFilmRepositoryImpl(
         }
     }
 
-    private suspend fun persistFavoriteMetadata(
-        detailsUrl: String,
-        favoriteMetadata: FavoriteMetadata,
-    ) {
-        val cachedDetails = releaseDao.getReleaseDetails(detailsUrl)?.toModel() ?: return
-        releaseDao.upsertDetails(
-            cachedDetails.withFavoriteMetadata(favoriteMetadata).toEntity(),
-        )
-    }
 
     private fun favoriteMetadataPageUrl(detailsUrl: String): String {
         val normalizedDetailsUrl = resolveUrl(detailsUrl)
@@ -1216,24 +1172,6 @@ class LostFilmRepositoryImpl(
         return listOf(primaryUrl, normalizedDetailsUrl).distinct()
     }
 
-    private suspend fun fetchFavoriteMetadataPage(detailsUrl: String): FavoriteMetadataPage? {
-        var lastException: IOException? = null
-        for (candidateUrl in favoriteMetadataPageUrls(detailsUrl)) {
-            try {
-                val html = httpClient.fetchDetails(candidateUrl)
-                val metadata = detailsParser.parseFavoriteMetadata(html) ?: continue
-                return FavoriteMetadataPage(
-                    url = candidateUrl,
-                    html = html,
-                    metadata = metadata,
-                )
-            } catch (exception: IOException) {
-                lastException = exception
-            }
-        }
-        lastException?.let { throw it }
-        return null
-    }
 
     private fun ReleaseDetails.withFavoriteMetadata(
         favoriteMetadata: FavoriteMetadata,
