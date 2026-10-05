@@ -52,7 +52,6 @@ class TmdbPosterResolverAmbiguousTitleTest {
         val result = fixture.resolver.resolve(
             detailsUrl = HOPEU,
             titleRu = "Надежда",
-            releaseDateRu = "Скоро",
             kind = ReleaseKind.MOVIE,
         )
 
@@ -70,7 +69,6 @@ class TmdbPosterResolverAmbiguousTitleTest {
         fixture.resolver.resolve(
             detailsUrl = HOPEU,
             titleRu = "Надежда",
-            releaseDateRu = "Скоро",
             originalReleaseYear = 2026,
             kind = ReleaseKind.MOVIE,
         )
@@ -87,7 +85,6 @@ class TmdbPosterResolverAmbiguousTitleTest {
         val result = fixture.resolver.resolve(
             detailsUrl = HOPEU,
             titleRu = "Надежда",
-            releaseDateRu = "Скоро",
             originalReleaseYear = 2026,
             kind = ReleaseKind.MOVIE,
         )
@@ -103,7 +100,6 @@ class TmdbPosterResolverAmbiguousTitleTest {
         fixture.resolver.resolve(
             detailsUrl = HOPEU,
             titleRu = "Надежда",
-            releaseDateRu = "2019",
             originalReleaseYear = 2019,
             kind = ReleaseKind.MOVIE,
         )
@@ -125,7 +121,6 @@ class TmdbPosterResolverAmbiguousTitleTest {
         fixture.resolver.resolve(
             detailsUrl = HOPEU,
             titleRu = "Надежда",
-            releaseDateRu = "Скоро",
             kind = ReleaseKind.MOVIE,
         )
 
@@ -145,7 +140,6 @@ class TmdbPosterResolverAmbiguousTitleTest {
         fixture.resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/movies/Austin_Powers_International_Man_ofMystery",
             titleRu = "Остин Пауэрс: Человек-загадка международного масштаба",
-            releaseDateRu = "1997",
             kind = ReleaseKind.MOVIE,
         )
 
@@ -164,7 +158,6 @@ class TmdbPosterResolverAmbiguousTitleTest {
         fixture.resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/movies/The_Sixth_Sense",
             titleRu = "Шестое чувство",
-            releaseDateRu = "1999",
             kind = ReleaseKind.MOVIE,
         )
 
@@ -182,7 +175,6 @@ class TmdbPosterResolverAmbiguousTitleTest {
         fixture.resolver.resolve(
             detailsUrl = HOPEU,
             titleRu = "Надежда",
-            releaseDateRu = "Скоро",
             originalReleaseYear = 2026,
             kind = ReleaseKind.MOVIE,
         )

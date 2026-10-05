@@ -83,7 +83,6 @@ class TmdbEnrichmentServiceImpl @Inject constructor(
                                 tmdbResolver.resolve(
                                     detailsUrl = item.detailsUrl,
                                     titleRu = item.titleRu,
-                                    releaseDateRu = item.releaseDateRu,
                                     kind = item.kind,
                                     originalReleaseYear = item.originalReleaseYear,
                                 )
@@ -125,7 +124,6 @@ class TmdbEnrichmentServiceImpl @Inject constructor(
                         val tmdbUrls = tmdbResolver.resolve(
                             detailsUrl = item.targetUrl,
                             titleRu = item.titleRu,
-                            releaseDateRu = item.subtitle.orEmpty(),
                             kind = item.kind,
                             originalReleaseYear = item.subtitle?.extractYear(),
                         )
@@ -154,7 +152,6 @@ class TmdbEnrichmentServiceImpl @Inject constructor(
                     item to tmdbResolver.resolve(
                         detailsUrl = item.detailsUrl,
                         titleRu = item.titleRu,
-                        releaseDateRu = item.releaseDateRu,
                         kind = item.kind,
                         originalReleaseYear = item.originalReleaseYear,
                     )

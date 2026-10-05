@@ -10,6 +10,7 @@ import com.kraat.lostfilmnewtv.data.db.ReleaseDao
 import com.kraat.lostfilmnewtv.data.db.ReleaseSummaryEntity
 import com.kraat.lostfilmnewtv.data.db.ReleaseDetailsEntity
 import com.kraat.lostfilmnewtv.data.db.TmdbPosterDao
+import com.kraat.lostfilmnewtv.data.db.TmdbPosterMappingEntity
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteSeriesResult
@@ -68,6 +69,7 @@ private const val SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000L
 class LostFilmRepositoryTest {
     private lateinit var database: LostFilmDatabase
     private lateinit var releaseDao: ReleaseDao
+    private lateinit var tmdbPosterDao: TmdbPosterDao
     private lateinit var favoritesRepository: FavoritesRepository
 
     @Before
@@ -79,6 +81,7 @@ class LostFilmRepositoryTest {
             .allowMainThreadQueries()
             .build()
         releaseDao = database.releaseDao()
+        tmdbPosterDao = database.tmdbPosterDao()
     }
 
     @After
@@ -120,6 +123,45 @@ class LostFilmRepositoryTest {
         assertTrue(result is PageState.Error)
         assertTrue(releaseDao.getPageSummaries(1).isEmpty())
         assertTrue(releaseDao.getPageMetadata(1) == null)
+    }
+
+    @Test
+    fun expiredTmdbPosterMappingsAreSweptAlongWithReleaseCache() = runTest {
+        // Маппинги TMDB живут в отдельной таблице, и про TTL у них свой: запись
+        // просела по own isExpired и в сеть бы уже не пошла. Но чистка касалась
+        // только таблиц релизов, поэтому строки копились месяцами.
+        // Ключ маппинга — season-level URL, а не адрес страницы, так что
+        // удалить их иначе, чем по fetchedAt, нечем.
+        val expiredKey = "https://www.lostfilm.today/series/Expired/season_1/"
+        val freshKey = "https://www.lostfilm.today/series/Fresh/season_1/"
+        tmdbPosterDao.upsert(
+            TmdbPosterMappingEntity.create(
+                detailsUrl = expiredKey,
+                tmdbId = 1,
+                tmdbType = "TV",
+                posterUrl = "https://image.tmdb.org/expired.jpg",
+                backdropUrl = "https://image.tmdb.org/expired-backdrop.jpg",
+                fetchedAt = NOW - SEVEN_DAYS_MS - 2_000L,
+            ),
+        )
+        tmdbPosterDao.upsert(
+            TmdbPosterMappingEntity.create(
+                detailsUrl = freshKey,
+                tmdbId = 2,
+                tmdbType = "TV",
+                posterUrl = "https://image.tmdb.org/fresh.jpg",
+                backdropUrl = "https://image.tmdb.org/fresh-backdrop.jpg",
+                fetchedAt = NOW - SIX_HOURS_MS,
+            ),
+        )
+        val repository = createRepository(
+            pageHandler = { throw IOException("offline") },
+        )
+
+        repository.loadPage(1)
+
+        assertTrue("Просроченный маппинг должен быть удалён", tmdbPosterDao.getByDetailsUrl(expiredKey) == null)
+        assertTrue("Свежий маппинг нельзя трогать", tmdbPosterDao.getByDetailsUrl(freshKey) != null)
     }
 
     @Test
@@ -329,7 +371,6 @@ class LostFilmRepositoryTest {
                 override suspend fun resolve(
                     detailsUrl: String,
                     titleRu: String,
-                    releaseDateRu: String,
                     kind: com.kraat.lostfilmnewtv.data.model.ReleaseKind,
                     originalReleaseYear: Int?,
                 ): TmdbImageUrls? {
@@ -385,7 +426,6 @@ class LostFilmRepositoryTest {
                 override suspend fun resolve(
                     detailsUrl: String,
                     titleRu: String,
-                    releaseDateRu: String,
                     kind: ReleaseKind,
                     originalReleaseYear: Int?,
                 ): TmdbImageUrls? {
@@ -605,7 +645,6 @@ class LostFilmRepositoryTest {
                 override suspend fun resolve(
                     detailsUrl: String,
                     titleRu: String,
-                    releaseDateRu: String,
                     kind: ReleaseKind,
                     originalReleaseYear: Int?,
                 ): TmdbImageUrls {
@@ -657,7 +696,6 @@ class LostFilmRepositoryTest {
                 override suspend fun resolve(
                     detailsUrl: String,
                     titleRu: String,
-                    releaseDateRu: String,
                     kind: ReleaseKind,
                     originalReleaseYear: Int?,
                 ): TmdbImageUrls? {
@@ -905,7 +943,6 @@ class LostFilmRepositoryTest {
                 override suspend fun resolve(
                     detailsUrl: String,
                     titleRu: String,
-                    releaseDateRu: String,
                     kind: ReleaseKind,
                     originalReleaseYear: Int?,
                 ): TmdbImageUrls? {
@@ -1265,7 +1302,6 @@ class LostFilmRepositoryTest {
                 override suspend fun resolve(
                     detailsUrl: String,
                     titleRu: String,
-                    releaseDateRu: String,
                     kind: ReleaseKind,
                     originalReleaseYear: Int?,
                 ): TmdbImageUrls? {
@@ -2568,6 +2604,7 @@ class LostFilmRepositoryTest {
         return LostFilmRepositoryImpl(
             httpClient = fakeHttpClient,
             releaseDao = releaseDao,
+            tmdbPosterDao = tmdbPosterDao,
             listParser = LostFilmListParser(),
             detailsParser = LostFilmDetailsParser(),
             favoriteSeriesParser = LostFilmFavoriteSeriesParser(),
@@ -2585,7 +2622,6 @@ private class PosterTmdbResolver : TmdbPosterResolver {
     override suspend fun resolve(
         detailsUrl: String,
         titleRu: String,
-        releaseDateRu: String,
         kind: com.kraat.lostfilmnewtv.data.model.ReleaseKind,
         originalReleaseYear: Int?,
     ): TmdbImageUrls = TmdbImageUrls(
@@ -2600,7 +2636,6 @@ private class GatedTmdbResolver(
     override suspend fun resolve(
         detailsUrl: String,
         titleRu: String,
-        releaseDateRu: String,
         kind: com.kraat.lostfilmnewtv.data.model.ReleaseKind,
         originalReleaseYear: Int?,
     ): TmdbImageUrls {
@@ -2990,7 +3025,6 @@ private fun createCountingTmdbResolver(
         override suspend fun resolve(
             detailsUrl: String,
             titleRu: String,
-            releaseDateRu: String,
             kind: com.kraat.lostfilmnewtv.data.model.ReleaseKind,
             originalReleaseYear: Int?,
         ): TmdbImageUrls? {

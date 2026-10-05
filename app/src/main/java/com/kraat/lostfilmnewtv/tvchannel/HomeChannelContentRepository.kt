@@ -66,7 +66,6 @@ class HomeChannelContentRepository(
                         val tmdbUrls = tmdbResolver.resolve(
                             detailsUrl = row.detailsUrl,
                             titleRu = row.titleRu,
-                            releaseDateRu = row.releaseDateRu,
                             kind = ReleaseKind.valueOf(row.kind),
                         )
                         HomeChannelProgram(
@@ -94,7 +93,6 @@ class HomeChannelContentRepository(
                         val tmdbUrls = tmdbResolver.resolve(
                             detailsUrl = item.detailsUrl,
                             titleRu = item.titleRu,
-                            releaseDateRu = item.releaseDateRu,
                             kind = item.kind,
                         )
                         HomeChannelProgram(

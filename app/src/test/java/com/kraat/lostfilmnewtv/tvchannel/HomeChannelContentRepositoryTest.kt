@@ -190,7 +190,6 @@ private class FakeTmdbPosterResolver(
     override suspend fun resolve(
         detailsUrl: String,
         titleRu: String,
-        releaseDateRu: String,
         kind: ReleaseKind,
         originalReleaseYear: Int?,
     ): TmdbImageUrls? {

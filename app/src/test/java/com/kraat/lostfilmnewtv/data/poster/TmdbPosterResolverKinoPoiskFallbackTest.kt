@@ -80,7 +80,6 @@ class TmdbPosterResolverKinoPoiskFallbackTest {
         val first = resolver.resolve(
             detailsUrl = detailsUrl,
             titleRu = "Подноготная",
-            releaseDateRu = "10.09.2026",
             kind = ReleaseKind.SERIES,
         )
 
@@ -91,7 +90,6 @@ class TmdbPosterResolverKinoPoiskFallbackTest {
         val second = resolver.resolve(
             detailsUrl = detailsUrl,
             titleRu = "Подноготная",
-            releaseDateRu = "10.09.2026",
             kind = ReleaseKind.SERIES,
         )
 
@@ -153,7 +151,6 @@ class TmdbPosterResolverKinoPoiskFallbackTest {
         val result = resolver.resolve(
             detailsUrl = detailsUrl,
             titleRu = "Подноготная",
-            releaseDateRu = "10.09.2026",
             kind = ReleaseKind.SERIES,
         )
 
@@ -191,7 +188,6 @@ class TmdbPosterResolverKinoPoiskFallbackTest {
         resolver.resolve(
             detailsUrl = "/movies/В_поисках_галактики/",
             titleRu = "В поисках галактики",
-            releaseDateRu = "01.01.2026",
             kind = ReleaseKind.MOVIE,
         )
 

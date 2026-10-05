@@ -39,7 +39,6 @@ class TmdbPosterResolverSeriesYearTest {
         fixture.resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/series/Treasure_Island",
             titleRu = "Остров сокровищ",
-            releaseDateRu = "Скоро",
             kind = ReleaseKind.SERIES,
             originalReleaseYear = 2026,
         )
@@ -58,7 +57,6 @@ class TmdbPosterResolverSeriesYearTest {
         val result = fixture.resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/series/Treasure_Island",
             titleRu = "Остров сокровищ",
-            releaseDateRu = "Скоро",
             kind = ReleaseKind.SERIES,
             originalReleaseYear = 2026,
         )
@@ -79,7 +77,6 @@ class TmdbPosterResolverSeriesYearTest {
         fixture.resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/series/Slow_Horses/season_6/episode_2/",
             titleRu = "Медленные кони",
-            releaseDateRu = "26.09.2026",
             kind = ReleaseKind.SERIES,
             originalReleaseYear = 2026,
         )
@@ -99,7 +96,6 @@ class TmdbPosterResolverSeriesYearTest {
         fixture.resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/series/Some_Show_2024",
             titleRu = "Какой-то сериал",
-            releaseDateRu = "01.01.2024",
             kind = ReleaseKind.SERIES,
         )
 
@@ -122,7 +118,6 @@ class TmdbPosterResolverSeriesYearTest {
         fixture.resolver.resolve(
             detailsUrl = "https://www.lostfilm.one/series/Brothers/season_1/",
             titleRu = "\u0411\u0440\u0430\u0442\u044c\u044f",
-            releaseDateRu = "22.09.2026",
             kind = ReleaseKind.SERIES,
             originalReleaseYear = 2026,
         )
@@ -159,14 +154,12 @@ class TmdbPosterResolverSeriesYearTest {
         resolver.resolve(
             detailsUrl = "https://www.lostfilm.one/series/Brothers/",
             titleRu = "\u0411\u0440\u0430\u0442\u044c\u044f",
-            releaseDateRu = "22.09.2026",
             kind = ReleaseKind.SERIES,
             originalReleaseYear = 2026,
         )
         val episode = resolver.resolve(
             detailsUrl = "https://www.lostfilm.one/series/Brothers/season_1/episode_3/",
             titleRu = "\u0411\u0440\u0430\u0442\u044c\u044f",
-            releaseDateRu = "22.09.2026",
             kind = ReleaseKind.SERIES,
             originalReleaseYear = 2026,
         )
@@ -212,7 +205,6 @@ class TmdbPosterResolverSeriesYearTest {
         resolver.resolve(
             detailsUrl = "https://www.lostfilm.one/series/Brothers/",
             titleRu = "\u0411\u0440\u0430\u0442\u044c\u044f",
-            releaseDateRu = "22.09.2026",
             kind = ReleaseKind.SERIES,
             originalReleaseYear = 2026,
         )
@@ -246,7 +238,6 @@ class TmdbPosterResolverSeriesYearTest {
         resolver.resolve(
             detailsUrl = "https://www.lostfilm.one/series/Brothers/season_1/",
             titleRu = "Братья",
-            releaseDateRu = "22.09.2026",
             kind = ReleaseKind.SERIES,
             originalReleaseYear = 2026,
         )
@@ -287,7 +278,6 @@ class TmdbPosterResolverSeriesYearTest {
         TmdbPosterResolverImpl(client, dao).resolve(
             detailsUrl = "https://www.lostfilm.one/series/Brothers/season_1/episode_3/",
             titleRu = "Братья",
-            releaseDateRu = "22.09.2026",
             kind = ReleaseKind.SERIES,
             originalReleaseYear = 2026,
         )

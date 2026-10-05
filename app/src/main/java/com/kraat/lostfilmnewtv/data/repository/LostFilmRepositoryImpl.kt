@@ -3,6 +3,7 @@ package com.kraat.lostfilmnewtv.data.repository
 import com.kraat.lostfilmnewtv.data.db.PageCacheMetadataEntity
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
 import com.kraat.lostfilmnewtv.data.db.ReleaseDetailsEntity
+import com.kraat.lostfilmnewtv.data.db.TmdbPosterDao
 import com.kraat.lostfilmnewtv.data.model.FavoriteMetadata
 import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
 import com.kraat.lostfilmnewtv.data.model.PageState
@@ -77,6 +78,7 @@ class LostFilmRepositoryImpl(
     private val httpClient: LostFilmHttpClient,
     private val anonymousHttpClient: LostFilmHttpClient = httpClient,
     private val releaseDao: ReleaseDao,
+    private val tmdbPosterDao: TmdbPosterDao,
     private val listParser: LostFilmListParser,
     private val detailsParser: LostFilmDetailsParser,
     private val favoriteSeriesParser: LostFilmFavoriteSeriesParser = LostFilmFavoriteSeriesParser(),
@@ -329,7 +331,6 @@ class LostFilmRepositoryImpl(
                 val tmdbUrls = tmdbResolver.resolve(
                     detailsUrl = cachedModel.detailsUrl,
                     titleRu = cachedModel.titleRu,
-                    releaseDateRu = cachedModel.releaseDateRu,
                     kind = cachedModel.kind,
                     originalReleaseYear = cachedModel.originalReleaseYear,
                 )
@@ -352,7 +353,6 @@ class LostFilmRepositoryImpl(
             val tmdbUrls = tmdbResolver.resolve(
                 detailsUrl = parsed.detailsUrl,
                 titleRu = parsed.titleRu,
-                releaseDateRu = parsed.releaseDateRu,
                 kind = parsed.kind,
                 originalReleaseYear = parsed.originalReleaseYear,
             )
@@ -448,7 +448,6 @@ class LostFilmRepositoryImpl(
                         tmdbResolver.resolve(
                             detailsUrl = details.detailsUrl,
                             titleRu = details.titleRu,
-                            releaseDateRu = details.releaseDateRu,
                             kind = details.kind,
                             originalReleaseYear = details.originalReleaseYear,
                         )
@@ -524,7 +523,6 @@ class LostFilmRepositoryImpl(
             val tmdbUrls = tmdbResolver.resolve(
                 detailsUrl = normalizedDetailsUrl,
                 titleRu = seriesTitleRu,
-                releaseDateRu = "",
                 kind = ReleaseKind.SERIES,
             )
             val posterUrl = tmdbUrls?.posterUrl?.takeIf { it.isNotBlank() }.orEmpty()
@@ -563,7 +561,6 @@ class LostFilmRepositoryImpl(
             val tmdbUrls = tmdbResolver.resolve(
                 detailsUrl = normalizedDetailsUrl,
                 titleRu = parsedOverview.titleRu,
-                releaseDateRu = parsedOverview.premiereDateRu.orEmpty(),
                 kind = ReleaseKind.SERIES,
             )
 
@@ -823,7 +820,14 @@ class LostFilmRepositoryImpl(
             if (lockedNow - lastCleanupAt < CLEANUP_INTERVAL_MS) {
                 return
             }
-            releaseDao.deleteExpiredData(lockedNow - RETENTION_WINDOW_MS)
+            val threshold = lockedNow - RETENTION_WINDOW_MS
+            releaseDao.deleteExpiredData(threshold)
+            // Маппинги TMDB лежат в своей таблице и до этого срока не удалялись
+            // вообще: ключ там — season-level URL сериала, поэтому строки
+            // накапливались месяцами и база росла без ограничения.
+            // Собственный TTL маппинга (7 суток) истекает независимо, и просроченная
+            // строка уже не переиспользуется — её можно удалять.
+            tmdbPosterDao.deleteExpired(threshold)
             lastCleanupAt = lockedNow
         }
     }

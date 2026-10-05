@@ -71,7 +71,6 @@ class TmdbPosterResolverTest {
         val result = resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/series/Dark_Matter_2024 /season_2/episode_1/",
             titleRu = "Тёмная материя",
-            releaseDateRu = "01.01.2026",
             kind = ReleaseKind.SERIES,
         )
 
@@ -119,8 +118,8 @@ class TmdbPosterResolverTest {
         val resolver = TmdbPosterResolverImpl(client, FakeTmdbPosterDao())
         val url = "https://www.lostfilm.today/series/Example_Show/season_2/episode_8/"
 
-        assertNull(resolver.resolve(detailsUrl = url, titleRu = "Пример", releaseDateRu = "14.03.2026", kind = ReleaseKind.SERIES)?.episodeOverviewRu)
-        val second = resolver.resolve(detailsUrl = url, titleRu = "Пример", releaseDateRu = "14.03.2026", kind = ReleaseKind.SERIES)
+        assertNull(resolver.resolve(detailsUrl = url, titleRu = "Пример", kind = ReleaseKind.SERIES)?.episodeOverviewRu)
+        val second = resolver.resolve(detailsUrl = url, titleRu = "Пример", kind = ReleaseKind.SERIES)
 
         assertEquals(2, attempts)
         assertEquals("Описание серии из TMDB.", second?.episodeOverviewRu)
@@ -165,7 +164,6 @@ class TmdbPosterResolverTest {
         val result = resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/series/Example_Show/season_2/episode_8/",
             titleRu = "Пример шоу",
-            releaseDateRu = "05.05.2026",
             kind = ReleaseKind.SERIES,
         )
 
@@ -209,7 +207,6 @@ class TmdbPosterResolverTest {
         val result = resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/movies/Casino",
             titleRu = "Казино",
-            releaseDateRu = "05.04.2026",
             kind = ReleaseKind.MOVIE,
             originalReleaseYear = 1995,
         )
@@ -238,7 +235,6 @@ class TmdbPosterResolverTest {
         val result = resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/movies/Catalog_Movie",
             titleRu = "Фильм каталога",
-            releaseDateRu = "2026",
             kind = ReleaseKind.MOVIE,
             originalReleaseYear = 2026,
         )
@@ -274,7 +270,6 @@ class TmdbPosterResolverTest {
         val result = resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/series/Example_and_Show/",
             titleRu = "Пример",
-            releaseDateRu = "2025",
             kind = ReleaseKind.SERIES,
         )
 
@@ -322,7 +317,6 @@ class TmdbPosterResolverTest {
         val result = resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/series/His_and_Hers/",
             titleRu = "Его и её",
-            releaseDateRu = "2025",
             kind = ReleaseKind.SERIES,
         )
 
@@ -362,7 +356,6 @@ class TmdbPosterResolverTest {
         val result = resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_16/",
             titleRu = "9-1-1",
-            releaseDateRu = "05.04.2026",
             kind = ReleaseKind.SERIES,
         )
 
@@ -400,7 +393,6 @@ class TmdbPosterResolverTest {
         val result = resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/series/The_Testaments/season_1/episode_1/",
             titleRu = "Заветы",
-            releaseDateRu = "11.04.2026",
             kind = ReleaseKind.SERIES,
         )
 
@@ -470,7 +462,6 @@ class TmdbPosterResolverTest {
         val result = resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/series/Paradise/season_2/episode_8/",
             titleRu = "Рай",
-            releaseDateRu = "05.04.2026",
             kind = ReleaseKind.SERIES,
         )
 
@@ -524,7 +515,6 @@ class TmdbPosterResolverTest {
         val result = resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/movies/Casino",
             titleRu = "Казино",
-            releaseDateRu = "05.04.2026",
             kind = ReleaseKind.MOVIE,
             originalReleaseYear = 1995,
         )
@@ -565,7 +555,6 @@ class TmdbPosterResolverTest {
         val result = resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/series/Paradise/season_2/episode_8/",
             titleRu = "Рай",
-            releaseDateRu = "05.04.2026",
             kind = ReleaseKind.SERIES,
         )
 
@@ -617,7 +606,6 @@ class TmdbPosterResolverTest {
         val result = resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/movies/Casino",
             titleRu = "Казино",
-            releaseDateRu = "05.04.2026",
             kind = ReleaseKind.MOVIE,
             originalReleaseYear = 1995,
         )
@@ -644,7 +632,6 @@ class TmdbPosterResolverTest {
         val result = resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/series/Unknown_Title/season_1/episode_1/",
             titleRu = "Неизвестный сериал",
-            releaseDateRu = "05.04.2026",
             kind = ReleaseKind.SERIES,
         )
 
@@ -675,7 +662,6 @@ class TmdbPosterResolverTest {
         val result = resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/series/Unknown_Title/season_1/episode_1/",
             titleRu = "Неизвестный сериал",
-            releaseDateRu = "05.04.2026",
             kind = ReleaseKind.SERIES,
         )
 
@@ -721,7 +707,6 @@ class TmdbPosterResolverTest {
         val result = resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/movies/Peaky_Blinders_The_Immortal_Man",
             titleRu = "Острые козырьки: Бессмертный человек",
-            releaseDateRu = "24 марта 2026",
             kind = ReleaseKind.MOVIE,
         )
 
@@ -760,7 +745,6 @@ class TmdbPosterResolverTest {
         val result = resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_17/",
             titleRu = "9-1-1",
-            releaseDateRu = "02.05.2026",
             kind = ReleaseKind.SERIES,
             originalReleaseYear = 2026,
         )
@@ -800,13 +784,11 @@ class TmdbPosterResolverTest {
         val episode9 = resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/series/Monarch_Legacy_of_Monsters/season_2/episode_9/",
             titleRu = "Монарх: Наследие монстров",
-            releaseDateRu = "26.04.2026",
             kind = ReleaseKind.SERIES,
         )
         val episode10 = resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/series/Monarch_Legacy_of_Monsters/season_2/episode_10/",
             titleRu = "Монарх: Наследие монстров",
-            releaseDateRu = "03.05.2026",
             kind = ReleaseKind.SERIES,
         )
 
@@ -829,7 +811,6 @@ class TmdbPosterResolverTest {
         val result = resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/series/Unknown_Title/season_1/episode_1/",
             titleRu = "Неизвестный сериал",
-            releaseDateRu = "05.04.2026",
             kind = ReleaseKind.SERIES,
         )
 
@@ -866,7 +847,6 @@ class TmdbPosterResolverTest {
         val result = resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/series/The_Terror/season_3/episode_1/",
             titleRu = "Террор",
-            releaseDateRu = "05.06.2026",
             kind = ReleaseKind.SERIES,
         )
 
@@ -898,7 +878,6 @@ class TmdbPosterResolverTest {
         val result = resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/series/The_Terror/season_3/episode_1/",
             titleRu = "Террор",
-            releaseDateRu = "05.06.2026",
             kind = ReleaseKind.SERIES,
         )
 
@@ -947,7 +926,6 @@ class TmdbPosterResolverTest {
         val season = resolver.resolve(
             detailsUrl = "https://www.lostfilm.one/series/Brothers/season_1/",
             titleRu = "\u0411\u0440\u0430\u0442\u044c\u044f",
-            releaseDateRu = "22.09.2026",
             kind = ReleaseKind.SERIES,
             originalReleaseYear = 2026,
         )
@@ -990,7 +968,6 @@ class TmdbPosterResolverTest {
         val episode = resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_17/",
             titleRu = "9-1-1",
-            releaseDateRu = "02.05.2026",
             kind = ReleaseKind.SERIES,
             originalReleaseYear = 2026,
         )
@@ -1031,7 +1008,6 @@ class TmdbPosterResolverTest {
         val result = resolver.resolve(
             detailsUrl = "https://www.lostfilm.today/series/The_Terror/season_3/episode_1/",
             titleRu = "Террор",
-            releaseDateRu = "05.06.2026",
             kind = ReleaseKind.SERIES,
         )
 

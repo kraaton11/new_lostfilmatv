@@ -59,7 +59,6 @@ interface TmdbPosterResolver {
     suspend fun resolve(
         detailsUrl: String,
         titleRu: String,
-        releaseDateRu: String,
         kind: ReleaseKind,
         originalReleaseYear: Int? = null,
     ): TmdbImageUrls?
@@ -86,7 +85,6 @@ class TmdbPosterResolverImpl(
     override suspend fun resolve(
         detailsUrl: String,
         titleRu: String,
-        releaseDateRu: String,
         kind: ReleaseKind,
         originalReleaseYear: Int?,
     ): TmdbImageUrls? {
