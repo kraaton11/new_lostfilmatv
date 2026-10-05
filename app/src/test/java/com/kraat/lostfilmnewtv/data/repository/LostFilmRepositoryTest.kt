@@ -2463,6 +2463,34 @@ class LostFilmRepositoryTest {
         )
     }
 
+    @Test
+    fun loadSchedule_doesNotFetchDetailsForMissingPosters() = runTest {
+        // Постеры в расписании берём из разметки страницы расписания или из TMDB.
+        // Заведомо пустой разбор страницы деталей не может дать адрес картинки, но
+        // раньше на каждый пункт без постера всё равно уходил сетевой запрос:
+        // при 20–40 пунктах в месяц это заметный трафик впустую.
+        val requestedDetailsUrls = mutableListOf<String>()
+        val repository = createRepository(
+            pageHandler = { throw IOException("Лента не должна запрашиваться") },
+            detailsHandler = { detailsUrl ->
+                requestedDetailsUrls += detailsUrl
+                // Табличная фикстура: в ней у всех пунктов posterUrl == null,
+                // то есть ровно тот случай, что раньше уходил в сетевой запрос.
+                fixture("schedule.html")
+            },
+        )
+
+        val result = repository.loadSchedule()
+
+        assertTrue(result is ScheduleResult.Success)
+        val items = (result as ScheduleResult.Success).schedule.days.flatMap { it.items }
+        assertTrue("Фикстура расписания должна содержать пункты", items.isNotEmpty())
+        assertTrue(
+            "Расписание не должно ходить за постерами на страницу деталей: $requestedDetailsUrls",
+            requestedDetailsUrls == listOf("https://www.lostfilm.today/schedule/my_0/type_0"),
+        )
+    }
+
     private suspend fun Job.joinWithin5s() {
         assertTrue(
             "Коллектор observePage не завершился за 5 секунд",

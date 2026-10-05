@@ -257,10 +257,6 @@ class LostFilmDetailsParser {
             isFavorite = isFavorite,
         )
     }
-
-    fun parsePosterUrl(html: String): String {
-        return ""
-    }
 }
 
 private fun Document.releaseDateRu(): String =

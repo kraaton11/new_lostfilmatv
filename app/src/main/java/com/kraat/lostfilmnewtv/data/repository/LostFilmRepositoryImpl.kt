@@ -9,10 +9,8 @@ import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
-import com.kraat.lostfilmnewtv.data.model.ScheduleItem
 import com.kraat.lostfilmnewtv.data.model.ScheduleMonth
 import com.kraat.lostfilmnewtv.data.model.SeriesGuide
-import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.SCHEDULE_IMAGE_ENRICHMENT_CONCURRENCY
 import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.SEARCH_ENRICHMENT_CONCURRENCY
 import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.WATCHED_MARKS_LOAD_CONCURRENCY
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
@@ -633,7 +631,7 @@ class LostFilmRepositoryImpl(
             val schedule = withContext(Dispatchers.Default) {
                 scheduleParser.parse(html)
             }
-            ScheduleResult.Success(enrichScheduleWithLostFilmImages(schedule))
+            ScheduleResult.Success(schedule)
         } catch (exception: CancellationException) {
             throw exception
         } catch (exception: Exception) {
@@ -641,72 +639,6 @@ class LostFilmRepositoryImpl(
                 ScheduleResult.Error(exception.message ?: "Не удалось загрузить расписание")
             } else {
                 throw exception
-            }
-        }
-    }
-
-    private suspend fun enrichScheduleWithLostFilmImages(schedule: ScheduleMonth): ScheduleMonth {
-        val items = schedule.days.flatMap { it.items }
-        val missingPosterItems = items.filter { it.posterUrl.isNullOrBlank() }
-        if (missingPosterItems.isEmpty()) {
-            return schedule
-        }
-
-        val cachedSummariesByUrl = releaseDao.getSummaries(missingPosterItems.map { it.targetUrl })
-            .associateBy { it.detailsUrl }
-        val semaphore = Semaphore(SCHEDULE_IMAGE_ENRICHMENT_CONCURRENCY)
-        val posterUrlsByTargetUrl = coroutineScope {
-            missingPosterItems.map { item ->
-                async {
-                    item.targetUrl to schedulePosterUrlFromLostFilm(
-                        item = item,
-                        cachedSummaryPosterUrl = cachedSummariesByUrl[item.targetUrl]?.posterUrl,
-                        semaphore = semaphore,
-                    )
-                }
-            }.awaitAll()
-        }.toMap()
-
-        return schedule.copy(
-            days = schedule.days.map { day ->
-                day.copy(
-                    items = day.items.map { item ->
-                        item.copy(
-                            posterUrl = item.posterUrl
-                                ?: posterUrlsByTargetUrl[item.targetUrl]?.takeIf { it.isNotBlank() },
-                        )
-                    },
-                )
-            },
-        )
-    }
-
-    private suspend fun schedulePosterUrlFromLostFilm(
-        item: ScheduleItem,
-        cachedSummaryPosterUrl: String?,
-        semaphore: Semaphore,
-    ): String? {
-        cachedSummaryPosterUrl?.takeIf { it.isLostFilmImageUrl() }?.let { return it }
-        releaseDao.getReleaseDetails(item.targetUrl)
-            ?.posterUrl
-            ?.takeIf { it.isLostFilmImageUrl() }
-            ?.let { return it }
-
-        return semaphore.withPermit {
-            try {
-                val fetchedPosterUrl = detailsParser.parsePosterUrl(anonymousHttpClient.fetchDetails(item.targetUrl))
-                    .takeIf { it.isLostFilmImageUrl() }
-                if (fetchedPosterUrl != null) {
-                    releaseDao.getSummary(item.targetUrl)?.let { existing ->
-                        releaseDao.upsertSummaries(listOf(existing.copy(posterUrl = fetchedPosterUrl)))
-                    }
-                }
-                fetchedPosterUrl
-            } catch (exception: CancellationException) {
-                throw exception
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to fetch schedule poster from LostFilm", e)
-                null
             }
         }
     }
@@ -1338,10 +1270,3 @@ class LostFilmRepositoryImpl(
 }
 
 private fun String.normalizeSearchQuery(): String = normalizeText().replace(searchWhitespaceRegex, " ")
-
-private fun String.isLostFilmImageUrl(): Boolean {
-    val normalized = lowercase()
-    return normalized.startsWith("$BASE_URL/static/") ||
-        normalized.startsWith("https://static.lostfilm.") ||
-        normalized.startsWith("http://static.lostfilm.")
-}
