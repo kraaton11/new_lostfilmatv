@@ -95,11 +95,10 @@ fun SettingsScreen(
     onHomeMenuLabelsVisibilitySelected: (Boolean) -> Unit = {},
     onCheckForUpdatesClick: () -> Unit,
     onInstallUpdateClick: () -> Unit,
-    showDeveloperSections: Boolean = BuildConfig.DEBUG,
 ) {
-    val visibleSections = remember(showDeveloperSections) {
-        SettingsSection.visibleSections(showDeveloperSections)
-    }
+    // Секции разработчика удалены вместе с Prowlarr и Диагностикой (f0ccbacd),
+    // так что фильтровать больше нечего: список всегда полный.
+    val visibleSections = SettingsSection.entries
     var selectedSectionName by rememberSaveable { mutableStateOf(currentSection.name) }
     LaunchedEffect(currentSection, visibleSections) {
         selectedSectionName = currentSection.takeIf { it in visibleSections }?.name ?: SettingsSection.PLAYBACK.name
@@ -795,10 +794,6 @@ enum class SettingsSection(
         fun fromName(name: String): SettingsSection {
             return entries.firstOrNull { it.name == name }
                 ?: if (name == "QUALITY") PLAYBACK else PLAYBACK
-        }
-
-        fun visibleSections(showDeveloperSections: Boolean): List<SettingsSection> {
-            return entries.toList()
         }
     }
 }

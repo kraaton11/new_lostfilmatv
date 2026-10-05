@@ -62,47 +62,6 @@ class OkHttpTorrServeEndpointChecker(
     }
 }
 
-interface SettingsDataManager {
-    suspend fun refreshFirstPage(): Boolean
-    suspend fun clearReleaseCache()
-    suspend fun clearPosterCache()
-    suspend fun clearNetworkCache()
-}
-
-class AppSettingsDataManager(
-    private val appContext: Context,
-    private val releaseDao: ReleaseDao,
-    private val tmdbPosterDao: TmdbPosterDao,
-    private val repository: LostFilmRepository,
-    private val okHttpClient: OkHttpClient,
-    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-) : SettingsDataManager {
-    override suspend fun refreshFirstPage(): Boolean = withContext(ioDispatcher) {
-        releaseDao.deleteSummariesForPage(pageNumber = 1)
-        releaseDao.deletePageMetadata(pageNumber = 1)
-        repository.loadPage(pageNumber = 1) !is PageState.Error
-    }
-
-    override suspend fun clearReleaseCache() = withContext(ioDispatcher) {
-        releaseDao.deleteAllCachedReleaseData()
-    }
-
-    override suspend fun clearPosterCache() = withContext(ioDispatcher) {
-        tmdbPosterDao.deleteAll()
-        File(appContext.cacheDir, COIL_IMAGE_CACHE_DIR).deleteRecursively()
-        Unit
-    }
-
-    override suspend fun clearNetworkCache() = withContext(ioDispatcher) {
-        okHttpClient.cache?.evictAll()
-        Unit
-    }
-
-    private companion object {
-        const val COIL_IMAGE_CACHE_DIR = "coil_image_cache"
-    }
-}
-
 fun normalizeTorrServeBaseUrl(raw: String): String? {
     val withScheme = raw.trim()
         .takeIf { it.isNotBlank() }

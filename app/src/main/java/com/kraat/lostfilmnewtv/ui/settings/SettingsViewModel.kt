@@ -42,7 +42,6 @@ class SettingsViewModel @Inject constructor(
     private val appUpdateBackgroundScheduler: AppUpdateBackgroundScheduler,
     private val releaseApkLauncher: ReleaseApkLauncher,
     private val torrServeEndpointChecker: TorrServeEndpointChecker,
-    private val settingsDataManager: SettingsDataManager,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
@@ -53,7 +52,6 @@ class SettingsViewModel @Inject constructor(
     private var activeRefreshJob: Job? = null
     private var installJob: Job? = null
     private var torrServeCheckJob: Job? = null
-    private var dataActionJob: Job? = null
     private var refreshRequestToken: Long = 0
     private var lastCheckTimestamp = 0L
 
@@ -270,33 +268,9 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun onRefreshDataClick() {
-        runDataAction(runningText = "Обновляем главную...") {
-            val success = settingsDataManager.refreshFirstPage()
-            if (success) "Главная обновлена" else "Не удалось обновить главную"
-        }
-    }
 
-    fun onClearReleaseCacheClick() {
-        runDataAction(runningText = "Очищаем кеш релизов...") {
-            settingsDataManager.clearReleaseCache()
-            "Кеш релизов очищен"
-        }
-    }
 
-    fun onClearPosterCacheClick() {
-        runDataAction(runningText = "Очищаем кеш постеров...") {
-            settingsDataManager.clearPosterCache()
-            "Кеш постеров очищен"
-        }
-    }
 
-    fun onClearNetworkCacheClick() {
-        runDataAction(runningText = "Очищаем сетевой кеш...") {
-            settingsDataManager.clearNetworkCache()
-            "Сетевой кеш очищен"
-        }
-    }
 
 
     fun onCheckForUpdatesClick() {
@@ -389,18 +363,6 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    private fun runDataAction(
-        runningText: String,
-        action: suspend () -> String,
-    ) {
-        if (dataActionJob?.isActive == true) return
-        dataActionJob = viewModelScope.launch(ioDispatcher) {
-            _uiState.update { it.copy(isDataActionRunning = true, dataStatusText = runningText) }
-            val message = runCatching { action() }.getOrElse { "Действие не выполнено" }
-            _uiState.update { it.copy(isDataActionRunning = false, dataStatusText = message) }
-        }
-    }
-
     constructor(
         preferencesStore: PlaybackPreferencesStore,
         appUpdateCoordinator: AppUpdateCoordinator,
@@ -409,7 +371,6 @@ class SettingsViewModel @Inject constructor(
         appUpdateBackgroundScheduler: AppUpdateBackgroundScheduler,
         releaseApkLauncher: ReleaseApkLauncher,
         torrServeEndpointChecker: TorrServeEndpointChecker,
-        settingsDataManager: SettingsDataManager,
         ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
         debounceIntervalMs: Long,
     ) : this(
@@ -420,7 +381,6 @@ class SettingsViewModel @Inject constructor(
         appUpdateBackgroundScheduler = appUpdateBackgroundScheduler,
         releaseApkLauncher = releaseApkLauncher,
         torrServeEndpointChecker = torrServeEndpointChecker,
-        settingsDataManager = settingsDataManager,
         ioDispatcher = ioDispatcher,
     ) {
         this.debounceIntervalMs = debounceIntervalMs

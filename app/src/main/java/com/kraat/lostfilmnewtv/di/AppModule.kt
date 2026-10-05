@@ -28,11 +28,9 @@ import com.kraat.lostfilmnewtv.updates.ReleaseApkLauncher
 import com.kraat.lostfilmnewtv.updates.UpdateHttpClientFactory
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.data.repository.FavoritesRepository
-import com.kraat.lostfilmnewtv.ui.settings.AppSettingsDataManager
 
 import kotlinx.coroutines.flow.last
 import com.kraat.lostfilmnewtv.ui.settings.OkHttpTorrServeEndpointChecker
-import com.kraat.lostfilmnewtv.ui.settings.SettingsDataManager
 import com.kraat.lostfilmnewtv.ui.settings.TorrServeEndpointChecker
 import dagger.Module
 import dagger.Provides
@@ -123,26 +121,6 @@ object AppModule {
         probe = probe,
         launcher = launcher,
         torrentDownloader = torrentDownloader,
-    )
-
-    // endregion
-
-    // region Settings Maintenance
-
-    @Provides
-    @Singleton
-    fun provideSettingsDataManager(
-        @ApplicationContext context: Context,
-        releaseDao: ReleaseDao,
-        tmdbPosterDao: TmdbPosterDao,
-        repository: LostFilmRepository,
-        okHttpClient: OkHttpClient,
-    ): SettingsDataManager = AppSettingsDataManager(
-        appContext = context,
-        releaseDao = releaseDao,
-        tmdbPosterDao = tmdbPosterDao,
-        repository = repository,
-        okHttpClient = okHttpClient,
     )
 
     // endregion

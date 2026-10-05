@@ -15,7 +15,6 @@ import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeAvailabilityChecker
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeConfig
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeLinkBuilder
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeUrlLauncher
-import com.kraat.lostfilmnewtv.ui.settings.SettingsDataManager
 import com.kraat.lostfilmnewtv.ui.settings.TorrServeEndpointCheck
 import com.kraat.lostfilmnewtv.ui.settings.TorrServeEndpointChecker
 import com.kraat.lostfilmnewtv.ui.settings.normalizeTorrServeBaseUrl
@@ -211,15 +210,6 @@ object MainActivityTestAppModule {
                 isEndpointReachable = false,
             )
         }
-    }
-
-    @Provides
-    @Singleton
-    fun provideSettingsDataManager(): SettingsDataManager = object : SettingsDataManager {
-        override suspend fun refreshFirstPage(): Boolean = true
-        override suspend fun clearReleaseCache() = Unit
-        override suspend fun clearPosterCache() = Unit
-        override suspend fun clearNetworkCache() = Unit
     }
 
     @Provides

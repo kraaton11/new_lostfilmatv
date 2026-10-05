@@ -37,10 +37,8 @@ import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import okhttp3.OkHttpClient
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.mockito.Mockito.doAnswer
 import org.mockito.Mockito.mock
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -624,7 +622,6 @@ class SettingsViewModelTest {
             appUpdateBackgroundScheduler = appUpdateBackgroundScheduler,
             releaseApkLauncher = releaseApkLauncher,
             torrServeEndpointChecker = FakeTorrServeEndpointChecker(),
-            settingsDataManager = FakeSettingsDataManager(),
             ioDispatcher = ioDispatcher,
             debounceIntervalMs = debounceIntervalMs,
         )
@@ -659,13 +656,6 @@ class SettingsViewModelTest {
                 isEndpointReachable = true,
             )
         }
-    }
-
-    private class FakeSettingsDataManager : SettingsDataManager {
-        override suspend fun refreshFirstPage(): Boolean = true
-        override suspend fun clearReleaseCache() = Unit
-        override suspend fun clearPosterCache() = Unit
-        override suspend fun clearNetworkCache() = Unit
     }
 
 }

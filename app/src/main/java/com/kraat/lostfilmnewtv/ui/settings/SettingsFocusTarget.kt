@@ -19,10 +19,6 @@ sealed class SettingsFocusTarget {
     data object HomeMoviesToggle : SettingsFocusTarget()
     data object HomeSeriesToggle : SettingsFocusTarget()
     data object HomeMenuLabelsToggle : SettingsFocusTarget()
-    data object DataRefreshHome : SettingsFocusTarget()
-    data object DataClearReleases : SettingsFocusTarget()
-    data object DataClearPosters : SettingsFocusTarget()
-    data object DataClearNetwork : SettingsFocusTarget()
     data class UpdateChannel(val mode: UpdateCheckMode) : SettingsFocusTarget()
     data object CheckForUpdates : SettingsFocusTarget()
     data object InstallUpdate : SettingsFocusTarget()
@@ -48,10 +44,6 @@ fun SettingsFocusTarget.toTag(): String = when (this) {
     SettingsFocusTarget.HomeMoviesToggle -> "settings-home-movies-toggle"
     SettingsFocusTarget.HomeSeriesToggle -> "settings-home-series-toggle"
     SettingsFocusTarget.HomeMenuLabelsToggle -> "settings-home-menu-labels-toggle"
-    SettingsFocusTarget.DataRefreshHome -> "settings-data-refresh-home"
-    SettingsFocusTarget.DataClearReleases -> "settings-data-clear-releases"
-    SettingsFocusTarget.DataClearPosters -> "settings-data-clear-posters"
-    SettingsFocusTarget.DataClearNetwork -> "settings-data-clear-network"
     is SettingsFocusTarget.UpdateChannel -> when (mode) {
         UpdateCheckMode.MANUAL -> "settings-update-mode-manual"
         UpdateCheckMode.QUIET_CHECK -> "settings-update-mode-quiet"

@@ -22,8 +22,6 @@ data class SettingsUiState(
     val lostFilmHostStatusText: String? = null,
     val torrServeStatusText: String? = null,
     val isCheckingTorrServe: Boolean = false,
-    val dataStatusText: String? = null,
-    val isDataActionRunning: Boolean = false,
     val installedVersionText: String,
     val savedAppUpdate: SavedAppUpdate? = null,
     val latestVersionText: String? = null,
