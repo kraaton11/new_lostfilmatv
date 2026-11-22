@@ -49,6 +49,11 @@ fun PosterImage(
     ) {
         when (painter.state) {
             is AsyncImagePainter.State.Error -> PosterPlaceholder(Modifier.fillMaxSize())
+            is AsyncImagePainter.State.Success -> {
+                val size = painter.intrinsicSize
+                val scale = if (size.width >= size.height) ContentScale.Fit else contentScale
+                SubcomposeAsyncImageContent(contentScale = scale)
+            }
             else -> SubcomposeAsyncImageContent()
         }
     }

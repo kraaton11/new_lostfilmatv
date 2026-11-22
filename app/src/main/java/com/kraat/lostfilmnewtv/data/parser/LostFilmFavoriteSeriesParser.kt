@@ -21,7 +21,7 @@ class LostFilmFavoriteSeriesParser {
                 val titleRu = box.selectFirst(".title-ru").textOrEmpty()
                 val seriesHref = box.selectFirst("a.body")?.attr("href").orEmpty().trim()
                 val seriesUrl = if (seriesHref.isBlank()) "" else resolveUrl(seriesHref)
-                val posterUrl = ""
+                val posterUrl = box.lostFilmImagePath("img.avatar, a.body img").orEmpty()
 
                 if (titleRu.isBlank() || seriesUrl.isBlank()) {
                     return@mapNotNull null

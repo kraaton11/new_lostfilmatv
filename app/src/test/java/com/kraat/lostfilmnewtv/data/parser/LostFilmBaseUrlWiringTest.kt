@@ -2,6 +2,7 @@ package com.kraat.lostfilmnewtv.data.parser
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import org.jsoup.Jsoup
 
 /**
  * Proves that the request builders follow the configured host: `resolveUrl` is the single
@@ -29,6 +30,26 @@ class LostFilmBaseUrlWiringTest {
             )
         } finally {
             LostFilmBaseUrl.set(LostFilmBaseUrl.DEFAULT)
+        }
+    }
+
+    @Test
+    fun cachedTitleLinksFollowSelectedMirror() {
+        val previous = BASE_URL
+        try {
+            LostFilmBaseUrl.set("https://www.lostfilm.download")
+
+            assertEquals(
+                "https://www.lostfilm.download/series/x/?section=1#episode",
+                resolveUrl("https://www.lostfilm.today/series/x/?section=1#episode"),
+            )
+            val link = Jsoup.parse("<a href='//lostfilm.tv/movies/x/'>x</a>")
+                .selectFirst("a")
+            assertEquals("https://www.lostfilm.download/movies/x/", link.absoluteUrl("href"))
+            assertEquals("https://www.lostfilm.today/V/?id=1", resolveUrl("https://www.lostfilm.today/V/?id=1"))
+            assertEquals("https://external.example/movies/x/", resolveUrl("https://external.example/movies/x/"))
+        } finally {
+            LostFilmBaseUrl.set(previous)
         }
     }
 }

@@ -12,13 +12,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
-/**
- * Постеры и описания набираются прогрессивным обогащением уже после того, как
- * страница разобрана и записана. Перезапись страницы их затирала, и карточки,
- * чьё обогащение успело записаться, оставались без картинки — в ленте это
- * выглядело как «загрузились только первые 15». Парсер страницы artwork не
- * приносит вовсе, поэтому перезапись обязана сохранять уже накопленное.
- */
 @RunWith(RobolectricTestRunner::class)
 class ReleaseDaoReplacePageTest {
     private lateinit var database: LostFilmDatabase
@@ -39,73 +32,23 @@ class ReleaseDaoReplacePageTest {
     }
 
     @Test
-    fun replacePage_keepsArtworkEnrichedBeforeRefetch() = runTest {
-        dao.replacePage(pageNumber = 1, summaries = listOf(parsed("a"), parsed("b")), metadata = metadata(1))
-
-        // Прогрессивное обогащение записало постер первому элементу.
-        dao.updateSummaryArtwork(
-            detailsUrl = "a",
-            posterUrl = "https://image.tmdb.org/poster-a.jpg",
-            backdropUrl = "https://image.tmdb.org/backdrop-a.jpg",
-            episodeOverviewRu = "Описание серии",
-            episodeOverviewSource = "TMDB_RU",
-            seriesOverviewRu = null,
-            movieOverviewRu = null,
+    fun replacePage_replacesLegacyArtworkAndAppliesWatchedState() = runTest {
+        val cached = parsed("a").copy(
+            posterUrl = "https://image.tmdb.org/poster.jpg",
+            backdropUrl = "https://auth.bazuka.pp.ua/api/tmdb/t/p/w780/legacy.jpg",
             tmdbRating = "8.1",
         )
+        dao.replacePage(pageNumber = 1, summaries = listOf(cached), metadata = metadata(1))
 
-        // Лента перезагрузила страницу: парсер снова принёс её без artwork.
-        dao.replacePage(pageNumber = 1, summaries = listOf(parsed("a"), parsed("b")), metadata = metadata(1))
-
-        val stored = dao.getSummary("a")!!
-        assertEquals("https://image.tmdb.org/poster-a.jpg", stored.posterUrl)
-        assertEquals("https://image.tmdb.org/backdrop-a.jpg", stored.backdropUrl)
-        assertEquals("Описание серии", stored.episodeOverviewRu)
-        assertEquals("8.1", stored.tmdbRating)
-    }
-
-    @Test
-    fun replacePage_keepsSeriesAndMovieArtwork() = runTest {
-        dao.replacePage(pageNumber = 1, summaries = listOf(parsed("s")), metadata = metadata(1))
-        dao.updateSummaryArtwork(
-            detailsUrl = "s",
-            posterUrl = "https://image.tmdb.org/poster-s.jpg",
-            backdropUrl = null,
-            episodeOverviewRu = null,
-            episodeOverviewSource = null,
-            seriesOverviewRu = "Описание сериала",
-            movieOverviewRu = null,
-            tmdbRating = null,
+        val refreshed = parsed("a").copy(
+            titleRu = "Новое название",
+            releaseDateRu = "02.02.2026",
+            isWatched = true,
+            posterUrl = "/Static/Images/362/Posters/image_s9.jpg",
         )
-
-        dao.replacePage(pageNumber = 1, summaries = listOf(parsed("s")), metadata = metadata(1))
-
-        assertEquals("https://image.tmdb.org/poster-s.jpg", dao.getSummary("s")?.posterUrl)
-        assertEquals("Описание сериала", dao.getSummary("s")?.seriesOverviewRu)
-    }
-
-    @Test
-    fun replacePage_stillAppliesParsedFieldsAndWatchedState() = runTest {
-        dao.replacePage(pageNumber = 1, summaries = listOf(parsed("a")), metadata = metadata(1))
-        dao.updateSummaryArtwork(
-            detailsUrl = "a",
-            posterUrl = "https://image.tmdb.org/poster-a.jpg",
-            backdropUrl = null,
-            episodeOverviewRu = null,
-            episodeOverviewSource = null,
-            seriesOverviewRu = null,
-            movieOverviewRu = null,
-            tmdbRating = null,
-        )
-
-        val refreshed = parsed("a").copy(titleRu = "Новое название", releaseDateRu = "02.02.2026", isWatched = true)
         dao.replacePage(pageNumber = 1, summaries = listOf(refreshed), metadata = metadata(1))
 
-        val stored = dao.getSummary("a")!!
-        assertEquals("Новое название", stored.titleRu)
-        assertEquals("02.02.2026", stored.releaseDateRu)
-        assertEquals(true, stored.isWatched)
-        assertEquals("https://image.tmdb.org/poster-a.jpg", stored.posterUrl)
+        assertEquals(refreshed, dao.getSummary("a"))
     }
 
     @Test

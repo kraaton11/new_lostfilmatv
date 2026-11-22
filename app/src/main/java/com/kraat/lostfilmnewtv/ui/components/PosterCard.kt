@@ -54,7 +54,7 @@ fun PosterCard(
     val borderColor = if (isFocused) FocusBorder.copy(alpha = 0.88f) else HomePanelBorder.copy(alpha = 0.14f)
     val overlayColor = if (isFocused) FocusBackground.copy(alpha = 0.82f) else HomePanelSurface.copy(alpha = 0.62f)
     val watchedBadgeColor = if (isFocused) HomeAccentGoldGlow.copy(alpha = 0.86f) else HomePanelSurfaceStrong.copy(alpha = 0.86f)
-    val posterRequest = item.posterUrl.takeIf { it.isNotBlank() }?.let { rememberPosterImageRequest(it) }
+    val posterRequest = resolveArtworkForDisplay(item.posterUrl)?.let { rememberPosterImageRequest(it) }
 
     Card(
         onClick = onClick,

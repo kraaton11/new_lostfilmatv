@@ -17,7 +17,20 @@ private val goToUrlRegex = Regex("""goTo\('([^']+)'""")
 private val ruReleaseDateRegex = Regex("""Ru:\s*(\d{2}\.\d{2}\.\d{4})""")
 private val seasonSerialIdRegex = Regex("""\bserial_id\s*=\s*['"](\d+)['"]""")
 
+private val seasonPosterZoomRegex = Regex("""PictureZoom\(['"]([^'"]+)['"]\)""")
+
 class LostFilmSeasonEpisodesParser {
+    fun parseLatestSeasonPoster(html: String): String? =
+        Jsoup.parse(html).select(".serie-block")
+            .sortedByDescending { season ->
+                season.selectFirst("h2")?.text()?.substringBefore(' ')?.toIntOrNull() ?: 0
+            }
+            .firstNotNullOfOrNull { season ->
+                val zoom = season.selectFirst(".movie-cover-box[onclick*=PictureZoom]")?.attr("onclick")
+                val path = zoom?.let { seasonPosterZoomRegex.find(it)?.groupValues?.get(1) }
+                lostFilmArtworkPath(path) ?: season.lostFilmImagePath(".movie-cover-box img.cover")
+            }
+
     fun parseSerialId(html: String): String? {
         return seasonSerialIdRegex.find(html)?.groupValues?.getOrNull(1)
     }
@@ -91,11 +104,17 @@ class LostFilmSeasonEpisodesParser {
     ): List<ReleaseSummary> {
         val document = Jsoup.parse(html, BASE_URL)
 
+        val seriesPoster = document.lostFilmImagePath(".main_poster img")
+            ?: lostFilmArtworkPath(series.posterUrl)
+        val seasonPosters = document.select(".serie-block").associateWith { season ->
+            season.lostFilmImagePath(".movie-cover-box img.cover")
+        }
         val episodes = document.select("tr")
             .mapNotNull { row ->
                 parseFavoriteEpisodeRow(
                     row = row,
                     series = series,
+                    posterUrl = seasonPosters[row.closest(".serie-block")] ?: seriesPoster,
                     fetchedAt = fetchedAt,
                     watchedEpisodeIds = watchedEpisodeIds,
                 )
@@ -125,6 +144,7 @@ class LostFilmSeasonEpisodesParser {
     private fun parseFavoriteEpisodeRow(
         row: Element,
         series: FavoriteSeriesRef,
+        posterUrl: String?,
         fetchedAt: Long,
         watchedEpisodeIds: Set<String>,
     ): ReleaseSummary? {
@@ -166,7 +186,7 @@ class LostFilmSeasonEpisodesParser {
             seasonNumber = match.groupValues[2].toIntOrNull(),
             episodeNumber = match.groupValues[3].toIntOrNull(),
             releaseDateRu = releaseDateRu,
-            posterUrl = series.posterUrl,
+            posterUrl = posterUrl.orEmpty(),
             detailsUrl = detailsUrl,
             pageNumber = 0,
             positionInPage = 0,

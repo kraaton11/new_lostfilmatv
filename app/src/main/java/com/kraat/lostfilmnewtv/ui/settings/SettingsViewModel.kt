@@ -222,7 +222,11 @@ class SettingsViewModel @Inject constructor(
             return
         }
         preferencesStore.writeLostFilmBaseUrl(normalized)
+        val previousBaseUrl = LostFilmBaseUrl.get()
         LostFilmBaseUrl.set(normalized)
+        if (LostFilmBaseUrl.get() != previousBaseUrl && _uiState.value.channelMode != AndroidTvChannelMode.DISABLED) {
+            viewModelScope.launch(ioDispatcher) { homeChannelSyncManager.syncNow() }
+        }
         _uiState.update {
             it.copy(
                 lostFilmHost = normalized,
@@ -234,7 +238,11 @@ class SettingsViewModel @Inject constructor(
     fun onResetLostFilmHostClick() {
         preferencesStore.resetLostFilmBaseUrl()
         val restored = preferencesStore.readLostFilmBaseUrl()
+        val previousBaseUrl = LostFilmBaseUrl.get()
         LostFilmBaseUrl.set(restored)
+        if (LostFilmBaseUrl.get() != previousBaseUrl && _uiState.value.channelMode != AndroidTvChannelMode.DISABLED) {
+            viewModelScope.launch(ioDispatcher) { homeChannelSyncManager.syncNow() }
+        }
         _uiState.update {
             it.copy(
                 lostFilmHost = restored,

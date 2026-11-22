@@ -31,7 +31,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Modifier
@@ -54,9 +53,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.flow.StateFlow
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.kraat.lostfilmnewtv.ui.components.resolveArtworkForDisplay
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
-import com.kraat.lostfilmnewtv.data.model.TmdbEpisodeOverviewSource
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
 import com.kraat.lostfilmnewtv.ui.components.ShimmerSkeletonBox
 import com.kraat.lostfilmnewtv.ui.components.rememberShimmerSkeletonBrush
@@ -71,6 +70,8 @@ import com.kraat.lostfilmnewtv.ui.theme.HomeTextSecondary
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.coroutines.delay
+import com.kraat.lostfilmnewtv.data.parser.LostFilmBaseUrl
 
 @Composable
 fun HomeScreen(
@@ -99,6 +100,7 @@ fun HomeScreen(
     savedAppUpdate: SavedAppUpdate? = null,
     isUpdateDownloading: Boolean = false,
     updateDownloadProgress: Int? = null,
+    loadReleasePreview: suspend (String) -> HomeReleasePreview = { HomeReleasePreview() },
 ) {
     val focusState by if (focusStateFlow != null) {
         focusStateFlow.collectAsStateWithLifecycle()
@@ -199,6 +201,23 @@ fun HomeScreen(
     val focusedItem = railItems.firstOrNull { it.detailsUrl == focusedItemKey }
         ?: state.selectedItem
         ?: railItems.firstOrNull()
+    val focusedDetailsUrl = focusedItem?.detailsUrl
+    val lostFilmHost by LostFilmBaseUrl.url.collectAsStateWithLifecycle()
+    var releasePreview by remember(focusedDetailsUrl, lostFilmHost) { mutableStateOf(HomeReleasePreview()) }
+    LaunchedEffect(focusedDetailsUrl, lostFilmHost) {
+        if (focusedDetailsUrl != null) {
+            delay(300)
+            releasePreview = loadReleasePreview(focusedDetailsUrl)
+        }
+    }
+    val heroItem = focusedItem?.let { item ->
+        val overview = releasePreview.description
+        when {
+            overview == null -> item
+            item.kind == ReleaseKind.MOVIE -> item.copy(movieOverviewRu = overview)
+            else -> item.copy(episodeOverviewRu = overview)
+        }
+    }
     fun switchModeFromRail(offset: Int) {
         val currentIndex = modeSwitchOrder.indexOf(state.selectedMode)
         if (currentIndex < 0 || modeSwitchOrder.size < 2) return
@@ -236,7 +255,7 @@ fun HomeScreen(
                 ),
             ),
     ) {
-        HomeBackdrop(item = focusedItem)
+        HomeBackdrop(backdropPath = releasePreview.backdropUrl ?: focusedItem?.backdropUrl)
 
         Row(
             modifier = Modifier
@@ -361,7 +380,7 @@ fun HomeScreen(
                         when (activeModeState) {
                             is HomeModeContentState.Content -> {
                                 HomeHeroStage(
-                                    item = focusedItem,
+                                    item = heroItem,
                                     modifier = Modifier.fillMaxWidth(),
                                 )
                                 HomeRailSectionHeader(
@@ -544,12 +563,6 @@ private fun ReleaseHeroMetaRow(item: ReleaseSummary?) {
         seasonEpisodeHeroLabel(item)?.let { label ->
             HeroMetaPill(label = label, highlighted = true)
         }
-        item?.tmdbRating?.takeIf { it.isNotBlank() }?.let { rating ->
-            HeroMetaPill(label = "TMDB $rating")
-        }
-        item.episodeOverviewSourceLabel()?.let { label ->
-            HeroMetaPill(label = label)
-        }
         item?.releaseDateRu?.takeIf { it.isNotBlank() }?.let { date ->
             HeroMetaPill(label = date)
         }
@@ -605,19 +618,7 @@ private fun ReleaseSummary?.heroDescription(): String {
         ReleaseKind.SERIES -> item.episodeOverviewRu
             ?.takeIf { it.isNotBlank() }
             ?: item.seriesOverviewRu?.takeIf { it.isNotBlank() }.orEmpty()
-        ReleaseKind.MOVIE -> item.movieOverviewRu
-            ?.takeIf { it.isNotBlank() }
-            ?: "Фильм доступен в релизах LostFilm."
-    }
-}
-
-private fun ReleaseSummary?.episodeOverviewSourceLabel(): String? {
-    val item = this ?: return null
-    if (item.kind != ReleaseKind.SERIES || item.episodeOverviewRu.isNullOrBlank()) return null
-    return when (item.episodeOverviewSource) {
-        TmdbEpisodeOverviewSource.MACHINE_TRANSLATED.name -> "Автоперевод"
-        TmdbEpisodeOverviewSource.TMDB_EN.name -> "English"
-        else -> null
+        ReleaseKind.MOVIE -> item.movieOverviewRu.orEmpty()
     }
 }
 
@@ -676,47 +677,28 @@ private fun Int.formatFavoriteSeriesCount(): String {
 }
 
 @Composable
-private fun HomeBackdrop(item: ReleaseSummary?) {
+private fun HomeBackdrop(backdropPath: String?) {
     val context = LocalContext.current
-    val backdropUrl = item?.backdropUrl?.takeIf { it.isNotBlank() }
-    val posterUrl = item?.posterUrl?.takeIf { it.isNotBlank() }
-    val backdropImage = HomeBackdropImage(
-        url = backdropUrl ?: posterUrl,
-        isWide = backdropUrl != null,
-    )
+    val backdropUrl = resolveArtworkForDisplay(backdropPath)
 
     Crossfade(
-        targetState = backdropImage,
+        targetState = backdropUrl,
         label = "homeBackdrop",
-    ) { targetImage ->
-        val targetImageUrl = targetImage.url
-        if (targetImageUrl != null) {
-            val request = remember(context, targetImageUrl) {
+    ) { targetUrl ->
+        if (targetUrl != null) {
+            val request = remember(context, targetUrl) {
                 ImageRequest.Builder(context)
-                    .data(targetImageUrl)
+                    .data(targetUrl)
                     .size(1280, 720)
                     .crossfade(true)
                     .build()
             }
-            Box(modifier = Modifier.fillMaxSize()) {
-                AsyncImage(
-                    model = request,
-                    contentDescription = null,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .align(Alignment.CenterEnd)
-                        .then(
-                            if (targetImage.isWide) {
-                                Modifier.fillMaxSize()
-                            } else {
-                                Modifier
-                                    .fillMaxHeight()
-                                    .width(1_120.dp)
-                                    .blur(8.dp)
-                            },
-                        ),
-                )
-            }
+            AsyncImage(
+                model = request,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().testTag("home-backdrop"),
+            )
         }
     }
 
@@ -750,11 +732,6 @@ private fun HomeBackdrop(item: ReleaseSummary?) {
             },
     )
 }
-
-private data class HomeBackdropImage(
-    val url: String?,
-    val isWide: Boolean,
-)
 
 @Composable
 private fun HomeLoadingSkeleton(modifier: Modifier = Modifier) {

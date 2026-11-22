@@ -52,6 +52,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.request.ImageRequest
+import com.kraat.lostfilmnewtv.ui.components.resolveArtworkForDisplay
 import com.kraat.lostfilmnewtv.ui.components.PosterImage
 import com.kraat.lostfilmnewtv.data.model.SeriesGuideEpisode
 import com.kraat.lostfilmnewtv.data.model.SeriesGuideSeason
@@ -408,10 +409,11 @@ private fun GuideHeroSection(
                 )
                 .border(1.dp, DetailsBorderDefault.copy(alpha = 0.72f), RoundedCornerShape(18.dp)),
         ) {
-            if (!posterUrl.isNullOrBlank()) {
-                val request = remember(context, posterUrl, posterWidthPx, posterHeightPx) {
+            val resolvedPosterUrl = resolveArtworkForDisplay(posterUrl)
+            if (resolvedPosterUrl != null) {
+                val request = remember(context, resolvedPosterUrl, posterWidthPx, posterHeightPx) {
                     ImageRequest.Builder(context)
-                        .data(posterUrl)
+                        .data(resolvedPosterUrl)
                         .size(posterWidthPx, posterHeightPx)
                         .build()
                 }

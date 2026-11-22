@@ -3,10 +3,9 @@ package com.kraat.lostfilmnewtv.di
 import android.content.Context
 import androidx.work.WorkManager
 import com.kraat.lostfilmnewtv.BuildConfig
+import com.kraat.lostfilmnewtv.data.parser.hasLegacyArtwork
 import com.kraat.lostfilmnewtv.data.auth.EncryptedSessionStore
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
-import com.kraat.lostfilmnewtv.data.db.TmdbPosterDao
-import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolver
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeActionHandler
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeAvailabilityProbe
@@ -131,11 +130,9 @@ object AppModule {
     @Singleton
     fun provideHomeChannelContentRepository(
         releaseDao: ReleaseDao,
-        tmdbResolver: TmdbPosterResolver,
         favoritesRepository: FavoritesRepository,
     ): HomeChannelContentRepository = HomeChannelContentRepository(
         releaseDao = releaseDao,
-        tmdbResolver = tmdbResolver,
         loadFavoriteReleases = { favoritesRepository.observeFavoriteReleases().last() },
     )
 
@@ -175,7 +172,13 @@ object AppModule {
         isSessionExpired = sessionStore::isExpired,
         refreshFirstPage = { repository.loadPage(pageNumber = 1) },
         syncChannel = homeChannelSyncManager::syncNow,
-        readFirstPageFetchedAt = { releaseDao.getPageMetadata(pageNumber = 1)?.fetchedAt },
+        readFirstPageFetchedAt = {
+            releaseDao.getPageMetadata(pageNumber = 1)?.fetchedAt?.takeUnless {
+                releaseDao.getPageSummaries(pageNumber = 1).any {
+                    hasLegacyArtwork(it.posterUrl, it.backdropUrl)
+                }
+            }
+        },
     )
 
     // endregion

@@ -49,6 +49,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.request.ImageRequest
+import com.kraat.lostfilmnewtv.ui.components.resolveArtworkForDisplay
 import com.kraat.lostfilmnewtv.ui.components.PosterImage
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ScheduleDay
@@ -529,7 +530,7 @@ private fun ScheduleItemImage(
     item: ScheduleItem,
     modifier: Modifier = Modifier,
 ) {
-    val posterUrl = item.posterUrl?.takeIf { it.isNotBlank() }
+    val posterUrl = resolveArtworkForDisplay(item.posterUrl)
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(6.dp))

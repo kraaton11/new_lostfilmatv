@@ -31,7 +31,7 @@ class LostFilmSeriesOverviewParser {
                 ?.text()
                 ?.substringAfter("Статус:")
                 ?.normalizeOverviewText(),
-            posterUrl = null,
+            posterUrl = document.lostFilmImagePath(".main_poster img"),
             premiereDateRu = leftBox.extractLabeledValue("Премьера:"),
             channelCountryRu = leftBox.extractLabeledValue("Канал, Страна:"),
             imdbRating = leftBox.extractLabeledValue("Рейтинг IMDb:"),

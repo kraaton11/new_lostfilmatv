@@ -21,6 +21,7 @@ class LostFilmListParserTest {
         assertEquals(9, firstSeries.seasonNumber)
         assertEquals(13, firstSeries.episodeNumber)
         assertEquals("14.03.2026", firstSeries.releaseDateRu)
+        assertEquals("/Static/Images/362/Posters/image_s9.jpg", firstSeries.posterUrl)
     }
 
     @Test

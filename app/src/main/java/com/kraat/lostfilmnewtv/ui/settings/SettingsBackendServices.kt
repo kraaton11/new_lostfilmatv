@@ -2,7 +2,6 @@ package com.kraat.lostfilmnewtv.ui.settings
 
 import android.content.Context
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
-import com.kraat.lostfilmnewtv.data.db.TmdbPosterDao
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeAvailabilityChecker

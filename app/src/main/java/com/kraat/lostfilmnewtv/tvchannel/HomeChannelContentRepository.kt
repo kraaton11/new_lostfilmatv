@@ -5,31 +5,22 @@ import com.kraat.lostfilmnewtv.data.db.ReleaseSummaryEntity
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
-import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolver
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
-
-private const val HOME_CHANNEL_TMDB_CONCURRENCY = 4
+import com.kraat.lostfilmnewtv.data.parser.LostFilmBaseUrl
+import com.kraat.lostfilmnewtv.data.parser.lostFilmArtworkUrl
 
 class HomeChannelContentRepository(
     private val reader: HomeChannelSummaryReader,
-    private val tmdbResolver: TmdbPosterResolver,
     private val loadFavoriteReleases: suspend () -> FavoriteReleasesResult = {
         FavoriteReleasesResult.Unavailable()
     },
 ) : HomeChannelProgramSource {
     constructor(
         releaseDao: ReleaseDao,
-        tmdbResolver: TmdbPosterResolver,
         loadFavoriteReleases: suspend () -> FavoriteReleasesResult = {
             FavoriteReleasesResult.Unavailable()
         },
     ) : this(
         reader = DaoHomeChannelSummaryReader(releaseDao),
-        tmdbResolver = tmdbResolver,
         loadFavoriteReleases = loadFavoriteReleases,
     )
 
@@ -43,7 +34,7 @@ class HomeChannelContentRepository(
             AndroidTvChannelMode.DISABLED -> return emptyList()
         }
 
-        return mapEntityRows(rows)
+        return mapPrograms(rows.map { it.toModel() })
     }
 
     override suspend fun loadFavoritePrograms(limit: Int): List<HomeChannelProgram> {
@@ -53,60 +44,20 @@ class HomeChannelContentRepository(
             is FavoriteReleasesResult.Unavailable -> return emptyList()
         }
 
-        return mapSummaryRows(items)
+        return mapPrograms(items)
     }
 
-    private suspend fun mapEntityRows(rows: List<ReleaseSummaryEntity>): List<HomeChannelProgram> {
-        // Home channel refresh runs in the background; keep TMDB lookups polite and predictable.
-        val semaphore = Semaphore(HOME_CHANNEL_TMDB_CONCURRENCY)
-        return coroutineScope {
-            rows.map { row ->
-                async {
-                    semaphore.withPermit {
-                        val tmdbUrls = tmdbResolver.resolve(
-                            detailsUrl = row.detailsUrl,
-                            titleRu = row.titleRu,
-                            kind = ReleaseKind.valueOf(row.kind),
-                        )
-                        HomeChannelProgram(
-                            detailsUrl = row.detailsUrl,
-                            title = row.titleRu,
-                            description = row.channelDescription(),
-                            posterUrl = tmdbUrls?.posterUrl?.takeIf { it.isNotBlank() }
-                                ?: row.posterUrl,
-                            backdropUrl = tmdbUrls?.backdropUrl?.takeIf { it.isNotBlank() }.orEmpty(),
-                            internalProviderId = row.detailsUrl,
-                        )
-                    }
-                }
-            }.awaitAll()
-        }
-    }
-
-    private suspend fun mapSummaryRows(items: List<ReleaseSummary>): List<HomeChannelProgram> {
-        // Favorite channel rows can trigger fresh TMDB lookups, so use the same background cap.
-        val semaphore = Semaphore(HOME_CHANNEL_TMDB_CONCURRENCY)
-        return coroutineScope {
-            items.map { item ->
-                async {
-                    semaphore.withPermit {
-                        val tmdbUrls = tmdbResolver.resolve(
-                            detailsUrl = item.detailsUrl,
-                            titleRu = item.titleRu,
-                            kind = item.kind,
-                        )
-                        HomeChannelProgram(
-                            detailsUrl = item.detailsUrl,
-                            title = item.titleRu,
-                            description = item.channelDescription(),
-                            posterUrl = tmdbUrls?.posterUrl?.takeIf { it.isNotBlank() }
-                                ?: item.posterUrl,
-                            backdropUrl = tmdbUrls?.backdropUrl?.takeIf { it.isNotBlank() }.orEmpty(),
-                            internalProviderId = item.detailsUrl,
-                        )
-                    }
-                }
-            }.awaitAll()
+    private fun mapPrograms(items: List<ReleaseSummary>): List<HomeChannelProgram> {
+        val baseUrl = LostFilmBaseUrl.get()
+        return items.map { item ->
+            HomeChannelProgram(
+                detailsUrl = item.detailsUrl,
+                title = item.titleRu,
+                description = item.channelDescription(),
+                posterUrl = lostFilmArtworkUrl(item.posterUrl, baseUrl).orEmpty(),
+                backdropUrl = lostFilmArtworkUrl(item.backdropUrl, baseUrl).orEmpty(),
+                internalProviderId = item.detailsUrl,
+            )
         }
     }
 }
@@ -135,20 +86,6 @@ class DaoHomeChannelSummaryReader(
 
     override suspend fun latestUnwatched(limit: Int): List<ReleaseSummaryEntity> {
         return releaseDao.getLatestUnwatchedSummariesForChannel(limit)
-    }
-}
-
-private fun ReleaseSummaryEntity.channelDescription(): String {
-    return when (ReleaseKind.valueOf(kind)) {
-        ReleaseKind.MOVIE -> releaseDateRu
-        ReleaseKind.SERIES -> episodeTitleRu
-            ?.takeIf { it.isNotBlank() }
-            ?: buildString {
-                append("S")
-                append(seasonNumber ?: "?")
-                append("E")
-                append(episodeNumber ?: "?")
-            }
     }
 }
 

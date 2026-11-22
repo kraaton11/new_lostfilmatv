@@ -51,6 +51,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.request.ImageRequest
+import com.kraat.lostfilmnewtv.ui.components.resolveArtworkForDisplay
 import com.kraat.lostfilmnewtv.ui.components.PosterImage
 import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
@@ -315,10 +316,11 @@ private fun SearchResultCard(
                     .background(DetailsSurfaceSoft, RoundedCornerShape(16.dp))
                     .border(1.dp, DetailsBorderDefault, RoundedCornerShape(16.dp)),
             ) {
-                if (!item.posterUrl.isNullOrBlank()) {
-                    val request = remember(context, item.posterUrl, posterWidthPx, posterHeightPx) {
+                val posterUrl = resolveArtworkForDisplay(item.posterUrl)
+                if (posterUrl != null) {
+                    val request = remember(context, posterUrl, posterWidthPx, posterHeightPx) {
                         ImageRequest.Builder(context)
-                            .data(item.posterUrl)
+                            .data(posterUrl)
                             .size(posterWidthPx, posterHeightPx)
                             .build()
                     }
@@ -364,14 +366,6 @@ private fun SearchResultCard(
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                 )
-                item.tmdbRating?.takeIf { it.isNotBlank() }?.let { rating ->
-                    Text(
-                        text = "TMDB $rating",
-                        color = DetailsTextSecondary,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
                 item.subtitle?.let { subtitle ->
                     Text(
                         text = subtitle,

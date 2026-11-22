@@ -21,7 +21,6 @@ import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.pressKey
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
-import com.kraat.lostfilmnewtv.data.model.TmdbEpisodeOverviewSource
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
 import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
 import org.junit.Assert.assertEquals
@@ -164,19 +163,19 @@ class HomeScreenTest {
     }
 
     @Test
-    fun homeScreen_heroStage_showsMachineTranslatedEpisodeOverviewSource() {
+    fun homeScreen_heroStage_hidesLegacyTmdbOverviewSource() {
         composeRule.setContent {
             LostFilmTheme {
                 HomeScreen(
                     state = seededState(
                         episodeOverviewRu = "Автоматически переведенное описание серии.",
-                        episodeOverviewSource = TmdbEpisodeOverviewSource.MACHINE_TRANSLATED.name,
+                        episodeOverviewSource = "MACHINE_TRANSLATED",
                     ),
                 )
             }
         }
 
-        composeRule.onNodeWithText("Автоперевод").assertExists()
+        composeRule.onNodeWithText("Автоперевод").assertDoesNotExist()
     }
 
     @Test
@@ -191,7 +190,7 @@ class HomeScreenTest {
     }
 
     @Test
-    fun homeScreen_heroStage_usesTmdbMovieOverviewForMovie() {
+    fun homeScreen_heroStage_loadsOverviewForFocusedMovie() {
         val series = release(
             detailsUrl = firstDetailsUrl,
             titleRu = "9-1-1",
@@ -213,12 +212,18 @@ class HomeScreenTest {
             kind = ReleaseKind.MOVIE,
             pageNumber = 1,
             positionInPage = 1,
-            movieOverviewRu = "Русское описание фильма из TMDB.",
         )
 
         composeRule.setContent {
             LostFilmTheme {
                 HomeScreen(
+                    loadReleasePreview = {
+                        if (it == movie.detailsUrl) {
+                            HomeReleasePreview("Сюжет фильма с LostFilm.", "/Static/Images/1080/Posters/poster.jpg")
+                        } else {
+                            HomeReleasePreview()
+                        }
+                    },
                     state = HomeUiState(
                         items = listOf(series, movie),
                         allNewModeState = HomeModeContentState.Content(listOf(series, movie)),
@@ -230,7 +235,9 @@ class HomeScreenTest {
             }
         }
 
-        composeRule.onNodeWithText("Русское описание фильма из TMDB.").assertExists()
+        composeRule.mainClock.advanceTimeBy(400)
+        composeRule.onNodeWithText("Сюжет фильма с LostFilm.").assertExists()
+        composeRule.onNodeWithTag("home-backdrop").assertExists()
         composeRule.onNodeWithText("Фильм доступен в релизах LostFilm.").assertDoesNotExist()
     }
 

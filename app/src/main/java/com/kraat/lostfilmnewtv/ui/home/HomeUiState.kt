@@ -210,3 +210,9 @@ internal fun HomeUiState.itemsForMode(mode: HomeFeedMode): List<ReleaseSummary> 
 
 private fun defaultModeStates(): Map<HomeFeedMode, HomeModeData> =
     HomeFeedMode.entries.associateWith { HomeModeData() }
+
+
+data class HomeReleasePreview(
+    val description: String? = null,
+    val backdropUrl: String? = null,
+)

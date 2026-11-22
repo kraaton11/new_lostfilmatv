@@ -65,7 +65,7 @@ class LostFilmScheduleParserTest {
         assertEquals("Ladies Room", firstItem.episodeTitle)
         assertEquals("Вт, 02.06.2026", firstItem.releaseDateLabel)
         assertEquals("https://www.lostfilm.today/series/Mad_Men/season_1/episode_2/", firstItem.targetUrl)
-        assertEquals("https://www.lostfilm.today/Static/Images/1136/Posters/icon.jpg", firstItem.posterUrl)
+        assertEquals("/Static/Images/1136/Posters/icon.jpg", firstItem.posterUrl)
 
         val nextItem = schedule.days[1].items.single()
         assertEquals("Бухта вдов", nextItem.title)

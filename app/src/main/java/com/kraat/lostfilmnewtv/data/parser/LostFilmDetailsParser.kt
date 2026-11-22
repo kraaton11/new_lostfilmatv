@@ -17,6 +17,8 @@ private val userDataBlockRegex = Regex("""UserData\s*=\s*\{.*?\}""", setOf(Regex
 private val userDataSessionRegex = Regex("""["']session["']\s*:\s*["']([^"']+)["']""")
 private val userDataSessionAssignmentRegex = Regex("""UserData\.session\s*=\s*["']([^"']+)["']""")
 
+internal const val LOSTFILM_OVERVIEW_SOURCE = "LOSTFILM"
+
 class LostFilmDetailsParser {
     fun parseSeries(
         html: String,
@@ -37,8 +39,11 @@ class LostFilmDetailsParser {
             seasonNumber = seasonNumber,
             episodeNumber = episodeNumber,
             releaseDateRu = document.releaseDateRu(),
-            posterUrl = "",
+            posterUrl = document.lostFilmImagePath(".seria-header img.thumb").orEmpty(),
             fetchedAt = fetchedAt,
+            backdropUrl = document.lostFilmImagePath(".main_poster img"),
+            episodeOverviewRu = document.releaseDescriptionRu(),
+            episodeOverviewSource = LOSTFILM_OVERVIEW_SOURCE,
             playEpisodeId = document.playEpisodeId(),
             favoriteTargetId = favoriteMetadata?.targetId,
             favoriteTargetKind = favoriteMetadata?.targetKind,
@@ -77,14 +82,14 @@ class LostFilmDetailsParser {
             seasonNumber = null,
             episodeNumber = null,
             releaseDateRu = document.releaseDateRu(),
-            posterUrl = "",
+            posterUrl = document.lostFilmImagePath(".main_poster img").orEmpty(),
             fetchedAt = fetchedAt,
             playEpisodeId = document.playEpisodeId(),
             favoriteTargetId = favoriteMetadata?.targetId,
             favoriteTargetKind = favoriteMetadata?.targetKind,
             isFavorite = favoriteMetadata?.isFavorite,
             originalReleaseYear = document.originalReleaseYear(),
-            episodeOverviewRu = document.movieDescriptionRu(),
+            episodeOverviewRu = document.releaseDescriptionRu(),
         )
     }
 
@@ -272,7 +277,7 @@ private fun Document.originalReleaseYear(): Int? =
         .substringAfterIgnoreCase("Дата выхода eng:")
         .extractYear()
 
-private fun Document.movieDescriptionRu(): String? =
+private fun Document.releaseDescriptionRu(): String? =
     select(".text-block.description .body .body")
         .map { it.text().normalizeText().replace(Regex("""\s+"""), " ") }
         .maxByOrNull { it.length }

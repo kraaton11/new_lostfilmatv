@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.kraat.lostfilmnewtv.ui.components.resolveArtworkForDisplay
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.ui.components.PosterImage
 import com.kraat.lostfilmnewtv.ui.components.ShimmerSkeletonBox
@@ -96,8 +97,7 @@ fun MovieOverviewScreen(
 @Composable
 private fun MovieOverviewBackgroundPoster(details: ReleaseDetails?) {
     val context = LocalContext.current
-    val imageUrl = details?.backdropUrl?.takeIf { !it.isNullOrBlank() }
-        ?: details?.posterUrl
+    val imageUrl = resolveArtworkForDisplay(details?.backdropUrl)
         ?: return
     val request = remember(context, imageUrl) {
         ImageRequest.Builder(context)
@@ -322,10 +322,11 @@ private fun MovieOverviewContent(details: ReleaseDetails?) {
                         .background(DetailsSurfaceSoft)
                         .border(1.dp, DetailsBorderDefault, RoundedCornerShape(24.dp)),
                 ) {
-                    if (safeDetails.posterUrl.isNotBlank()) {
-                        val request = remember(context, safeDetails.posterUrl, posterWidthPx, posterHeightPx) {
+                    val posterUrl = resolveArtworkForDisplay(safeDetails.posterUrl)
+                    if (posterUrl != null) {
+                        val request = remember(context, posterUrl, posterWidthPx, posterHeightPx) {
                             ImageRequest.Builder(context)
-                                .data(safeDetails.posterUrl)
+                                .data(posterUrl)
                                 .size(posterWidthPx, posterHeightPx)
                                 .build()
                         }
@@ -372,15 +373,6 @@ private fun MovieOverviewContent(details: ReleaseDetails?) {
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Medium,
                             lineHeight = 28.sp,
-                        )
-                    }
-                    safeDetails.tmdbRating?.takeIf { it.isNotBlank() }?.let { rating ->
-                        Text(
-                            text = "TMDB $rating",
-                            color = DetailsTextSecondary,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            lineHeight = 26.sp,
                         )
                     }
                 }

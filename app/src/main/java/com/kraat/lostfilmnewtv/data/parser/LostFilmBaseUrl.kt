@@ -1,5 +1,18 @@
 package com.kraat.lostfilmnewtv.data.parser
 
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+
+private val lostFilmMirrorHosts = setOf(
+    "lostfilm.today",
+    "lostfilm.tv",
+    "lostfilm.download",
+)
+
+internal fun String.isKnownLostFilmMirror(): Boolean =
+    removePrefix("www.").removePrefix("static.") in lostFilmMirrorHosts
+
 /**
  * Runtime holder for the LostFilm base URL.
  *
@@ -10,12 +23,12 @@ package com.kraat.lostfilmnewtv.data.parser
 object LostFilmBaseUrl {
     const val DEFAULT = "https://www.lostfilm.today"
 
-    @Volatile
-    private var current: String = DEFAULT
+    private val current = MutableStateFlow(DEFAULT)
+    val url: StateFlow<String> = current.asStateFlow()
 
-    fun get(): String = current
+    fun get(): String = current.value
 
     fun set(value: String) {
-        current = value.trim().trimEnd('/').ifBlank { DEFAULT }
+        current.value = value.trim().trimEnd('/').ifBlank { DEFAULT }
     }
 }

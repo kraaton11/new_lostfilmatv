@@ -59,10 +59,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.kraat.lostfilmnewtv.ui.components.resolveArtworkForDisplay
 import com.kraat.lostfilmnewtv.ui.components.PosterImage
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
-import com.kraat.lostfilmnewtv.data.model.TmdbEpisodeOverviewSource
 import com.kraat.lostfilmnewtv.ui.components.ShimmerSkeletonBox
 import com.kraat.lostfilmnewtv.ui.components.rememberShimmerSkeletonBrush
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
@@ -381,9 +381,8 @@ private fun ContentState(
 private fun BackgroundPoster(details: ReleaseDetails?) {
     val context = LocalContext.current
     Box(modifier = Modifier.fillMaxSize()) {
-        if (details != null) {
-            val backgroundImage = details.backdropUrl?.takeIf { it.isNotBlank() }
-                ?: details.posterUrl
+        val backgroundImage = resolveArtworkForDisplay(details?.backdropUrl)
+        if (backgroundImage != null) {
             val request = remember(context, backgroundImage) {
                 ImageRequest.Builder(context)
                     .data(backgroundImage)
@@ -715,10 +714,6 @@ private fun buildDetailsMetaChips(
         } else {
             heroMetaLine.takeIf { it.isNotBlank() }?.let(::add)
         }
-        details?.tmdbRating?.takeIf { it.isNotBlank() }?.let { rating ->
-            add("TMDB $rating")
-        }
-        details.episodeOverviewSourceLabel()?.let(::add)
         details?.releaseDateRu?.takeIf { it.isNotBlank() }?.let(::add)
         details?.kind?.let { kind ->
             add(
@@ -729,16 +724,6 @@ private fun buildDetailsMetaChips(
             )
         }
     }.distinct()
-}
-
-private fun ReleaseDetails?.episodeOverviewSourceLabel(): String? {
-    val details = this ?: return null
-    if (details.kind != ReleaseKind.SERIES || details.episodeOverviewRu.isNullOrBlank()) return null
-    return when (details.episodeOverviewSource) {
-        TmdbEpisodeOverviewSource.MACHINE_TRANSLATED.name -> "Автоперевод"
-        TmdbEpisodeOverviewSource.TMDB_EN.name -> "English"
-        else -> null
-    }
 }
 
 @Composable
@@ -938,7 +923,7 @@ private fun PosterCard(details: ReleaseDetails?) {
             .border(1.dp, DetailsBorderDefault.copy(alpha = 0.74f), RoundedCornerShape(22.dp)),
     ) {
         if (details != null) {
-            val posterModel = details.posterUrl.takeIf { it.isNotBlank() }?.let { url ->
+            val posterModel = resolveArtworkForDisplay(details.posterUrl)?.let { url ->
                 remember(context, url, posterWidthPx, posterHeightPx) {
                     ImageRequest.Builder(context)
                         .data(url)

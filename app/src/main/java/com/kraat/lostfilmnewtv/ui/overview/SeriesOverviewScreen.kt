@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.kraat.lostfilmnewtv.ui.components.resolveArtworkForDisplay
 import com.kraat.lostfilmnewtv.data.model.SeriesOverview
 import com.kraat.lostfilmnewtv.ui.components.PosterImage
 import com.kraat.lostfilmnewtv.ui.components.ShimmerSkeletonBox
@@ -109,8 +110,7 @@ fun SeriesOverviewScreen(
 @Composable
 private fun OverviewBackgroundPoster(overview: SeriesOverview?) {
     val context = LocalContext.current
-    val imageUrl = overview?.backdropUrl?.takeIf { !it.isNullOrBlank() }
-        ?: overview?.posterUrl
+    val imageUrl = resolveArtworkForDisplay(overview?.backdropUrl)
         ?: return
     val request = remember(context, imageUrl) {
         ImageRequest.Builder(context)
@@ -288,7 +288,7 @@ private fun OverviewContent(overview: SeriesOverview?) {
         listOfNotNull(
             "Премьера" to safeOverview.premiereDateRu,
             "Канал, страна" to safeOverview.channelCountryRu,
-            "TMDB" to safeOverview.tmdbRating,
+            "IMDb" to safeOverview.imdbRating,
             "Жанр" to safeOverview.genresRu,
             "Тип" to safeOverview.typesRu,
             "Официальный сайт" to safeOverview.officialSiteUrl,
@@ -376,10 +376,11 @@ private fun OverviewContent(overview: SeriesOverview?) {
                         .background(DetailsSurfaceSoft)
                         .border(1.dp, DetailsBorderDefault, RoundedCornerShape(24.dp)),
                 ) {
-                    if (!safeOverview.posterUrl.isNullOrBlank()) {
-                        val request = remember(context, safeOverview.posterUrl, posterWidthPx, posterHeightPx) {
+                    val posterUrl = resolveArtworkForDisplay(safeOverview.posterUrl)
+                    if (posterUrl != null) {
+                        val request = remember(context, posterUrl, posterWidthPx, posterHeightPx) {
                             ImageRequest.Builder(context)
-                                .data(safeOverview.posterUrl)
+                                .data(posterUrl)
                                 .size(posterWidthPx, posterHeightPx)
                                 .build()
                         }
@@ -554,7 +555,6 @@ private fun String.splitByWords(maxChars: Int): List<String> {
 private fun OverviewChipRow(overview: SeriesOverview) {
     val chips = listOfNotNull(
         overview.statusRu?.takeIf { it.isNotBlank() },
-        overview.tmdbRating?.takeIf { it.isNotBlank() }?.let { "TMDB $it" },
         overview.premiereDateRu?.takeIf { it.isNotBlank() },
     )
     if (chips.isEmpty()) return

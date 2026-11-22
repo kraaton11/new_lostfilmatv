@@ -5,7 +5,6 @@ import androidx.room.Room
 import com.kraat.lostfilmnewtv.data.db.ALL_MIGRATIONS
 import com.kraat.lostfilmnewtv.data.db.LostFilmDatabase
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
-import com.kraat.lostfilmnewtv.data.db.TmdbPosterDao
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -31,8 +30,4 @@ object DatabaseModule {
     @Provides
     fun provideReleaseDao(database: LostFilmDatabase): ReleaseDao =
         database.releaseDao()
-
-    @Provides
-    fun provideTmdbPosterDao(database: LostFilmDatabase): TmdbPosterDao =
-        database.tmdbPosterDao()
 }

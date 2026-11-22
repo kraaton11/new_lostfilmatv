@@ -95,6 +95,7 @@ class LostFilmSeasonEpisodesParserTest {
         assertEquals(4, items.size)
         assertEquals("Левые новости", items.first { it.episodeNumber == 8 }.episodeTitleRu)
         assertEquals("Сьюзен мотает срок", items.first { it.episodeNumber == 7 }.episodeTitleRu)
+        assertEquals("/Static/Images/810/Posters/t_shmoster_s2.jpg", items.first().posterUrl)
     }
 
     @Test

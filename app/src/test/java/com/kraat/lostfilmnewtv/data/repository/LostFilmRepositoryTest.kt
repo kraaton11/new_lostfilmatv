@@ -9,8 +9,7 @@ import com.kraat.lostfilmnewtv.data.db.PageCacheMetadataEntity
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
 import com.kraat.lostfilmnewtv.data.db.ReleaseSummaryEntity
 import com.kraat.lostfilmnewtv.data.db.ReleaseDetailsEntity
-import com.kraat.lostfilmnewtv.data.db.TmdbPosterDao
-import com.kraat.lostfilmnewtv.data.db.TmdbPosterMappingEntity
+import com.kraat.lostfilmnewtv.data.parser.toEntity
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteSeriesResult
@@ -21,34 +20,22 @@ import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.SeriesGuide
-import com.kraat.lostfilmnewtv.data.model.TmdbImageUrls
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
+import com.kraat.lostfilmnewtv.data.parser.LostFilmBaseUrl
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteSeriesParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmListParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSeasonEpisodesParser
 import com.kraat.lostfilmnewtv.data.parser.fixture
-import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolver
-import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolverImpl
 import java.io.IOException
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Deferred
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.last
 import com.kraat.lostfilmnewtv.data.repository.FavoritesRepository
 import com.kraat.lostfilmnewtv.data.repository.FavoritesRepositoryImpl
-import com.kraat.lostfilmnewtv.data.poster.TmdbEnrichmentService
-import com.kraat.lostfilmnewtv.data.poster.TmdbEnrichmentServiceImpl
 import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -69,7 +56,6 @@ private const val SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000L
 class LostFilmRepositoryTest {
     private lateinit var database: LostFilmDatabase
     private lateinit var releaseDao: ReleaseDao
-    private lateinit var tmdbPosterDao: TmdbPosterDao
     private lateinit var favoritesRepository: FavoritesRepository
 
     @Before
@@ -81,7 +67,6 @@ class LostFilmRepositoryTest {
             .allowMainThreadQueries()
             .build()
         releaseDao = database.releaseDao()
-        tmdbPosterDao = database.tmdbPosterDao()
     }
 
     @After
@@ -96,7 +81,6 @@ class LostFilmRepositoryTest {
         seedPage(pageNumber = 1, fetchedAt = NOW - SIX_HOURS_MS - 2_000L)
         val repository = createRepository(
             pageHandler = { throw IOException("offline") },
-            tmdbResolver = PosterTmdbResolver(),
         )
 
         val result = repository.loadPage(1)
@@ -105,10 +89,7 @@ class LostFilmRepositoryTest {
         result as PageState.Content
         assertTrue(result.isStale)
         assertEquals("9-1-1", result.items.first().titleRu)
-        assertTrue(
-            "loadPage обогащает кэш перед возвратом",
-            result.items.all { it.posterUrl.isNotBlank() },
-        )
+        assertEquals("/Static/Images/362/Posters/image_s9.jpg", result.items.first().posterUrl)
     }
 
     @Test
@@ -123,45 +104,6 @@ class LostFilmRepositoryTest {
         assertTrue(result is PageState.Error)
         assertTrue(releaseDao.getPageSummaries(1).isEmpty())
         assertTrue(releaseDao.getPageMetadata(1) == null)
-    }
-
-    @Test
-    fun expiredTmdbPosterMappingsAreSweptAlongWithReleaseCache() = runTest {
-        // Маппинги TMDB живут в отдельной таблице, и про TTL у них свой: запись
-        // просела по own isExpired и в сеть бы уже не пошла. Но чистка касалась
-        // только таблиц релизов, поэтому строки копились месяцами.
-        // Ключ маппинга — season-level URL, а не адрес страницы, так что
-        // удалить их иначе, чем по fetchedAt, нечем.
-        val expiredKey = "https://www.lostfilm.today/series/Expired/season_1/"
-        val freshKey = "https://www.lostfilm.today/series/Fresh/season_1/"
-        tmdbPosterDao.upsert(
-            TmdbPosterMappingEntity.create(
-                detailsUrl = expiredKey,
-                tmdbId = 1,
-                tmdbType = "TV",
-                posterUrl = "https://image.tmdb.org/expired.jpg",
-                backdropUrl = "https://image.tmdb.org/expired-backdrop.jpg",
-                fetchedAt = NOW - SEVEN_DAYS_MS - 2_000L,
-            ),
-        )
-        tmdbPosterDao.upsert(
-            TmdbPosterMappingEntity.create(
-                detailsUrl = freshKey,
-                tmdbId = 2,
-                tmdbType = "TV",
-                posterUrl = "https://image.tmdb.org/fresh.jpg",
-                backdropUrl = "https://image.tmdb.org/fresh-backdrop.jpg",
-                fetchedAt = NOW - SIX_HOURS_MS,
-            ),
-        )
-        val repository = createRepository(
-            pageHandler = { throw IOException("offline") },
-        )
-
-        repository.loadPage(1)
-
-        assertTrue("Просроченный маппинг должен быть удалён", tmdbPosterDao.getByDetailsUrl(expiredKey) == null)
-        assertTrue("Свежий маппинг нельзя трогать", tmdbPosterDao.getByDetailsUrl(freshKey) != null)
     }
 
     @Test
@@ -216,42 +158,6 @@ class LostFilmRepositoryTest {
         assertEquals(firstPage.items.first().detailsUrl, secondPage.items.first().detailsUrl)
         assertTrue(secondPage.items.any { it.pageNumber == 2 })
         assertEquals(secondPage.items.map { it.detailsUrl }.distinct().size, secondPage.items.size)
-    }
-
-    @Test
-    fun loadPage_enrichesOnlyFreshlyFetchedPage_whenAppendingNextPage() = runTest {
-        val tmdbResolvedDetailsUrls = mutableListOf<String>()
-        val repository = createRepository(
-            pageHandler = { pageNumber ->
-                when (pageNumber) {
-                    1 -> fixture("new-page-1.html")
-                    2 -> fixture("new-page-2.html")
-                    else -> error("Unexpected page: $pageNumber")
-                }
-            },
-            tmdbResolver = createCountingTmdbResolver(tmdbResolvedDetailsUrls),
-        )
-
-        val firstPage = repository.loadPage(1) as PageState.Content
-        val secondPage = repository.loadPage(2) as PageState.Content
-
-        val firstPageUrls = firstPage.items.map { it.detailsUrl }.toSet()
-        val secondPageUrls = secondPage.items
-            .filter { it.pageNumber == 2 }
-            .map { it.detailsUrl }
-            .toSet()
-        val resolveCounts = tmdbResolvedDetailsUrls.groupingBy { it }.eachCount()
-
-        // Reusing cached page-one rows avoids repeating TMDB work when page two is appended.
-        assertTrue(firstPageUrls.isNotEmpty())
-        assertTrue(secondPageUrls.isNotEmpty())
-        assertEquals(firstPageUrls.size + secondPageUrls.size, tmdbResolvedDetailsUrls.size)
-        firstPageUrls.forEach { detailsUrl ->
-            assertEquals(1, resolveCounts[detailsUrl])
-        }
-        secondPageUrls.forEach { detailsUrl ->
-            assertEquals(1, resolveCounts[detailsUrl])
-        }
     }
 
     @Test
@@ -359,92 +265,21 @@ class LostFilmRepositoryTest {
     }
 
     @Test
-    fun loadPage_persistsTmdbEnrichedPosterIntoSummaryCache() = runTest {
-        val targetDetailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
-        val targetMovieDetailsUrl = "https://www.lostfilm.today/movies/Irreversible"
-        val tmdbPosterUrl = "https://image.tmdb.org/t/p/w780/tmdb-poster.jpg"
-        val tmdbSeriesOverview = "Описание сериала 9-1-1 из TMDB."
-        val tmdbMovieOverview = "Описание фильма Необратимость из TMDB."
-        val repository = createRepository(
-            pageHandler = { fixture("new-page-1.html") },
-            tmdbResolver = object : TmdbPosterResolver {
-                override suspend fun resolve(
-                    detailsUrl: String,
-                    titleRu: String,
-                    kind: com.kraat.lostfilmnewtv.data.model.ReleaseKind,
-                    originalReleaseYear: Int?,
-                ): TmdbImageUrls? {
-                    return if (detailsUrl == targetDetailsUrl) {
-                        TmdbImageUrls(
-                            posterUrl = tmdbPosterUrl,
-                            backdropUrl = "https://image.tmdb.org/t/p/original/tmdb-backdrop.jpg",
-                            seriesOverviewRu = tmdbSeriesOverview,
-                        )
-                    } else if (detailsUrl == targetMovieDetailsUrl) {
-                        TmdbImageUrls(
-                            posterUrl = tmdbPosterUrl,
-                            backdropUrl = "https://image.tmdb.org/t/p/original/tmdb-backdrop.jpg",
-                            movieOverviewRu = tmdbMovieOverview,
-                        )
-                    } else {
-                        null
-                    }
-                }
-            },
-        )
+    fun observePage_replacesCachedProxyPosterWithLostFilmPath() = runTest {
+        seedPage(pageNumber = 1, fetchedAt = NOW - 1_000L)
+        val cached = releaseDao.getPageSummaries(1).first()
+        releaseDao.upsertSummaries(listOf(cached.copy(
+            posterUrl = "https://auth.bazuka.pp.ua/api/tmdb/t/p/w500/legacy.jpg",
+        )))
+        val repository = createRepository(pageHandler = { fixture("new-page-1.html") })
 
-        val result = repository.loadPage(1) as PageState.Content
+        val results = repository.observePage(1).toList().filterIsInstance<PageState.Content>()
 
-        assertEquals(tmdbPosterUrl, result.items.first { it.detailsUrl == targetDetailsUrl }.posterUrl)
-        assertEquals(tmdbSeriesOverview, result.items.first { it.detailsUrl == targetDetailsUrl }.seriesOverviewRu)
-        assertEquals(tmdbMovieOverview, result.items.first { it.detailsUrl == targetMovieDetailsUrl }.movieOverviewRu)
-        assertEquals(tmdbPosterUrl, releaseDao.getSummary(targetDetailsUrl)?.posterUrl)
-        assertEquals(tmdbSeriesOverview, releaseDao.getSummary(targetDetailsUrl)?.seriesOverviewRu)
-        assertEquals(tmdbMovieOverview, releaseDao.getSummary(targetMovieDetailsUrl)?.movieOverviewRu)
-    }
-
-    @Test
-    fun loadSeriesOverview_usesTmdbDescriptionWhenLostFilmDescriptionIsMissing() = runTest {
-        val tmdbSeriesOverview = "Описание сериала из TMDB."
-        val repository = createRepository(
-            pageHandler = { fixture("new-page-1.html") },
-            detailsHandler = {
-                """
-                <html>
-                    <body>
-                        <div class="title-block">
-                            <div class="header">
-                                <h1 class="title-ru">9-1-1</h1>
-                                <h2 class="title-en">9-1-1</h2>
-                            </div>
-                        </div>
-                    </body>
-                </html>
-                """.trimIndent()
-            },
-            tmdbResolver = object : TmdbPosterResolver {
-                override suspend fun resolve(
-                    detailsUrl: String,
-                    titleRu: String,
-                    kind: ReleaseKind,
-                    originalReleaseYear: Int?,
-                ): TmdbImageUrls? {
-                    return TmdbImageUrls(
-                        posterUrl = "",
-                        backdropUrl = "",
-                        seriesOverviewRu = tmdbSeriesOverview,
-                    )
-                }
-            },
-        )
-
-        val result = repository.loadSeriesOverview(
-            "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/",
-        )
-
-        assertTrue(result is SeriesOverviewResult.Success)
-        result as SeriesOverviewResult.Success
-        assertEquals(tmdbSeriesOverview, result.overview.descriptionRu)
+        assertEquals(2, results.size)
+        assertTrue(results.first().isStale)
+        val result = results.last().items.first { it.detailsUrl == cached.detailsUrl }
+        assertEquals("/Static/Images/362/Posters/image_s9.jpg", result.posterUrl)
+        assertEquals(result.posterUrl, releaseDao.getSummary(cached.detailsUrl)?.posterUrl)
     }
 
     @Test
@@ -582,141 +417,76 @@ class LostFilmRepositoryTest {
     }
 
     @Test
-    fun loadDetails_reusesFreshCachedArtwork_withoutTmdbResolve() = runTest {
-        val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
-        releaseDao.upsertDetails(
-            ReleaseDetailsEntity.fromModel(
-                ReleaseDetails(
-                    detailsUrl = detailsUrl,
-                    kind = ReleaseKind.SERIES,
-                    titleRu = "9-1-1",
-                    seasonNumber = 9,
-                    episodeNumber = 13,
-                    releaseDateRu = "14.03.2026",
-                    posterUrl = "https://image.tmdb.org/t/p/w780/cached-poster.jpg",
-                    backdropUrl = "https://image.tmdb.org/t/p/original/cached-backdrop.jpg",
-                    fetchedAt = NOW - 1_000L,
-                    playEpisodeId = null,
-                    seriesStatusRu = "Идет 9 сезон",
-                    episodeOverviewRu = "Cached TMDB overview.",
-                ),
-            ),
-        )
-        val tmdbResolvedDetailsUrls = mutableListOf<String>()
+    fun loadDetailsPreview_fallsBackToCachedDetailsAfterSwitchingMirrors() = runTest {
+        val originalMirror = LostFilmBaseUrl.get()
+        val cachedUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        val mirrorUrl = cachedUrl.replace("lostfilm.today", "lostfilm.download")
+        seedDetails(cachedUrl, fetchedAt = NOW)
         val repository = createRepository(
-            pageHandler = { fixture("new-page-1.html") },
-            detailsHandler = { error("Fresh cached details should not fetch HTML: $it") },
-            tmdbResolver = createCountingTmdbResolver(tmdbResolvedDetailsUrls),
-        )
-
-        val result = repository.loadDetails(detailsUrl) as DetailsResult.Success
-
-        assertEquals("https://image.tmdb.org/t/p/w780/cached-poster.jpg", result.details.posterUrl)
-        assertEquals("https://image.tmdb.org/t/p/original/cached-backdrop.jpg", result.details.backdropUrl)
-        assertTrue(tmdbResolvedDetailsUrls.isEmpty())
-    }
-
-    @Test
-    fun loadDetails_refreshesFreshCachedSeriesEpisodeOverviewFromTmdb() = runTest {
-        val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
-        val tmdbOverview = "Описание эпизода из TMDB."
-        releaseDao.upsertDetails(
-            ReleaseDetailsEntity.fromModel(
-                ReleaseDetails(
-                    detailsUrl = detailsUrl,
-                    kind = ReleaseKind.SERIES,
-                    titleRu = "9-1-1",
-                    seasonNumber = 9,
-                    episodeNumber = 13,
-                    releaseDateRu = "14.03.2026",
-                    posterUrl = "https://image.tmdb.org/t/p/w780/cached-poster.jpg",
-                    backdropUrl = "https://image.tmdb.org/t/p/original/cached-backdrop.jpg",
-                    fetchedAt = NOW - 1_000L,
-                    seriesStatusRu = "Идет 9 сезон",
-                    episodeOverviewRu = null,
-                ),
-            ),
-        )
-        val tmdbResolvedDetailsUrls = mutableListOf<String>()
-        val repository = createRepository(
-            pageHandler = { fixture("new-page-1.html") },
-            detailsHandler = { error("Fresh cached details should not fetch HTML: $it") },
-            tmdbResolver = object : TmdbPosterResolver {
-                override suspend fun resolve(
-                    detailsUrl: String,
-                    titleRu: String,
-                    kind: ReleaseKind,
-                    originalReleaseYear: Int?,
-                ): TmdbImageUrls {
-                    tmdbResolvedDetailsUrls += detailsUrl
-                    return TmdbImageUrls(
-                        posterUrl = "https://image.tmdb.org/t/p/w780/cached-poster.jpg",
-                        backdropUrl = "https://image.tmdb.org/t/p/original/cached-backdrop.jpg",
-                        episodeOverviewRu = tmdbOverview,
-                    )
-                }
-            },
-        )
-
-        val result = repository.loadDetails(detailsUrl) as DetailsResult.Success
-
-        assertEquals(listOf(detailsUrl), tmdbResolvedDetailsUrls)
-        assertEquals(tmdbOverview, result.details.episodeOverviewRu)
-        assertEquals(tmdbOverview, releaseDao.getReleaseDetails(detailsUrl)?.episodeOverviewRu)
-    }
-
-    @Test
-    fun loadDetails_refreshesOlderCachedMovieArtworkWithOriginalReleaseYear() = runTest {
-        val detailsUrl = "https://www.lostfilm.today/movies/Casino"
-        releaseDao.upsertDetails(
-            ReleaseDetailsEntity.fromModel(
-                ReleaseDetails(
-                    detailsUrl = detailsUrl,
-                    kind = ReleaseKind.MOVIE,
-                    titleRu = "Казино",
-                    seasonNumber = null,
-                    episodeNumber = null,
-                    releaseDateRu = "05.04.2026",
-                    posterUrl = "https://image.tmdb.org/t/p/w780/wrong-casino-poster.jpg",
-                    backdropUrl = "https://image.tmdb.org/t/p/original/wrong-casino-backdrop.jpg",
-                    fetchedAt = NOW - 1_000L,
-                    playEpisodeId = null,
-                ),
-            ),
-        )
-        val detailsRequests = mutableListOf<String>()
-        var resolvedOriginalYear: Int? = null
-        val repository = createRepository(
-            pageHandler = { fixture("new-page-1.html") },
+            pageHandler = { error("Unexpected list fetch") },
             detailsHandler = { requestedUrl ->
-                detailsRequests += requestedUrl
-                casinoDetailsHtml()
-            },
-            tmdbResolver = object : TmdbPosterResolver {
-                override suspend fun resolve(
-                    detailsUrl: String,
-                    titleRu: String,
-                    kind: ReleaseKind,
-                    originalReleaseYear: Int?,
-                ): TmdbImageUrls? {
-                    resolvedOriginalYear = originalReleaseYear
-                    return TmdbImageUrls(
-                        posterUrl = "https://image.tmdb.org/t/p/w780/casino-1995-poster.jpg",
-                        backdropUrl = "https://image.tmdb.org/t/p/original/casino-1995-backdrop.jpg",
-                    )
-                }
+                assertEquals(mirrorUrl, requestedUrl)
+                throw IOException("offline")
             },
         )
 
-        val result = repository.loadDetails(detailsUrl) as DetailsResult.Success
+        LostFilmBaseUrl.set("https://www.lostfilm.download")
+        try {
+            val result = repository.loadDetailsPreview(cachedUrl) as DetailsResult.Success
+            assertEquals("/Static/Images/362/Posters/icon_s9.jpg", result.details.posterUrl)
+            assertTrue(result.isStale)
+        } finally {
+            LostFilmBaseUrl.set(originalMirror)
+        }
+    }
 
-        assertEquals(listOf(detailsUrl), detailsRequests)
-        assertEquals(1995, resolvedOriginalYear)
-        assertEquals("https://image.tmdb.org/t/p/w780/casino-1995-poster.jpg", result.details.posterUrl)
-        assertEquals(
-            "https://image.tmdb.org/t/p/w780/casino-1995-poster.jpg",
-            releaseDao.getReleaseDetails(detailsUrl)?.posterUrl,
+    @Test
+    fun loadDetailsPreview_refreshesAndCachesEpisodeDescriptionFromLostFilm() = runTest {
+        val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        val html = fixture("series-details.html")
+        val parsed = LostFilmDetailsParser().parseSeries(html, detailsUrl, NOW)
+        releaseDao.upsertDetails(parsed.copy(episodeOverviewSource = null).toEntity())
+        var requests = 0
+        val repository = createRepository(
+            pageHandler = { error("Unexpected list fetch") },
+            detailsHandler = {
+                requests++
+                html.replace(
+                    "</body>",
+                    """<div class="text-block description"><div class="body"><div class="body">
+                        |Герои узнают правду.
+                        |</div></div></div></body>""".trimMargin(),
+                )
+            },
         )
+
+        val first = repository.loadDetailsPreview(detailsUrl) as DetailsResult.Success
+        val second = repository.loadDetailsPreview(detailsUrl) as DetailsResult.Success
+
+        assertEquals("Герои узнают правду.", first.details.episodeOverviewRu)
+        assertEquals(first.details.episodeOverviewRu, second.details.episodeOverviewRu)
+        assertEquals(1, requests)
+    }
+
+    @Test
+    fun loadDetailsPreview_replacesFreshCachedTmdbArtwork() = runTest {
+        val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
+        val html = fixture("series-details.html")
+        val parsed = LostFilmDetailsParser().parseSeries(html, detailsUrl, NOW)
+        releaseDao.upsertDetails(parsed.copy(
+            posterUrl = "https://image.tmdb.org/t/p/w500/legacy.jpg",
+            backdropUrl = "https://auth.bazuka.pp.ua/api/tmdb/t/p/w780/legacy.jpg",
+        ).toEntity())
+        val repository = createRepository(
+            pageHandler = { error("Unexpected list fetch") },
+            detailsHandler = { html },
+        )
+
+        val result = repository.loadDetailsPreview(detailsUrl) as DetailsResult.Success
+
+        assertEquals("/Static/Images/362/Posters/icon_s9.jpg", result.details.posterUrl)
+        assertEquals("/Static/Images/362/Posters/e_9_13.jpg", result.details.backdropUrl)
+        assertEquals(result.details.posterUrl, releaseDao.getReleaseDetails(detailsUrl)?.posterUrl)
     }
 
     @Test
@@ -918,7 +688,7 @@ class LostFilmRepositoryTest {
     }
 
     @Test
-    fun refreshDetailsExtras_keepsTorrentLinksWhenTmdbResolveFails() = runTest {
+    fun refreshDetailsExtras_loadsTorrentLinks() = runTest {
         val detailsUrl = "https://www.lostfilm.today/series/9-1-1/season_9/episode_13/"
         val previewDetails = LostFilmDetailsParser().parseSeries(
             html = fixture("series-details.html"),
@@ -939,16 +709,6 @@ class LostFilmRepositoryTest {
             },
             torrentPageHandler = { fixture("torrent-options-page.html") },
             isAuthenticated = true,
-            tmdbResolver = object : TmdbPosterResolver {
-                override suspend fun resolve(
-                    detailsUrl: String,
-                    titleRu: String,
-                    kind: ReleaseKind,
-                    originalReleaseYear: Int?,
-                ): TmdbImageUrls? {
-                    throw IOException("tmdb offline")
-                }
-            },
         )
 
         val result = repository.refreshDetailsExtras(previewDetails) as DetailsResult.Success
@@ -1287,7 +1047,6 @@ class LostFilmRepositoryTest {
     @Test
     fun loadFavoriteSeries_returnsSeriesRootsFromAccountPage() = runTest {
         val accountRequests = mutableListOf<String>()
-        val tmdbRequests = mutableListOf<String>()
         val repository = createRepository(
             pageHandler = { fixture("new-page-1.html") },
             accountPageHandler = { path ->
@@ -1297,22 +1056,21 @@ class LostFilmRepositoryTest {
                     else -> error("Unexpected account path $path")
                 }
             },
-            isAuthenticated = true,
-            tmdbResolver = object : TmdbPosterResolver {
-                override suspend fun resolve(
-                    detailsUrl: String,
-                    titleRu: String,
-                    kind: ReleaseKind,
-                    originalReleaseYear: Int?,
-                ): TmdbImageUrls? {
-                    tmdbRequests += detailsUrl
-                    return TmdbImageUrls(
-                        posterUrl = "https://image.tmdb.org/t/p/w500/${titleRu.lowercase()}-poster.jpg",
-                        backdropUrl = "https://image.tmdb.org/t/p/w780/${titleRu.lowercase()}-backdrop.jpg",
-                        seriesOverviewRu = "Описание $titleRu из TMDB.",
-                    )
+            detailsHandler = { url ->
+                if (url.endsWith("/alpha/seasons")) {
+                    """
+                    <div class="serie-block"><h2>1 сезон</h2>
+                        <div class="movie-cover-box"><img class="cover" src="/Static/Images/1/Posters/t_shmoster_s1.jpg"></div>
+                    </div>
+                    <div class="serie-block"><h2>2 сезон</h2>
+                        <div class="movie-cover-box" onclick="PictureZoom('/Static/Images/1/Posters/shmoster_s2.jpg')"></div>
+                    </div>
+                    """.trimIndent()
+                } else {
+                    throw IOException("Guide unavailable")
                 }
             },
+            isAuthenticated = true,
         )
 
         val result = favoritesRepository.loadFavoriteSeries()
@@ -1329,22 +1087,8 @@ class LostFilmRepositoryTest {
         )
         assertEquals(listOf("Alpha", "Beta"), result.items.map { it.titleRu })
         assertEquals(
-            setOf(
-                "https://www.lostfilm.today/series/alpha",
-                "https://www.lostfilm.today/series/beta",
-            ),
-            tmdbRequests.toSet(),
-        )
-        assertEquals(
-            listOf(
-                "https://image.tmdb.org/t/p/w500/alpha-poster.jpg",
-                "https://image.tmdb.org/t/p/w500/beta-poster.jpg",
-            ),
+            listOf("/Static/Images/1/Posters/shmoster_s2.jpg", "/Static/Images/2/Posters/icon.jpg"),
             result.items.map { it.posterUrl },
-        )
-        assertEquals(
-            listOf("Описание Alpha из TMDB.", "Описание Beta из TMDB."),
-            result.items.map { it.seriesOverviewRu },
         )
         assertEquals(listOf(0, 1), result.items.map { it.positionInPage })
         assertTrue(result.items.all { it.fetchedAt == NOW && it.kind == ReleaseKind.SERIES })
@@ -1937,9 +1681,7 @@ class LostFilmRepositoryTest {
     }
 
     @Test
-    fun loadFavoriteReleases_keepsOnlyLatestSeasonPerSeriesBeforeTmdbEnrichment() = runTest {
-        val tmdbResolvedDetailsUrls = mutableListOf<String>()
-        val tmdbResolver = createCountingTmdbResolver(tmdbResolvedDetailsUrls)
+    fun loadFavoriteReleases_keepsOnlyLatestSeasonPerSeries() = runTest {
         val dateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy")
         val alphaEpisodes = buildList {
             addAll((1..5).map { episodeNumber ->
@@ -1987,7 +1729,6 @@ class LostFilmRepositoryTest {
                 }
             },
             isAuthenticated = true,
-            tmdbResolver = tmdbResolver,
         )
 
         val result = favoritesRepository.observeFavoriteReleases().last()
@@ -2005,14 +1746,10 @@ class LostFilmRepositoryTest {
             result.items.map { it.detailsUrl },
         )
         assertEquals(listOf(0, 1, 2, 3, 4), result.items.map { it.positionInPage })
-        assertEquals(5, tmdbResolvedDetailsUrls.size)
-        assertEquals(result.items.map { it.detailsUrl }, tmdbResolvedDetailsUrls)
     }
 
     @Test
-    fun loadFavoriteReleases_limitsMostRecentItemsBeforeTmdbEnrichment() = runTest {
-        val tmdbResolvedDetailsUrls = mutableListOf<String>()
-        val tmdbResolver = createCountingTmdbResolver(tmdbResolvedDetailsUrls)
+    fun loadFavoriteReleases_limitsMostRecentItems() = runTest {
         val favoritesLimit = 30
         val totalSeries = favoritesLimit + 5
         val dateFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy")
@@ -2070,7 +1807,6 @@ class LostFilmRepositoryTest {
             },
             watchedEpisodeMarksHandler = { serialId -> """["$serialId"]""" },
             isAuthenticated = true,
-            tmdbResolver = tmdbResolver,
         )
 
         val result = favoritesRepository.observeFavoriteReleases().last()
@@ -2089,8 +1825,6 @@ class LostFilmRepositoryTest {
             result.items.last().detailsUrl,
         )
         assertFalse(result.items.any { it.detailsUrl.endsWith("/series${oldestIndex - 1}/season_1/episode_1/") })
-        assertEquals(favoritesLimit, tmdbResolvedDetailsUrls.size)
-        assertEquals(result.items.map { it.detailsUrl }.toSet(), tmdbResolvedDetailsUrls.toSet())
     }
 
     @Test
@@ -2146,6 +1880,43 @@ class LostFilmRepositoryTest {
         assertEquals(1, result.items.size)
         assertEquals("Alpha", result.items.first().titleRu)
         assertEquals(1, result.favoriteSeriesCount)
+    }
+
+    @Test
+    fun loadFavoriteReleases_refreshesFreshLegacyCache() = runTest {
+        releaseDao.replaceFavoriteReleasesCache(
+            items = listOf(
+                FavoriteReleaseCacheEntity(
+                    detailsUrl = "https://www.lostfilm.today/series/alpha/season_1/episode_2/",
+                    kind = ReleaseKind.SERIES.name,
+                    titleRu = "Alpha",
+                    episodeTitleRu = null,
+                    seasonNumber = 1,
+                    episodeNumber = 2,
+                    releaseDateRu = "14.03.2026",
+                    posterUrl = "https://image.tmdb.org/t/p/w500/legacy.jpg",
+                    positionInList = 0,
+                    fetchedAt = NOW,
+                    isWatched = false,
+                ),
+            ),
+            metadata = FavoriteReleaseCacheMetadataEntity(
+                fetchedAt = NOW,
+                favoriteSeriesCount = 1,
+                itemCount = 1,
+            ),
+        )
+        createRepository(
+            pageHandler = { error("Unexpected list fetch") },
+            accountPageHandler = { "<html></html>" },
+            isAuthenticated = true,
+        )
+
+        val results = favoritesRepository.observeFavoriteReleases().toList()
+
+        assertTrue(results.first() is FavoriteReleasesResult.Partial)
+        assertTrue((results.last() as FavoriteReleasesResult.Success).items.isEmpty())
+        assertTrue(releaseDao.getFavoriteReleasesCache().isEmpty())
     }
 
     @Test
@@ -2316,74 +2087,7 @@ class LostFilmRepositoryTest {
         assertTrue(releaseDao.getFavoriteReleaseCacheMetadata() == null)
     }
 
-    @Test
-    fun observePage_emitsFreshPageBeforeEnrichmentCompletes() = runTest {
-        val releaseGate = CompletableDeferred<Unit>()
 
-        val observation = observePageWithGatedEnrichment(releaseGate)
-
-        val fresh = observation.fresh
-        assertTrue(fresh.items.isNotEmpty())
-        assertTrue(fresh.items.all { it.posterUrl.isBlank() })
-
-        releaseGate.complete(Unit)
-        observation.job.joinWithin5s()
-
-        val enriched = observation.emissions.filterIsInstance<PageState.Content>().last()
-        assertTrue(enriched.items.any { it.posterUrl.isNotBlank() })
-    }
-
-    @Test
-    fun observePage_persistsArtworkIntoRoomAsItResolves() = runTest {
-        val releaseGate = CompletableDeferred<Unit>()
-
-        val observation = observePageWithGatedEnrichment(releaseGate)
-
-        val whileGated = releaseDao.getSummariesUpToPage(1)
-        assertTrue(whileGated.isNotEmpty())
-        assertTrue(
-            "Пока постеры не пришли, в Room должен лежать пустой арт",
-            whileGated.all { it.posterUrl.isBlank() },
-        )
-
-        releaseGate.complete(Unit)
-        observation.job.joinWithin5s()
-
-        val afterGate = releaseDao.getSummariesUpToPage(1)
-        assertTrue("Арт должен быть записан в Room", afterGate.any { it.posterUrl.isNotBlank() })
-    }
-
-    @Test
-    fun observePage_keepsWatchedFlagSetDuringEnrichment() = runTest {
-        val releaseGate = CompletableDeferred<Unit>()
-
-        val observation = observePageWithGatedEnrichment(releaseGate)
-        val targetUrl = observation.fresh.items.first().detailsUrl
-
-        releaseDao.updateSummaryWatched(targetUrl, true)
-        releaseGate.complete(Unit)
-        observation.job.joinWithin5s()
-
-        val stored = releaseDao.getSummary(targetUrl)
-        requireNotNull(stored)
-        assertTrue("Прогрессивное обогащение не должно сбрасывать isWatched", stored.isWatched)
-    }
-
-    @Test
-    fun observePage_keepsWatchedFlagChangedAfterFetch_inEmittedItems() = runTest {
-        val releaseGate = CompletableDeferred<Unit>()
-
-        val observation = observePageWithGatedEnrichment(releaseGate)
-        val targetUrl = observation.fresh.items.first().detailsUrl
-
-        releaseDao.updateSummaryWatched(targetUrl, true)
-        releaseGate.complete(Unit)
-        observation.job.joinWithin5s()
-
-        val lastEmission = observation.emissions.filterIsInstance<PageState.Content>().last()
-        val target = lastEmission.items.first { it.detailsUrl == targetUrl }
-        assertTrue("Прогрессивная эмиссия не должна откатывать отметку просмотра", target.isWatched)
-    }
 
     @Test
     fun observePage_emitsError_whenNetworkFailsWithoutCache() = runTest {
@@ -2396,21 +2100,6 @@ class LostFilmRepositoryTest {
         assertEquals(1, emissions.size)
         val error = emissions.single() as PageState.Error
         assertEquals("offline", error.message)
-    }
-
-    @Test
-    fun observePage_propagatesCancellation_midEnrichment() = runTest {
-        val releaseGate = CompletableDeferred<Unit>()
-
-        val observation = observePageWithGatedEnrichment(releaseGate)
-
-        observation.job.cancel()
-        observation.job.joinWithin5s()
-
-        assertFalse(
-            "Отмена коллектора должна пробрасываться, а не проглатываться",
-            observation.completedNormally.await(),
-        )
     }
 
     @Test
@@ -2435,7 +2124,6 @@ class LostFilmRepositoryTest {
         seedPage(pageNumber = 1, fetchedAt = NOW - SEVEN_DAYS_MS / 2)
         val repository = createRepository(
             pageHandler = { throw IOException("offline") },
-            tmdbResolver = PosterTmdbResolver(),
         )
 
         val emissions = repository.observePage(1).toList()
@@ -2443,65 +2131,11 @@ class LostFilmRepositoryTest {
         val contents = emissions.filterIsInstance<PageState.Content>()
         assertEquals(2, contents.size)
         assertTrue(contents.all { it.isStale })
-        assertTrue(
-            "Путь ленты не должен блокироваться на обогащении кэша",
-            contents.all { content -> content.items.all { it.posterUrl.isBlank() } },
-        )
-    }
-
-    private class GatedObservation(
-        val emissions: MutableList<PageState>,
-        val fresh: PageState.Content,
-        val completedNormally: Deferred<Boolean>,
-        val job: Job,
-    )
-
-    /**
-     * Собирает [LostFilmRepository.observePage] с резолвером, который висит на гейте:
-     * возвращает управление сразу после свежей эмиссии, до того как пришёл хоть один постер.
-     * Таймауты ждём на реальном диспетчере: executor запросов Room невидим для
-     * TestCoroutineScheduler, и runTest на нём прокрутит виртуальное время до таймаута
-     * и отменит сбор корректного flow.
-     */
-    private suspend fun TestScope.observePageWithGatedEnrichment(
-        gate: CompletableDeferred<Unit>,
-    ): GatedObservation {
-        val repository = createRepository(
-            pageHandler = { fixture("new-page-1.html") },
-            tmdbResolver = GatedTmdbResolver(gate),
-        )
-        val emissions = mutableListOf<PageState>()
-        val freshEmission = CompletableDeferred<PageState.Content>()
-        val completedNormally = CompletableDeferred<Boolean>()
-        val job = launch(Dispatchers.Default) {
-            try {
-                repository.observePage(1).collect { state ->
-                    emissions += state
-                    if (state is PageState.Content && !state.isStale && !freshEmission.isCompleted) {
-                        freshEmission.complete(state)
-                    }
-                }
-                completedNormally.complete(true)
-            } catch (exception: CancellationException) {
-                completedNormally.complete(false)
-            }
-        }
-        val fresh = requireNotNull(
-            withContext(Dispatchers.IO) {
-                withTimeoutOrNull(5_000) { freshEmission.await() }
-            },
-        ) { "Свежая страница должна прийти до того, как резолвер что-то отдаст" }
-        return GatedObservation(
-            emissions = emissions,
-            fresh = fresh,
-            completedNormally = completedNormally,
-            job = job,
-        )
     }
 
     @Test
     fun loadSchedule_doesNotFetchDetailsForMissingPosters() = runTest {
-        // Постеры в расписании берём из разметки страницы расписания или из TMDB.
+        // Постеры в расписании берём из разметки страницы расписания.
         // Заведомо пустой разбор страницы деталей не может дать адрес картинки, но
         // раньше на каждый пункт без постера всё равно уходил сетевой запрос:
         // при 20–40 пунктах в месяц это заметный трафик впустую.
@@ -2524,15 +2158,6 @@ class LostFilmRepositoryTest {
         assertTrue(
             "Расписание не должно ходить за постерами на страницу деталей: $requestedDetailsUrls",
             requestedDetailsUrls == listOf("https://www.lostfilm.today/schedule/my_0/type_0"),
-        )
-    }
-
-    private suspend fun Job.joinWithin5s() {
-        assertTrue(
-            "Коллектор observePage не завершился за 5 секунд",
-            withContext(Dispatchers.IO) {
-                withTimeoutOrNull(5_000) { this@joinWithin5s.join() }
-            } != null,
         )
     }
 
@@ -2578,7 +2203,6 @@ class LostFilmRepositoryTest {
         },
         accountPageHandler: suspend (String) -> String = { error("Unexpected account page request: $it") },
         isAuthenticated: Boolean = false,
-        tmdbResolver: TmdbPosterResolver = createFakeTmdbResolver(),
     ): LostFilmRepository {
         val fakeHttpClient = FakeLostFilmHttpClient(
             pageHandler = pageHandler,
@@ -2590,59 +2214,22 @@ class LostFilmRepositoryTest {
             favoriteToggleHandler = favoriteToggleHandler,
             accountPageHandler = accountPageHandler,
         )
-        val tmdbEnrichmentService = TmdbEnrichmentServiceImpl(
-            tmdbResolver = tmdbResolver,
-            releaseDao = releaseDao
-        )
         favoritesRepository = FavoritesRepositoryImpl(
             httpClient = fakeHttpClient,
             releaseDao = releaseDao,
-            tmdbEnrichmentService = tmdbEnrichmentService,
             hasAuthenticatedSession = { isAuthenticated },
             clock = { NOW },
         )
         return LostFilmRepositoryImpl(
             httpClient = fakeHttpClient,
             releaseDao = releaseDao,
-            tmdbPosterDao = tmdbPosterDao,
             listParser = LostFilmListParser(),
             detailsParser = LostFilmDetailsParser(),
             favoriteSeriesParser = LostFilmFavoriteSeriesParser(),
             seasonEpisodesParser = LostFilmSeasonEpisodesParser(),
             hasAuthenticatedSession = { isAuthenticated },
-            tmdbResolver = tmdbResolver,
-            tmdbEnrichmentService = tmdbEnrichmentService,
             favoritesRepository = dagger.internal.DoubleCheck.lazy { favoritesRepository },
             clock = { NOW },
-        )
-    }
-}
-
-private class PosterTmdbResolver : TmdbPosterResolver {
-    override suspend fun resolve(
-        detailsUrl: String,
-        titleRu: String,
-        kind: com.kraat.lostfilmnewtv.data.model.ReleaseKind,
-        originalReleaseYear: Int?,
-    ): TmdbImageUrls = TmdbImageUrls(
-        posterUrl = "https://image.tmdb.org/t/p/w780/$detailsUrl.jpg",
-        backdropUrl = "https://image.tmdb.org/t/p/w1280/$detailsUrl.jpg",
-    )
-}
-
-private class GatedTmdbResolver(
-    private val gate: CompletableDeferred<Unit>,
-) : TmdbPosterResolver {
-    override suspend fun resolve(
-        detailsUrl: String,
-        titleRu: String,
-        kind: com.kraat.lostfilmnewtv.data.model.ReleaseKind,
-        originalReleaseYear: Int?,
-    ): TmdbImageUrls {
-        gate.await()
-        return TmdbImageUrls(
-            posterUrl = "https://image.tmdb.org/t/p/w780/$detailsUrl.jpg",
-            backdropUrl = "https://image.tmdb.org/t/p/w1280/$detailsUrl.jpg",
         )
     }
 }
@@ -2792,7 +2379,7 @@ private fun seriesRootPageWithStatusHtml(): String = """
 
 private fun expectedTedGuide(): SeriesGuide = SeriesGuide(
     seriesTitleRu = "Третий лишний",
-    posterUrl = "",
+    posterUrl = "/Static/Images/810/Posters/image.jpg",
     selectedEpisodeDetailsUrl = "https://www.lostfilm.today/series/Ted/season_2/episode_8/",
     seasons = listOf(
         com.kraat.lostfilmnewtv.data.model.SeriesGuideSeason(
@@ -2984,7 +2571,7 @@ private fun expectedSearchItems(): List<LostFilmSearchItem> = listOf(
         titleRu = "Дом дракона",
         titleEn = "House of the Dragon",
         subtitle = "Статус: Идет • Год выхода: 2022 • Канал: HBO",
-        posterUrl = null,
+        posterUrl = "/Static/Images/676/Posters/image.jpg",
         targetUrl = "https://www.lostfilm.today/series/House_of_the_Dragon",
         kind = ReleaseKind.SERIES,
     ),
@@ -2992,7 +2579,7 @@ private fun expectedSearchItems(): List<LostFilmSearchItem> = listOf(
         titleRu = "Путь дракона",
         titleEn = "The Way of the Dragon",
         subtitle = "Год выхода: 1972 • Жанр: Боевик",
-        posterUrl = null,
+        posterUrl = "/Static/Images/1112/Posters/image.jpg",
         targetUrl = "https://www.lostfilm.today/movies/The_Way_of_the_Dragon",
         kind = ReleaseKind.MOVIE,
     ),
@@ -3005,59 +2592,3 @@ private data class SeasonEpisodeRow(
     val releaseDateRu: String,
     val episodeId: String,
 )
-
-private fun createFakeTmdbResolver(): TmdbPosterResolver {
-    val fakeDao = object : TmdbPosterDao {
-        override suspend fun getByDetailsUrl(detailsUrl: String) = null
-        override suspend fun upsert(entity: com.kraat.lostfilmnewtv.data.db.TmdbPosterMappingEntity) {}
-override suspend fun deleteExpired(threshold: Long) {}
-        override suspend fun deleteSeasonMappingsUnder(seriesPrefix: String) {}
-        override suspend fun deleteAll() {}
-    }
-    val fakeClient = FakeTmdbPosterClient()
-    return TmdbPosterResolverImpl(fakeClient, fakeDao)
-}
-
-private fun createCountingTmdbResolver(
-    resolvedDetailsUrls: MutableList<String>,
-): TmdbPosterResolver {
-    return object : TmdbPosterResolver {
-        override suspend fun resolve(
-            detailsUrl: String,
-            titleRu: String,
-            kind: com.kraat.lostfilmnewtv.data.model.ReleaseKind,
-            originalReleaseYear: Int?,
-        ): TmdbImageUrls? {
-            resolvedDetailsUrls += detailsUrl
-            return null
-        }
-    }
-}
-
-private fun casinoDetailsHtml(): String = """
-    <html>
-        <body>
-            <h1 class="title-ru">Казино</h1>
-            <div class="main_poster">
-                <img rel="image_src" src="/Static/Images/999/Posters/poster.jpg" />
-            </div>
-            <div class="details-pane">
-                <div class="left-box">
-                    Дата выхода ru: <span data-released="5 апреля 2026">5 апреля 2026</span> г.<br/>
-                    Дата выхода eng: 22 ноября 1995 г.<br/>
-                </div>
-            </div>
-        </body>
-    </html>
-""".trimIndent()
-
-private class FakeTmdbPosterClient : com.kraat.lostfilmnewtv.data.network.TmdbPosterClient(
-    okHttpClient = okhttp3.OkHttpClient.Builder().build(),
-    apiKey = "fake",
-) {
-    override suspend fun searchByTitle(query: String, year: Int?, type: com.kraat.lostfilmnewtv.data.model.TmdbMediaType, page: Int, language: String?) =
-        emptyList<com.kraat.lostfilmnewtv.data.model.TmdbSearchResult>()
-
-    override suspend fun getPosterAndBackdrop(tmdbId: Int, type: com.kraat.lostfilmnewtv.data.model.TmdbMediaType) =
-        null
-}

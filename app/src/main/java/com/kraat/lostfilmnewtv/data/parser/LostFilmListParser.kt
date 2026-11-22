@@ -3,6 +3,7 @@ package com.kraat.lostfilmnewtv.data.parser
 import android.util.Log
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.jsoup.Jsoup
 import org.jsoup.nodes.Element
 
@@ -88,7 +89,7 @@ class LostFilmListParser {
             .map { it.text().normalizeText() }
             .ifEmpty { listOfNotNull(detailsPane?.text()?.normalizeText()) }
 
-        val posterUrl = ""
+        val posterUrl = contentLink.lostFilmImagePath("img.thumb, .picture-box img").orEmpty()
         val isWatched = row.selectFirst(".haveseen-btn.checked") != null
         val releaseDateRu = detailsPaneValues
             .firstOrNull { it.startsWith("Дата выхода Ru:") }
@@ -172,9 +173,7 @@ fun String.extractYear(): Int? =
 fun Element?.absoluteUrl(attributeName: String): String {
     val value = this?.attr("abs:$attributeName").orEmpty()
 
-    return value.ifBlank {
-        resolveUrl(this?.attr(attributeName).orEmpty())
-    }
+    return resolveUrl(value.ifBlank { this?.attr(attributeName).orEmpty() })
 }
 
 fun Element?.textOrEmpty(): String = this?.text()?.normalizeText().orEmpty()
@@ -183,9 +182,22 @@ fun String.normalizeText(): String = trim().replace('\u00A0', ' ')
 
 fun resolveUrl(url: String): String =
     when {
-        url.startsWith("http://") || url.startsWith("https://") -> url
-        url.startsWith("//") -> "https:$url"
+        url.startsWith("http://") || url.startsWith("https://") -> url.onSelectedLostFilmMirror()
+        url.startsWith("//") -> "https:$url".onSelectedLostFilmMirror()
         url.startsWith("/") -> "$BASE_URL$url"
         url.isBlank() -> ""
         else -> "$BASE_URL/$url"
     }
+
+private fun String.onSelectedLostFilmMirror(): String {
+    val link = toHttpUrlOrNull() ?: return this
+    if (!link.host.isKnownLostFilmMirror()) return this
+    if (!link.encodedPath.startsWith("/series/") && !link.encodedPath.startsWith("/movies/")) return this
+    val selected = BASE_URL.toHttpUrlOrNull() ?: return this
+    return selected.newBuilder()
+        .encodedPath(link.encodedPath)
+        .encodedQuery(link.encodedQuery)
+        .encodedFragment(link.encodedFragment)
+        .build()
+        .toString()
+}

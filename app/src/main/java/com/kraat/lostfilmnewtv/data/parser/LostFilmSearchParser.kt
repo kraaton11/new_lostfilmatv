@@ -38,7 +38,7 @@ class LostFilmSearchParser {
                 ?.normalizeText()
                 ?.takeIf { it.isNotBlank() },
             subtitle = subtitle,
-            posterUrl = null,
+            posterUrl = contentLink.lostFilmImagePath("img.thumb, .picture-box img"),
             targetUrl = targetUrl,
             kind = kind,
         )

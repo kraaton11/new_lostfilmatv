@@ -12,10 +12,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import com.kraat.lostfilmnewtv.data.db.LostFilmDatabase
+import com.kraat.lostfilmnewtv.data.network.LostFilmPortraitInterceptor
 import javax.inject.Inject
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import com.kraat.lostfilmnewtv.data.parser.LostFilmBaseUrl
-import com.kraat.lostfilmnewtv.data.network.TmdbImageFallbackInterceptor
 
 @HiltAndroidApp
 class LostFilmApplication : Application(), Configuration.Provider, ImageLoaderFactory {
@@ -56,9 +56,7 @@ class LostFilmApplication : Application(), Configuration.Provider, ImageLoaderFa
                     .maxSizePercent(0.05)
                     .build()
             }
-            .components {
-                add(TmdbImageFallbackInterceptor())
-            }
+            .components { add(LostFilmPortraitInterceptor()) }
             .crossfade(false)
             .build()
     }

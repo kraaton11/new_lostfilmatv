@@ -13,6 +13,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.kraat.lostfilmnewtv.data.parser.lostFilmArtworkUrl
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.playback.WatchedMarkingMode
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeActionHandler
@@ -115,7 +116,14 @@ fun DetailsRoute(
         inFlightJob?.cancel()
         inFlightJob = scope.launch(start = CoroutineStart.UNDISPATCHED) {
             try {
-                val message = when (openTorrServe(context, url, currentDetails?.titleRu.orEmpty(), currentDetails?.posterUrl.orEmpty())) {
+                val message = when (
+                    openTorrServe(
+                        context,
+                        url,
+                        currentDetails?.titleRu.orEmpty(),
+                        lostFilmArtworkUrl(currentDetails?.posterUrl).orEmpty(),
+                    )
+                ) {
                     TorrServeOpenResult.Success -> {
                         val playEpisodeId = currentDetails?.playEpisodeId
                         if (playEpisodeId != null && watchedMarkingMode == WatchedMarkingMode.AUTO) {

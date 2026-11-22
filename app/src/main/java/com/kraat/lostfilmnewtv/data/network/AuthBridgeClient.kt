@@ -8,13 +8,10 @@ import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import okhttp3.FormBody
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.Response
 
 class AuthBridgeClient(
@@ -37,34 +34,6 @@ class AuthBridgeClient(
             val body = response.requireSuccessBody(url)
             val dto = json.decodeFromString(PairingDto.serializer(), body)
             dto.toModel()
-        }
-    }
-
-    suspend fun translateEnglishToRussian(text: String): String? = withContext(Dispatchers.IO) {
-        val normalizedText = text.trim()
-        if (normalizedText.isBlank()) {
-            return@withContext null
-        }
-
-        val url = "$baseUrl/api/translate"
-        val payload = json.encodeToString(
-            TranslationRequestDto(
-                text = normalizedText,
-                sourceLanguage = "EN",
-                targetLanguage = "RU",
-            ),
-        )
-        val request = Request.Builder()
-            .url(url)
-            .post(payload.toRequestBody(JSON_MEDIA_TYPE))
-            .build()
-
-        httpClient.newCall(request).execute().use { response ->
-            val body = response.requireSuccessBody(url)
-            json.decodeFromString(TranslationResponseDto.serializer(), body)
-                .text
-                .trim()
-                .takeIf { it.isNotBlank() }
         }
     }
 
@@ -225,19 +194,4 @@ class AuthBridgeClient(
         val path: String = "/",
     )
 
-    @Serializable
-    private data class TranslationRequestDto(
-        val text: String,
-        val sourceLanguage: String,
-        val targetLanguage: String,
-    )
-
-    @Serializable
-    private data class TranslationResponseDto(
-        val text: String,
-    )
-
-    private companion object {
-        val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
-    }
 }

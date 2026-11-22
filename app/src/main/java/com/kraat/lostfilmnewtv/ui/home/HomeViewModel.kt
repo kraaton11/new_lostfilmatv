@@ -7,7 +7,11 @@ import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteSeriesResult
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
+import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
+import com.kraat.lostfilmnewtv.data.repository.DetailsResult
+import com.kraat.lostfilmnewtv.data.repository.SeriesOverviewResult
+import com.kraat.lostfilmnewtv.data.parser.LOSTFILM_OVERVIEW_SOURCE
 import com.kraat.lostfilmnewtv.data.repository.FavoritesRepository
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import com.kraat.lostfilmnewtv.updates.AppUpdateCoordinator
@@ -26,6 +30,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.onCompletion
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val FOCUS_KEY = "home.focused_item_key"
 private const val HOME_RESUME_REFRESH_INTERVAL_MS = 30 * 60 * 1000L
@@ -240,6 +245,32 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    suspend fun loadReleasePreview(detailsUrl: String): HomeReleasePreview = withContext(ioDispatcher) {
+        val isSeriesOverview = detailsUrl.contains("/series/") && !detailsUrl.contains("/episode_")
+        val details = if (isSeriesOverview) null else
+            (repository.loadDetailsPreview(detailsUrl) as? DetailsResult.Success)?.details
+        if (details?.kind == ReleaseKind.MOVIE) {
+            // Movie pages store their synopsis in the shared details description field.
+            return@withContext HomeReleasePreview(
+                description = details.episodeOverviewRu?.takeIf { it.isNotBlank() },
+                backdropUrl = details.backdropUrl ?: details.posterUrl.takeIf { it.isNotBlank() },
+            )
+        }
+        val episodeOverview = details
+            ?.takeIf { it.episodeOverviewSource == LOSTFILM_OVERVIEW_SOURCE }
+            ?.episodeOverviewRu
+            ?.takeIf { it.isNotBlank() }
+        if (episodeOverview != null) return@withContext HomeReleasePreview(episodeOverview, details?.backdropUrl)
+
+        val seriesOverview = (repository.loadSeriesOverview(detailsUrl) as? SeriesOverviewResult.Success)?.overview
+        val description = seriesOverview?.descriptionRu?.takeIf { it.isNotBlank() }
+            ?: seriesOverview?.plotRu?.takeIf { it.isNotBlank() }
+        HomeReleasePreview(
+            description = if (isSeriesOverview) description else description?.let { "О сериале · $it" },
+            backdropUrl = details?.backdropUrl ?: seriesOverview?.posterUrl,
+        )
+    }
+
     fun onItemFocused(itemKey: String) {
         val state = _uiState.value
         val mode = itemMode(state, itemKey)
@@ -404,12 +435,8 @@ class HomeViewModel @Inject constructor(
             try {
                 repository.observePage(1)
                     .onCompletion { cause ->
-                        // Синхронизацию канала снимаем с пути сбора: syncNow()
-                        // ждёт сеть (до 30 резолвов TMDB) и в вызове emit
-                        // заблокировал бы поток на всё обогащение — лента стояла бы
-                        // без постеров. Запускаем после завершения потока, когда
-                        // кэши резолвера уже прогреты, и в отдельной корутине, чтобы
-                        // коллектор вернулся сразу.
+                        // Синхронизируем канал после сохранения свежей страницы в Room.
+                        // Отдельная корутина позволяет коллектору завершиться сразу.
                         //
                         // Отмену пропускаем. Сбор первой страницы отменяют пагинация
                         // и повторная загрузка страницы 1 из onResume/onRetry, а сам
@@ -492,10 +519,7 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun collectNextPage(pageNumber: Int, isPagingRequest: Boolean) {
-        // Отменяем предыдущую загрузку всегда, а не только вне пагинации: сюда
-        // попадает только пагинация, а поток первой страницы живёт до конца
-        // прогрессивного обогащения. Без отмены его эмиссия постера перезапишет
-        // уже применённую страницу и список откатится на первую страницу.
+        // Поздний ответ предыдущей загрузки может перезаписать уже применённую страницу.
         allNewLoadJob?.cancel()
         _uiState.update { state ->
             state.copy(

@@ -3,7 +3,7 @@ package com.kraat.lostfilmnewtv.data.repository
 import com.kraat.lostfilmnewtv.data.db.PageCacheMetadataEntity
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
 import com.kraat.lostfilmnewtv.data.db.ReleaseDetailsEntity
-import com.kraat.lostfilmnewtv.data.db.TmdbPosterDao
+import com.kraat.lostfilmnewtv.data.parser.LOSTFILM_OVERVIEW_SOURCE
 import com.kraat.lostfilmnewtv.data.model.FavoriteMetadata
 import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
 import com.kraat.lostfilmnewtv.data.model.PageState
@@ -11,10 +11,11 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.model.SeriesGuide
-import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.SEARCH_ENRICHMENT_CONCURRENCY
 import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.WATCHED_MARKS_LOAD_CONCURRENCY
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.parser.BASE_URL
+import com.kraat.lostfilmnewtv.data.parser.lostFilmArtworkPath
+import com.kraat.lostfilmnewtv.data.parser.hasLegacyArtwork
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteSeriesParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmListParser
@@ -30,9 +31,6 @@ import com.kraat.lostfilmnewtv.data.parser.textOrEmpty
 import com.kraat.lostfilmnewtv.data.parser.toEntity
 import com.kraat.lostfilmnewtv.data.parser.toSummaryEntities
 import com.kraat.lostfilmnewtv.data.parser.toSummaryModels
-import com.kraat.lostfilmnewtv.data.poster.TmdbPosterEnricher
-import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolver
-import com.kraat.lostfilmnewtv.data.poster.TmdbEnrichmentService
 import dagger.Lazy
 import android.util.Log
 import java.io.IOException
@@ -63,7 +61,6 @@ private const val NEW_RELEASES_ROOM_FRESH_MS = 10 * 60 * 1000L
 private const val MOVIES_PAGE_SIZE = 20
 private const val SERIES_CATALOG_PAGE_SIZE = 20
 private const val CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000L
-private const val YEAR_AWARE_TMDB_MATCHING_MIN_FETCHED_AT_MS = 1777852800000L // 2026-05-04
 private val paginatorRegex = Regex("""/new/page_(\d+)""")
 private fun seriesFavoritePageRegex() = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)/season_\d+/episode_\d+/?""")
 private fun seriesRootUrlRegex() = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)(?:/.*)?/?""")
@@ -78,7 +75,6 @@ class LostFilmRepositoryImpl(
     private val httpClient: LostFilmHttpClient,
     private val anonymousHttpClient: LostFilmHttpClient = httpClient,
     private val releaseDao: ReleaseDao,
-    private val tmdbPosterDao: TmdbPosterDao,
     private val listParser: LostFilmListParser,
     private val detailsParser: LostFilmDetailsParser,
     private val favoriteSeriesParser: LostFilmFavoriteSeriesParser = LostFilmFavoriteSeriesParser(),
@@ -87,8 +83,6 @@ class LostFilmRepositoryImpl(
     private val scheduleParser: LostFilmScheduleParser = LostFilmScheduleParser(),
     private val seriesCatalogParser: LostFilmSeriesCatalogParser = LostFilmSeriesCatalogParser(),
     private val seriesOverviewParser: LostFilmSeriesOverviewParser = LostFilmSeriesOverviewParser(),
-    private val tmdbResolver: TmdbPosterResolver,
-    private val tmdbEnrichmentService: TmdbEnrichmentService,
     private val favoritesRepository: Lazy<FavoritesRepository>,
     private val hasAuthenticatedSession: suspend () -> Boolean,
     private val clock: () -> Long = { System.currentTimeMillis() },
@@ -99,28 +93,16 @@ class LostFilmRepositoryImpl(
     // setEpisodeWatched не делать повторный fetchDetails ради получения токена.
     private val watchedPageCache = ConcurrentHashMap<String, Pair<Boolean?, String?>>()
 
-    /**
-     * Блокирующий вариант загрузки страницы: ждёт и сеть, и разбор, и полное
-     * обогащение постерами. Используется ручным обновлением первой страницы в
-     * настройках и фоновым обновлением домашнего канала: обоим нужен готовый
-     * результат в конце задачи, а кэш должен прогреться целиком.
-     * Лента использует [observePage].
-     */
     override suspend fun loadPage(pageNumber: Int): PageState {
         cleanupExpiredDataIfNeeded()
 
         return try {
             val fetchedPage = fetchAndPersistPage(pageNumber)
 
-            // Only enrich the freshly fetched page; previous pages already keep their TMDB posters in Room.
-            val enrichedItems = tmdbEnrichmentService.enrichSummaries(
-                items = fetchedPage.items,
-                persistToCache = true,
-            )
             val pageItems = if (pageNumber > 1) {
                 releaseDao.getSummariesUpToPage(pageNumber).toSummaryModels()
             } else {
-                enrichedItems
+                fetchedPage.items
             }
 
             PageState.Content(
@@ -151,7 +133,10 @@ class LostFilmRepositoryImpl(
         if (cachedItems.isNotEmpty()) {
             val metadata = releaseDao.getPageMetadata(pageNumber)
             val cacheFresh = metadata != null &&
-                (clock() - metadata.fetchedAt) < NEW_RELEASES_ROOM_FRESH_MS
+                (clock() - metadata.fetchedAt) < NEW_RELEASES_ROOM_FRESH_MS &&
+                cachedItems.none {
+                    it.pageNumber == pageNumber && hasLegacyArtwork(it.posterUrl, it.backdropUrl)
+                }
             emit(
                 PageState.Content(
                     pageNumber = pageNumber,
@@ -164,8 +149,6 @@ class LostFilmRepositoryImpl(
             if (cacheFresh) return@flow
         }
 
-        // 2. Загружаем страницу и сразу отдаём её без постеров, чтобы лента
-        //    отрисовалась, не дожидаясь обогащения всей страницы.
         val fetchedPage = try {
             fetchAndPersistPage(pageNumber)
         } catch (exception: CancellationException) {
@@ -174,14 +157,14 @@ class LostFilmRepositoryImpl(
             // Порядок важен: CancellationException — потомок IllegalStateException,
             // поэтому без первого catch отмена ушла бы в ветку кэша.
             if (exception is IOException || exception is IllegalStateException) {
-                emit(fallbackPageState(pageNumber, exception, enrich = false))
+                emit(fallbackPageState(pageNumber, exception))
             } else {
                 throw exception
             }
             return@flow
         }
 
-        var currentItems = releaseDao.getSummariesUpToPage(pageNumber).toSummaryModels()
+        val currentItems = releaseDao.getSummariesUpToPage(pageNumber).toSummaryModels()
         emit(
             PageState.Content(
                 pageNumber = pageNumber,
@@ -191,36 +174,6 @@ class LostFilmRepositoryImpl(
             ),
         )
 
-        // 3. Постеры догружаются по одному; каждый emit заменяет item в списке.
-        //    Ошибка обогащения не должна ронять ленту: страница уже на экране,
-        //    поэтому гасим всё, кроме отмены.
-        try {
-            tmdbEnrichmentService.enrichProgressively(fetchedPage.items).collect { enriched ->
-                // Отметку просмотра берём из Room по первичному ключу: пока постер
-                // ехал, пользователь мог посмотреть серию, и в currentItems её
-                // значение ещё старое.
-                val storedIsWatched = releaseDao.getSummary(enriched.detailsUrl)?.isWatched
-                currentItems = currentItems.map { item ->
-                    if (item.detailsUrl == enriched.detailsUrl) {
-                        enriched.copy(isWatched = storedIsWatched ?: item.isWatched)
-                    } else {
-                        item
-                    }
-                }
-                emit(
-                    PageState.Content(
-                        pageNumber = pageNumber,
-                        items = currentItems,
-                        hasNextPage = fetchedPage.hasNextPage,
-                        isStale = false,
-                    ),
-                )
-            }
-        } catch (exception: CancellationException) {
-            throw exception
-        } catch (exception: Exception) {
-            Log.w(TAG, "TMDB enrichment failed for page $pageNumber: ${exception.message}")
-        }
     }
 
     override suspend fun loadMovies(pageNumber: Int): PageState {
@@ -236,14 +189,9 @@ class LostFilmRepositoryImpl(
                     fetchedAt = fetchedAt,
                 )
             }
-            val enrichedItems = tmdbEnrichmentService.enrichSummaries(
-                items = parsedItems,
-                persistToCache = false,
-            )
-
             PageState.Content(
                 pageNumber = pageNumber,
-                items = enrichedItems,
+                items = parsedItems,
                 hasNextPage = parsedItems.size >= MOVIES_PAGE_SIZE,
                 isStale = false,
             )
@@ -272,14 +220,9 @@ class LostFilmRepositoryImpl(
                     fetchedAt = fetchedAt,
                 )
             }
-            val enrichedItems = tmdbEnrichmentService.enrichSummaries(
-                items = parsedItems,
-                persistToCache = false,
-            )
-
             PageState.Content(
                 pageNumber = pageNumber,
-                items = enrichedItems,
+                items = parsedItems,
                 hasNextPage = parsedItems.size >= SERIES_CATALOG_PAGE_SIZE,
                 isStale = false,
             )
@@ -304,43 +247,24 @@ class LostFilmRepositoryImpl(
     override suspend fun loadDetails(detailsUrl: String): DetailsResult {
         val normalizedDetailsUrl = resolveUrl(detailsUrl)
         cleanupExpiredDataIfNeeded()
-        val cachedDetails = releaseDao.getReleaseDetails(normalizedDetailsUrl)
+        val currentCachedDetails = releaseDao.getReleaseDetails(normalizedDetailsUrl)
+        val cachedDetails = currentCachedDetails ?: detailsUrl
+            .takeIf { it != normalizedDetailsUrl }
+            ?.let { releaseDao.getReleaseDetails(it) }
         val now = clock()
 
-        if (cachedDetails != null && now - cachedDetails.fetchedAt <= FRESH_WINDOW_MS) {
+        if (
+            currentCachedDetails != null &&
+            now - currentCachedDetails.fetchedAt <= FRESH_WINDOW_MS &&
+            !currentCachedDetails.needsEpisodeOverviewRefresh() &&
+            !hasLegacyArtwork(currentCachedDetails.posterUrl, currentCachedDetails.backdropUrl)
+        ) {
             val cachedModel = enrichWithSummaryEpisodeTitle(
                 refreshFavoriteMetadataIfNeeded(
-                    refreshCachedTorrentLinksIfNeeded(cachedDetails.toModel()),
+                    refreshCachedTorrentLinksIfNeeded(currentCachedDetails.toModel()),
                 ),
             )
-            // Fully enriched cached details already include TMDB artwork and LostFilm overview, so avoid touching the resolver.
-            // Movie details cached before year-aware TMDB matching can contain a wrong same-title poster.
-            if (
-                cachedModel.hasCompleteArtwork() &&
-                cachedModel.hasDetailsOverview() &&
-                cachedModel.hasDetailsHeroOverview() &&
-                !cachedDetails.needsYearAwareMovieArtworkRefresh()
-            ) {
-                return DetailsResult.Success(
-                    details = cachedModel,
-                    isStale = false,
-                )
-            }
-
-            if (!cachedDetails.needsYearAwareMovieArtworkRefresh()) {
-                val tmdbUrls = tmdbResolver.resolve(
-                    detailsUrl = cachedModel.detailsUrl,
-                    titleRu = cachedModel.titleRu,
-                    kind = cachedModel.kind,
-                    originalReleaseYear = cachedModel.originalReleaseYear,
-                )
-                val enrichedCachedModel = TmdbPosterEnricher.enrichDetails(cachedModel, tmdbUrls)
-                releaseDao.upsertDetails(enrichedCachedModel.toEntity())
-                return DetailsResult.Success(
-                    details = enrichedCachedModel,
-                    isStale = false,
-                )
-            }
+            return DetailsResult.Success(details = cachedModel, isStale = false)
         }
 
         return try {
@@ -350,17 +274,10 @@ class LostFilmRepositoryImpl(
                     enrichWithTorrentLinks(parseDetails(html, normalizedDetailsUrl, now)),
                 ),
             )
-            val tmdbUrls = tmdbResolver.resolve(
-                detailsUrl = parsed.detailsUrl,
-                titleRu = parsed.titleRu,
-                kind = parsed.kind,
-                originalReleaseYear = parsed.originalReleaseYear,
-            )
-            val enriched = TmdbPosterEnricher.enrichDetails(parsed, tmdbUrls)
-            releaseDao.upsertDetails(enriched.toEntity())
+            releaseDao.upsertDetails(parsed.toEntity())
 
             DetailsResult.Success(
-                details = enriched,
+                details = parsed,
                 isStale = false,
             )
         } catch (exception: CancellationException) {
@@ -387,32 +304,61 @@ class LostFilmRepositoryImpl(
     override suspend fun loadDetailsPreview(detailsUrl: String): DetailsResult {
         val normalizedDetailsUrl = resolveUrl(detailsUrl)
         cleanupExpiredDataIfNeeded()
-        val cachedDetails = releaseDao.getReleaseDetails(normalizedDetailsUrl)
+        val currentCachedDetails = releaseDao.getReleaseDetails(normalizedDetailsUrl)
+        val cachedDetails = currentCachedDetails ?: detailsUrl
+            .takeIf { it != normalizedDetailsUrl }
+            ?.let { releaseDao.getReleaseDetails(it) }
         val now = clock()
 
-        if (cachedDetails != null && now - cachedDetails.fetchedAt < RETENTION_WINDOW_MS) {
+        if (
+            currentCachedDetails != null &&
+            now - currentCachedDetails.fetchedAt < RETENTION_WINDOW_MS &&
+            !currentCachedDetails.needsEpisodeOverviewRefresh() &&
+            !hasLegacyArtwork(currentCachedDetails.posterUrl, currentCachedDetails.backdropUrl)
+        ) {
             return DetailsResult.Success(
-                details = enrichWithSummaryEpisodeTitle(cachedDetails.toModel()),
-                isStale = now - cachedDetails.fetchedAt > FRESH_WINDOW_MS,
+                details = enrichWithSummaryEpisodeTitle(currentCachedDetails.toModel()),
+                isStale = now - currentCachedDetails.fetchedAt > FRESH_WINDOW_MS,
             )
         }
 
         return try {
             val html = httpClient.fetchDetails(normalizedDetailsUrl)
             val parsed = enrichWithSummaryEpisodeTitle(parseDetails(html, normalizedDetailsUrl, now))
-            releaseDao.upsertDetails(parsed.toEntity())
+            val details = if (
+                currentCachedDetails != null &&
+                now - currentCachedDetails.fetchedAt < RETENTION_WINDOW_MS &&
+                currentCachedDetails.needsEpisodeOverviewRefresh() &&
+                !hasLegacyArtwork(currentCachedDetails.posterUrl, currentCachedDetails.backdropUrl)
+            ) {
+                releaseDao.updateDetailsOverview(normalizedDetailsUrl, parsed.episodeOverviewRu, LOSTFILM_OVERVIEW_SOURCE)
+                currentCachedDetails.toModel().copy(
+                    episodeOverviewRu = parsed.episodeOverviewRu,
+                    episodeOverviewSource = LOSTFILM_OVERVIEW_SOURCE,
+                )
+            } else {
+                releaseDao.upsertDetails(parsed.toEntity())
+                parsed
+            }
             DetailsResult.Success(
-                details = parsed,
-                isStale = false,
+                details = details,
+                isStale = now - details.fetchedAt > FRESH_WINDOW_MS,
             )
         } catch (exception: CancellationException) {
             throw exception
         } catch (exception: Exception) {
             if (exception is IOException || exception is IllegalStateException) {
-                DetailsResult.Error(
-                    detailsUrl = normalizedDetailsUrl,
-                    message = exception.message ?: "Unable to load details",
-                )
+                if (cachedDetails != null && now - cachedDetails.fetchedAt < RETENTION_WINDOW_MS) {
+                    DetailsResult.Success(
+                        details = enrichWithSummaryEpisodeTitle(cachedDetails.toModel()),
+                        isStale = true,
+                    )
+                } else {
+                    DetailsResult.Error(
+                        detailsUrl = normalizedDetailsUrl,
+                        message = exception.message ?: "Unable to load details",
+                    )
+                }
             } else {
                 throw exception
             }
@@ -443,28 +389,9 @@ class LostFilmRepositoryImpl(
                         details
                     }
                 }
-                val tmdbUrls = async {
-                    try {
-                        tmdbResolver.resolve(
-                            detailsUrl = details.detailsUrl,
-                            titleRu = details.titleRu,
-                            kind = details.kind,
-                            originalReleaseYear = details.originalReleaseYear,
-                        )
-                    } catch (exception: CancellationException) {
-                        throw exception
-                    } catch (e: Exception) {
-                        Log.w(TAG, "Failed to resolve TMDB poster for details extras", e)
-                        null
-                    }
-                }
-
-                TmdbPosterEnricher.enrichDetails(
-                    details
-                        .mergeTorrentLinksFrom(torrentDetails.await())
-                        .mergeFavoriteMetadataFrom(metadataDetails.await()),
-                    tmdbUrls.await(),
-                )
+                details
+                    .mergeTorrentLinksFrom(torrentDetails.await())
+                    .mergeFavoriteMetadataFrom(metadataDetails.await())
             }
             val withSummary = enrichWithSummaryEpisodeTitle(enriched)
             releaseDao.upsertDetails(withSummary.toEntity())
@@ -520,12 +447,7 @@ class LostFilmRepositoryImpl(
                 .textOrEmpty()
                 .ifBlank { fallbackSeriesTitle(seriesRootUrl) }
 
-            val tmdbUrls = tmdbResolver.resolve(
-                detailsUrl = normalizedDetailsUrl,
-                titleRu = seriesTitleRu,
-                kind = ReleaseKind.SERIES,
-            )
-            val posterUrl = tmdbUrls?.posterUrl?.takeIf { it.isNotBlank() }.orEmpty()
+            val posterUrl = lostFilmArtworkPath(guideDocument.selectFirst(".main_poster img")?.attr("src"))
 
             SeriesGuideResult.Success(
                 guide = SeriesGuide(
@@ -558,21 +480,7 @@ class LostFilmRepositoryImpl(
                     seriesUrl = seriesRootUrl,
                 )
             }
-            val tmdbUrls = tmdbResolver.resolve(
-                detailsUrl = normalizedDetailsUrl,
-                titleRu = parsedOverview.titleRu,
-                kind = ReleaseKind.SERIES,
-            )
-
-            SeriesOverviewResult.Success(
-                overview = parsedOverview.copy(
-                    posterUrl = tmdbUrls?.posterUrl?.takeIf { it.isNotBlank() },
-                    backdropUrl = tmdbUrls?.backdropUrl?.takeIf { it.isNotBlank() } ?: parsedOverview.backdropUrl,
-                    tmdbRating = tmdbUrls?.rating?.takeIf { it.isNotBlank() } ?: parsedOverview.tmdbRating,
-                    descriptionRu = parsedOverview.descriptionRu
-                        ?: tmdbUrls?.seriesOverviewRu?.takeIf { it.isNotBlank() },
-                ),
-            )
+            SeriesOverviewResult.Success(overview = parsedOverview)
         } catch (exception: CancellationException) {
             throw exception
         } catch (exception: Exception) {
@@ -599,7 +507,7 @@ class LostFilmRepositoryImpl(
 
             SearchResultsResult.Success(
                 query = normalizedQuery,
-                items = tmdbEnrichmentService.enrichSearchItems(parsedItems),
+                items = parsedItems,
             )
         } catch (exception: CancellationException) {
             throw exception
@@ -762,7 +670,6 @@ class LostFilmRepositoryImpl(
     private suspend fun fallbackPageState(
         pageNumber: Int,
         exception: Exception,
-        enrich: Boolean = true,
     ): PageState {
         val now = clock()
         val cachedMetadata = releaseDao.getPageMetadata(pageNumber)
@@ -771,7 +678,7 @@ class LostFilmRepositoryImpl(
             val cachedItems = releaseDao.getSummariesUpToPage(pageNumber).toSummaryModels()
             return PageState.Content(
                 pageNumber = pageNumber,
-                items = cachedItems.enrichUnlessSkipped(enrich),
+                items = cachedItems,
                 hasNextPage = cachedMetadata.itemCount > 0,
                 isStale = now - cachedMetadata.fetchedAt > FRESH_WINDOW_MS,
                 pagingErrorMessage = if (pageNumber > 1) {
@@ -787,7 +694,7 @@ class LostFilmRepositoryImpl(
             if (previousItems.isNotEmpty()) {
                 return PageState.Content(
                     pageNumber = pageNumber - 1,
-                    items = previousItems.enrichUnlessSkipped(enrich),
+                    items = previousItems,
                     hasNextPage = true,
                     isStale = false,
                     pagingErrorMessage = exception.message ?: "Unable to load page $pageNumber",
@@ -800,14 +707,6 @@ class LostFilmRepositoryImpl(
             message = exception.message ?: "Unable to load page $pageNumber",
         )
     }
-
-    private suspend fun List<ReleaseSummary>.enrichUnlessSkipped(enrich: Boolean): List<ReleaseSummary> =
-        if (enrich) {
-            tmdbEnrichmentService.enrichSummaries(items = this, persistToCache = true)
-        } else {
-            this
-        }
-
 
     private suspend fun cleanupExpiredDataIfNeeded() {
         val now = clock()
@@ -822,33 +721,8 @@ class LostFilmRepositoryImpl(
             }
             val threshold = lockedNow - RETENTION_WINDOW_MS
             releaseDao.deleteExpiredData(threshold)
-            // Маппинги TMDB лежат в своей таблице и до этого срока не удалялись
-            // вообще: ключ там — season-level URL сериала, поэтому строки
-            // накапливались месяцами и база росла без ограничения.
-            // Собственный TTL маппинга (7 суток) истекает независимо, и просроченная
-            // строка уже не переиспользуется — её можно удалять.
-            tmdbPosterDao.deleteExpired(threshold)
             lastCleanupAt = lockedNow
         }
-    }
-
-    private fun ReleaseDetails.hasCompleteArtwork(): Boolean {
-        return posterUrl.isNotBlank() && !backdropUrl.isNullOrBlank()
-    }
-
-    private fun ReleaseDetails.hasDetailsOverview(): Boolean {
-        return when (kind) {
-            ReleaseKind.SERIES -> !episodeOverviewRu.isNullOrBlank()
-            ReleaseKind.MOVIE -> !episodeOverviewRu.isNullOrBlank()
-        }
-    }
-
-    private fun ReleaseDetails.hasDetailsHeroOverview(): Boolean {
-        return kind != ReleaseKind.MOVIE || !movieOverviewRu.isNullOrBlank()
-    }
-
-    private fun ReleaseDetailsEntity.needsYearAwareMovieArtworkRefresh(): Boolean {
-        return kind == ReleaseKind.MOVIE.name && fetchedAt < YEAR_AWARE_TMDB_MATCHING_MIN_FETCHED_AT_MS
     }
 
     private suspend fun mergeWatchedState(
@@ -892,7 +766,7 @@ class LostFilmRepositoryImpl(
         } else {
             "$BASE_URL/new/page_$pageNumber"
         }
-        // Watched-marker AJAX calls are per serial id, so cap them independently from TMDB work.
+        // Watched-marker AJAX calls are per serial id, so cap them independently.
         val watchedMarksSemaphore = Semaphore(WATCHED_MARKS_LOAD_CONCURRENCY)
         val watchedIdsBySerialId = coroutineScope {
             watchMarkers
@@ -1063,7 +937,7 @@ class LostFilmRepositoryImpl(
     private suspend fun enrichWithSummaryEpisodeTitle(details: ReleaseDetails): ReleaseDetails {
         if (
             details.kind != ReleaseKind.SERIES ||
-            (!details.episodeTitleRu.isNullOrBlank() && !details.episodeOverviewRu.isNullOrBlank())
+            (details.posterUrl.isNotBlank() && !details.episodeTitleRu.isNullOrBlank() && !details.episodeOverviewRu.isNullOrBlank())
         ) {
             return details
         }
@@ -1073,10 +947,9 @@ class LostFilmRepositoryImpl(
         return details.copy(
             episodeTitleRu = details.episodeTitleRu
                 ?: summary.episodeTitleRu?.takeIf { it.isNotBlank() },
+            posterUrl = details.posterUrl.ifBlank { lostFilmArtworkPath(summary.posterUrl).orEmpty() },
             episodeOverviewRu = details.episodeOverviewRu
-                ?: summary.episodeOverviewRu?.takeIf { it.isNotBlank() },
-            episodeOverviewSource = details.episodeOverviewSource
-                ?: summary.episodeOverviewSource?.takeIf { it.isNotBlank() },
+                ?: summary.episodeOverviewRu?.takeIf { summary.episodeOverviewSource == null && it.isNotBlank() },
         )
     }
 
@@ -1212,3 +1085,6 @@ class LostFilmRepositoryImpl(
 }
 
 private fun String.normalizeSearchQuery(): String = normalizeText().replace(searchWhitespaceRegex, " ")
+
+private fun ReleaseDetailsEntity.needsEpisodeOverviewRefresh(): Boolean =
+    kind == ReleaseKind.SERIES.name && episodeOverviewSource != LOSTFILM_OVERVIEW_SOURCE

@@ -59,38 +59,12 @@ interface ReleaseDao {
     @Upsert
     suspend fun upsertSummaries(summaries: List<ReleaseSummaryEntity>)
 
-    /**
-     * Обновляет только art-поля карточки. Полный [upsertSummaries] откатил бы
-     * isWatched, если пользователь отметил эпизод просмотренным, пока шло
-     * обогащение постерами.
-     *
-     * Nullable-аргументы перезаписывают сохранённые значения на NULL, поэтому
-     * передавать нужно уже обогащённый summary (результат
-     * TmdbPosterEnricher.enrichSummary), а не сырые поля TmdbImageUrls.
-     */
-    @Query(
-        """
-        UPDATE release_summaries SET
-            posterUrl = :posterUrl,
-            backdropUrl = :backdropUrl,
-            episodeOverviewRu = :episodeOverviewRu,
-            episodeOverviewSource = :episodeOverviewSource,
-            seriesOverviewRu = :seriesOverviewRu,
-            movieOverviewRu = :movieOverviewRu,
-            tmdbRating = :tmdbRating
+    @Query("""
+        UPDATE release_details
+        SET episodeOverviewRu = :overview, episodeOverviewSource = :source
         WHERE detailsUrl = :detailsUrl
-        """,
-    )
-    suspend fun updateSummaryArtwork(
-        detailsUrl: String,
-        posterUrl: String,
-        backdropUrl: String?,
-        episodeOverviewRu: String?,
-        episodeOverviewSource: String?,
-        seriesOverviewRu: String?,
-        movieOverviewRu: String?,
-        tmdbRating: String?,
-    ): Int
+    """)
+    suspend fun updateDetailsOverview(detailsUrl: String, overview: String?, source: String)
 
     @Upsert
     suspend fun upsertDetails(details: ReleaseDetailsEntity)
@@ -163,35 +137,10 @@ interface ReleaseDao {
         summaries: List<ReleaseSummaryEntity>,
         metadata: PageCacheMetadataEntity,
     ) {
-        // Постеры и описания набираются прогрессивным обогащением уже после
-        // разбора страницы. Перезапись страницы их затирала, и карточки, чьё
-        // обогащение успело записаться, оставались без картинки — в ленте это
-        // выглядело как «загрузились только первые 15». Парсер страницы artwork
-        // не приносит, поэтому сохраняем всё, что уже накоплено, и обновляем
-        // только разобранные поля: название, дату, отметку просмотра.
-        val storedArtwork = getSummariesByUrls(summaries.map { it.detailsUrl }).associateBy { it.detailsUrl }
-        val merged = summaries.map { incoming ->
-            val stored = storedArtwork[incoming.detailsUrl] ?: return@map incoming
-            incoming.copy(
-                posterUrl = incoming.posterUrl.ifBlank { stored.posterUrl },
-                backdropUrl = incoming.backdropUrl.nonBlankOr(stored.backdropUrl),
-                episodeOverviewRu = incoming.episodeOverviewRu.nonBlankOr(stored.episodeOverviewRu),
-                episodeOverviewSource = incoming.episodeOverviewSource.nonBlankOr(stored.episodeOverviewSource),
-                seriesOverviewRu = incoming.seriesOverviewRu.nonBlankOr(stored.seriesOverviewRu),
-                movieOverviewRu = incoming.movieOverviewRu.nonBlankOr(stored.movieOverviewRu),
-                tmdbRating = incoming.tmdbRating.nonBlankOr(stored.tmdbRating),
-            )
-        }
         deleteSummariesForPage(pageNumber)
-        upsertSummaries(merged)
+        upsertSummaries(summaries)
         upsertPageMetadata(metadata)
     }
-
-    @Query("SELECT * FROM release_summaries WHERE detailsUrl IN (:urls)")
-    suspend fun getSummariesByUrls(urls: List<String>): List<ReleaseSummaryEntity>
-
-    private fun String?.nonBlankOr(fallback: String?): String? =
-        if (!this.isNullOrBlank()) this else fallback
 
     @Transaction
     suspend fun deleteExpiredData(threshold: Long) {

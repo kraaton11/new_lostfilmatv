@@ -38,7 +38,7 @@ sealed interface FavoriteReleasesResult {
 
     /**
      * Emitted during the fan-out phase (page 1 only) as each favorite series finishes loading.
-     * Items are unenriched (no TMDB posters yet). Final enriched results arrive with [Success].
+     * Includes the items loaded so far. The complete page arrives with [Success].
      */
     data class Partial(
         val items: List<ReleaseSummary>,

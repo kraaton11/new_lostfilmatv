@@ -20,9 +20,9 @@ import com.kraat.lostfilmnewtv.data.parser.FavoriteSeriesRef
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteSeriesParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSeasonEpisodesParser
+import com.kraat.lostfilmnewtv.data.parser.hasLegacyArtwork
 import com.kraat.lostfilmnewtv.data.parser.resolveUrl
 import com.kraat.lostfilmnewtv.data.parser.toEntity
-import com.kraat.lostfilmnewtv.data.poster.TmdbEnrichmentService
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -61,7 +61,6 @@ interface FavoritesRepository {
 class FavoritesRepositoryImpl @Inject constructor(
     private val httpClient: LostFilmHttpClient,
     private val releaseDao: ReleaseDao,
-    private val tmdbEnrichmentService: TmdbEnrichmentService,
     private val hasAuthenticatedSession: suspend () -> Boolean,
     private val clock: () -> Long = { System.currentTimeMillis() },
 ) : FavoritesRepository {
@@ -79,6 +78,8 @@ class FavoritesRepositoryImpl @Inject constructor(
     private val favoriteReleaseDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy")
 
     // Watched marks cache in memory to avoid repetitive AJAX network hits
+    private val favoriteSeriesPosters = ConcurrentHashMap<String, String>()
+
     private val watchedMarksCache = ConcurrentHashMap<String, WatchedMarksCacheEntry>()
 
     private data class WatchedMarksCacheEntry(
@@ -121,30 +122,30 @@ class FavoritesRepositoryImpl @Inject constructor(
                 cached.allItems to cached.favoriteSeriesCount
             } else {
                 val roomMetadata = releaseDao.getFavoriteReleaseCacheMetadata()
-                val roomCacheFresh = roomMetadata != null &&
-                    (clock() - roomMetadata.fetchedAt) < FAVORITE_RELEASES_ROOM_FRESH_MS
-
                 if (roomMetadata != null) {
                     val roomItems = releaseDao.getFavoriteReleasesCache().map { it.toModel() }
+                    val hasLegacyImages = roomItems.any { hasLegacyArtwork(it.posterUrl, it.backdropUrl) }
+                    val roomCacheFresh = !hasLegacyImages &&
+                        (clock() - roomMetadata.fetchedAt) < FAVORITE_RELEASES_ROOM_FRESH_MS
                     val pageOffset = (normalizedPageNumber - 1) * FAVORITE_RELEASES_PAGE_SIZE
                     val pageItems = roomItems
                         .drop(pageOffset)
                         .take(FAVORITE_RELEASES_PAGE_SIZE)
                         .mapIndexed { index, item -> item.copy(positionInPage = pageOffset + index) }
-                    val enrichedPageItems = tmdbEnrichmentService.enrichSummaries(pageItems)
-                        .mapIndexed { index, item -> item.copy(positionInPage = pageOffset + index) }
 
-                    favoriteReleasesCacheMutex.withLock {
-                        favoriteReleasesCache = FavoriteReleasesCache(
-                            allItems = roomItems,
-                            favoriteSeriesCount = roomMetadata.favoriteSeriesCount,
-                            fetchedAt = roomMetadata.fetchedAt,
-                        )
+                    if (!hasLegacyImages) {
+                        favoriteReleasesCacheMutex.withLock {
+                            favoriteReleasesCache = FavoriteReleasesCache(
+                                allItems = roomItems,
+                                favoriteSeriesCount = roomMetadata.favoriteSeriesCount,
+                                fetchedAt = roomMetadata.fetchedAt,
+                            )
+                        }
                     }
 
                     if (roomCacheFresh) {
                         send(FavoriteReleasesResult.Success(
-                            items = enrichedPageItems,
+                            items = pageItems,
                             pageNumber = normalizedPageNumber,
                             hasNextPage = roomItems.size > pageOffset + FAVORITE_RELEASES_PAGE_SIZE,
                             favoriteSeriesCount = roomMetadata.favoriteSeriesCount,
@@ -153,7 +154,7 @@ class FavoritesRepositoryImpl @Inject constructor(
                     }
 
                     send(FavoriteReleasesResult.Partial(
-                        items = enrichedPageItems,
+                        items = pageItems,
                         favoriteSeriesCount = roomMetadata.favoriteSeriesCount,
                     ))
                 }
@@ -181,13 +182,10 @@ class FavoritesRepositoryImpl @Inject constructor(
                 .take(FAVORITE_RELEASES_PAGE_SIZE)
                 .mapIndexed { index, item -> item.copy(positionInPage = pageOffset + index) }
 
-            val enrichedItems = tmdbEnrichmentService.enrichSummaries(items)
-                .mapIndexed { index, item -> item.copy(positionInPage = pageOffset + index) }
-
             persistFavoriteReleasesToRoom(allItems = allItems, favoriteSeriesCount = favoriteSeriesCount)
 
             send(FavoriteReleasesResult.Success(
-                items = enrichedItems,
+                items = items,
                 pageNumber = normalizedPageNumber,
                 hasNextPage = allItems.size > pageOffset + FAVORITE_RELEASES_PAGE_SIZE,
                 favoriteSeriesCount = favoriteSeriesCount,
@@ -378,17 +376,35 @@ class FavoritesRepositoryImpl @Inject constructor(
         return try {
             val fetchedAt = clock()
             val favoritesHtml = httpClient.fetchAccountPage(favoriteSeriesRoute)
-            val items = favoriteSeriesParser.parse(favoritesHtml)
-                .mapIndexed { index, series -> series.toFavoriteSeriesSummary(index, fetchedAt) }
-            val enrichedItems = tmdbEnrichmentService.enrichSummaries(
-                items = items,
-                persistToCache = false,
-            )
+            val seriesRefs = favoriteSeriesParser.parse(favoritesHtml)
+            val semaphore = Semaphore(FAVORITE_SERIES_LOAD_CONCURRENCY)
+            val items = coroutineScope {
+                seriesRefs.mapIndexed { index, series ->
+                    async {
+                        semaphore.withPermit {
+                            val poster = loadFavoriteSeriesPoster(series.seriesUrl) ?: series.posterUrl
+                            series.toFavoriteSeriesSummary(index, fetchedAt).copy(posterUrl = poster)
+                        }
+                    }
+                }.awaitAll()
+            }
 
-            FavoriteSeriesResult.Success(enrichedItems)
+            FavoriteSeriesResult.Success(items)
         } catch (e: IOException) {
             Log.w(TAG, "Failed to load favorite series list", e)
             FavoriteSeriesResult.Unavailable()
+        }
+    }
+
+    private suspend fun loadFavoriteSeriesPoster(seriesUrl: String): String? {
+        val seasonsUrl = "${seriesUrl.trimEnd('/')}/seasons"
+        favoriteSeriesPosters[seasonsUrl]?.let { return it }
+        return try {
+            seasonEpisodesParser.parseLatestSeasonPoster(httpClient.fetchDetails(seasonsUrl))
+                ?.also { favoriteSeriesPosters[seasonsUrl] = it }
+        } catch (e: IOException) {
+            Log.d(TAG, "Cannot load favorite series poster", e)
+            null
         }
     }
 

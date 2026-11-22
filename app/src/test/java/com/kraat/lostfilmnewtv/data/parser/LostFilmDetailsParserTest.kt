@@ -9,6 +9,22 @@ import org.junit.Test
 
 class LostFilmDetailsParserTest {
     @Test
+    fun parsesEpisodePlotFromDescriptionBlock() {
+        val details = LostFilmDetailsParser().parseSeries(
+            """
+            <meta name="description" content="Страница эпизода, новости и комментарии">
+            <div class="text-block description">
+                <div class="spoiler-warning">Возможны спойлеры!</div>
+                <div class="body"><div class="body">Герои узнают правду.</div><a>Подробно</a></div>
+            </div>
+            """.trimIndent(),
+            "/series/Ted/season_2/episode_8/",
+        )
+
+        assertEquals("Герои узнают правду.", details.episodeOverviewRu)
+    }
+
+    @Test
     fun parses_series_details_withRuDateOnly() {
         val details = LostFilmDetailsParser().parseSeries(
             fixture("series-details.html"),
@@ -19,6 +35,8 @@ class LostFilmDetailsParserTest {
         assertEquals(9, details.seasonNumber)
         assertEquals(13, details.episodeNumber)
         assertEquals("14 марта 2026", details.releaseDateRu)
+        assertEquals("/Static/Images/362/Posters/icon_s9.jpg", details.posterUrl)
+        assertEquals("/Static/Images/362/Posters/e_9_13.jpg", details.backdropUrl)
     }
 
     @Test
@@ -33,6 +51,8 @@ class LostFilmDetailsParserTest {
         assertNull(details.episodeNumber)
         assertEquals("13 марта 2026", details.releaseDateRu)
         assertEquals(2002, details.originalReleaseYear)
+        assertEquals("/Static/Images/1080/Posters/poster.jpg", details.posterUrl)
+        assertNull(details.backdropUrl)
         val movieDescription = details.episodeOverviewRu.orEmpty()
         assertTrue(movieDescription, movieDescription.contains("один из самых радикальных"))
         assertTrue(movieDescription, movieDescription.contains("История разворачивается"))

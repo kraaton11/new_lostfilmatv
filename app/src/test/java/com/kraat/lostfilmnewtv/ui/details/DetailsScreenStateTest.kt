@@ -9,7 +9,6 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.semantics.SemanticsProperties
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
-import com.kraat.lostfilmnewtv.data.model.TmdbEpisodeOverviewSource
 import com.kraat.lostfilmnewtv.data.model.TorrentLink
 import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
 import org.junit.Assert.assertEquals
@@ -232,14 +231,14 @@ class DetailsScreenStateTest {
     }
 
     @Test
-    fun detailsScreen_showsMachineTranslatedEpisodeOverviewSource() {
+    fun detailsScreen_hidesLegacyTmdbOverviewSource() {
         composeRule.setContent {
             LostFilmTheme {
                 DetailsScreen(
                     state = DetailsUiState(
                         details = seriesDetails().copy(
                             episodeOverviewRu = "Автоматически переведенное описание серии.",
-                            episodeOverviewSource = TmdbEpisodeOverviewSource.MACHINE_TRANSLATED.name,
+                            episodeOverviewSource = "MACHINE_TRANSLATED",
                         ),
                     ),
                     isAuthenticated = true,
@@ -259,7 +258,7 @@ class DetailsScreenStateTest {
             }
         }
 
-        composeRule.onNodeWithText("Автоперевод").assertExists()
+        composeRule.onNodeWithText("Автоперевод").assertDoesNotExist()
     }
 
     @Test

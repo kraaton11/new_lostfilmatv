@@ -36,7 +36,7 @@ class LostFilmSeriesCatalogParser {
                 val detailsUrl = resolveUrl(item.stringValue("link")).takeIf { it.isNotBlank() } ?: return@forEachIndexed
                 val titleRu = item.stringValue("title").normalizeText().takeIf { it.isNotBlank() } ?: return@forEachIndexed
                 val titleEn = item.stringValue("title_orig").normalizeText().takeIf { it.isNotBlank() }
-                val posterUrl = ""
+                val posterUrl = lostFilmArtworkPath(item.stringValue("img")).orEmpty()
                 val year = item.stringValue("date").extractYear()
 
                 add(
@@ -72,7 +72,7 @@ class LostFilmSeriesCatalogParser {
         val detailsUrl = contentLink.absoluteUrl("href").takeIf { it.isNotBlank() } ?: return null
         val titleRu = contentLink.selectFirst(".name-ru").textOrEmpty().takeIf { it.isNotBlank() } ?: return null
         val titleEn = contentLink.selectFirst(".name-en").textOrEmpty().takeIf { it.isNotBlank() }
-        val posterUrl = ""
+        val posterUrl = contentLink.lostFilmImagePath("img.thumb, .picture-box img").orEmpty()
         val availabilityLabel = contentLink.selectFirst(".picture-box .small-block")
             .textOrEmpty()
             .takeIf { it.isNotBlank() }

@@ -4,8 +4,7 @@ import com.kraat.lostfilmnewtv.data.db.ReleaseSummaryEntity
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
-import com.kraat.lostfilmnewtv.data.model.TmdbImageUrls
-import com.kraat.lostfilmnewtv.data.poster.TmdbPosterResolver
+import com.kraat.lostfilmnewtv.data.parser.LostFilmBaseUrl
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -14,7 +13,6 @@ import org.junit.Test
 class HomeChannelContentRepositoryTest {
     @Test
     fun loadPrograms_allNew_usesOrderedCachedRows() = runTest {
-        val tmdbResolver = FakeTmdbPosterResolver()
         val repository = HomeChannelContentRepository(
             reader = FakeSummaryReader(
                 allRows = listOf(
@@ -22,7 +20,6 @@ class HomeChannelContentRepositoryTest {
                     movie(detailsUrl = "https://example.com/movie", titleRu = "Необратимость"),
                 ),
             ),
-            tmdbResolver = tmdbResolver,
         )
 
         val results = repository.loadPrograms(AndroidTvChannelMode.ALL_NEW, limit = 30)
@@ -34,14 +31,12 @@ class HomeChannelContentRepositoryTest {
 
     @Test
     fun loadPrograms_unwatched_usesOnlyUnwatchedRows() = runTest {
-        val tmdbResolver = FakeTmdbPosterResolver()
         val repository = HomeChannelContentRepository(
             reader = FakeSummaryReader(
                 unwatchedRows = listOf(
                     summary(detailsUrl = "https://example.com/fresh", titleRu = "Fresh"),
                 ),
             ),
-            tmdbResolver = tmdbResolver,
         )
 
         val results = repository.loadPrograms(AndroidTvChannelMode.UNWATCHED, limit = 30)
@@ -51,10 +46,8 @@ class HomeChannelContentRepositoryTest {
 
     @Test
     fun loadFavoritePrograms_usesFavoriteReleaseLoader() = runTest {
-        val tmdbResolver = FakeTmdbPosterResolver()
         val repository = HomeChannelContentRepository(
             reader = FakeSummaryReader(),
-            tmdbResolver = tmdbResolver,
             loadFavoriteReleases = {
                 FavoriteReleasesResult.Success(
                     listOf(
@@ -69,13 +62,16 @@ class HomeChannelContentRepositoryTest {
 
         assertEquals(listOf("Favorite 1"), results.map { it.title })
         assertEquals(listOf("Favorite episode"), results.map { it.description })
+        assertEquals(
+            "${LostFilmBaseUrl.get()}/Static/Images/362/Posters/image_s9.jpg",
+            results.single().posterUrl,
+        )
     }
 
     @Test
     fun loadFavoritePrograms_unavailable_returnsEmptyList() = runTest {
         val repository = HomeChannelContentRepository(
             reader = FakeSummaryReader(),
-            tmdbResolver = FakeTmdbPosterResolver(),
             loadFavoriteReleases = { FavoriteReleasesResult.Unavailable("login required") },
         )
 
@@ -90,8 +86,7 @@ class HomeChannelContentRepositoryTest {
             allRows = listOf(summary(detailsUrl = "https://example.com/unused")),
             unwatchedRows = listOf(summary(detailsUrl = "https://example.com/unused2")),
         )
-        val tmdbResolver = FakeTmdbPosterResolver()
-        val repository = HomeChannelContentRepository(reader = reader, tmdbResolver = tmdbResolver)
+        val repository = HomeChannelContentRepository(reader = reader)
 
         val results = repository.loadPrograms(AndroidTvChannelMode.DISABLED, limit = 30)
 
@@ -101,66 +96,43 @@ class HomeChannelContentRepositoryTest {
     }
 
     @Test
-    fun loadPrograms_enrichesPostersWithTmdb() = runTest {
-        val tmdbResolver = FakeTmdbPosterResolver(
-            posterOverrides = mapOf(
-                "https://example.com/series" to "https://image.tmdb.org/t/p/w500/series_poster.jpg",
-            ),
-        )
+    fun loadPrograms_usesCurrentMirrorAndSkipsLegacyProxyArtwork() = runTest {
+        val currentBaseUrl = LostFilmBaseUrl.get()
+        val posterPath = "/Static/Images/362/Posters/image_s9.jpg"
+        val backdropPath = "/Static/Images/362/Posters/e_9_13.jpg"
         val repository = HomeChannelContentRepository(
             reader = FakeSummaryReader(
                 allRows = listOf(
-                    summary(detailsUrl = "https://example.com/series", titleRu = "9-1-1"),
+                    summary(
+                        detailsUrl = "https://example.com/series",
+                        posterUrl = posterPath,
+                    ).copy(backdropUrl = backdropPath),
+                    summary(
+                        detailsUrl = "https://example.com/old",
+                        posterUrl = "https://auth.bazuka.pp.ua/api/tmdb/t/p/w500/old.jpg",
+                    ).copy(backdropUrl = "https://image.tmdb.org/t/p/original/old.jpg"),
                 ),
             ),
-            tmdbResolver = tmdbResolver,
         )
 
-        val results = repository.loadPrograms(AndroidTvChannelMode.ALL_NEW, limit = 30)
+        try {
+            LostFilmBaseUrl.set("https://www.lostfilm.download")
+            val results = repository.loadPrograms(AndroidTvChannelMode.ALL_NEW, limit = 30)
+            assertEquals("https://www.lostfilm.download$posterPath", results.first().posterUrl)
+            assertEquals("https://www.lostfilm.download$backdropPath", results.first().backdropUrl)
+            assertEquals("", results.last().posterUrl)
+            assertEquals("", results.last().backdropUrl)
 
-        assertEquals("https://image.tmdb.org/t/p/w500/series_poster.jpg", results.first().posterUrl)
+            LostFilmBaseUrl.set("https://www.lostfilm.tv")
+            assertEquals(
+                "https://www.lostfilm.tv$posterPath",
+                repository.loadPrograms(AndroidTvChannelMode.ALL_NEW, limit = 30).first().posterUrl,
+            )
+        } finally {
+            LostFilmBaseUrl.set(currentBaseUrl)
+        }
     }
 
-    @Test
-    fun loadPrograms_enrichesBackdropWithTmdb() = runTest {
-        val tmdbResolver = FakeTmdbPosterResolver(
-            backdropOverrides = mapOf(
-                "https://example.com/series" to "https://image.tmdb.org/t/p/w780/series_backdrop.jpg",
-            ),
-        )
-        val repository = HomeChannelContentRepository(
-            reader = FakeSummaryReader(
-                allRows = listOf(
-                    summary(detailsUrl = "https://example.com/series", titleRu = "9-1-1"),
-                ),
-            ),
-            tmdbResolver = tmdbResolver,
-        )
-
-        val results = repository.loadPrograms(AndroidTvChannelMode.ALL_NEW, limit = 30)
-
-        assertEquals("https://image.tmdb.org/t/p/w780/series_backdrop.jpg", results.first().backdropUrl)
-    }
-
-    @Test
-    fun loadPrograms_fallsBackToOriginalPosterWhenTmdbEmpty() = runTest {
-        val originalPoster = "https://www.lostfilm.today/Static/Images/362/Posters/image_s9.jpg"
-        val tmdbResolver = FakeTmdbPosterResolver(
-            posterOverrides = emptyMap(),
-        )
-        val repository = HomeChannelContentRepository(
-            reader = FakeSummaryReader(
-                allRows = listOf(
-                    summary(detailsUrl = "https://example.com/series", titleRu = "9-1-1", posterUrl = originalPoster),
-                ),
-            ),
-            tmdbResolver = tmdbResolver,
-        )
-
-        val results = repository.loadPrograms(AndroidTvChannelMode.ALL_NEW, limit = 30)
-
-        assertEquals(originalPoster, results.first().posterUrl)
-    }
 }
 
 private class FakeSummaryReader(
@@ -180,29 +152,6 @@ private class FakeSummaryReader(
     override suspend fun latestUnwatched(limit: Int): List<ReleaseSummaryEntity> {
         unwatchedQueryCount += 1
         return unwatchedRows.take(limit)
-    }
-}
-
-private class FakeTmdbPosterResolver(
-    private val posterOverrides: Map<String, String> = emptyMap(),
-    private val backdropOverrides: Map<String, String> = emptyMap(),
-) : TmdbPosterResolver {
-    override suspend fun resolve(
-        detailsUrl: String,
-        titleRu: String,
-        kind: ReleaseKind,
-        originalReleaseYear: Int?,
-    ): TmdbImageUrls? {
-        val posterUrl = posterOverrides[detailsUrl]
-        val backdropUrl = backdropOverrides[detailsUrl]
-        return if (posterUrl != null || backdropUrl != null) {
-            TmdbImageUrls(
-                posterUrl = posterUrl.orEmpty(),
-                backdropUrl = backdropUrl.orEmpty(),
-            )
-        } else {
-            null
-        }
     }
 }
 
@@ -260,7 +209,7 @@ private fun favoriteSummary(
         seasonNumber = 1,
         episodeNumber = 2,
         releaseDateRu = "21.03.2026",
-        posterUrl = "https://example.com/favorite.jpg",
+        posterUrl = "/Static/Images/362/Posters/image_s9.jpg",
         detailsUrl = detailsUrl,
         pageNumber = 1,
         positionInPage = 0,

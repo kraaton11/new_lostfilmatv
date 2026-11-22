@@ -131,9 +131,7 @@ class LostFilmScheduleParser {
             val relativeDateLabel = delta.selectFirst(".when")
                 .textOrEmpty()
                 .takeIf { it.isNotBlank() }
-            val posterUrl = alpha.selectFirst("img")
-                .absoluteUrl("src")
-                .takeIf { it.isLostFilmScheduleImageUrl() }
+            val posterUrl = alpha.lostFilmImagePath("img")
 
             val sectionKey = currentSection.ifBlank { dateLabel }.lowercase()
             val builder = sectionBuilders.getOrPut(sectionKey) {
@@ -280,10 +278,3 @@ private data class ScheduleListSectionBuilder(
     var isToday: Boolean,
     val items: MutableList<ScheduleItem> = mutableListOf(),
 )
-
-private fun String.isLostFilmScheduleImageUrl(): Boolean {
-    val normalized = lowercase()
-    return normalized.startsWith("$BASE_URL/static/") ||
-        normalized.startsWith("https://static.lostfilm.") ||
-        normalized.startsWith("http://static.lostfilm.")
-}
