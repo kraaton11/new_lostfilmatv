@@ -19,6 +19,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.pressKey
+import com.kraat.lostfilmnewtv.data.model.MovieMetadata
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
@@ -1287,6 +1288,75 @@ class HomeScreenTest {
         }
 
         composeRule.onNodeWithTag(moviePosterTag).assertIsFocused()
+    }
+
+    @Test
+    @OptIn(ExperimentalTestApi::class)
+    @Config(qualifiers = "w1280dp-h720dp-land")
+    fun homeScreen_moviesCarouselSitsBelowSelectedFilmInformation() {
+        val movies = List(2) { index ->
+            release(
+                detailsUrl = "https://www.lostfilm.today/movies/carousel-$index/",
+                titleRu = "Фильм $index",
+                episodeTitleRu = null,
+                releaseDateRu = "13.03.2026",
+                seasonNumber = null,
+                episodeNumber = null,
+                kind = ReleaseKind.MOVIE,
+            )
+        }
+        var opened: String? = null
+        var endReached = 0
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(
+                    state = homeStateWithModes(
+                        selectedMode = HomeFeedMode.Movies,
+                        allNewItems = movies,
+                        favoriteItems = movies,
+                    ),
+                    onOpenDetails = { opened = it },
+                    onEndReached = { endReached++ },
+                    loadReleasePreview = { url ->
+                        if (url == movies[1].detailsUrl) {
+                            HomeReleasePreview(
+                                description = "Описание второго фильма",
+                                movieMetadata = MovieMetadata(listOf("Драма"), 97, "7.3"),
+                                movieYear = 2026,
+                            )
+                        } else {
+                            HomeReleasePreview(description = "Описание первого фильма")
+                        }
+                    },
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("home-hero-stage").assertDoesNotExist()
+        val panel = composeRule.onNodeWithTag("home-movie-info")
+        val carousel = composeRule.onNodeWithTag("home-movie-carousel")
+        assertTrue(panel.fetchSemanticsNode().boundsInRoot.bottom <= carousel.fetchSemanticsNode().boundsInRoot.top)
+        val headingBounds = composeRule.onNodeWithTag("home-rail-section-header").fetchSemanticsNode().boundsInRoot
+        assertTrue(carousel.fetchSemanticsNode().boundsInRoot.top - headingBounds.bottom < 30f)
+        val first = composeRule.onNodeWithTag(posterTag(HOME_RAIL_MOVIES, movies[0].detailsUrl))
+        val second = composeRule.onNodeWithTag(posterTag(HOME_RAIL_MOVIES, movies[1].detailsUrl))
+        first.performSemanticsAction(SemanticsActions.RequestFocus)
+        first.performKeyInput { pressKey(Key.DirectionRight) }
+
+        second.assertIsFocused()
+        val cardBounds = second.fetchSemanticsNode().boundsInRoot
+        assertTrue(cardBounds.width > cardBounds.height)
+        val carouselBounds = carousel.fetchSemanticsNode().boundsInRoot
+        assertTrue(cardBounds.width < carouselBounds.width * 0.34f)
+        assertEquals(carouselBounds.center.x, cardBounds.center.x, 2f)
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("Описание второго фильма").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("Драма  ·  97 мин  ·  IMDb 7.3").assertExists()
+        composeRule.onNodeWithText("Описание первого фильма").assertDoesNotExist()
+        second.performSemanticsAction(SemanticsActions.OnClick)
+        assertEquals(movies[1].detailsUrl, opened)
+        assertTrue(endReached > 0)
     }
 
     @Test

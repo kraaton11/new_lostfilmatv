@@ -124,9 +124,13 @@ class HomeViewModel @Inject constructor(
     private var seriesLoadJob: Job? = null
     private var saveFocusJob: Job? = null
     private var lastAllNewRefreshAt = 0L
+    private var favoriteSessionRevision = favoritesRepository.sessionRevision
 
     fun onStart() {
         if (started) {
+            if (favoriteSessionRevision != favoritesRepository.sessionRevision) {
+                onFavoriteContentInvalidated()
+            }
             onResume()
             return
         }
@@ -247,13 +251,19 @@ class HomeViewModel @Inject constructor(
 
     suspend fun loadReleasePreview(detailsUrl: String): HomeReleasePreview = withContext(ioDispatcher) {
         val isSeriesOverview = detailsUrl.contains("/series/") && !detailsUrl.contains("/episode_")
-        val details = if (isSeriesOverview) null else
-            (repository.loadDetailsPreview(detailsUrl) as? DetailsResult.Success)?.details
+        val result = when {
+            isSeriesOverview -> null
+            detailsUrl.contains("/movies/") -> repository.loadMovieDetailsPreview(detailsUrl)
+            else -> repository.loadDetailsPreview(detailsUrl)
+        }
+        val details = (result as? DetailsResult.Success)?.details
         if (details?.kind == ReleaseKind.MOVIE) {
             // Movie pages store their synopsis in the shared details description field.
             return@withContext HomeReleasePreview(
                 description = details.episodeOverviewRu?.takeIf { it.isNotBlank() },
                 backdropUrl = details.backdropUrl ?: details.posterUrl.takeIf { it.isNotBlank() },
+                movieMetadata = details.movieMetadata,
+                movieYear = details.originalReleaseYear,
             )
         }
         val episodeOverview = details
@@ -363,6 +373,20 @@ class HomeViewModel @Inject constructor(
 
     fun onFavoriteContentInvalidated() {
         if (!started) return
+        favoriteSessionRevision = favoritesRepository.sessionRevision
+        favoriteRequestToken++
+        favoriteLoadJob?.cancel()
+        favoriteSeriesLoadJob?.cancel()
+        _uiState.update { state ->
+            state.copy(favoriteSeriesCount = null)
+                .updateMode(HomeFeedMode.Favorites) {
+                    it.copy(items = emptyList(), contentState = HomeModeContentState.Loading, hasNextPage = false)
+                }
+                .updateMode(HomeFeedMode.FavoriteSeries) {
+                    it.copy(items = emptyList(), contentState = HomeModeContentState.Loading)
+                }
+                .resolveSelection()
+        }
         if (_uiState.value.isFavoritesRailVisible) loadFavoriteReleases()
         if (_uiState.value.isFavoriteSeriesModeVisible) loadFavoriteSeries()
     }

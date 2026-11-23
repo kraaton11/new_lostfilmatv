@@ -20,6 +20,7 @@ import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.SeriesGuide
+import com.kraat.lostfilmnewtv.data.model.TorrentLink
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.parser.LostFilmBaseUrl
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
@@ -466,6 +467,34 @@ class LostFilmRepositoryTest {
         assertEquals("Герои узнают правду.", first.details.episodeOverviewRu)
         assertEquals(first.details.episodeOverviewRu, second.details.episodeOverviewRu)
         assertEquals(1, requests)
+    }
+
+    @Test
+    fun loadDetailsPreview_addsMovieMetadataWithoutReplacingCachedPlaybackLinks() = runTest {
+        val url = "https://www.lostfilm.today/movies/Irreversible"
+        val film = fixture("movie-details.html")
+        val torrent = TorrentLink("1080p", "https://example.test/movie.torrent")
+        val cached = LostFilmDetailsParser().parseMovie(film, url, NOW)
+            .copy(torrentLinks = listOf(torrent))
+        releaseDao.upsertDetails(ReleaseDetailsEntity.fromModel(cached))
+        var fetches = 0
+        val repository = createRepository(
+            pageHandler = { error("Unexpected list request") },
+            detailsHandler = {
+                fetches++
+                film
+            },
+        )
+
+        repository.loadDetailsPreview(url)
+        assertEquals(0, fetches)
+        repeat(2) {
+            val preview = repository.loadMovieDetailsPreview(url) as DetailsResult.Success
+            assertEquals(97, preview.details.movieMetadata?.durationMinutes)
+            assertEquals(listOf(torrent), preview.details.torrentLinks)
+        }
+        assertEquals(1, fetches)
+        assertEquals(listOf(torrent), releaseDao.getReleaseDetails(url)?.toModel()?.torrentLinks)
     }
 
     @Test
@@ -1880,6 +1909,30 @@ class LostFilmRepositoryTest {
         assertEquals(1, result.items.size)
         assertEquals("Alpha", result.items.first().titleRu)
         assertEquals(1, result.favoriteSeriesCount)
+    }
+
+    @Test
+    fun switchingSessions_doesNotServeFreshFavoritesFromPreviousAccount() = runTest {
+        createRepository(
+            pageHandler = { fixture("new-page-1.html") },
+            accountPageHandler = { "<html></html>" },
+            isAuthenticated = true,
+        )
+        releaseDao.replaceFavoriteReleasesCache(
+            items = emptyList(),
+            metadata = FavoriteReleaseCacheMetadataEntity(
+                fetchedAt = NOW, favoriteSeriesCount = 7, itemCount = 0,
+            ),
+        )
+        val previous = favoritesRepository.observeFavoriteReleases().last() as FavoriteReleasesResult.Success
+        assertEquals(7, previous.favoriteSeriesCount)
+
+        favoritesRepository.changeSession {}
+
+        assertEquals(null, releaseDao.getFavoriteReleaseCacheMetadata())
+        val current = favoritesRepository.observeFavoriteReleases().last() as FavoriteReleasesResult.Success
+        assertEquals(0, current.favoriteSeriesCount)
+        assertTrue(current.items.isEmpty())
     }
 
     @Test

@@ -1,257 +1,107 @@
 package com.kraat.lostfilmnewtv.ui.auth
 
-import com.kraat.lostfilmnewtv.data.auth.AuthCompletionResult
 import com.kraat.lostfilmnewtv.data.auth.AuthRepositoryContract
+import com.kraat.lostfilmnewtv.data.auth.PhoneLoginServer
 import com.kraat.lostfilmnewtv.data.model.AuthState
-import com.kraat.lostfilmnewtv.data.model.PairingSession
-import com.kraat.lostfilmnewtv.data.model.PairingStatus
 import com.kraat.lostfilmnewtv.tvchannel.NoOpChannelLogger
-import kotlinx.coroutines.CompletableDeferred
+import java.io.IOException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.awaitCancellation
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class AuthViewModelTest {
-    private val dispatcher = StandardTestDispatcher()
-
     @Test
-    fun startAuth_setsWaitingForPhoneOpen_afterPairingCreated() = runTest(dispatcher) {
-        val repository = FakeAuthRepository(
-            startPairingResult = pairing(status = PairingStatus.PENDING),
-            pollBehavior = FakePollBehavior.Suspend,
-        )
-        val viewModel = AuthViewModel(
-            authRepository = repository,
-            ioDispatcher = dispatcher,
-            logger = NoOpChannelLogger(),
-        )
+    fun phoneLogin_showsLocalUrlThenOffersNewCodeAfterExpiry() = runTest {
+        val repository = FakeAuthRepository()
+        val viewModel = AuthViewModel(repository, StandardTestDispatcher(testScheduler), NoOpChannelLogger())
 
-        viewModel.startAuth()
-        advanceUntilIdle()
+        viewModel.startPhoneLoginLan()
+        runCurrent()
+        assertEquals(AuthUiState.WaitingForPhoneLan(repository.url), viewModel.uiState.value)
 
-        assertEquals(AuthUiState.WaitingForPhoneOpen(pairing(status = PairingStatus.PENDING)), viewModel.uiState.value)
+        advanceTimeBy(PhoneLoginServer.LOGIN_TTL_MS)
+        runCurrent()
+        assertTrue(viewModel.uiState.value is AuthUiState.Expired)
+
+        viewModel.retryAuth()
+        runCurrent()
+        assertEquals(AuthUiState.WaitingForPhoneLan(repository.url), viewModel.uiState.value)
+        assertEquals(2, repository.starts)
     }
 
     @Test
-    fun pollingMovesFromPendingToInProgressToVerifyingBeforeSuccess() = runTest(dispatcher) {
-        val completionGate = CompletableDeferred<AuthCompletionResult>()
-        val repository = FakeAuthRepository(
-            startPairingResult = pairing(status = PairingStatus.PENDING),
-            pollResults = ArrayDeque(
-                listOf(
-                    pairing(status = PairingStatus.IN_PROGRESS),
-                    pairing(status = PairingStatus.CONFIRMED),
-                ),
-            ),
-            completionResult = completionGate,
-        )
-        val viewModel = AuthViewModel(
-            authRepository = repository,
-            ioDispatcher = dispatcher,
-            logger = NoOpChannelLogger(),
-        )
+    fun closingScreen_stopsLocalListener() = runTest {
+        val repository = FakeAuthRepository()
+        val viewModel = AuthViewModel(repository, StandardTestDispatcher(testScheduler), NoOpChannelLogger())
 
-        viewModel.startAuth()
-        advanceUntilIdle()
-        assertEquals(AuthUiState.VerifyingSession(pairing(status = PairingStatus.CONFIRMED)), viewModel.uiState.value)
-
-        completionGate.complete(AuthCompletionResult.Authenticated)
-        advanceUntilIdle()
-
-        assertEquals(AuthUiState.Authenticated, viewModel.uiState.value)
-    }
-
-    @Test
-    fun expiredPairing_exposesGetNewCodeRecoveryState() = runTest(dispatcher) {
-        val repository = FakeAuthRepository(
-            startPairingResult = pairing(status = PairingStatus.PENDING),
-            pollResults = ArrayDeque(listOf(pairing(status = PairingStatus.EXPIRED))),
-        )
-        val viewModel = AuthViewModel(
-            authRepository = repository,
-            ioDispatcher = dispatcher,
-            logger = NoOpChannelLogger(),
-        )
-
-        viewModel.startAuth()
-        advanceUntilIdle()
-
-        assertEquals(
-            AuthUiState.Expired(
-                message = "Код входа истек. Получите новый код.",
-            ),
-            viewModel.uiState.value,
-        )
-    }
-
-    @Test
-    fun pollingFailure_transitionsToRecoverableError() = runTest(dispatcher) {
-        val repository = FakeAuthRepository(
-            startPairingResult = pairing(status = PairingStatus.PENDING),
-            pollBehavior = FakePollBehavior.Throw,
-        )
-        val viewModel = AuthViewModel(
-            authRepository = repository,
-            ioDispatcher = dispatcher,
-            logger = NoOpChannelLogger(),
-        )
-
-        viewModel.startAuth()
-        advanceUntilIdle()
-
-        assertEquals(
-            AuthUiState.RecoverableError(
-                message = "Не удалось завершить вход. Получите новый код.",
-            ),
-            viewModel.uiState.value,
-        )
-    }
-
-    @Test
-    fun pairingNeverConfirmed_stopsPollingAndExplainsInsteadOfLoadingForever() = runTest(dispatcher) {
-        // Очередь из одних и тех же PENDING: подтверждение не приходит никогда,
-        // поэтому цикл обязан упереться в собственный предел ожидания.
-        val pending = pairing(status = PairingStatus.PENDING, pollInterval = 2)
-        val repository = FakeAuthRepository(
-            startPairingResult = pending,
-            pollResults = ArrayDeque(List(400) { pending }),
-        )
-        val viewModel = AuthViewModel(
-            authRepository = repository,
-            ioDispatcher = dispatcher,
-            logger = NoOpChannelLogger(),
-        )
-
-        viewModel.startAuth()
-        advanceUntilIdle()
-
-        val state = viewModel.uiState.value
-        assertTrue(state is AuthUiState.RecoverableError)
-        val message = (state as AuthUiState.RecoverableError).message
-        assertTrue(
-            "Ожидалось объяснение вместо бесконечной загрузки, получено: $message",
-            message.contains("подтвердить вход"),
-        )
-        assertFalse(
-            "Технические детали не должны попадать в интерфейс: $message",
-            message.contains("timed out"),
-        )
-    }
-
-    @Test
-    fun cancelAuth_closesPairingAndReturnsToIdle() = runTest(dispatcher) {
-        val repository = FakeAuthRepository(
-            startPairingResult = pairing(status = PairingStatus.PENDING),
-            pollBehavior = FakePollBehavior.Suspend,
-        )
-        val viewModel = AuthViewModel(
-            authRepository = repository,
-            ioDispatcher = dispatcher,
-            logger = NoOpChannelLogger(),
-        )
-
-        viewModel.startAuth()
-        advanceUntilIdle()
-
-        viewModel.cancelAuth()
-        advanceUntilIdle()
+        viewModel.startPhoneLoginLan()
+        runCurrent()
+        viewModel.leaveAuthScreen()
+        runCurrent()
 
         assertEquals(AuthUiState.Idle, viewModel.uiState.value)
-        assertEquals(1, repository.cancelPairingCalls)
+        assertEquals(1, repository.stops)
     }
 
     @Test
-    fun observedAuthExpiry_switchesAuthenticatedStateBackToIdle() = runTest(dispatcher) {
-        val repository = FakeAuthRepository(
-            authState = AuthState(isAuthenticated = true),
-            startPairingResult = pairing(status = PairingStatus.PENDING),
-            pollBehavior = FakePollBehavior.Suspend,
-        )
-        val viewModel = AuthViewModel(
-            authRepository = repository,
-            ioDispatcher = dispatcher,
-            logger = NoOpChannelLogger(),
-        )
+    fun noLan_showsRecoverableError() = runTest {
+        val repository = FakeAuthRepository(hasLan = false)
+        val viewModel = AuthViewModel(repository, StandardTestDispatcher(testScheduler), NoOpChannelLogger())
 
-        advanceUntilIdle()
+        viewModel.startPhoneLoginLan()
+        runCurrent()
+
+        assertTrue(viewModel.uiState.value is AuthUiState.RecoverableError)
+    }
+
+    @Test
+    fun observedSessionCompletesLoginAndExpiryReturnsToIdle() = runTest {
+        val repository = FakeAuthRepository()
+        val viewModel = AuthViewModel(repository, StandardTestDispatcher(testScheduler), NoOpChannelLogger())
+        viewModel.startPhoneLoginLan()
+        runCurrent()
+
+        repository.authState.value = AuthState(isAuthenticated = true)
+        runCurrent()
         assertEquals(AuthUiState.Authenticated, viewModel.uiState.value)
 
-        repository.authState = AuthState(isAuthenticated = false)
-        advanceUntilIdle()
-
+        repository.authState.value = AuthState()
+        runCurrent()
         assertEquals(AuthUiState.Idle, viewModel.uiState.value)
     }
 
-    private class FakeAuthRepository(
-        authState: AuthState = AuthState(),
-        private val startPairingResult: PairingSession,
-        private val pollBehavior: FakePollBehavior = FakePollBehavior.Queue,
-        private val pollResults: ArrayDeque<PairingSession> = ArrayDeque(),
-        private val completionResult: CompletableDeferred<AuthCompletionResult> = CompletableDeferred(AuthCompletionResult.Authenticated),
-    ) : AuthRepositoryContract {
-        private val authStateFlow = MutableStateFlow(authState)
-        var authState: AuthState
-            get() = authStateFlow.value
-            set(value) {
-                authStateFlow.value = value
-            }
-        var cancelPairingCalls = 0
-            private set
+    private class FakeAuthRepository(private val hasLan: Boolean = true) : AuthRepositoryContract {
+        val authState = MutableStateFlow(AuthState())
+        val url = "http://192.168.1.2:8765/?t=local"
+        var starts = 0
+        var stops = 0
 
-        override suspend fun getAuthState(): AuthState = authStateFlow.value
-        override fun observeAuthState(): Flow<AuthState> = authStateFlow
+        override suspend fun getAuthState() = authState.value
+        override fun observeAuthState() = authState
+        override suspend fun startPairing(): Nothing = error("Unexpected bridge request")
+        override suspend fun pollPairingStatus(): Nothing = error("Unexpected bridge request")
+        override suspend fun claimAndPersistSession(): Nothing = error("Unexpected bridge request")
+        override suspend fun cancelPairing(): Nothing = error("Unexpected bridge request")
 
-        override suspend fun startPairing(): PairingSession = startPairingResult
-
-        override suspend fun pollPairingStatus(): PairingSession? {
-            return when (pollBehavior) {
-                FakePollBehavior.Suspend -> {
-                    awaitCancellation()
-                }
-
-                FakePollBehavior.Throw -> error("poll failed")
-
-                FakePollBehavior.Queue -> pollResults.removeFirstOrNull() ?: startPairingResult
-            }
+        override suspend fun startPhoneLogin(): String {
+            if (!hasLan) throw IOException("No local address")
+            starts++
+            return url
         }
 
-        override suspend fun claimAndPersistSession(): AuthCompletionResult = completionResult.await()
-
-        override suspend fun cancelPairing() {
-            cancelPairingCalls += 1
+        override suspend fun stopPhoneLogin() {
+            stops++
         }
 
         override suspend fun logout() {
-            authState = AuthState()
+            authState.value = AuthState()
         }
     }
-
-    private enum class FakePollBehavior {
-        Queue,
-        Suspend,
-        Throw,
-    }
-
-    private fun pairing(
-        status: PairingStatus,
-        pollInterval: Int = 0,
-    ): PairingSession = PairingSession(
-        pairingId = "pair-123",
-        pairingSecret = "secret-456",
-        phoneVerifier = "phone-789",
-        userCode = "ABC123",
-        verificationUrl = "https://phone-789.auth.example.test/",
-        status = status,
-        expiresIn = 120,
-        pollInterval = pollInterval,
-    )
 }

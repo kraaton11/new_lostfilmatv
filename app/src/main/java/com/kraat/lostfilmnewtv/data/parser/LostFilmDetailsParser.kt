@@ -2,6 +2,7 @@ package com.kraat.lostfilmnewtv.data.parser
 
 import com.kraat.lostfilmnewtv.data.model.FavoriteMetadata
 import com.kraat.lostfilmnewtv.data.model.FavoriteTargetKind
+import com.kraat.lostfilmnewtv.data.model.MovieMetadata
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.TorrentLink
@@ -16,6 +17,9 @@ private val followSerialRegex = Regex("""FollowSerial\((\d+),\s*(true|false)\)""
 private val userDataBlockRegex = Regex("""UserData\s*=\s*\{.*?\}""", setOf(RegexOption.DOT_MATCHES_ALL))
 private val userDataSessionRegex = Regex("""["']session["']\s*:\s*["']([^"']+)["']""")
 private val userDataSessionAssignmentRegex = Regex("""UserData\.session\s*=\s*["']([^"']+)["']""")
+
+private val durationRegex = Regex("""Длительность:\s*(\d+)\s*мин""", RegexOption.IGNORE_CASE)
+private val imdbRegex = Regex("""Рейтинг IMDb:\s*(\d+(?:[.,]\d+)?)""", RegexOption.IGNORE_CASE)
 
 internal const val LOSTFILM_OVERVIEW_SOURCE = "LOSTFILM"
 
@@ -75,6 +79,12 @@ class LostFilmDetailsParser {
         val document = Jsoup.parse(html, BASE_URL)
         val favoriteMetadata = parseFavoriteMetadata(html)
 
+        val facts = document.selectFirst(".details-pane .left-box")?.text().orEmpty()
+        val movieMetadata = MovieMetadata(
+            genres = document.select(".details-pane [itemprop=genre] a").eachText(),
+            durationMinutes = durationRegex.find(facts)?.groupValues?.get(1)?.toIntOrNull(),
+            imdbRating = imdbRegex.find(facts)?.groupValues?.get(1),
+        )
         return ReleaseDetails(
             detailsUrl = resolveUrl(detailsUrl),
             kind = ReleaseKind.MOVIE,
@@ -90,6 +100,7 @@ class LostFilmDetailsParser {
             isFavorite = favoriteMetadata?.isFavorite,
             originalReleaseYear = document.originalReleaseYear(),
             episodeOverviewRu = document.releaseDescriptionRu(),
+            movieMetadata = movieMetadata,
         )
     }
 

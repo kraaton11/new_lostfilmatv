@@ -3,20 +3,16 @@ package com.kraat.lostfilmnewtv.ui
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
-import com.kraat.lostfilmnewtv.data.auth.AuthCompletionResult
 import com.kraat.lostfilmnewtv.data.auth.AuthRepositoryContract
 import com.kraat.lostfilmnewtv.data.model.AuthState
-import com.kraat.lostfilmnewtv.data.model.PairingSession
-import com.kraat.lostfilmnewtv.data.model.PairingStatus
 import com.kraat.lostfilmnewtv.ui.auth.AuthScreen
 import com.kraat.lostfilmnewtv.ui.auth.AuthViewModel
 import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
-import kotlinx.coroutines.CompletableDeferred
+import java.io.IOException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.awaitCancellation
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import org.junit.Rule
 import org.junit.Test
@@ -26,71 +22,31 @@ class AuthScreenTest {
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
     @Test
-    fun initialState_showsStartSignInButton() {
-        composeRule.setAuthContent(
-            repository = FakeAuthRepository(
-                startPairingResult = pairing(PairingStatus.PENDING),
-                pollBehavior = FakePollBehavior.Suspend,
-            ),
-        )
+    fun startSignIn_showsLocalQrCode() {
+        setAuthContent()
 
-        composeRule.onNodeWithText("Начать вход").assertIsDisplayed()
-    }
+        composeRule.onNodeWithText("Войти с телефона (по Wi-Fi)").performClick()
 
-    @Test
-    fun waitingState_showsApprovedStepsAfterStartingSignIn() {
-        composeRule.setAuthContent(
-            repository = FakeAuthRepository(
-                startPairingResult = pairing(PairingStatus.PENDING),
-                pollBehavior = FakePollBehavior.Suspend,
-            ),
-        )
-
-        composeRule.onNodeWithText("Начать вход").performClick()
-        composeRule.waitForIdle()
-
-        composeRule.onNodeWithText("1. Откройте QR на телефоне\n2. Войдите в LostFilm\n3. Вернитесь к телевизору, экран обновится сам").assertIsDisplayed()
-        composeRule.onNodeWithText("Откройте ссылку на телефоне").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("QR code for phone login").assertIsDisplayed()
+        composeRule.onNodeWithText("Ссылка действует 10 минут").assertIsDisplayed()
         composeRule.onNodeWithText("Отменить").assertIsDisplayed()
     }
 
     @Test
-    fun verifyingAndRecoverableErrorStates_showExpectedCopy() {
-        val completionGate = CompletableDeferred<AuthCompletionResult>()
-        composeRule.setAuthContent(
-            repository = FakeAuthRepository(
-                startPairingResult = pairing(PairingStatus.PENDING),
-                pollResults = ArrayDeque(listOf(pairing(PairingStatus.CONFIRMED))),
-                completionResult = completionGate,
-            ),
-        )
-
-        composeRule.onNodeWithText("Начать вход").performClick()
-        composeRule.waitForIdle()
-        composeRule.onNodeWithText("Проверяем вход...").assertIsDisplayed()
-
-        completionGate.complete(AuthCompletionResult.NetworkError)
-        composeRule.waitForIdle()
+    fun autoStartWithoutLan_offersRetry() {
+        setAuthContent(hasLan = false, autoStart = true)
 
         composeRule.onNodeWithText("Получить новый код").assertIsDisplayed()
         composeRule.onNodeWithText("Назад").assertIsDisplayed()
     }
 
-    private fun createViewModel(repository: FakeAuthRepository): AuthViewModel {
-        return AuthViewModel(
-            authRepository = repository,
-            ioDispatcher = Dispatchers.Main.immediate,
-        )
-    }
-
-    private fun androidx.compose.ui.test.junit4.AndroidComposeTestRule<*, *>.setAuthContent(
-        repository: FakeAuthRepository,
-    ) {
-        val viewModel = createViewModel(repository)
-        setContent {
+    private fun setAuthContent(hasLan: Boolean = true, autoStart: Boolean = false) {
+        val viewModel = AuthViewModel(FakeAuthRepository(hasLan), Dispatchers.Main.immediate)
+        composeRule.setContent {
             LostFilmTheme {
                 AuthScreen(
                     viewModel = viewModel,
+                    autoStart = autoStart,
                     onAuthComplete = {},
                     onNavigateBack = {},
                 )
@@ -98,56 +54,20 @@ class AuthScreenTest {
         }
     }
 
-    private class FakeAuthRepository(
-        authState: AuthState = AuthState(),
-        private val startPairingResult: PairingSession,
-        private val pollBehavior: FakePollBehavior = FakePollBehavior.Queue,
-        private val pollResults: ArrayDeque<PairingSession> = ArrayDeque(),
-        private val completionResult: CompletableDeferred<AuthCompletionResult> = CompletableDeferred(AuthCompletionResult.Authenticated),
-    ) : AuthRepositoryContract {
-        private val authStateFlow = MutableStateFlow(authState)
+    private class FakeAuthRepository(private val hasLan: Boolean) : AuthRepositoryContract {
+        private val authState = MutableStateFlow(AuthState())
 
-        override suspend fun getAuthState(): AuthState = authStateFlow.value
-        override fun observeAuthState(): Flow<AuthState> = authStateFlow
+        override suspend fun getAuthState() = authState.value
+        override fun observeAuthState() = authState
+        override suspend fun startPairing(): Nothing = error("Unexpected bridge request")
+        override suspend fun pollPairingStatus(): Nothing = error("Unexpected bridge request")
+        override suspend fun claimAndPersistSession(): Nothing = error("Unexpected bridge request")
+        override suspend fun cancelPairing(): Nothing = error("Unexpected bridge request")
+        override suspend fun logout() = Unit
 
-        override suspend fun startPairing(): PairingSession = startPairingResult
-
-        override suspend fun pollPairingStatus(): PairingSession? {
-            return when (pollBehavior) {
-                FakePollBehavior.Suspend -> awaitCancellation()
-                FakePollBehavior.Throw -> error("poll failed")
-                FakePollBehavior.Queue -> pollResults.removeFirstOrNull() ?: startPairingResult
-            }
+        override suspend fun startPhoneLogin(): String {
+            if (!hasLan) throw IOException("No local address")
+            return "http://192.168.1.2:8765/?t=local"
         }
-
-        override suspend fun claimAndPersistSession(): AuthCompletionResult = completionResult.await()
-
-        override suspend fun cancelPairing() = Unit
-
-        override suspend fun logout() {
-            authStateFlow.value = AuthState()
-        }
-    }
-
-    private enum class FakePollBehavior {
-        Queue,
-        Suspend,
-        Throw,
-    }
-
-    private companion object {
-        fun pairing(
-            status: PairingStatus,
-            pollInterval: Int = 0,
-        ): PairingSession = PairingSession(
-            pairingId = "pair-123",
-            pairingSecret = "secret-456",
-            phoneVerifier = "phone-789",
-            userCode = "ABC123",
-            verificationUrl = "https://auth.example.test/pair/phone-789",
-            status = status,
-            expiresIn = 120,
-            pollInterval = pollInterval,
-        )
     }
 }

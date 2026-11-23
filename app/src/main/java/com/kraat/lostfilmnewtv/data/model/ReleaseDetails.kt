@@ -24,6 +24,14 @@ data class ReleaseDetails(
     val episodeOverviewSource: String? = null,
     val movieOverviewRu: String? = null,
     val tmdbRating: String? = null,
+    val movieMetadata: MovieMetadata? = null,
+)
+
+@Serializable
+data class MovieMetadata(
+    val genres: List<String> = emptyList(),
+    val durationMinutes: Int? = null,
+    val imdbRating: String? = null,
 )
 
 @Serializable

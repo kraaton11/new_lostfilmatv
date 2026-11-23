@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.ui.home
 
+import com.kraat.lostfilmnewtv.data.model.MovieMetadata
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 
 /**
@@ -215,4 +216,6 @@ private fun defaultModeStates(): Map<HomeFeedMode, HomeModeData> =
 data class HomeReleasePreview(
     val description: String? = null,
     val backdropUrl: String? = null,
+    val movieMetadata: MovieMetadata? = null,
+    val movieYear: Int? = null,
 )

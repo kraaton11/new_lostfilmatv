@@ -1,10 +1,11 @@
 package com.kraat.lostfilmnewtv.di
 
+import android.content.Context
 import com.kraat.lostfilmnewtv.data.auth.AuthRepository
 import com.kraat.lostfilmnewtv.data.auth.AuthRepositoryContract
 import com.kraat.lostfilmnewtv.data.auth.EncryptedSessionStore
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
-import com.kraat.lostfilmnewtv.data.network.AuthBridgeClient
+import com.kraat.lostfilmnewtv.data.network.LostFilmLoginClient
 import com.kraat.lostfilmnewtv.data.network.LostFilmSessionVerifier
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
@@ -22,6 +23,7 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Singleton
 import okhttp3.OkHttpClient
 
@@ -32,10 +34,14 @@ object DataModule {
     @Provides
     @Singleton
     fun provideAuthRepository(
-        authBridgeClient: AuthBridgeClient,
         sessionStore: EncryptedSessionStore,
         sessionVerifier: LostFilmSessionVerifier,
-    ): AuthRepositoryContract = AuthRepository(authBridgeClient, sessionStore, sessionVerifier)
+        loginClient: LostFilmLoginClient,
+        favoritesRepository: FavoritesRepository,
+    ): AuthRepositoryContract =
+        AuthRepository(
+            null, sessionStore, sessionVerifier, loginClient = loginClient, favoritesRepository = favoritesRepository,
+        )
 
     @Provides
     @Singleton
@@ -45,12 +51,14 @@ object DataModule {
     @Provides
     @Singleton
     fun provideFavoritesRepository(
+        @ApplicationContext context: Context,
         @AuthenticatedHttpClient httpClient: LostFilmHttpClient,
         releaseDao: ReleaseDao,
         sessionStore: EncryptedSessionStore,
     ): FavoritesRepository = FavoritesRepositoryImpl(
         httpClient = httpClient,
         releaseDao = releaseDao,
+        cachePreferences = context.getSharedPreferences("lostfilm_favorite_cache", Context.MODE_PRIVATE),
         hasAuthenticatedSession = {
             val session = sessionStore.read()
             session != null && !sessionStore.isExpired()

@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -379,10 +380,16 @@ fun HomeScreen(
                     ) {
                         when (activeModeState) {
                             is HomeModeContentState.Content -> {
-                                HomeHeroStage(
-                                    item = heroItem,
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
+                                val isMovies = state.selectedMode == HomeFeedMode.Movies
+                                if (isMovies) {
+                                    MovieInfoPanel(item = focusedItem, preview = releasePreview)
+                                    Spacer(Modifier.weight(1f))
+                                } else {
+                                    HomeHeroStage(
+                                        item = heroItem,
+                                        modifier = Modifier.fillMaxWidth(),
+                                    )
+                                }
                                 HomeRailSectionHeader(
                                     selectedMode = state.selectedMode,
                                     favoriteSeriesCount = state.favoriteSeriesCount,
@@ -390,8 +397,7 @@ fun HomeScreen(
                                 HomeRail(
                                     railId = activeRailId,
                                     items = activeModeState.items,
-                                    modifier = Modifier
-                                        .fillMaxWidth(),
+                                    modifier = if (isMovies) Modifier.padding(bottom = 30.dp) else Modifier,
                                     focusedItemKey = focusedItemKey,
                                     entryFocusRequester = contentEntryRequester,
                                     cardFocusRequesters = cardFocusRequesters,
@@ -481,6 +487,57 @@ fun HomeScreen(
             }
             }
         }
+    }
+}
+
+@Composable
+private fun MovieInfoPanel(item: ReleaseSummary?, preview: HomeReleasePreview) {
+    val metadata = preview.movieMetadata
+    val facts = listOfNotNull(
+        metadata?.genres?.joinToString(", ")?.takeIf { it.isNotBlank() },
+        metadata?.durationMinutes?.let { "$it мин" },
+        metadata?.imdbRating?.let { "IMDb $it" },
+    ).joinToString("  ·  ")
+    val title = listOfNotNull(item?.titleRu, (preview.movieYear ?: item?.originalReleaseYear)?.toString())
+        .joinToString("  ·  ")
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(214.dp)
+            .testTag("home-movie-info")
+            .padding(start = 12.dp, top = 4.dp, end = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            text = title,
+            color = TextPrimary,
+            fontSize = 27.sp,
+            lineHeight = 30.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (facts.isNotEmpty()) {
+            Text(
+                text = facts,
+                color = HomeAccentGold,
+                fontSize = 15.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        (preview.description ?: item?.movieOverviewRu)?.takeIf { it.isNotBlank() }?.let { description ->
+            Text(
+                text = description,
+                color = HomeTextSecondary,
+                fontSize = 16.sp,
+                lineHeight = 21.sp,
+                maxLines = 5,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.width(680.dp),
+            )
+        }
+        item?.availabilityLabel?.takeIf { it.isNotBlank() }?.let { HeroMetaPill(it, highlighted = true) }
     }
 }
 
@@ -641,7 +698,7 @@ private fun HomeRailSectionHeader(
     }
 
     Row(
-        modifier = Modifier.padding(start = 2.dp),
+        modifier = Modifier.padding(start = 2.dp).testTag("home-rail-section-header"),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {

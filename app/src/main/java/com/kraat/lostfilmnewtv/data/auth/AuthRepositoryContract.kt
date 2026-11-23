@@ -12,4 +12,14 @@ interface AuthRepositoryContract {
     suspend fun claimAndPersistSession(): AuthCompletionResult
     suspend fun cancelPairing()
     suspend fun logout()
+
+    /** Прямой вход логином/паролем, без auth-bridge. */
+    suspend fun beginPasswordLogin() {}
+    suspend fun loadCaptcha(): ByteArray = throw UnsupportedOperationException()
+    suspend fun loginWithPassword(email: String, password: String, captcha: String?): PasswordLoginResult =
+        throw UnsupportedOperationException()
+
+    /** Вход с телефона по локальной сети: поднимает сервер на ТВ, возвращает ссылку для QR. */
+    suspend fun startPhoneLogin(): String = throw UnsupportedOperationException()
+    suspend fun stopPhoneLogin() {}
 }

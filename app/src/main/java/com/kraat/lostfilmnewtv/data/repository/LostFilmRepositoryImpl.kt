@@ -6,6 +6,7 @@ import com.kraat.lostfilmnewtv.data.db.ReleaseDetailsEntity
 import com.kraat.lostfilmnewtv.data.parser.LOSTFILM_OVERVIEW_SOURCE
 import com.kraat.lostfilmnewtv.data.model.FavoriteMetadata
 import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
+import com.kraat.lostfilmnewtv.data.model.MovieMetadata
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
@@ -33,6 +34,7 @@ import com.kraat.lostfilmnewtv.data.parser.toSummaryEntities
 import com.kraat.lostfilmnewtv.data.parser.toSummaryModels
 import dagger.Lazy
 import android.util.Log
+import android.util.LruCache
 import java.io.IOException
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
@@ -87,6 +89,7 @@ class LostFilmRepositoryImpl(
     private val hasAuthenticatedSession: suspend () -> Boolean,
     private val clock: () -> Long = { System.currentTimeMillis() },
 ) : LostFilmRepository {
+    private val moviePreviewMetadata = LruCache<String, MovieMetadata>(64)
     private val cleanupMutex = Mutex()
     private var lastCleanupAt = 0L
     // Кеш (isWatched, ajaxSessionToken) после последнего loadWatchedState — позволяет
@@ -301,7 +304,13 @@ class LostFilmRepositoryImpl(
         }
     }
 
-    override suspend fun loadDetailsPreview(detailsUrl: String): DetailsResult {
+    override suspend fun loadDetailsPreview(detailsUrl: String): DetailsResult =
+        loadDetailsPreview(detailsUrl, includeMovieMetadata = false)
+
+    override suspend fun loadMovieDetailsPreview(detailsUrl: String): DetailsResult =
+        loadDetailsPreview(detailsUrl, includeMovieMetadata = true)
+
+    private suspend fun loadDetailsPreview(detailsUrl: String, includeMovieMetadata: Boolean): DetailsResult {
         val normalizedDetailsUrl = resolveUrl(detailsUrl)
         cleanupExpiredDataIfNeeded()
         val currentCachedDetails = releaseDao.getReleaseDetails(normalizedDetailsUrl)
@@ -309,22 +318,32 @@ class LostFilmRepositoryImpl(
             .takeIf { it != normalizedDetailsUrl }
             ?.let { releaseDao.getReleaseDetails(it) }
         val now = clock()
+        val metadata = moviePreviewMetadata.get(normalizedDetailsUrl)
+        val needsMovieMetadata = includeMovieMetadata && currentCachedDetails?.kind == ReleaseKind.MOVIE.name && metadata == null
 
-        if (
-            currentCachedDetails != null &&
-            now - currentCachedDetails.fetchedAt < RETENTION_WINDOW_MS &&
-            !currentCachedDetails.needsEpisodeOverviewRefresh() &&
-            !hasLegacyArtwork(currentCachedDetails.posterUrl, currentCachedDetails.backdropUrl)
-        ) {
+        val reusableDetails = currentCachedDetails?.takeIf {
+            now - it.fetchedAt < RETENTION_WINDOW_MS &&
+                !it.needsEpisodeOverviewRefresh() &&
+                !hasLegacyArtwork(it.posterUrl, it.backdropUrl)
+        }
+        if (reusableDetails != null && !needsMovieMetadata) {
             return DetailsResult.Success(
-                details = enrichWithSummaryEpisodeTitle(currentCachedDetails.toModel()),
-                isStale = now - currentCachedDetails.fetchedAt > FRESH_WINDOW_MS,
+                details = enrichWithSummaryEpisodeTitle(reusableDetails.toModel()).copy(movieMetadata = metadata),
+                isStale = now - reusableDetails.fetchedAt > FRESH_WINDOW_MS,
             )
         }
 
         return try {
             val html = httpClient.fetchDetails(normalizedDetailsUrl)
             val parsed = enrichWithSummaryEpisodeTitle(parseDetails(html, normalizedDetailsUrl, now))
+            parsed.movieMetadata?.let { moviePreviewMetadata.put(normalizedDetailsUrl, it) }
+            if (reusableDetails != null) {
+                return DetailsResult.Success(
+                    details = enrichWithSummaryEpisodeTitle(reusableDetails.toModel())
+                        .copy(movieMetadata = parsed.movieMetadata),
+                    isStale = now - reusableDetails.fetchedAt > FRESH_WINDOW_MS,
+                )
+            }
             val details = if (
                 currentCachedDetails != null &&
                 now - currentCachedDetails.fetchedAt < RETENTION_WINDOW_MS &&
@@ -335,6 +354,7 @@ class LostFilmRepositoryImpl(
                 currentCachedDetails.toModel().copy(
                     episodeOverviewRu = parsed.episodeOverviewRu,
                     episodeOverviewSource = LOSTFILM_OVERVIEW_SOURCE,
+                    movieMetadata = parsed.movieMetadata,
                 )
             } else {
                 releaseDao.upsertDetails(parsed.toEntity())

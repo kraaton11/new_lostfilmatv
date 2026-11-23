@@ -2,9 +2,9 @@ package com.kraat.lostfilmnewtv.di
 
 import android.content.Context
 import com.kraat.lostfilmnewtv.data.auth.EncryptedSessionStore
-import com.kraat.lostfilmnewtv.data.network.AuthBridgeClient
 import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.LOSTFILM_MAX_CONCURRENT_REQUESTS
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
+import com.kraat.lostfilmnewtv.data.network.LostFilmLoginClient
 import com.kraat.lostfilmnewtv.data.network.OkHttpLostFilmHttpClient
 import dagger.Module
 import dagger.Provides
@@ -96,9 +96,7 @@ object NetworkModule {
 
     @Provides
     @Singleton
-    fun provideAuthBridgeClient(okHttpClient: OkHttpClient): AuthBridgeClient =
-        AuthBridgeClient(AUTH_BRIDGE_BASE_URL, okHttpClient)
-
-    private const val AUTH_BRIDGE_BASE_URL = "https://auth.bazuka.pp.ua"
+    fun provideLostFilmLoginClient(okHttpClient: OkHttpClient): LostFilmLoginClient =
+        LostFilmLoginClient(okHttpClient)
 
 }

@@ -5,9 +5,15 @@ import com.kraat.lostfilmnewtv.data.model.LostFilmSession
 import com.kraat.lostfilmnewtv.data.model.PairingSession
 import com.kraat.lostfilmnewtv.data.network.AuthBridgeHttpException
 import com.kraat.lostfilmnewtv.data.network.AuthBridgeClient
+import com.kraat.lostfilmnewtv.data.network.LostFilmLoginClient
 import com.kraat.lostfilmnewtv.data.network.LostFilmSessionVerifier
+import com.kraat.lostfilmnewtv.data.repository.FavoritesRepository
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -15,14 +21,24 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 
 class AuthRepository(
-    private val authBridgeClient: AuthBridgeClient,
+    private val authBridgeClient: AuthBridgeClient?,
     private val sessionStore: SessionStore,
     private val sessionVerifier: LostFilmSessionVerifier,
     private val verificationMaxAttempts: Int = 3,
     private val verificationRetryDelayMillis: Long = 250L,
+    private val loginClient: LostFilmLoginClient? = null,
+    private val favoritesRepository: FavoritesRepository? = null,
 ) : AuthRepositoryContract {
     @Volatile
     private var currentPairing: PairingSession? = null
+
+    // Сервер для входа с телефона по локальной сети; использует тот же loginWithPassword.
+    private val phoneLoginServer by lazy {
+        PhoneLoginServer(
+            login = { email, password, captcha -> loginWithPassword(email, password, captcha) },
+            captcha = { loadCaptcha() },
+        )
+    }
 
     override suspend fun getAuthState(): AuthState {
         val session = sessionStore.read()
@@ -60,14 +76,14 @@ class AuthRepository(
     }
 
     override suspend fun startPairing(): PairingSession {
-        val pairing = authBridgeClient.createPairing()
+        val pairing = requireNotNull(authBridgeClient).createPairing()
         currentPairing = pairing
         return pairing
     }
 
     override suspend fun pollPairingStatus(): PairingSession? {
         val pairing = currentPairing ?: return null
-        val updated = authBridgeClient.getPairingStatus(pairing)
+        val updated = requireNotNull(authBridgeClient).getPairingStatus(pairing)
         currentPairing = updated
         return updated
     }
@@ -76,7 +92,7 @@ class AuthRepository(
         val pairing = currentPairing ?: return AuthCompletionResult.RecoverableFailure()
 
         val session = try {
-            val session = authBridgeClient.claimSession(pairing)
+            val session = requireNotNull(authBridgeClient).claimSession(pairing)
             session
         } catch (e: AuthBridgeHttpException) {
             return if (e.isExpired()) {
@@ -135,7 +151,7 @@ class AuthRepository(
         session: LostFilmSession,
     ): AuthCompletionResult {
         try {
-            sessionStore.save(session)
+            changeSession { sessionStore.save(session) }
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -145,7 +161,7 @@ class AuthRepository(
         val attempts = verificationMaxAttempts.coerceAtLeast(1)
         repeat(attempts) { attempt ->
             try {
-                val finalized = authBridgeClient.finalizeClaim(pairing)
+                val finalized = requireNotNull(authBridgeClient).finalizeClaim(pairing)
                 if (finalized) {
                     return AuthCompletionResult.Authenticated
                 }
@@ -174,7 +190,7 @@ class AuthRepository(
 
     private suspend fun releaseClaimBestEffort(pairing: PairingSession) {
         try {
-            authBridgeClient.releaseClaim(pairing)
+            requireNotNull(authBridgeClient).releaseClaim(pairing)
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -186,7 +202,7 @@ class AuthRepository(
         val pairing = currentPairing ?: return
         currentPairing = null
         try {
-            authBridgeClient.cancelPairing(pairing)
+            requireNotNull(authBridgeClient).cancelPairing(pairing)
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
@@ -194,9 +210,68 @@ class AuthRepository(
         }
     }
 
+    override suspend fun startPhoneLogin(): String {
+        beginPasswordLogin()
+        return withContext(Dispatchers.IO) { phoneLoginServer.start() }
+    }
+
+    override suspend fun stopPhoneLogin() {
+        phoneLoginServer.stop()
+    }
+
+    override suspend fun beginPasswordLogin() {
+        val client = requireNotNull(loginClient) { "LostFilmLoginClient is not configured" }
+        client.reset()
+        try {
+            client.warmUp()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: IOException) {
+            // Не критично: cookie придут и с самим запросом логина.
+        }
+    }
+
+    override suspend fun loadCaptcha(): ByteArray =
+        requireNotNull(loginClient) { "LostFilmLoginClient is not configured" }.fetchCaptcha()
+
+    override suspend fun loginWithPassword(
+        email: String,
+        password: String,
+        captcha: String?,
+    ): PasswordLoginResult {
+        val client = requireNotNull(loginClient) { "LostFilmLoginClient is not configured" }
+        val result = try {
+            client.login(email, password, captcha)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: IOException) {
+            return PasswordLoginResult.NetworkError
+        }
+
+        return when (result) {
+            LostFilmLoginClient.LoginResult.NeedCaptcha -> PasswordLoginResult.NeedCaptcha
+            LostFilmLoginClient.LoginResult.WrongCaptcha -> PasswordLoginResult.WrongCaptcha
+            LostFilmLoginClient.LoginResult.InvalidCredentials -> PasswordLoginResult.InvalidCredentials
+            is LostFilmLoginClient.LoginResult.Success -> when (verifyClaimedSessionWithRetries(result.session)) {
+                VerificationResult.AUTHENTICATED -> {
+                    currentCoroutineContext().ensureActive()
+                    changeSession { sessionStore.save(result.session) }
+                    PasswordLoginResult.Authenticated
+                }
+                VerificationResult.UNAUTHENTICATED -> PasswordLoginResult.VerificationFailed
+                VerificationResult.NETWORK_ERROR -> PasswordLoginResult.NetworkError
+            }
+        }
+    }
+
     override suspend fun logout() {
-        sessionStore.clear()
+        changeSession { sessionStore.clear() }
         currentPairing = null
+    }
+
+    private suspend fun changeSession(change: suspend () -> Unit) {
+        val favorites = favoritesRepository
+        if (favorites == null) change() else favorites.changeSession(change)
     }
 
     private enum class VerificationResult {

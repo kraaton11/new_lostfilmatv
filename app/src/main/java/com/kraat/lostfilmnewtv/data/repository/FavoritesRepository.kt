@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.data.repository
 
+import android.content.SharedPreferences
 import android.util.Log
 import com.kraat.lostfilmnewtv.data.db.FavoriteReleaseCacheEntity
 import com.kraat.lostfilmnewtv.data.db.FavoriteReleaseCacheMetadataEntity
@@ -52,10 +53,12 @@ private const val FAVORITE_RELEASES_CACHE_TTL_MS = 2 * 60 * 1000L
 private const val FAVORITE_RELEASES_ROOM_FRESH_MS = 15 * 60 * 1000L
 
 interface FavoritesRepository {
+    val sessionRevision: Long get() = 0L
     fun observeFavoriteReleases(pageNumber: Int = 1): Flow<FavoriteReleasesResult>
     suspend fun loadFavoriteSeries(): FavoriteSeriesResult
     suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult
     suspend fun invalidateCache()
+    suspend fun changeSession(change: suspend () -> Unit) = change()
 }
 
 class FavoritesRepositoryImpl @Inject constructor(
@@ -63,6 +66,7 @@ class FavoritesRepositoryImpl @Inject constructor(
     private val releaseDao: ReleaseDao,
     private val hasAuthenticatedSession: suspend () -> Boolean,
     private val clock: () -> Long = { System.currentTimeMillis() },
+    private val cachePreferences: SharedPreferences? = null,
 ) : FavoritesRepository {
 
     private val favoriteSeriesParser = LostFilmFavoriteSeriesParser()
@@ -71,6 +75,9 @@ class FavoritesRepositoryImpl @Inject constructor(
 
     private val favoriteReleasesCacheMutex = Mutex()
     private var favoriteReleasesCache: FavoriteReleasesCache? = null
+    @Volatile
+    private var sessionGeneration = 0L
+    override val sessionRevision: Long get() = sessionGeneration
 
     private val favoriteSeriesRoute = "/my/type_1"
     private fun seriesFavoritePageRegex() = Regex("""${Regex.escape(BASE_URL)}/series/([^/]+)/season_\d+/episode_\d+/?""")
@@ -105,7 +112,11 @@ class FavoritesRepositoryImpl @Inject constructor(
     )
 
     override fun observeFavoriteReleases(pageNumber: Int): Flow<FavoriteReleasesResult> = channelFlow {
-        if (!hasAuthenticatedSession()) {
+        val generation = favoriteReleasesCacheMutex.withLock {
+            discardLegacyCache()
+            if (hasAuthenticatedSession()) sessionGeneration else null
+        }
+        if (generation == null) {
             send(FavoriteReleasesResult.Unavailable("Войдите в LostFilm"))
             return@channelFlow
         }
@@ -113,7 +124,10 @@ class FavoritesRepositoryImpl @Inject constructor(
         val normalizedPageNumber = pageNumber.coerceAtLeast(1)
 
         try {
-            val cached = favoriteReleasesCacheMutex.withLock { favoriteReleasesCache }
+            val cached = favoriteReleasesCacheMutex.withLock {
+                if (generation != sessionGeneration) return@channelFlow
+                favoriteReleasesCache
+            }
             val canReuseInMemoryCache = normalizedPageNumber > 1 &&
                 cached != null &&
                 (clock() - cached.fetchedAt) < FAVORITE_RELEASES_CACHE_TTL_MS
@@ -121,9 +135,12 @@ class FavoritesRepositoryImpl @Inject constructor(
             val (allItems, favoriteSeriesCount) = if (canReuseInMemoryCache) {
                 cached.allItems to cached.favoriteSeriesCount
             } else {
-                val roomMetadata = releaseDao.getFavoriteReleaseCacheMetadata()
+                val (roomMetadata, roomItems) = favoriteReleasesCacheMutex.withLock {
+                    if (generation != sessionGeneration) return@channelFlow
+                    val metadata = releaseDao.getFavoriteReleaseCacheMetadata()
+                    metadata to if (metadata == null) emptyList() else releaseDao.getFavoriteReleasesCache().map { it.toModel() }
+                }
                 if (roomMetadata != null) {
-                    val roomItems = releaseDao.getFavoriteReleasesCache().map { it.toModel() }
                     val hasLegacyImages = roomItems.any { hasLegacyArtwork(it.posterUrl, it.backdropUrl) }
                     val roomCacheFresh = !hasLegacyImages &&
                         (clock() - roomMetadata.fetchedAt) < FAVORITE_RELEASES_ROOM_FRESH_MS
@@ -135,6 +152,7 @@ class FavoritesRepositoryImpl @Inject constructor(
 
                     if (!hasLegacyImages) {
                         favoriteReleasesCacheMutex.withLock {
+                            if (generation != sessionGeneration) return@channelFlow
                             favoriteReleasesCache = FavoriteReleasesCache(
                                 allItems = roomItems,
                                 favoriteSeriesCount = roomMetadata.favoriteSeriesCount,
@@ -159,14 +177,19 @@ class FavoritesRepositoryImpl @Inject constructor(
                     ))
                 }
 
-                val fetched = fetchAllFavoriteReleasesStreaming { partialItems, total ->
-                    send(FavoriteReleasesResult.Partial(items = partialItems, favoriteSeriesCount = total))
+                val fetched = fetchAllFavoriteReleasesStreaming(generation) { partialItems, total ->
+                    favoriteReleasesCacheMutex.withLock {
+                        if (generation == sessionGeneration) {
+                            trySend(FavoriteReleasesResult.Partial(items = partialItems, favoriteSeriesCount = total))
+                        }
+                    }
                 } ?: run {
                     send(FavoriteReleasesResult.Unavailable())
                     return@channelFlow
                 }
                 val now = clock()
                 favoriteReleasesCacheMutex.withLock {
+                    if (generation != sessionGeneration) return@channelFlow
                     favoriteReleasesCache = FavoriteReleasesCache(
                         allItems = fetched.allItems,
                         favoriteSeriesCount = fetched.favoriteSeriesCount,
@@ -182,7 +205,10 @@ class FavoritesRepositoryImpl @Inject constructor(
                 .take(FAVORITE_RELEASES_PAGE_SIZE)
                 .mapIndexed { index, item -> item.copy(positionInPage = pageOffset + index) }
 
-            persistFavoriteReleasesToRoom(allItems = allItems, favoriteSeriesCount = favoriteSeriesCount)
+            favoriteReleasesCacheMutex.withLock {
+                if (generation != sessionGeneration) return@channelFlow
+                persistFavoriteReleasesToRoom(allItems = allItems, favoriteSeriesCount = favoriteSeriesCount)
+            }
 
             send(FavoriteReleasesResult.Success(
                 items = items,
@@ -198,16 +224,27 @@ class FavoritesRepositoryImpl @Inject constructor(
         }
     }
 
-    private suspend fun getOrFetchWatchedMarks(serialId: String, refererUrl: String): Set<String> {
+    private suspend fun getOrFetchWatchedMarks(
+        serialId: String,
+        refererUrl: String,
+        generation: Long,
+    ): Set<String> {
         val now = clock()
-        val cacheEntry = watchedMarksCache[serialId]
+        val cacheEntry = favoriteReleasesCacheMutex.withLock {
+            if (generation != sessionGeneration) return emptySet()
+            watchedMarksCache[serialId]
+        }
         if (cacheEntry != null && (now - cacheEntry.fetchedAt) < 30 * 60 * 1000L) { // 30 min cache TTL
             return cacheEntry.watchedIds
         }
         return try {
             val marksJson = httpClient.fetchSeasonWatchedEpisodeMarks(refererUrl, serialId)
             val parsedIds = seasonEpisodesParser.parseWatchedEpisodeIds(marksJson)
-            watchedMarksCache[serialId] = WatchedMarksCacheEntry(parsedIds, now)
+            favoriteReleasesCacheMutex.withLock {
+                if (generation == sessionGeneration) {
+                    watchedMarksCache[serialId] = WatchedMarksCacheEntry(parsedIds, now)
+                }
+            }
             parsedIds
         } catch (e: IOException) {
             Log.w(TAG, "Failed to fetch watched marks for serialId=$serialId", e)
@@ -216,6 +253,7 @@ class FavoritesRepositoryImpl @Inject constructor(
     }
 
     private suspend fun fetchAllFavoriteReleasesStreaming(
+        generation: Long,
         onPartial: suspend (items: List<ReleaseSummary>, favoriteSeriesCount: Int) -> Unit,
     ): AllFavoriteReleasesFetch? {
         val favoritesHtml = httpClient.fetchAccountPage(favoriteSeriesRoute)
@@ -267,7 +305,7 @@ class FavoritesRepositoryImpl @Inject constructor(
                         val shouldFetchAJAXMarks = serialId != null && parsedUncheckedEpisodes.hasRecentRelease()
 
                         var watchedEpisodeIds = if (shouldFetchAJAXMarks && serialId != null) {
-                            getOrFetchWatchedMarks(serialId, seasonsUrl)
+                            getOrFetchWatchedMarks(serialId, seasonsUrl, generation)
                         } else {
                             emptySet()
                         }
@@ -342,10 +380,31 @@ class FavoritesRepositoryImpl @Inject constructor(
         return AllFavoriteReleasesFetch(allItems = allItems, favoriteSeriesCount = favoriteSeries.size)
     }
 
-    private suspend fun invalidateFavoriteReleasesCache() {
-        favoriteReleasesCacheMutex.withLock { favoriteReleasesCache = null }
+    private suspend fun invalidateFavoriteReleasesCache() = favoriteReleasesCacheMutex.withLock {
+        clearFavoriteReleasesCache()
+    }
+
+    private suspend fun clearFavoriteReleasesCache() {
+        favoriteReleasesCache = null
         releaseDao.deleteAllFavoriteReleasesCache()
         releaseDao.deleteAllFavoriteReleasesCacheMetadata()
+    }
+
+    override suspend fun changeSession(change: suspend () -> Unit) {
+        favoriteReleasesCacheMutex.withLock {
+            sessionGeneration++
+            watchedMarksCache.clear()
+            clearFavoriteReleasesCache()
+            change()
+        }
+    }
+
+    private suspend fun discardLegacyCache() {
+        val preferences = cachePreferences ?: return
+        val key = "session_cache_initialized"
+        if (preferences.getBoolean(key, false)) return
+        clearFavoriteReleasesCache()
+        preferences.edit().putBoolean(key, true).apply()
     }
 
     override suspend fun invalidateCache() {
