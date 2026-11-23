@@ -22,6 +22,7 @@ import androidx.compose.ui.test.pressKey
 import com.kraat.lostfilmnewtv.data.model.MovieMetadata
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
+import com.kraat.lostfilmnewtv.data.model.SeriesOverview
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
 import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
 import org.junit.Assert.assertEquals
@@ -46,7 +47,6 @@ class HomeScreenTest {
             LostFilmTheme {
                 HomeScreen(
                     state = seededState(),
-                    isAuthenticated = false,
                     onUpdateClick = { updateClicks += 1 },
                     savedAppUpdate = SavedAppUpdate(
                         latestVersion = "0.2.0",
@@ -690,7 +690,6 @@ class HomeScreenTest {
             LostFilmTheme {
                 HomeScreen(
                     state = seededState(),
-                    isAuthenticated = true,
                     savedAppUpdate = SavedAppUpdate(
                         latestVersion = "0.2.0",
                         apkUrl = "https://example.test/app.apk",
@@ -1357,6 +1356,62 @@ class HomeScreenTest {
         second.performSemanticsAction(SemanticsActions.OnClick)
         assertEquals(movies[1].detailsUrl, opened)
         assertTrue(endReached > 0)
+    }
+
+    @Test
+    @OptIn(ExperimentalTestApi::class)
+    @Config(qualifiers = "w1280dp-h720dp-land")
+    fun homeScreen_seriesCarouselUpdatesInfoAndOpensEpisodeGuide() {
+        val series = List(2) { index ->
+            release(
+                detailsUrl = "https://www.lostfilm.today/series/catalog-$index/",
+                titleRu = "Сериал $index",
+                episodeTitleRu = null,
+                releaseDateRu = "2026",
+                seasonNumber = null,
+                episodeNumber = null,
+                kind = ReleaseKind.SERIES,
+            )
+        }
+        var opened: String? = null
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(
+                    state = homeStateWithModes(
+                        selectedMode = HomeFeedMode.Series,
+                        allNewItems = series,
+                        favoriteItems = series,
+                    ),
+                    loadReleasePreview = { url ->
+                        HomeReleasePreview(
+                            description = if (url == series[1].detailsUrl) "Описание второго сериала" else null,
+                            seriesOverview = SeriesOverview(url, "", genresRu = "Драма", imdbRating = "8.2"),
+                        )
+                    },
+                    onOpenSeriesGuide = { opened = it },
+                )
+            }
+        }
+
+        val panel = composeRule.onNodeWithTag("home-series-info")
+        val carousel = composeRule.onNodeWithTag("home-series-carousel")
+        assertTrue(panel.fetchSemanticsNode().boundsInRoot.bottom <= carousel.fetchSemanticsNode().boundsInRoot.top)
+        val first = composeRule.onNodeWithTag(posterTag(HOME_RAIL_SERIES, series[0].detailsUrl))
+        val second = composeRule.onNodeWithTag(posterTag(HOME_RAIL_SERIES, series[1].detailsUrl))
+        first.performSemanticsAction(SemanticsActions.RequestFocus)
+        first.performKeyInput { pressKey(Key.DirectionRight) }
+        second.assertIsFocused()
+        assertEquals(
+            carousel.fetchSemanticsNode().boundsInRoot.center.x,
+            second.fetchSemanticsNode().boundsInRoot.center.x,
+            2f,
+        )
+        composeRule.waitUntil(timeoutMillis = 5_000) {
+            composeRule.onAllNodesWithText("Описание второго сериала").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("Драма  ·  IMDb 8.2").assertExists()
+        second.performSemanticsAction(SemanticsActions.OnClick)
+        assertEquals(series[1].detailsUrl, opened)
     }
 
     @Test

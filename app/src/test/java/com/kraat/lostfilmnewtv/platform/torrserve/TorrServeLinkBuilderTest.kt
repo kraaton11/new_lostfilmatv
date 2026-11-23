@@ -4,8 +4,7 @@ import org.junit.Test
 import org.junit.Assert.*
 
 class TorrServeLinkBuilderTest {
-    private val config = TorrServeConfig()
-    private val builder = TorrServeLinkBuilder(config)
+    private val builder = TorrServeLinkBuilder()
 
     @Test
     fun supports_httpHttpsAndMagnet_caseInsensitively() {

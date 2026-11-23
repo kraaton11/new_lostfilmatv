@@ -9,7 +9,6 @@ import com.kraat.lostfilmnewtv.data.db.ReleaseDao
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeActionHandler
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeAvailabilityProbe
-import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeConfig
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeLauncher
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeLinkBuilder
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeTorrentDownloader
@@ -80,12 +79,8 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideTorrServeConfig(): TorrServeConfig = TorrServeConfig()
-
-    @Provides
-    @Singleton
-    fun provideTorrServeLinkBuilder(config: TorrServeConfig): TorrServeLinkBuilder =
-        TorrServeLinkBuilder(config)
+    fun provideTorrServeLinkBuilder(): TorrServeLinkBuilder =
+        TorrServeLinkBuilder()
 
     @Provides
     @Singleton

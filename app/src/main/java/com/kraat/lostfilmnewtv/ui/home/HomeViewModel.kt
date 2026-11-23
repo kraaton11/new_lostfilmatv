@@ -277,7 +277,8 @@ class HomeViewModel @Inject constructor(
             ?: seriesOverview?.plotRu?.takeIf { it.isNotBlank() }
         HomeReleasePreview(
             description = if (isSeriesOverview) description else description?.let { "О сериале · $it" },
-            backdropUrl = details?.backdropUrl ?: seriesOverview?.posterUrl,
+            backdropUrl = details?.backdropUrl ?: seriesOverview?.backdropUrl ?: seriesOverview?.posterUrl,
+            seriesOverview = seriesOverview.takeIf { isSeriesOverview },
         )
     }
 

@@ -47,7 +47,7 @@ class MovieOverviewViewModel @Inject constructor(
         _uiState.update { it.copy(isLoading = true, errorMessage = null) }
 
         loadJob = viewModelScope.launch(ioDispatcher) {
-            when (val result = repository.loadDetails(detailsUrl)) {
+            when (val result = repository.loadMovieDetailsPreview(detailsUrl)) {
                 is DetailsResult.Success -> {
                     if (loadRequestToken != requestToken) return@launch
                     if (result.details.kind != ReleaseKind.MOVIE) {

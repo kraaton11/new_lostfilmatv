@@ -1,12 +1,10 @@
 package com.kraat.lostfilmnewtv.di
 
-import com.kraat.lostfilmnewtv.data.auth.AuthCompletionResult
 import com.kraat.lostfilmnewtv.data.auth.AuthRepositoryContract
 import com.kraat.lostfilmnewtv.data.model.AuthState
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.model.PageState
-import com.kraat.lostfilmnewtv.data.model.PairingSession
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.data.repository.FavoritesRepository
@@ -98,9 +96,5 @@ class UnitTestFakeAuthRepository : AuthRepositoryContract {
 
     override suspend fun getAuthState() = authState
     override fun observeAuthState(): Flow<AuthState> = authStateFlow
-    override suspend fun startPairing(): PairingSession = error("Not configured")
-    override suspend fun pollPairingStatus(): PairingSession? = null
-    override suspend fun claimAndPersistSession() = AuthCompletionResult.RecoverableFailure()
-    override suspend fun cancelPairing() = Unit
     override suspend fun logout() { authState = AuthState(isAuthenticated = false, session = null) }
 }

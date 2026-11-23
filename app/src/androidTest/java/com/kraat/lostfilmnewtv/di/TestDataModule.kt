@@ -6,7 +6,6 @@ import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
 import com.kraat.lostfilmnewtv.data.model.PageState
-import com.kraat.lostfilmnewtv.data.model.PairingSession
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.data.repository.SearchResultsResult
@@ -80,15 +79,8 @@ class TestFakeAuthRepository : AuthRepositoryContract {
         set(value) {
             authStateFlow.value = value
         }
-    var pairingSession: PairingSession? = null
 
     override suspend fun getAuthState(): AuthState = authState
     override fun observeAuthState(): Flow<AuthState> = authStateFlow
-    override suspend fun startPairing(): PairingSession =
-        pairingSession ?: error("startPairing not configured in TestFakeAuthRepository")
-    override suspend fun pollPairingStatus(): PairingSession? = pairingSession
-    override suspend fun claimAndPersistSession() =
-        com.kraat.lostfilmnewtv.data.auth.AuthCompletionResult.RecoverableFailure()
-    override suspend fun cancelPairing() { pairingSession = null }
     override suspend fun logout() { authState = AuthState(isAuthenticated = false, session = null) }
 }

@@ -16,9 +16,9 @@ import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.WATCHED_MA
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.parser.BASE_URL
 import com.kraat.lostfilmnewtv.data.parser.lostFilmArtworkPath
+import com.kraat.lostfilmnewtv.data.parser.lostFilmImagePath
 import com.kraat.lostfilmnewtv.data.parser.hasLegacyArtwork
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
-import com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteSeriesParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmListParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSearchParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmScheduleParser
@@ -79,7 +79,6 @@ class LostFilmRepositoryImpl(
     private val releaseDao: ReleaseDao,
     private val listParser: LostFilmListParser,
     private val detailsParser: LostFilmDetailsParser,
-    private val favoriteSeriesParser: LostFilmFavoriteSeriesParser = LostFilmFavoriteSeriesParser(),
     private val seasonEpisodesParser: LostFilmSeasonEpisodesParser = LostFilmSeasonEpisodesParser(),
     private val searchParser: LostFilmSearchParser = LostFilmSearchParser(),
     private val scheduleParser: LostFilmScheduleParser = LostFilmScheduleParser(),
@@ -467,7 +466,8 @@ class LostFilmRepositoryImpl(
                 .textOrEmpty()
                 .ifBlank { fallbackSeriesTitle(seriesRootUrl) }
 
-            val posterUrl = lostFilmArtworkPath(guideDocument.selectFirst(".main_poster img")?.attr("src"))
+            val posterUrl = guideDocument.lostFilmImagePath(".main_poster img")
+                ?: Jsoup.parse(seriesRootHtml, BASE_URL).lostFilmImagePath(".main_poster img")
 
             SeriesGuideResult.Success(
                 guide = SeriesGuide(

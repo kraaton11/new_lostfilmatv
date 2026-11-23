@@ -1,7 +1,7 @@
 package com.kraat.lostfilmnewtv.data.parser
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertTrue
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class LostFilmSeriesOverviewParserTest {
@@ -69,6 +69,38 @@ class LostFilmSeriesOverviewParserTest {
         assertEquals("/Static/Images/442/Posters/poster.jpg", overview.posterUrl)
         assertEquals("Сериал «Пацаны» выбивается из супергеройской волны.", overview.descriptionRu)
         assertEquals("Билли Мясник собирает команду против «Семерки».", overview.plotRu)
+    }
+
+    @Test
+    fun splitsOnlyAtPlotHeadingAndPreservesParagraphs() {
+        val html = """
+            <div class="text-block description">
+              <div itemprop="description">
+                Отсюда и три сюжетные линии.<br />&nbsp;<br />
+                Герои наблюдают за сюжетом с разных сторон.<br />&nbsp;<br />
+                <strong class="bb">Сюжет</strong><br />
+                Пол Гэлвин начинает новую жизнь.
+              </div>
+            </div>
+        """.trimIndent()
+
+        val overview = LostFilmSeriesOverviewParser().parse(html, "/series/12_12_12/")
+
+        assertEquals(
+            "Отсюда и три сюжетные линии.\n\nГерои наблюдают за сюжетом с разных сторон.",
+            overview.descriptionRu,
+        )
+        assertEquals("Пол Гэлвин начинает новую жизнь.", overview.plotRu)
+    }
+
+    @Test
+    fun keepsInlinePlotWordInDescriptionWhenThereIsNoHeading() {
+        val html = """<meta name="description" content="Сюжет сериала начинается со знакомства героев." />"""
+
+        val overview = LostFilmSeriesOverviewParser().parse(html, "/series/Example/")
+
+        assertEquals("Сюжет сериала начинается со знакомства героев.", overview.descriptionRu)
+        assertNull(overview.plotRu)
     }
 
     @Test

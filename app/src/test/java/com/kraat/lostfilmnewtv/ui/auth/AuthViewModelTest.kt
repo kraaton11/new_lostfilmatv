@@ -85,10 +85,6 @@ class AuthViewModelTest {
 
         override suspend fun getAuthState() = authState.value
         override fun observeAuthState() = authState
-        override suspend fun startPairing(): Nothing = error("Unexpected bridge request")
-        override suspend fun pollPairingStatus(): Nothing = error("Unexpected bridge request")
-        override suspend fun claimAndPersistSession(): Nothing = error("Unexpected bridge request")
-        override suspend fun cancelPairing(): Nothing = error("Unexpected bridge request")
 
         override suspend fun startPhoneLogin(): String {
             if (!hasLan) throw IOException("No local address")

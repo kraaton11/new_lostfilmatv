@@ -57,6 +57,7 @@ import coil.request.ImageRequest
 import com.kraat.lostfilmnewtv.ui.components.resolveArtworkForDisplay
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
+import com.kraat.lostfilmnewtv.data.parser.extractYear
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
 import com.kraat.lostfilmnewtv.ui.components.ShimmerSkeletonBox
 import com.kraat.lostfilmnewtv.ui.components.rememberShimmerSkeletonBrush
@@ -97,7 +98,6 @@ fun HomeScreen(
     selectedNavItem: NavItem = NavItem.HOME,
     onNavItemSelected: (NavItem) -> Unit = {},
     onNavItemLongClick: (NavItem) -> Unit = {},
-    isAuthenticated: Boolean = false,
     savedAppUpdate: SavedAppUpdate? = null,
     isUpdateDownloading: Boolean = false,
     updateDownloadProgress: Int? = null,
@@ -380,9 +380,14 @@ fun HomeScreen(
                     ) {
                         when (activeModeState) {
                             is HomeModeContentState.Content -> {
-                                val isMovies = state.selectedMode == HomeFeedMode.Movies
-                                if (isMovies) {
-                                    MovieInfoPanel(item = focusedItem, preview = releasePreview)
+                                val isCatalog = state.selectedMode == HomeFeedMode.Movies ||
+                                    state.selectedMode == HomeFeedMode.Series
+                                if (isCatalog) {
+                                    CatalogInfoPanel(
+                                        item = focusedItem,
+                                        preview = releasePreview,
+                                        isSeries = state.selectedMode == HomeFeedMode.Series,
+                                    )
                                     Spacer(Modifier.weight(1f))
                                 } else {
                                     HomeHeroStage(
@@ -397,15 +402,13 @@ fun HomeScreen(
                                 HomeRail(
                                     railId = activeRailId,
                                     items = activeModeState.items,
-                                    modifier = if (isMovies) Modifier.padding(bottom = 30.dp) else Modifier,
+                                    modifier = if (isCatalog) Modifier.padding(bottom = 30.dp) else Modifier,
                                     focusedItemKey = focusedItemKey,
                                     entryFocusRequester = contentEntryRequester,
                                     cardFocusRequesters = cardFocusRequesters,
                                     shouldRequestFocus = startupContentFocusPending,
                                     returnFocusRequestVersion = contentReturnFocusRequestVersion,
-                                    upTargetRequester = headerPrimaryRequester,
                                     leftTargetRequester = headerPrimaryRequester,
-                                    downTargetRequester = null,
                                     isPaging = activeModeData.isPaging,
                                     onItemFocused = { detailsUrl ->
                                         startupContentFocusPending = false
@@ -491,20 +494,23 @@ fun HomeScreen(
 }
 
 @Composable
-private fun MovieInfoPanel(item: ReleaseSummary?, preview: HomeReleasePreview) {
-    val metadata = preview.movieMetadata
+private fun CatalogInfoPanel(item: ReleaseSummary?, preview: HomeReleasePreview, isSeries: Boolean) {
+    val series = preview.seriesOverview.takeIf { isSeries }
+    val metadata = preview.movieMetadata.takeUnless { isSeries }
     val facts = listOfNotNull(
-        metadata?.genres?.joinToString(", ")?.takeIf { it.isNotBlank() },
+        series?.genresRu?.takeIf { it.isNotBlank() }
+            ?: metadata?.genres?.joinToString(", ")?.takeIf { it.isNotBlank() },
         metadata?.durationMinutes?.let { "$it мин" },
-        metadata?.imdbRating?.let { "IMDb $it" },
+        (series?.imdbRating ?: metadata?.imdbRating)?.let { "IMDb $it" },
     ).joinToString("  ·  ")
-    val title = listOfNotNull(item?.titleRu, (preview.movieYear ?: item?.originalReleaseYear)?.toString())
+    val year = if (isSeries) series?.premiereDateRu?.extractYear() else preview.movieYear
+    val title = listOfNotNull(item?.titleRu, (year ?: item?.originalReleaseYear)?.toString())
         .joinToString("  ·  ")
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .height(214.dp)
-            .testTag("home-movie-info")
+            .testTag(if (isSeries) "home-series-info" else "home-movie-info")
             .padding(start = 12.dp, top = 4.dp, end = 24.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -526,7 +532,8 @@ private fun MovieInfoPanel(item: ReleaseSummary?, preview: HomeReleasePreview) {
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        (preview.description ?: item?.movieOverviewRu)?.takeIf { it.isNotBlank() }?.let { description ->
+        val summaryDescription = if (isSeries) item?.seriesOverviewRu else item?.movieOverviewRu
+        (preview.description ?: summaryDescription)?.takeIf { it.isNotBlank() }?.let { description ->
             Text(
                 text = description,
                 color = HomeTextSecondary,
@@ -537,7 +544,8 @@ private fun MovieInfoPanel(item: ReleaseSummary?, preview: HomeReleasePreview) {
                 modifier = Modifier.width(680.dp),
             )
         }
-        item?.availabilityLabel?.takeIf { it.isNotBlank() }?.let { HeroMetaPill(it, highlighted = true) }
+        val status = item?.availabilityLabel?.takeIf { it.isNotBlank() } ?: series?.statusRu
+        status?.takeIf { it.isNotBlank() }?.let { HeroMetaPill(it, highlighted = true) }
     }
 }
 

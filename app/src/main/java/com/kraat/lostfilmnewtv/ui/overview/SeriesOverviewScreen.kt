@@ -7,8 +7,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,33 +22,25 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kraat.lostfilmnewtv.ui.components.resolveArtworkForDisplay
 import com.kraat.lostfilmnewtv.data.model.SeriesOverview
-import com.kraat.lostfilmnewtv.ui.components.PosterImage
 import com.kraat.lostfilmnewtv.ui.components.ShimmerSkeletonBox
 import com.kraat.lostfilmnewtv.ui.components.rememberShimmerSkeletonBrush
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
@@ -60,10 +50,8 @@ import com.kraat.lostfilmnewtv.ui.theme.DetailsBackgroundTop
 import com.kraat.lostfilmnewtv.ui.theme.DetailsBorderDefault
 import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceReadable
 import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceSoft
-import com.kraat.lostfilmnewtv.ui.theme.DetailsTextMuted
 import com.kraat.lostfilmnewtv.ui.theme.DetailsTextSecondary
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
-import kotlin.math.roundToInt
 
 private val overviewParagraphSplitRegex = Regex("""\n\s*\n+""")
 private val overviewSentenceSplitRegex = Regex("""(?<=[.!?…])\s+""")
@@ -111,6 +99,7 @@ fun SeriesOverviewScreen(
 private fun OverviewBackgroundPoster(overview: SeriesOverview?) {
     val context = LocalContext.current
     val imageUrl = resolveArtworkForDisplay(overview?.backdropUrl)
+        ?: resolveArtworkForDisplay(overview?.posterUrl)
         ?: return
     val request = remember(context, imageUrl) {
         ImageRequest.Builder(context)
@@ -280,20 +269,6 @@ private fun OverviewCenteredStatePanel(
 @Composable
 private fun OverviewContent(overview: SeriesOverview?) {
     val safeOverview = overview ?: return
-    val context = LocalContext.current
-    val density = LocalDensity.current
-    val posterWidthPx = with(density) { 175.dp.toPx().roundToInt().coerceAtLeast(1) }
-    val posterHeightPx = with(density) { 252.dp.toPx().roundToInt().coerceAtLeast(1) }
-    val infoRows = remember(safeOverview) {
-        listOfNotNull(
-            "Премьера" to safeOverview.premiereDateRu,
-            "Канал, страна" to safeOverview.channelCountryRu,
-            "IMDb" to safeOverview.imdbRating,
-            "Жанр" to safeOverview.genresRu,
-            "Тип" to safeOverview.typesRu,
-            "Официальный сайт" to safeOverview.officialSiteUrl,
-        ).filter { !it.second.isNullOrBlank() }
-    }
     val sections = remember(safeOverview) {
         buildList {
             if (!safeOverview.descriptionRu.isNullOrBlank()) {
@@ -324,11 +299,7 @@ private fun OverviewContent(overview: SeriesOverview?) {
                 .split(overviewParagraphSplitRegex)
                 .map { it.trim() }
                 .filter { it.isNotBlank() }
-            val chunks = if (paragraphs.size > 1) {
-                paragraphs
-            } else {
-                section.body.chunkForTvReading(maxChars = 1200)
-            }
+            val chunks = paragraphs.flatMap { it.chunkForTvReading(maxChars = 520) }
             chunks.mapIndexed { index, chunk ->
                 OverviewSectionBlock(
                     key = if (index == 0) section.key else "${section.key}-$index",
@@ -354,146 +325,31 @@ private fun OverviewContent(overview: SeriesOverview?) {
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item(key = "hero") {
-            Row(
+            OverviewHeader(
+                title = safeOverview.titleRu,
+                subtitle = safeOverview.titleEn,
+                artwork = safeOverview.posterUrl,
+                artworkSize = DpSize(192.dp, 132.dp),
+                facts = listOfNotNull(
+                    safeOverview.genresRu,
+                    safeOverview.imdbRating?.let { "IMDb $it" },
+                    safeOverview.premiereDateRu,
+                    safeOverview.channelCountryRu,
+                    safeOverview.statusRu,
+                    safeOverview.typesRu,
+                ).filter { it.isNotBlank() },
                 modifier = Modifier
-                    .fillMaxWidth()
                     .focusRequester(heroRequester)
                     .focusable()
                     .testTag("series-overview-hero"),
-                horizontalArrangement = Arrangement.spacedBy(32.dp),
-                verticalAlignment = Alignment.Top,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(width = 175.dp, height = 252.dp)
-                        .shadow(
-                            elevation = 34.dp,
-                            spotColor = Color.Black.copy(alpha = 0.55f),
-                            ambientColor = Color.Black.copy(alpha = 0.35f),
-                            shape = RoundedCornerShape(24.dp),
-                        )
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(DetailsSurfaceSoft)
-                        .border(1.dp, DetailsBorderDefault, RoundedCornerShape(24.dp)),
-                ) {
-                    val posterUrl = resolveArtworkForDisplay(safeOverview.posterUrl)
-                    if (posterUrl != null) {
-                        val request = remember(context, posterUrl, posterWidthPx, posterHeightPx) {
-                            ImageRequest.Builder(context)
-                                .data(posterUrl)
-                                .size(posterWidthPx, posterHeightPx)
-                                .build()
-                        }
-                        PosterImage(
-                            model = request,
-                            contentDescription = safeOverview.titleRu,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    } else {
-                        PosterImage(
-                            model = null,
-                            contentDescription = safeOverview.titleRu,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    }
-                }
-
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(top = 18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Text(
-                        text = "Обзор сериала",
-                        color = DetailsAccentGold,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        text = safeOverview.titleRu,
-                        color = TextPrimary,
-                        fontSize = 50.sp,
-                        fontWeight = FontWeight.Bold,
-                        lineHeight = 54.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    safeOverview.titleEn?.takeIf { it.isNotBlank() }?.let { titleEn ->
-                        Text(
-                            text = titleEn,
-                            color = DetailsTextSecondary,
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Medium,
-                            lineHeight = 28.sp,
-                        )
-                    }
-                    OverviewChipRow(safeOverview)
-                }
-            }
-        }
-
-        if (infoRows.isNotEmpty()) {
-            item(key = "meta") {
-                OverviewSurfaceCard(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .testTag("series-overview-meta"),
-                ) {
-                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(
-                            text = "Информация",
-                            color = TextPrimary,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        ) {
-                            infoRows.take(4).forEach { (label, value) ->
-                                OverviewMetaBlock(
-                                    label = label,
-                                    value = value.orEmpty(),
-                                    modifier = Modifier.weight(1f),
-                                )
-                            }
-                        }
-                    }
-                }
-            }
+            )
         }
 
         items(
             items = sectionBlocks,
             key = { section -> section.key },
         ) { section ->
-            var isFocused by remember { mutableStateOf(false) }
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .onFocusChanged { isFocused = it.isFocused }
-                    .focusable()
-                    .testTag(section.tag)
-                    .padding(vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                if (section.title.isNotBlank()) {
-                    Text(
-                        text = section.title,
-                        color = DetailsAccentGold,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                }
-                Text(
-                    text = section.body,
-                    color = TextPrimary.copy(alpha = if (isFocused) 1f else 0.85f),
-                    fontSize = 18.sp,
-                    lineHeight = 27.sp,
-                )
-            }
+            OverviewReadingBlock(section.title, section.body, section.tag)
         }
     }
 }
@@ -548,94 +404,6 @@ private fun String.splitByWords(maxChars: Int): List<String> {
     val tail = current.toString().trim()
     if (tail.isNotBlank()) parts += tail
     return parts
-}
-
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun OverviewChipRow(overview: SeriesOverview) {
-    val chips = listOfNotNull(
-        overview.statusRu?.takeIf { it.isNotBlank() },
-        overview.premiereDateRu?.takeIf { it.isNotBlank() },
-    )
-    if (chips.isEmpty()) return
-
-    FlowRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        chips.forEach { chip ->
-            Text(
-                text = chip,
-                color = TextPrimary,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier
-                    .border(1.dp, DetailsBorderDefault, RoundedCornerShape(999.dp))
-                    .background(DetailsSurfaceSoft.copy(alpha = 0.72f), RoundedCornerShape(999.dp))
-                    .padding(horizontal = 14.dp, vertical = 7.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun OverviewMetaBlock(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier
-            .height(82.dp)
-            .background(DetailsSurfaceSoft.copy(alpha = 0.58f), RoundedCornerShape(16.dp))
-            .border(1.dp, DetailsBorderDefault.copy(alpha = 0.75f), RoundedCornerShape(16.dp))
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(5.dp),
-    ) {
-        Text(
-            text = label,
-            color = DetailsTextMuted,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            text = value,
-            color = TextPrimary,
-            fontSize = 15.sp,
-            lineHeight = 19.sp,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-@Composable
-private fun OverviewSurfaceCard(
-    modifier: Modifier = Modifier,
-    content: @Composable ColumnScope.() -> Unit,
-) {
-    val shape = RoundedCornerShape(18.dp)
-
-    Column(
-        modifier = modifier
-            .background(
-                color = DetailsSurfaceReadable,
-                shape = shape,
-            )
-            .border(
-                width = 1.dp,
-                color = DetailsBorderDefault,
-                shape = shape,
-            )
-            .padding(horizontal = 22.dp, vertical = 18.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-        content = content,
-    )
 }
 
 @Composable

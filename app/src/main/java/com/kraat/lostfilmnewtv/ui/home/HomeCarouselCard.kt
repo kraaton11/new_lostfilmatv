@@ -28,13 +28,13 @@ import com.kraat.lostfilmnewtv.ui.components.resolveArtworkForDisplay
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 
 @Composable
-internal fun MovieRailCard(
+internal fun HomeCarouselCard(
     item: ReleaseSummary,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val emphasis by animateFloatAsState(if (selected) 1f else 0f, label = "Movie card focus")
+    val emphasis by animateFloatAsState(if (selected) 1f else 0f, label = "Carousel card focus")
     val artwork = resolveArtworkForDisplay(item.backdropUrl)
         ?: resolveArtworkForDisplay(item.posterUrl)
 

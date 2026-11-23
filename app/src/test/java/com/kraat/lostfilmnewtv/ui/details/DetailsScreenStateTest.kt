@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.semantics.SemanticsProperties
+import com.kraat.lostfilmnewtv.data.model.MovieMetadata
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.TorrentLink
@@ -320,12 +321,15 @@ class DetailsScreenStateTest {
     }
 
     @Test
-    fun detailsScreen_usesTmdbDescription_forMovieInlineDescription() {
+    fun detailsScreen_showsLostFilmSynopsisAndMovieMetadata() {
         composeRule.setContent {
             LostFilmTheme {
                 DetailsScreen(
                     state = DetailsUiState(
-                        details = movieDetails(),
+                        details = movieDetails().copy(
+                            originalReleaseYear = 1991,
+                            movieMetadata = MovieMetadata(listOf("Комедия"), 99, "7.0"),
+                        ),
                     ),
                     isAuthenticated = true,
                     availableTorrentRowsCount = 1,
@@ -344,8 +348,11 @@ class DetailsScreenStateTest {
             }
         }
 
-        composeRule.onNodeWithText("Короткое описание фильма из TMDB").assertExists()
-        assertEquals(0, composeRule.onAllNodesWithText("Полное описание фильма с LostFilm").fetchSemanticsNodes().size)
+        composeRule.onNodeWithTag("details-movie-stage").assertExists()
+        composeRule.onNodeWithText("Полное описание фильма с LostFilm").assertExists()
+        composeRule.onNodeWithText("Комедия").assertExists()
+        composeRule.onNodeWithText("99 мин").assertExists()
+        composeRule.onNodeWithText("IMDb 7.0").assertExists()
     }
 
     @Test

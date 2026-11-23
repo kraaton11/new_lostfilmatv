@@ -176,7 +176,6 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                         }
                     }
                 },
-                isAuthenticated = isAuthenticated,
                 savedAppUpdate = savedAppUpdate,
                 isUpdateDownloading = isUpdateDownloading,
                 updateDownloadProgress = updateDownloadProgress,

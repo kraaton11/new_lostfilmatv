@@ -50,7 +50,7 @@ private const val HOME_PAGING_SKELETON_COUNT = 4
 private val HOME_RAIL_CARD_SPACING = 8.dp
 private val HOME_RAIL_HORIZONTAL_PADDING = 12.dp
 @OptIn(ExperimentalFoundationApi::class)
-private val movieCentering = object : BringIntoViewSpec {
+private val carouselCentering = object : BringIntoViewSpec {
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float =
         offset + (size - containerSize) / 2
 }
@@ -65,9 +65,7 @@ fun HomeRail(
     cardFocusRequesters: Map<String, FocusRequester>,
     shouldRequestFocus: Boolean,
     returnFocusRequestVersion: Int,
-    upTargetRequester: FocusRequester?,
     leftTargetRequester: FocusRequester?,
-    downTargetRequester: FocusRequester?,
     isPaging: Boolean,
     onItemFocused: (String) -> Unit,
     onRailFocusChanged: (Boolean) -> Unit,
@@ -118,17 +116,18 @@ fun HomeRail(
         requestFocusWhenReady(targetRequester)
     }
 
-    val isMovieRail = railId == HOME_RAIL_MOVIES
+    val isCarousel = railId == HOME_RAIL_MOVIES || railId == HOME_RAIL_SERIES
+    val carouselTag = if (railId == HOME_RAIL_SERIES) "home-series-carousel" else "home-movie-carousel"
     BoxWithConstraints(
         modifier = modifier.fillMaxWidth(),
-        contentAlignment = if (isMovieRail) Alignment.BottomCenter else Alignment.Center,
+        contentAlignment = if (isCarousel) Alignment.BottomCenter else Alignment.Center,
     ) {
-        val movieWidth = minOf(maxWidth * 0.32f, maxHeight * (16f / 9f), 360.dp)
-        val movieSize = DpSize(movieWidth, movieWidth * (9f / 16f))
-        val spacing = if (isMovieRail) movieWidth * -0.15f else HOME_RAIL_CARD_SPACING
-        val carouselInsets = (maxWidth - movieWidth) / 2
+        val carouselCardWidth = minOf(maxWidth * 0.32f, maxHeight * (16f / 9f), 360.dp)
+        val carouselCardSize = DpSize(carouselCardWidth, carouselCardWidth * (9f / 16f))
+        val spacing = if (isCarousel) carouselCardWidth * -0.15f else HOME_RAIL_CARD_SPACING
+        val carouselInsets = (maxWidth - carouselCardWidth) / 2
         CompositionLocalProvider(
-            LocalBringIntoViewSpec provides if (isMovieRail) movieCentering else LocalBringIntoViewSpec.current,
+            LocalBringIntoViewSpec provides if (isCarousel) carouselCentering else LocalBringIntoViewSpec.current,
         ) {
             LazyRow(
                 state = listState,
@@ -142,11 +141,11 @@ fun HomeRail(
                     .onPreviewKeyEvent { event ->
                         event.type == KeyEventType.KeyDown && handleVerticalNavigation(event.key)
                     }
-                    .height(if (isMovieRail) movieSize.height else 218.dp)
-                    .then(if (isMovieRail) Modifier.testTag("home-movie-carousel") else Modifier),
+                    .height(if (isCarousel) carouselCardSize.height else 218.dp)
+                    .then(if (isCarousel) Modifier.testTag(carouselTag) else Modifier),
                 horizontalArrangement = Arrangement.spacedBy(spacing),
-                verticalAlignment = if (isMovieRail) Alignment.CenterVertically else Alignment.Top,
-                contentPadding = if (isMovieRail) PaddingValues(horizontal = carouselInsets) else PaddingValues(
+                verticalAlignment = if (isCarousel) Alignment.CenterVertically else Alignment.Top,
+                contentPadding = if (isCarousel) PaddingValues(horizontal = carouselInsets) else PaddingValues(
                     start = HOME_RAIL_HORIZONTAL_PADDING,
                     top = 12.dp,
                     end = 10.dp,
@@ -196,12 +195,12 @@ fun HomeRail(
                             }
                         }
                     val open = { onOpenDetails(item.detailsUrl) }
-                    if (isMovieRail) {
-                        MovieRailCard(
+                    if (isCarousel) {
+                        HomeCarouselCard(
                             item = item,
                             selected = (focusedCardKey ?: targetKey) == item.detailsUrl,
                             onClick = open,
-                            modifier = cardModifier.size(movieSize),
+                            modifier = cardModifier.size(carouselCardSize),
                         )
                     } else {
                         PosterCard(
@@ -215,7 +214,7 @@ fun HomeRail(
 
                 if (isPaging) {
                     items(
-                        count = if (isMovieRail) 1 else HOME_PAGING_SKELETON_COUNT,
+                        count = if (isCarousel) 1 else HOME_PAGING_SKELETON_COUNT,
                         key = { skeletonIndex -> "paging-skeleton-$skeletonIndex" },
                     ) { skeletonIndex ->
                         AnimatedVisibility(
@@ -224,7 +223,7 @@ fun HomeRail(
                             exit = fadeOut(),
                         ) {
                             HomePagingPosterSkeleton(
-                                size = if (isMovieRail) movieSize * 0.82f else DpSize(112.dp, 172.dp),
+                                size = if (isCarousel) carouselCardSize * 0.82f else DpSize(112.dp, 172.dp),
                                 modifier = Modifier
                                     .focusable(false)
                                     .testTag("home-paging-skeleton-$skeletonIndex"),

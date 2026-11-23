@@ -24,7 +24,6 @@ import com.kraat.lostfilmnewtv.data.model.TorrentLink
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.parser.LostFilmBaseUrl
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
-import com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteSeriesParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmListParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSeasonEpisodesParser
 import com.kraat.lostfilmnewtv.data.parser.fixture
@@ -527,7 +526,10 @@ class LostFilmRepositoryTest {
                 detailsRequests += requestedUrl
                 when (requestedUrl) {
                     "https://www.lostfilm.today/series/Ted/" -> fixture("series-guide-ted-seasons.html")
-                    "https://www.lostfilm.today/series/Ted/seasons" -> fixture("series-guide-ted-seasons.html")
+                    "https://www.lostfilm.today/series/Ted/seasons" ->
+                        org.jsoup.Jsoup.parse(fixture("series-guide-ted-seasons.html")).apply {
+                            select(".main_poster").remove()
+                        }.outerHtml()
                     else -> error("Unexpected details request: $requestedUrl")
                 }
             },
@@ -2278,7 +2280,6 @@ class LostFilmRepositoryTest {
             releaseDao = releaseDao,
             listParser = LostFilmListParser(),
             detailsParser = LostFilmDetailsParser(),
-            favoriteSeriesParser = LostFilmFavoriteSeriesParser(),
             seasonEpisodesParser = LostFilmSeasonEpisodesParser(),
             hasAuthenticatedSession = { isAuthenticated },
             favoritesRepository = dagger.internal.DoubleCheck.lazy { favoritesRepository },

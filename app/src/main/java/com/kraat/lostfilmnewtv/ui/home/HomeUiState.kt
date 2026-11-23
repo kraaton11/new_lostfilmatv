@@ -1,6 +1,7 @@
 package com.kraat.lostfilmnewtv.ui.home
 
 import com.kraat.lostfilmnewtv.data.model.MovieMetadata
+import com.kraat.lostfilmnewtv.data.model.SeriesOverview
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 
 /**
@@ -218,4 +219,5 @@ data class HomeReleasePreview(
     val backdropUrl: String? = null,
     val movieMetadata: MovieMetadata? = null,
     val movieYear: Int? = null,
+    val seriesOverview: SeriesOverview? = null,
 )

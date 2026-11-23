@@ -1,6 +1,6 @@
 package com.kraat.lostfilmnewtv.platform.torrserve
 
-class TorrServeLinkBuilder(private val config: TorrServeConfig) : TorrServeSourceBuilder {
+class TorrServeLinkBuilder : TorrServeSourceBuilder {
     fun supportsSource(rawUrl: String): Boolean {
         val trimmed = rawUrl.trim()
         if (trimmed.isBlank()) return false

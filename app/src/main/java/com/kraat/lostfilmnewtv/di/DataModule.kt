@@ -9,7 +9,6 @@ import com.kraat.lostfilmnewtv.data.network.LostFilmLoginClient
 import com.kraat.lostfilmnewtv.data.network.LostFilmSessionVerifier
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
-import com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteSeriesParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmListParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSearchParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmScheduleParser
@@ -40,7 +39,10 @@ object DataModule {
         favoritesRepository: FavoritesRepository,
     ): AuthRepositoryContract =
         AuthRepository(
-            null, sessionStore, sessionVerifier, loginClient = loginClient, favoritesRepository = favoritesRepository,
+            sessionStore = sessionStore,
+            sessionVerifier = sessionVerifier,
+            loginClient = loginClient,
+            favoritesRepository = favoritesRepository,
         )
 
     @Provides
@@ -79,7 +81,6 @@ object DataModule {
         releaseDao = releaseDao,
         listParser = LostFilmListParser(),
         detailsParser = LostFilmDetailsParser(),
-        favoriteSeriesParser = LostFilmFavoriteSeriesParser(),
         seasonEpisodesParser = LostFilmSeasonEpisodesParser(),
         searchParser = LostFilmSearchParser(),
         scheduleParser = LostFilmScheduleParser(),

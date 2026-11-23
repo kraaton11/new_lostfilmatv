@@ -12,7 +12,6 @@ import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeActionHandler
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeAvailabilityChecker
-import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeConfig
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeLinkBuilder
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeUrlLauncher
 import com.kraat.lostfilmnewtv.ui.settings.TorrServeEndpointCheck
@@ -184,12 +183,8 @@ object MainActivityTestAppModule {
 
     @Provides
     @Singleton
-    fun provideTorrServeConfig(): TorrServeConfig = TorrServeConfig()
-
-    @Provides
-    @Singleton
-    fun provideTorrServeLinkBuilder(config: TorrServeConfig): TorrServeLinkBuilder =
-        UnitTestAppOverrides.torrServeLinkBuilder ?: TorrServeLinkBuilder(config)
+    fun provideTorrServeLinkBuilder(): TorrServeLinkBuilder =
+        UnitTestAppOverrides.torrServeLinkBuilder ?: TorrServeLinkBuilder()
 
     @Provides
     @Singleton

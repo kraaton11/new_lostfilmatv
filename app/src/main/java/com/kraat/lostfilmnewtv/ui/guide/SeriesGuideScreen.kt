@@ -18,7 +18,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
@@ -42,8 +41,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -51,9 +48,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.request.ImageRequest
+import coil.compose.AsyncImage
 import com.kraat.lostfilmnewtv.ui.components.resolveArtworkForDisplay
-import com.kraat.lostfilmnewtv.ui.components.PosterImage
 import com.kraat.lostfilmnewtv.data.model.SeriesGuideEpisode
 import com.kraat.lostfilmnewtv.data.model.SeriesGuideSeason
 import com.kraat.lostfilmnewtv.ui.components.ShimmerSkeletonBox
@@ -87,6 +83,24 @@ fun SeriesGuideScreen(
             .fillMaxSize()
             .background(guideBackgroundBrush()),
     ) {
+        resolveArtworkForDisplay(state.posterUrl)?.let { artwork ->
+            AsyncImage(
+                model = artwork,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().testTag("series-guide-background"),
+                alpha = 0.34f,
+            )
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.horizontalGradient(
+                        0f to BackgroundPrimary.copy(alpha = 0.88f),
+                        0.45f to BackgroundPrimary.copy(alpha = 0.58f),
+                        1f to BackgroundPrimary.copy(alpha = 0.30f),
+                    ),
+                ),
+            )
+        }
         when {
             state.isLoading && state.seasons.isEmpty() -> {
                 GuideLoadingState()
@@ -106,7 +120,6 @@ fun SeriesGuideScreen(
             else -> {
                 GuideContent(
                     title = state.title,
-                    posterUrl = state.posterUrl,
                     seasons = state.seasons,
                     selectedSeasonIndex = state.selectedSeasonIndex,
                     selectedEpisodeDetailsUrl = state.selectedEpisodeDetailsUrl,
@@ -140,40 +153,11 @@ private fun GuideLoadingState() {
             .testTag("series-guide-loading"),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(28.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            ShimmerSkeletonBox(
-                brush = shimmerBrush,
-                modifier = Modifier.size(width = 104.dp, height = 150.dp),
-                shape = RoundedCornerShape(18.dp),
-                borderColor = DetailsBorderDefault.copy(alpha = 0.34f),
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                ShimmerSkeletonBox(
-                    brush = shimmerBrush,
-                    modifier = Modifier.size(width = 420.dp, height = 42.dp),
-                    shape = RoundedCornerShape(12.dp),
-                )
-                ShimmerSkeletonBox(
-                    brush = shimmerBrush,
-                    modifier = Modifier.size(width = 220.dp, height = 20.dp),
-                    shape = RoundedCornerShape(10.dp),
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    repeat(3) { index ->
-                        ShimmerSkeletonBox(
-                            brush = shimmerBrush,
-                            modifier = Modifier.size(width = listOf(74.dp, 82.dp, 68.dp)[index], height = 28.dp),
-                            shape = RoundedCornerShape(999.dp),
-                            borderColor = DetailsBorderDefault.copy(alpha = 0.28f),
-                        )
-                    }
-                }
-            }
-        }
+        ShimmerSkeletonBox(
+            brush = shimmerBrush,
+            modifier = Modifier.size(width = 360.dp, height = 34.dp),
+            shape = RoundedCornerShape(10.dp),
+        )
 
         repeat(2) {
             ShimmerSkeletonBox(
@@ -279,7 +263,6 @@ private fun GuideCenteredStatePanel(
 @Composable
 private fun GuideContent(
     title: String,
-    posterUrl: String?,
     seasons: List<SeriesGuideSeason>,
     selectedSeasonIndex: Int,
     selectedEpisodeDetailsUrl: String?,
@@ -312,7 +295,16 @@ private fun GuideContent(
             .padding(start = 48.dp, top = 24.dp, end = 48.dp, bottom = 20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        GuideHeroSection(title = title, posterUrl = posterUrl, seasons = seasons)
+        Text(
+            text = title,
+            color = TextPrimary,
+            fontSize = 34.sp,
+            lineHeight = 38.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.testTag("series-guide-title"),
+        )
 
         Row(
             modifier = Modifier
@@ -324,8 +316,8 @@ private fun GuideContent(
                 modifier = Modifier
                     .width(130.dp)
                     .fillMaxHeight()
-                    .background(DetailsBackgroundMid)
-                    .padding(horizontal = 8.dp, vertical = 10.dp),
+                    .background(DetailsBackgroundMid.copy(alpha = 0.72f), RoundedCornerShape(14.dp))
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 itemsIndexed(
@@ -347,130 +339,40 @@ private fun GuideContent(
                     .background(DetailsBorderDefault),
             )
 
-            LazyColumn(
+            Column(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
                     .padding(start = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                item(key = "season-progress-${activeSeason.seasonNumber}") {
-                    SeasonProgressHeader(season = activeSeason)
-                }
+                SeasonProgressHeader(season = activeSeason)
 
-                itemsIndexed(
-                    items = activeSeason.episodes,
-                    key = { _, episode -> episode.detailsUrl },
-                ) { index, episode ->
-                    val focusRequester = episodeFocusRequesters[episode.detailsUrl]
-                    val prevEpisode = if (index > 0) activeSeason.episodes[index - 1] else null
-                    val nextEpisode = if (index < activeSeason.episodes.lastIndex) activeSeason.episodes[index + 1] else null
+                LazyColumn(
+                    modifier = Modifier.weight(1f).testTag("series-guide-episode-list"),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    itemsIndexed(
+                        items = activeSeason.episodes,
+                        key = { _, episode -> episode.detailsUrl },
+                    ) { index, episode ->
+                        val focusRequester = episodeFocusRequesters[episode.detailsUrl]
+                        val prevEpisode = if (index > 0) activeSeason.episodes[index - 1] else null
+                        val nextEpisode = if (index < activeSeason.episodes.lastIndex) activeSeason.episodes[index + 1] else null
 
-                    EpisodeRow(
-                        episode = episode,
-                        isSelected = episode.detailsUrl == selectedEpisodeDetailsUrl,
-                        focusRequester = focusRequester,
-                        prevEpisodeUrl = prevEpisode?.detailsUrl,
-                        nextEpisodeUrl = nextEpisode?.detailsUrl,
-                        focusRequesterForUrl = { url -> episodeFocusRequesters[url] },
-                        onClick = { onEpisodeClick(episode.detailsUrl) },
-                    )
+                        EpisodeRow(
+                            episode = episode,
+                            isSelected = episode.detailsUrl == selectedEpisodeDetailsUrl,
+                            focusRequester = focusRequester,
+                            prevEpisodeUrl = prevEpisode?.detailsUrl,
+                            nextEpisodeUrl = nextEpisode?.detailsUrl,
+                            focusRequesterForUrl = { url -> episodeFocusRequesters[url] },
+                            onClick = { onEpisodeClick(episode.detailsUrl) },
+                        )
+                    }
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun GuideHeroSection(
-    title: String,
-    posterUrl: String?,
-    seasons: List<SeriesGuideSeason>,
-) {
-    val context = LocalContext.current
-    val density = LocalDensity.current
-    val posterWidthPx = with(density) { 104.dp.toPx().roundToInt().coerceAtLeast(1) }
-    val posterHeightPx = with(density) { 150.dp.toPx().roundToInt().coerceAtLeast(1) }
-    val episodesCount = remember(seasons) { seasons.sumOf { it.episodes.size } }
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(24.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            modifier = Modifier
-                .size(width = 104.dp, height = 150.dp)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color(0xFF3F586E), Color(0xFF172734), Color(0xFF0A131B)),
-                    ),
-                    RoundedCornerShape(18.dp),
-                )
-                .border(1.dp, DetailsBorderDefault.copy(alpha = 0.72f), RoundedCornerShape(18.dp)),
-        ) {
-            val resolvedPosterUrl = resolveArtworkForDisplay(posterUrl)
-            if (resolvedPosterUrl != null) {
-                val request = remember(context, resolvedPosterUrl, posterWidthPx, posterHeightPx) {
-                    ImageRequest.Builder(context)
-                        .data(resolvedPosterUrl)
-                        .size(posterWidthPx, posterHeightPx)
-                        .build()
-                }
-                PosterImage(
-                    model = request,
-                    contentDescription = title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                    alpha = 0.94f,
-                )
-            } else {
-                PosterImage(
-                    model = null,
-                    contentDescription = title,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
-        }
-
-        Column(
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(
-                text = title,
-                color = TextPrimary,
-                fontSize = 34.sp,
-                fontWeight = FontWeight.Bold,
-                lineHeight = 38.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                GuideInfoChip("Гид по сериям")
-                GuideInfoChip("${seasons.size} сезонов")
-                GuideInfoChip("$episodesCount серий")
-            }
-        }
-    }
-}
-
-@Composable
-private fun GuideInfoChip(text: String) {
-    Box(
-        modifier = Modifier
-            .background(DetailsSurfaceSoft.copy(alpha = 0.72f), RoundedCornerShape(999.dp))
-            .border(1.dp, DetailsBorderDefault.copy(alpha = 0.54f), RoundedCornerShape(999.dp))
-            .padding(horizontal = 13.dp, vertical = 7.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = text,
-            color = DetailsTextSecondary,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
     }
 }
 
@@ -488,8 +390,8 @@ private fun SeasonProgressHeader(
             .fillMaxWidth()
             .background(DetailsSurfaceReadable.copy(alpha = 0.74f), RoundedCornerShape(16.dp))
             .border(1.dp, DetailsBorderDefault.copy(alpha = 0.48f), RoundedCornerShape(16.dp))
-            .padding(horizontal = 16.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -648,7 +550,7 @@ private fun EpisodeRow(
     Button(
         onClick = onClick,
         shape = shape,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 24.dp, vertical = 10.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 6.dp),
         colors = ButtonDefaults.buttonColors(containerColor = background),
         modifier = Modifier
             .fillMaxWidth()
@@ -680,7 +582,7 @@ private fun EpisodeRow(
         ) {
             Box(
                 modifier = Modifier
-                    .size(width = 82.dp, height = 36.dp)
+                    .size(width = 70.dp, height = 30.dp)
                     .background(
                         if (isSelected) DetailsAccentGold.copy(alpha = 0.16f) else DetailsSurfaceSoft.copy(alpha = 0.64f),
                         RoundedCornerShape(12.dp),
@@ -699,26 +601,25 @@ private fun EpisodeRow(
                     fontWeight = FontWeight.Bold,
                 )
             }
-            Column(
+            Text(
+                text = episode.episodeTitleRu?.takeIf { it.isNotBlank() }
+                    ?: "Серия ${episode.episodeNumber}",
+                color = TextPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
+            )
+            episode.releaseDateRu.takeIf { it.isNotBlank() }?.let { releaseDate ->
                 Text(
-                    text = episode.episodeTitleRu?.takeIf { it.isNotBlank() }
-                        ?: "Сезон ${episode.seasonNumber} • Серия ${episode.episodeNumber}",
-                    color = TextPrimary,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    text = episode.releaseDateRu,
-                    color = DetailsTextMuted,
-                    fontSize = 11.sp,
+                    text = releaseDate,
+                    color = DetailsTextSecondary,
+                    fontSize = 12.sp,
                     fontWeight = FontWeight.Medium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.width(116.dp),
                 )
             }
             if (episode.isWatched) {

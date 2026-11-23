@@ -18,6 +18,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.model.PageState
+import com.kraat.lostfilmnewtv.data.model.MovieMetadata
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.TorrentLink
@@ -31,7 +32,6 @@ import com.kraat.lostfilmnewtv.navigation.AppDestination
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeActionHandler
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeAvailabilityChecker
-import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeConfig
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeLinkBuilder
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeOpenResult
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeSourceBuilder
@@ -81,7 +81,7 @@ class DetailsRouteTest {
                 detailsUrl = detailsUrl,
                 viewModel = routeViewModel(detailsUrl, repository),
                 actionHandler = succeedingActionHandler(),
-                linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
+                linkBuilder = TorrServeLinkBuilder(),
             )
         }
 
@@ -117,7 +117,7 @@ class DetailsRouteTest {
                 viewModel = routeViewModel(detailsUrl, repository),
                 preferredPlaybackQuality = PlaybackQualityPreference.Q720,
                 actionHandler = succeedingActionHandler(),
-                linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
+                linkBuilder = TorrServeLinkBuilder(),
             )
         }
 
@@ -151,7 +151,7 @@ class DetailsRouteTest {
                 viewModel = routeViewModel(detailsUrl, repository),
                 preferredPlaybackQuality = PlaybackQualityPreference.Q1080,
                 actionHandler = succeedingActionHandler(),
-                linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
+                linkBuilder = TorrServeLinkBuilder(),
             )
         }
 
@@ -173,7 +173,7 @@ class DetailsRouteTest {
                 detailsUrl = detailsUrl,
                 viewModel = routeViewModel(detailsUrl, RouteFakeDetailsRepository.success(detailsUrl)),
                 actionHandler = succeedingActionHandler(),
-                linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
+                linkBuilder = TorrServeLinkBuilder(),
                 openTorrServe = { _, _, _, _ ->
                     launchCount.incrementAndGet()
                     activeLaunches.incrementAndGet()
@@ -217,7 +217,7 @@ class DetailsRouteTest {
                     isAuthenticated = false,
                 ),
                 actionHandler = succeedingActionHandler(),
-                linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
+                linkBuilder = TorrServeLinkBuilder(),
                 onAuthClick = { authClicks.incrementAndGet() },
                 openTorrServe = { _, _, _, _ ->
                     launchCount.incrementAndGet()
@@ -256,7 +256,7 @@ class DetailsRouteTest {
                     ),
                 ),
                 actionHandler = succeedingActionHandler(),
-                linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
+                linkBuilder = TorrServeLinkBuilder(),
                 onOpenMovieOverview = { overviewClicks += it },
             )
         }
@@ -287,7 +287,7 @@ class DetailsRouteTest {
                     detailsUrl = detailsUrl,
                     viewModel = routeViewModel(detailsUrl, RouteFakeDetailsRepository.success(detailsUrl)),
                     actionHandler = succeedingActionHandler(),
-                    linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
+                    linkBuilder = TorrServeLinkBuilder(),
                     openTorrServe = { _, _, _, _ ->
                         val next = responses.removeAt(0)
                         next.await()
@@ -322,7 +322,7 @@ class DetailsRouteTest {
                 detailsUrl = detailsUrl,
                 viewModel = routeViewModel(detailsUrl, RouteFakeDetailsRepository.success(detailsUrl)),
                 actionHandler = succeedingActionHandler(),
-                linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
+                linkBuilder = TorrServeLinkBuilder(),
                 openTorrServe = { _, _, _, _ -> TorrServeOpenResult.Unavailable },
             )
         }
@@ -352,7 +352,7 @@ class DetailsRouteTest {
                 detailsUrl = currentUrl,
                 viewModel = routeViewModel(currentUrl, repository),
                 actionHandler = succeedingActionHandler(),
-                linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
+                linkBuilder = TorrServeLinkBuilder(),
             )
         }
 
@@ -385,7 +385,7 @@ class DetailsRouteTest {
                 detailsUrl = detailsUrl,
                 viewModel = routeViewModel(detailsUrl, repository),
                 actionHandler = succeedingActionHandler(),
-                linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
+                linkBuilder = TorrServeLinkBuilder(),
             )
         }
 
@@ -408,7 +408,7 @@ class DetailsRouteTest {
                 detailsUrl = detailsUrl,
                 viewModel = routeViewModel(detailsUrl, repository),
                 actionHandler = succeedingActionHandler(),
-                linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
+                linkBuilder = TorrServeLinkBuilder(),
                 onMarkedWatched = { watchedDetailsUrls += it },
                 onChannelContentChanged = { channelSyncCalls.incrementAndGet() },
                 openTorrServe = { _, _, _, _ -> TorrServeOpenResult.Success },
@@ -437,7 +437,7 @@ class DetailsRouteTest {
                 detailsUrl = detailsUrl,
                 viewModel = routeViewModel(detailsUrl, repository),
                 actionHandler = succeedingActionHandler(),
-                linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
+                linkBuilder = TorrServeLinkBuilder(),
                 onMarkedWatched = { watchedDetailsUrls += it },
                 onChannelContentChanged = { channelSyncCalls.incrementAndGet() },
             )
@@ -465,7 +465,7 @@ class DetailsRouteTest {
                 detailsUrl = detailsUrl,
                 viewModel = routeViewModel(detailsUrl, repository),
                 actionHandler = succeedingActionHandler(),
-                linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
+                linkBuilder = TorrServeLinkBuilder(),
                 onWatchedStateChanged = { url, isWatched -> watchedChanges += url to isWatched },
                 onChannelContentChanged = { channelSyncCalls.incrementAndGet() },
             )
@@ -500,7 +500,7 @@ class DetailsRouteTest {
                 detailsUrl = detailsUrl,
                 viewModel = routeViewModel(detailsUrl, repository),
                 actionHandler = succeedingActionHandler(),
-                linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
+                linkBuilder = TorrServeLinkBuilder(),
                 onFavoriteContentChanged = { changedDetailsUrl, isFavorite ->
                     favoriteChanges += changedDetailsUrl to isFavorite
                 },
@@ -547,7 +547,7 @@ class DetailsRouteTest {
                 isAuthenticated = isAuthenticated,
                 viewModel = viewModel,
                 actionHandler = succeedingActionHandler(),
-                linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
+                linkBuilder = TorrServeLinkBuilder(),
             )
         }
 
@@ -579,7 +579,7 @@ class DetailsRouteTest {
                 detailsUrl = detailsUrl,
                 viewModel = routeViewModel(detailsUrl, RouteFakeDetailsRepository.success(detailsUrl)),
                 actionHandler = succeedingActionHandler(),
-                linkBuilder = TorrServeLinkBuilder(TorrServeConfig()),
+                linkBuilder = TorrServeLinkBuilder(),
                 onOpenSeriesGuide = { openedGuideUrl = it },
             )
         }
@@ -740,6 +740,7 @@ private fun details(
 private fun movieDetails(detailsUrl: String): ReleaseDetails = ReleaseDetails(
     detailsUrl = detailsUrl,
     kind = ReleaseKind.MOVIE,
+    movieMetadata = MovieMetadata(),
     titleRu = "Зверополис 2",
     seasonNumber = null,
     episodeNumber = null,

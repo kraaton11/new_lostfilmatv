@@ -4,11 +4,11 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
+import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.data.repository.FavoritesRepository
 import com.kraat.lostfilmnewtv.navigation.AppDestination
-import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
@@ -26,7 +26,6 @@ class DetailsViewModel @Inject constructor(
     private val favoritesRepository: FavoritesRepository,
     private val savedStateHandle: SavedStateHandle,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-    private val preferencesStore: PlaybackPreferencesStore? = null,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DetailsUiState())
@@ -213,6 +212,15 @@ class DetailsViewModel @Inject constructor(
                             }
                         }
                         is DetailsResult.Error -> Unit
+                    }
+                    if (result.details.kind == ReleaseKind.MOVIE && _uiState.value.details?.movieMetadata == null) {
+                        val preview = repository.loadMovieDetailsPreview(detailsUrl) as? DetailsResult.Success
+                        if (loadRequestToken != requestToken) return@launch
+                        preview?.details?.movieMetadata?.let { metadata ->
+                            _uiState.update { state ->
+                                state.copy(details = state.details?.copy(movieMetadata = metadata))
+                            }
+                        }
                     }
                 }
                 is DetailsResult.Error -> {

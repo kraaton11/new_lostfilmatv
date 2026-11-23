@@ -20,13 +20,11 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.test.core.app.ApplicationProvider
 import com.kraat.lostfilmnewtv.TestHiltActivity
-import com.kraat.lostfilmnewtv.data.auth.AuthCompletionResult
 import com.kraat.lostfilmnewtv.data.auth.AuthRepositoryContract
 import com.kraat.lostfilmnewtv.data.model.AuthState
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.model.PageState
-import com.kraat.lostfilmnewtv.data.model.PairingSession
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
@@ -488,10 +486,6 @@ private fun legacyTorrServeTag(index: Int) = "torrent-torrserve-torrent-row-$ind
 private class FakeAuthRepository : AuthRepositoryContract {
     override suspend fun getAuthState() = AuthState()
     override fun observeAuthState(): Flow<AuthState> = flowOf(AuthState())
-    override suspend fun startPairing(): PairingSession = error("Not used in this test")
-    override suspend fun pollPairingStatus(): PairingSession? = null
-    override suspend fun claimAndPersistSession() = AuthCompletionResult.RecoverableFailure()
-    override suspend fun cancelPairing() = Unit
     override suspend fun logout() = Unit
 }
 

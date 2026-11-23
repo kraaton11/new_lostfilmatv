@@ -21,33 +21,25 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kraat.lostfilmnewtv.ui.components.resolveArtworkForDisplay
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
-import com.kraat.lostfilmnewtv.ui.components.PosterImage
 import com.kraat.lostfilmnewtv.ui.components.ShimmerSkeletonBox
 import com.kraat.lostfilmnewtv.ui.components.rememberShimmerSkeletonBrush
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
@@ -59,7 +51,6 @@ import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceReadable
 import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceSoft
 import com.kraat.lostfilmnewtv.ui.theme.DetailsTextSecondary
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
-import kotlin.math.roundToInt
 
 private val movieOverviewWhitespaceRegex = Regex("""\s+""")
 private val movieOverviewSentenceSplitRegex = Regex("""(?<=[.!?…])\s+""")
@@ -98,6 +89,7 @@ fun MovieOverviewScreen(
 private fun MovieOverviewBackgroundPoster(details: ReleaseDetails?) {
     val context = LocalContext.current
     val imageUrl = resolveArtworkForDisplay(details?.backdropUrl)
+        ?: resolveArtworkForDisplay(details?.posterUrl)
         ?: return
     val request = remember(context, imageUrl) {
         ImageRequest.Builder(context)
@@ -268,16 +260,12 @@ private fun MovieOverviewCenteredStatePanel(
 @Composable
 private fun MovieOverviewContent(details: ReleaseDetails?) {
     val safeDetails = details ?: return
-    val context = LocalContext.current
-    val density = LocalDensity.current
-    val posterWidthPx = with(density) { 175.dp.toPx().roundToInt().coerceAtLeast(1) }
-    val posterHeightPx = with(density) { 252.dp.toPx().roundToInt().coerceAtLeast(1) }
     val description = safeDetails.episodeOverviewRu
         ?.replace(movieOverviewWhitespaceRegex, " ")
         ?.trim()
         .orEmpty()
     val blocks = remember(description) {
-        description.chunkForMovieReading(maxChars = 1200)
+        description.chunkForMovieReading(maxChars = 520)
             .mapIndexed { index, chunk ->
                 MovieOverviewBlock(
                     key = "description-$index",
@@ -300,83 +288,23 @@ private fun MovieOverviewContent(details: ReleaseDetails?) {
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item(key = "hero") {
-            Row(
+            OverviewHeader(
+                title = safeDetails.titleRu,
+                subtitle = null,
+                artwork = safeDetails.posterUrl,
+                artworkSize = DpSize(192.dp, 132.dp),
+                facts = listOfNotNull(
+                    safeDetails.originalReleaseYear?.toString(),
+                    safeDetails.movieMetadata?.genres?.joinToString(", "),
+                    safeDetails.movieMetadata?.durationMinutes?.let { "$it мин" },
+                    safeDetails.movieMetadata?.imdbRating?.let { "IMDb $it" },
+                    safeDetails.releaseDateRu,
+                ).filter { it.isNotBlank() },
                 modifier = Modifier
-                    .fillMaxWidth()
                     .focusRequester(heroRequester)
                     .focusable()
                     .testTag("movie-overview-hero"),
-                horizontalArrangement = Arrangement.spacedBy(32.dp),
-                verticalAlignment = Alignment.Top,
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(width = 175.dp, height = 252.dp)
-                        .shadow(
-                            elevation = 34.dp,
-                            spotColor = Color.Black.copy(alpha = 0.55f),
-                            ambientColor = Color.Black.copy(alpha = 0.35f),
-                            shape = RoundedCornerShape(24.dp),
-                        )
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(DetailsSurfaceSoft)
-                        .border(1.dp, DetailsBorderDefault, RoundedCornerShape(24.dp)),
-                ) {
-                    val posterUrl = resolveArtworkForDisplay(safeDetails.posterUrl)
-                    if (posterUrl != null) {
-                        val request = remember(context, posterUrl, posterWidthPx, posterHeightPx) {
-                            ImageRequest.Builder(context)
-                                .data(posterUrl)
-                                .size(posterWidthPx, posterHeightPx)
-                                .build()
-                        }
-                        PosterImage(
-                            model = request,
-                            contentDescription = safeDetails.titleRu,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    } else {
-                        PosterImage(
-                            model = null,
-                            contentDescription = safeDetails.titleRu,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    }
-                }
-
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .padding(top = 18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Text(
-                        text = "Описание фильма",
-                        color = DetailsAccentGold,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                    )
-                    Text(
-                        text = safeDetails.titleRu,
-                        color = TextPrimary,
-                        fontSize = 50.sp,
-                        fontWeight = FontWeight.Bold,
-                        lineHeight = 54.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    safeDetails.releaseDateRu.takeIf { it.isNotBlank() }?.let { releaseDate ->
-                        Text(
-                            text = releaseDate,
-                            color = DetailsTextSecondary,
-                            fontSize = 22.sp,
-                            fontWeight = FontWeight.Medium,
-                            lineHeight = 28.sp,
-                        )
-                    }
-                }
-            }
+            )
         }
 
         if (blocks.isEmpty()) {
@@ -394,29 +322,11 @@ private fun MovieOverviewContent(details: ReleaseDetails?) {
             items = blocks,
             key = { block -> block.key },
         ) { block ->
-            var isFocused by remember { mutableStateOf(false) }
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .onFocusChanged { isFocused = it.isFocused }
-                    .focusable()
-                    .testTag(block.tag)
-                    .padding(vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Text(
-                    text = if (block.key == "description-0") "Описание" else "",
-                    color = DetailsAccentGold,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-                Text(
-                    text = block.body,
-                    color = TextPrimary.copy(alpha = if (isFocused) 1f else 0.85f),
-                    fontSize = 18.sp,
-                    lineHeight = 27.sp,
-                )
-            }
+            OverviewReadingBlock(
+                title = if (block.key == "description-0") "Описание" else "",
+                body = block.body,
+                tag = block.tag,
+            )
         }
     }
 }

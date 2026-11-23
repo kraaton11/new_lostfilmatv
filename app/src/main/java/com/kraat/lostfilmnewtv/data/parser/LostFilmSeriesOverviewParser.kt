@@ -7,8 +7,12 @@ import org.jsoup.nodes.Element
 
 private val labeledHtmlBreakRegex = Regex("""<br\s*/?>""", setOf(RegexOption.IGNORE_CASE))
 private val plotSectionRegex = Regex(
-    """(?:<strong[^>]*>\s*)?Сюжет\s*(?:</strong>)?\s*(?:<br\s*/?>|\r?\n)?""",
-    setOf(RegexOption.IGNORE_CASE, RegexOption.MULTILINE),
+    """<(strong|b|h[1-6])\b[^>]*>\s*Сюжет\s*:?\s*</\1>(?=[ \t]*(?:\r?\n|<br\s*/?>|</p>|<p\b|$))|(?:^|\r?\n|<br\s*/?>)[ \t]*Сюжет[ \t]*:?[ \t]*(?=\r?\n|<br\s*/?>|$)""",
+    RegexOption.IGNORE_CASE,
+)
+private val overviewParagraphBreakRegex = Regex(
+    """<br\s*/?>(?:\s|&nbsp;|\u00a0)*<br\s*/?>|</p>\s*(?=<p\b)|\r?\n[ \t]*\r?\n""",
+    RegexOption.IGNORE_CASE,
 )
 
 class LostFilmSeriesOverviewParser {
@@ -63,11 +67,17 @@ private fun Document.descriptionAndPlot(): Pair<String?, String?> {
     }
 
     val parts = plotSectionRegex.split(rawHtml, limit = 2)
-    val description = parts.getOrNull(0)?.htmlFragmentToText()
-    val plot = parts.getOrNull(1)?.htmlFragmentToText()
+    val description = parts.getOrNull(0)?.overviewParagraphsToText()
+    val plot = parts.getOrNull(1)?.overviewParagraphsToText()
 
     return description to plot
 }
+
+private fun String.overviewParagraphsToText(): String? =
+    split(overviewParagraphBreakRegex)
+        .mapNotNull { it.htmlFragmentToText() }
+        .joinToString("\n\n")
+        .takeIf { it.isNotBlank() }
 
 private fun Element?.extractLabeledValue(label: String): String? {
     val html = this?.html().orEmpty()

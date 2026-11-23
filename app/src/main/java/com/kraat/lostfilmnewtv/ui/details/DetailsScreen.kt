@@ -11,6 +11,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -381,7 +383,9 @@ private fun ContentState(
 private fun BackgroundPoster(details: ReleaseDetails?) {
     val context = LocalContext.current
     Box(modifier = Modifier.fillMaxSize()) {
+        val isMovie = details?.kind == ReleaseKind.MOVIE
         val backgroundImage = resolveArtworkForDisplay(details?.backdropUrl)
+            ?: resolveArtworkForDisplay(details?.posterUrl.takeIf { isMovie })
         if (backgroundImage != null) {
             val request = remember(context, backgroundImage) {
                 ImageRequest.Builder(context)
@@ -394,7 +398,7 @@ private fun BackgroundPoster(details: ReleaseDetails?) {
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
-                alpha = 0.18f,
+                alpha = if (isMovie) 0.68f else 0.18f,
             )
         }
 
@@ -402,11 +406,18 @@ private fun BackgroundPoster(details: ReleaseDetails?) {
             modifier = Modifier
                 .fillMaxSize()
                 .background(
-                    Brush.verticalGradient(
-                        0f to Color.Transparent,
-                        0.36f to DetailsBackgroundMid.copy(alpha = 0.7f),
-                        1f to BackgroundPrimary,
-                    ),
+                    if (isMovie) {
+                        Brush.verticalGradient(
+                            0.43f to Color.Transparent,
+                            1f to BackgroundPrimary.copy(alpha = 0.82f),
+                        )
+                    } else {
+                        Brush.verticalGradient(
+                            0f to Color.Transparent,
+                            0.36f to DetailsBackgroundMid.copy(alpha = 0.7f),
+                            1f to BackgroundPrimary,
+                        )
+                    },
                 ),
         )
 
@@ -414,11 +425,19 @@ private fun BackgroundPoster(details: ReleaseDetails?) {
             modifier = Modifier
                 .fillMaxSize()
                 .background(
-                    Brush.horizontalGradient(
-                        0f to Color(0xB8040A10),
-                        0.45f to Color(0x66040A10),
-                        1f to Color(0xD8040A10),
-                    ),
+                    if (isMovie) {
+                        Brush.horizontalGradient(
+                            0f to Color(0xF2040A10),
+                            0.48f to Color(0xCD040A10),
+                            1f to Color(0x26040A10),
+                        )
+                    } else {
+                        Brush.horizontalGradient(
+                            0f to Color(0xB8040A10),
+                            0.45f to Color(0x66040A10),
+                            1f to Color(0xD8040A10),
+                        )
+                    },
                 ),
         )
     }
@@ -473,71 +492,11 @@ private fun HeroStage(
         }
     }
 
-    Box(
-        modifier = Modifier.fillMaxSize(),
-    ) {
+    val isMovie = details?.kind == ReleaseKind.MOVIE
+    val actions: @Composable (Modifier) -> Unit = { modifier ->
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.TopStart),
-            horizontalArrangement = Arrangement.spacedBy(26.dp),
-            verticalAlignment = Alignment.Top,
-        ) {
-            Box(modifier = Modifier.width(242.dp)) {
-                PosterCard(details = details)
-            }
-
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(top = 46.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                Text(
-                    text = stageUi.title.ifBlank { "Details" },
-                    color = TextPrimary,
-                    fontSize = 28.sp,
-                    fontWeight = FontWeight.Bold,
-                    lineHeight = 32.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (stageUi.heroEpisodeTitle.isNotBlank()) {
-                    Text(
-                        text = stageUi.heroEpisodeTitle,
-                        color = DetailsAccentGold,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        lineHeight = 25.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                val metaChips = remember(details, stageUi.heroMetaLine) {
-                    buildDetailsMetaChips(details = details, heroMetaLine = stageUi.heroMetaLine)
-                }
-                if (metaChips.isNotEmpty()) {
-                    Row(
-                        modifier = Modifier.testTag("details-hero-meta"),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        metaChips.forEach { chip ->
-                            DetailsMetaChip(text = chip)
-                        }
-                    }
-                }
-                DetailsInfoRows(details = details, statusLine = stageUi.heroStatusLine)
-                DetailsDivider()
-                DetailsDescription(details = details)
-            }
-        }
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.BottomStart),
-            horizontalArrangement = Arrangement.spacedBy(26.dp),
+            modifier = modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(if (isMovie) 18.dp else 26.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             StageButton(
@@ -549,7 +508,7 @@ private fun HeroStage(
                     onOpenTorrServe = onOpenTorrServe,
                 ),
                 modifier = Modifier
-                    .width(242.dp)
+                    .width(if (isMovie) 186.dp else 242.dp)
                     .focusRequester(primaryActionRequester)
                     .testTag(primaryActionTag(stageUi.primaryAction)),
                 isPrimary = true,
@@ -609,6 +568,79 @@ private fun HeroStage(
                 }
             }
         }
+    }
+
+    Box(
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        if (isMovie) {
+            Column(
+                modifier = Modifier.align(Alignment.CenterStart).testTag("details-movie-stage"),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
+            ) {
+                MovieDetailsInfo(details)
+                actions(Modifier)
+            }
+        } else {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .align(Alignment.TopStart),
+                horizontalArrangement = Arrangement.spacedBy(26.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                Box(modifier = Modifier.width(242.dp)) {
+                    PosterCard(details = details)
+                }
+
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(top = 46.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    Text(
+                        text = stageUi.title.ifBlank { "Details" },
+                        color = TextPrimary,
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold,
+                        lineHeight = 32.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (stageUi.heroEpisodeTitle.isNotBlank()) {
+                        Text(
+                            text = stageUi.heroEpisodeTitle,
+                            color = DetailsAccentGold,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            lineHeight = 25.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    val metaChips = remember(details, stageUi.heroMetaLine) {
+                        buildDetailsMetaChips(details = details, heroMetaLine = stageUi.heroMetaLine)
+                    }
+                    if (metaChips.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier.testTag("details-hero-meta"),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            metaChips.forEach { chip ->
+                                DetailsMetaChip(text = chip)
+                            }
+                        }
+                    }
+                    DetailsInfoRows(details = details, statusLine = stageUi.heroStatusLine)
+                    DetailsDivider()
+                    DetailsDescription(details = details)
+                }
+            }
+
+            actions(Modifier.align(Alignment.BottomStart))
+        }
         if (isOverflowPanelVisible && overflowActions.isNotEmpty()) {
             DetailsOverflowActionsPanel(
                 actions = overflowActions,
@@ -629,6 +661,44 @@ private fun HeroStage(
                     .padding(start = 294.dp, end = 48.dp, bottom = 92.dp),
             )
         }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun MovieDetailsInfo(details: ReleaseDetails) {
+    val metadata = details.movieMetadata
+    val title = listOfNotNull(details.titleRu, details.originalReleaseYear?.toString()).joinToString("  ·  ")
+    val facts = listOfNotNull(
+        metadata?.genres?.joinToString(", ")?.takeIf { it.isNotBlank() },
+        metadata?.durationMinutes?.let { "$it мин" },
+        (metadata?.imdbRating ?: details.tmdbRating)?.let {
+            if (metadata?.imdbRating != null) "IMDb $it" else "TMDB $it"
+        },
+    )
+    Column(
+        modifier = Modifier.widthIn(max = 572.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = title,
+            color = TextPrimary,
+            fontSize = 36.sp,
+            lineHeight = 41.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (facts.isNotEmpty()) {
+            FlowRow(
+                modifier = Modifier.testTag("details-hero-meta"),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                facts.forEach { DetailsMetaChip(it) }
+            }
+        }
+        DetailsDescription(details)
     }
 }
 
@@ -880,7 +950,7 @@ private fun DetailsDescription(details: ReleaseDetails?) {
         color = DetailsTextSecondary,
         fontSize = 14.sp,
         lineHeight = 20.sp,
-        maxLines = 5,
+        maxLines = if (details?.kind == ReleaseKind.MOVIE) 4 else 5,
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier
             .widthIn(max = 660.dp)
@@ -896,11 +966,10 @@ private fun buildDetailsDescription(details: ReleaseDetails?): String {
             ?.trim()
             ?.takeIf { it.isNotBlank() }
             .orEmpty()
-        ReleaseKind.MOVIE -> details.movieOverviewRu
+        ReleaseKind.MOVIE -> (details.episodeOverviewRu?.takeIf { it.isNotBlank() } ?: details.movieOverviewRu)
             ?.replace(detailsWhitespaceRegex, " ")
             ?.trim()
-            ?.takeIf { it.isNotBlank() }
-            ?: "Фильм доступен в релизах LostFilm."
+            .orEmpty()
     }
 }
 
