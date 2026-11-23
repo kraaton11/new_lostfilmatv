@@ -7,6 +7,7 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.parser.LostFilmBaseUrl
 import com.kraat.lostfilmnewtv.data.parser.lostFilmArtworkUrl
+import com.kraat.lostfilmnewtv.data.parser.lostFilmPortraitUrl
 
 class HomeChannelContentRepository(
     private val reader: HomeChannelSummaryReader,
@@ -47,17 +48,26 @@ class HomeChannelContentRepository(
         return mapPrograms(items)
     }
 
-    private fun mapPrograms(items: List<ReleaseSummary>): List<HomeChannelProgram> {
+    private suspend fun mapPrograms(items: List<ReleaseSummary>): List<HomeChannelProgram> {
         val baseUrl = LostFilmBaseUrl.get()
-        return items.map { item ->
-            HomeChannelProgram(
-                detailsUrl = item.detailsUrl,
-                title = item.titleRu,
-                description = item.channelDescription(),
-                posterUrl = lostFilmArtworkUrl(item.posterUrl, baseUrl).orEmpty(),
-                backdropUrl = lostFilmArtworkUrl(item.backdropUrl, baseUrl).orEmpty(),
-                internalProviderId = item.detailsUrl,
-            )
+        return buildList {
+            for (item in items) {
+                val backdropUrl = item.backdropUrl?.takeIf { it.isNotBlank() }
+                    ?: reader.cachedBackdrop(item.detailsUrl)
+                add(
+                    HomeChannelProgram(
+                        detailsUrl = item.detailsUrl,
+                        title = item.titleRu,
+                        description = item.channelDescription(),
+                        posterUrl = (
+                            lostFilmPortraitUrl(item.posterUrl, baseUrl)
+                                ?: lostFilmArtworkUrl(item.posterUrl, baseUrl)
+                            ).orEmpty(),
+                        backdropUrl = lostFilmArtworkUrl(backdropUrl, baseUrl).orEmpty(),
+                        internalProviderId = item.detailsUrl,
+                    ),
+                )
+            }
         }
     }
 }
@@ -75,6 +85,8 @@ interface HomeChannelSummaryReader {
     suspend fun latest(limit: Int): List<ReleaseSummaryEntity>
 
     suspend fun latestUnwatched(limit: Int): List<ReleaseSummaryEntity>
+
+    suspend fun cachedBackdrop(detailsUrl: String): String? = null
 }
 
 class DaoHomeChannelSummaryReader(
@@ -86,6 +98,10 @@ class DaoHomeChannelSummaryReader(
 
     override suspend fun latestUnwatched(limit: Int): List<ReleaseSummaryEntity> {
         return releaseDao.getLatestUnwatchedSummariesForChannel(limit)
+    }
+
+    override suspend fun cachedBackdrop(detailsUrl: String): String? {
+        return releaseDao.getReleaseDetails(detailsUrl)?.backdropUrl
     }
 }
 

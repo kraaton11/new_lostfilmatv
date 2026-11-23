@@ -63,7 +63,7 @@ class HomeChannelContentRepositoryTest {
         assertEquals(listOf("Favorite 1"), results.map { it.title })
         assertEquals(listOf("Favorite episode"), results.map { it.description })
         assertEquals(
-            "${LostFilmBaseUrl.get()}/Static/Images/362/Posters/image_s9.jpg",
+            "${LostFilmBaseUrl.get()}/Static/Images/362/Posters/shmoster_s9.jpg",
             results.single().posterUrl,
         )
     }
@@ -111,6 +111,8 @@ class HomeChannelContentRepositoryTest {
                         detailsUrl = "https://example.com/old",
                         posterUrl = "https://auth.bazuka.pp.ua/api/tmdb/t/p/w500/old.jpg",
                     ).copy(backdropUrl = "https://image.tmdb.org/t/p/original/old.jpg"),
+                    movie(detailsUrl = "https://example.com/movie", titleRu = "Movie")
+                        .copy(posterUrl = "/Static/Images/1184/Posters/image.jpg"),
                 ),
             ),
         )
@@ -118,14 +120,21 @@ class HomeChannelContentRepositoryTest {
         try {
             LostFilmBaseUrl.set("https://www.lostfilm.download")
             val results = repository.loadPrograms(AndroidTvChannelMode.ALL_NEW, limit = 30)
-            assertEquals("https://www.lostfilm.download$posterPath", results.first().posterUrl)
+            assertEquals(
+                "https://www.lostfilm.download/Static/Images/362/Posters/shmoster_s9.jpg",
+                results.first().posterUrl,
+            )
             assertEquals("https://www.lostfilm.download$backdropPath", results.first().backdropUrl)
-            assertEquals("", results.last().posterUrl)
-            assertEquals("", results.last().backdropUrl)
+            assertEquals("", results[1].posterUrl)
+            assertEquals("", results[1].backdropUrl)
+            assertEquals(
+                "https://www.lostfilm.download/Static/Images/1184/Posters/image.jpg",
+                results[2].posterUrl,
+            )
 
             LostFilmBaseUrl.set("https://www.lostfilm.tv")
             assertEquals(
-                "https://www.lostfilm.tv$posterPath",
+                "https://www.lostfilm.tv/Static/Images/362/Posters/shmoster_s9.jpg",
                 repository.loadPrograms(AndroidTvChannelMode.ALL_NEW, limit = 30).first().posterUrl,
             )
         } finally {
@@ -133,11 +142,28 @@ class HomeChannelContentRepositoryTest {
         }
     }
 
+    @Test
+    fun loadPrograms_usesCachedDetailsBackdropWhenSummaryHasNone() = runTest {
+        val detailsUrl = "https://example.com/series"
+        val backdropPath = "/Static/Images/362/Posters/e_9_13.jpg"
+        val repository = HomeChannelContentRepository(
+            reader = FakeSummaryReader(
+                allRows = listOf(summary(detailsUrl = detailsUrl)),
+                cachedBackdrops = mapOf(detailsUrl to backdropPath),
+            ),
+        )
+
+        val result = repository.loadPrograms(AndroidTvChannelMode.ALL_NEW, limit = 30).single()
+
+        assertEquals("${LostFilmBaseUrl.get()}$backdropPath", result.backdropUrl)
+    }
+
 }
 
 private class FakeSummaryReader(
     private val allRows: List<ReleaseSummaryEntity> = emptyList(),
     private val unwatchedRows: List<ReleaseSummaryEntity> = emptyList(),
+    private val cachedBackdrops: Map<String, String> = emptyMap(),
 ) : HomeChannelSummaryReader {
     var allQueryCount: Int = 0
         private set
@@ -153,6 +179,8 @@ private class FakeSummaryReader(
         unwatchedQueryCount += 1
         return unwatchedRows.take(limit)
     }
+
+    override suspend fun cachedBackdrop(detailsUrl: String): String? = cachedBackdrops[detailsUrl]
 }
 
 private fun summary(
