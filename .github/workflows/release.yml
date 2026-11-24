@@ -15,6 +15,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Make Gradle wrapper executable
         run: chmod +x gradlew
@@ -62,28 +64,24 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          # Постоянная часть описания: то, что человеку нужно знать перед
-          # установкой. Список изменений ниже добавляется автоматически из
-          # смерженных PR и коммитов, поэтому руками его вести не нужно.
-          NOTES="$(cat <<'HEADER'
-          ## Перед установкой
+          previous_tag="$(git describe --tags --abbrev=0 --match 'v[0-9]*' "$GITHUB_SHA^" 2>/dev/null || true)"
+          revision_range="$GITHUB_SHA"
+          if [[ -n "$previous_tag" ]]; then
+            revision_range="$previous_tag..$GITHUB_SHA"
+          fi
 
-          **Постеры.** Добавлено проксирование постеров и фонов через мой бэкенд.
-          Если бэкенд недоступен, картинки качаются напрямую с TMDB.
-
-          **TorrServe.** Воспроизведение требует либо адреса на этом же ТВ по
-          `127.0.0.1`, либо HTTPS. cleartext для произвольных адресов не
-          разрешён: `network-security-config` не умеет задавать диапазоны IP, и
-          статический конфиг заблокировал бы TorrServe в локальной сети.
-
-          **Другой адрес LostFilm** задаётся в настройках, секция «Сервер».
-          Поддерживается только HTTPS, по умолчанию поведение прежнее.
-          HEADER
-          )"
+          notes_file="$RUNNER_TEMP/release-notes.md"
+          {
+            printf '## Что изменилось\n\n'
+            git log --no-merges --format='- %s (%h)' "$revision_range"
+            if [[ -n "$previous_tag" ]]; then
+              printf '\n[Полный список изменений](%s/%s/compare/%s...%s)\n' \
+                "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$previous_tag" "$GITHUB_SHA"
+            fi
+          } > "$notes_file"
 
           gh release create "${{ steps.version.outputs.version_name }}" \
             app/build/outputs/apk/release/*.apk \
             --title "${{ steps.version.outputs.version_name }}" \
             --target "$GITHUB_SHA" \
-            --notes "$NOTES" \
-            --generate-notes
+            --notes-file "$notes_file"
