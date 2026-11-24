@@ -162,6 +162,34 @@ class DetailsRouteTest {
     }
 
     @Test
+    fun route_passesFullSizeSeasonPosterToTorrServe() {
+        val detailsUrl = "https://www.lostfilm.today/series/poster"
+        val details = details(detailsUrl).copy(posterUrl = "/Static/Images/362/Posters/image_s9.jpg")
+        val viewModel = routeViewModel(detailsUrl, RouteFakeDetailsRepository.success(detailsUrl, details))
+        val posters = CopyOnWriteArrayList<String>()
+
+        composeRule.setContent {
+            DetailsRoute(
+                detailsUrl = detailsUrl,
+                viewModel = viewModel,
+                actionHandler = succeedingActionHandler(),
+                linkBuilder = TorrServeLinkBuilder(),
+                openTorrServe = { _, _, _, poster ->
+                    posters += poster
+                    TorrServeOpenResult.Unavailable
+                },
+            )
+        }
+
+        val buttonTag = torrServeButtonTag(routeRowId(detailsUrl, 0))
+        composeRule.waitForNodeWithTag(buttonTag)
+        composeRule.onNodeWithTag(buttonTag).performSemanticsAction(SemanticsActions.OnClick)
+        composeRule.waitForIdle()
+
+        assertEquals(listOf("https://www.lostfilm.today/Static/Images/362/Posters/shmoster_s9.jpg"), posters)
+    }
+
+    @Test
     fun route_suppresses_repeated_torrserve_clicks_while_busy() {
         val detailsUrl = "https://www.lostfilm.today/series/busy"
         val result = CompletableDeferred<TorrServeOpenResult>()

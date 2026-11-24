@@ -14,6 +14,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kraat.lostfilmnewtv.data.parser.lostFilmArtworkUrl
+import com.kraat.lostfilmnewtv.data.parser.lostFilmPortraitUrl
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.playback.WatchedMarkingMode
 import com.kraat.lostfilmnewtv.platform.torrserve.TorrServeActionHandler
@@ -121,7 +122,7 @@ fun DetailsRoute(
                         context,
                         url,
                         currentDetails?.titleRu.orEmpty(),
-                        lostFilmArtworkUrl(currentDetails?.posterUrl).orEmpty(),
+                        currentDetails?.posterUrl?.let { lostFilmPortraitUrl(it) ?: lostFilmArtworkUrl(it) }.orEmpty(),
                     )
                 ) {
                     TorrServeOpenResult.Success -> {
