@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Row
@@ -38,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -472,6 +474,7 @@ fun HomeScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .weight(1f),
+                                    selectedMode = state.selectedMode,
                                 )
                             }
                         }
@@ -799,7 +802,10 @@ private fun HomeBackdrop(backdropPath: String?) {
 }
 
 @Composable
-private fun HomeLoadingSkeleton(modifier: Modifier = Modifier) {
+private fun HomeLoadingSkeleton(
+    modifier: Modifier = Modifier,
+    selectedMode: HomeFeedMode = HomeFeedMode.AllNew,
+) {
     val shimmerBrush = rememberShimmerSkeletonBrush(
         label = "homeSkeleton",
         baseColor = HomePanelSurfaceStrong,
@@ -811,6 +817,11 @@ private fun HomeLoadingSkeleton(modifier: Modifier = Modifier) {
         shimmerWidth = 440f,
         durationMillis = 1_300,
     )
+
+    if (selectedMode == HomeFeedMode.Movies || selectedMode == HomeFeedMode.Series) {
+        CatalogLoadingSkeleton(selectedMode, shimmerBrush, modifier)
+        return
+    }
 
     Column(
         modifier = modifier,
@@ -882,6 +893,54 @@ private fun HomeLoadingSkeleton(modifier: Modifier = Modifier) {
                     baseColor = HomePanelSurfaceStrong,
                     borderColor = HomePanelBorder.copy(alpha = 0.14f),
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CatalogLoadingSkeleton(mode: HomeFeedMode, brush: Brush, modifier: Modifier) {
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(214.dp)
+                .padding(start = 12.dp, top = 4.dp, end = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            ShimmerSkeletonBox(brush, Modifier.size(420.dp, 30.dp), RoundedCornerShape(10.dp))
+            ShimmerSkeletonBox(brush, Modifier.size(250.dp, 18.dp), RoundedCornerShape(8.dp))
+            repeat(4) { index ->
+                ShimmerSkeletonBox(
+                    brush,
+                    Modifier.size(width = if (index == 3) 440.dp else 680.dp, height = 13.dp),
+                    RoundedCornerShape(8.dp),
+                )
+            }
+        }
+        Spacer(Modifier.weight(1f))
+        HomeRailSectionHeader(selectedMode = mode, favoriteSeriesCount = null)
+        BoxWithConstraints(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 30.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            val cardWidth = homeCarouselCardWidth(maxWidth, maxHeight)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(cardWidth * -0.15f),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                repeat(3) { index ->
+                    ShimmerSkeletonBox(
+                        brush = brush,
+                        modifier = Modifier
+                            .size(cardWidth, cardWidth * (9f / 16f))
+                            .graphicsLayer {
+                                scaleX = if (index == 1) 1f else 0.82f
+                                scaleY = scaleX
+                            },
+                        shape = RoundedCornerShape(14.dp),
+                    )
+                }
             }
         }
     }

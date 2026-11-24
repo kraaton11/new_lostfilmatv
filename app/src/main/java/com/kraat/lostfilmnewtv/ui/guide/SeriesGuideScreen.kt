@@ -151,29 +151,46 @@ private fun GuideLoadingState() {
             .fillMaxSize()
             .padding(start = 48.dp, top = 24.dp, end = 48.dp, bottom = 20.dp)
             .testTag("series-guide-loading"),
-        verticalArrangement = Arrangement.spacedBy(18.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         ShimmerSkeletonBox(
             brush = shimmerBrush,
-            modifier = Modifier.size(width = 360.dp, height = 34.dp),
+            modifier = Modifier.size(width = 360.dp, height = 38.dp),
             shape = RoundedCornerShape(10.dp),
         )
 
-        repeat(2) {
-            ShimmerSkeletonBox(
-                brush = shimmerBrush,
-                modifier = Modifier.size(width = 160.dp, height = 24.dp),
-                shape = RoundedCornerShape(10.dp),
-            )
-            repeat(4) {
+        Row(Modifier.fillMaxWidth().weight(1f)) {
+            Column(
+                modifier = Modifier
+                    .width(130.dp)
+                    .fillMaxHeight()
+                    .background(DetailsBackgroundMid.copy(alpha = 0.72f), RoundedCornerShape(14.dp))
+                    .padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                repeat(3) {
+                    ShimmerSkeletonBox(shimmerBrush, Modifier.fillMaxWidth().height(52.dp))
+                }
+            }
+            Box(Modifier.width(1.dp).fillMaxHeight().background(DetailsBorderDefault))
+            Column(
+                modifier = Modifier.weight(1f).fillMaxHeight().padding(start = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 ShimmerSkeletonBox(
-                    brush = shimmerBrush,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp),
-                    shape = RoundedCornerShape(18.dp),
-                    borderColor = DetailsBorderDefault.copy(alpha = 0.24f),
+                    shimmerBrush,
+                    Modifier.fillMaxWidth().height(46.dp),
+                    RoundedCornerShape(16.dp),
                 )
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    repeat(8) {
+                        ShimmerSkeletonBox(
+                            shimmerBrush,
+                            Modifier.fillMaxWidth().height(48.dp),
+                            RoundedCornerShape(18.dp),
+                        )
+                    }
+                }
             }
         }
     }

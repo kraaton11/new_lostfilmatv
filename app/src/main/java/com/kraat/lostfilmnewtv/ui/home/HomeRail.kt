@@ -38,6 +38,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.ui.components.ShimmerSkeletonBox
@@ -122,7 +123,7 @@ fun HomeRail(
         modifier = modifier.fillMaxWidth(),
         contentAlignment = if (isCarousel) Alignment.BottomCenter else Alignment.Center,
     ) {
-        val carouselCardWidth = minOf(maxWidth * 0.32f, maxHeight * (16f / 9f), 360.dp)
+        val carouselCardWidth = homeCarouselCardWidth(maxWidth, maxHeight)
         val carouselCardSize = DpSize(carouselCardWidth, carouselCardWidth * (9f / 16f))
         val spacing = if (isCarousel) carouselCardWidth * -0.15f else HOME_RAIL_CARD_SPACING
         val carouselInsets = (maxWidth - carouselCardWidth) / 2
@@ -237,6 +238,9 @@ fun HomeRail(
 }
 
 internal fun posterTag(detailsUrl: String): String = posterTag(HOME_RAIL_ALL_NEW, detailsUrl)
+
+internal fun homeCarouselCardWidth(maxWidth: Dp, maxHeight: Dp): Dp =
+    minOf(maxWidth * 0.32f, maxHeight * (16f / 9f), 360.dp)
 
 internal fun posterTag(railId: String, detailsUrl: String): String = "poster:$railId:$detailsUrl"
 
