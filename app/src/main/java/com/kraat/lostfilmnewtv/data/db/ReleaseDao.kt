@@ -84,18 +84,6 @@ interface ReleaseDao {
     @Query("DELETE FROM page_cache_metadata WHERE fetchedAt < :threshold")
     suspend fun deleteExpiredPageMetadata(threshold: Long)
 
-    @Query("DELETE FROM page_cache_metadata WHERE pageNumber = :pageNumber")
-    suspend fun deletePageMetadata(pageNumber: Int)
-
-    @Query("DELETE FROM release_summaries")
-    suspend fun deleteAllSummaries()
-
-    @Query("DELETE FROM release_details")
-    suspend fun deleteAllDetails()
-
-    @Query("DELETE FROM page_cache_metadata")
-    suspend fun deleteAllPageMetadata()
-
     @Query("SELECT * FROM favorite_release_cache ORDER BY positionInList ASC")
     suspend fun getFavoriteReleasesCache(): List<FavoriteReleaseCacheEntity>
 
@@ -149,14 +137,5 @@ interface ReleaseDao {
         deleteExpiredPageMetadata(threshold)
         deleteExpiredFavoriteReleasesCache(threshold)
         deleteExpiredFavoriteReleasesCacheMetadata(threshold)
-    }
-
-    @Transaction
-    suspend fun deleteAllCachedReleaseData() {
-        deleteAllSummaries()
-        deleteAllDetails()
-        deleteAllPageMetadata()
-        deleteAllFavoriteReleasesCache()
-        deleteAllFavoriteReleasesCacheMetadata()
     }
 }
