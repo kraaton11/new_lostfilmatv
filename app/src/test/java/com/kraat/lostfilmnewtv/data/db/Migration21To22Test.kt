@@ -39,7 +39,7 @@ class Migration21To22Test {
         migrated { db ->
             assertTrue("Колонка source обязана появиться", db.hasColumn("tmdb_poster_mappings", "source"))
             assertEquals(
-                TmdbPosterMappingEntity.SOURCE_TMDB,
+                "TMDB",
                 db.stringOf("SELECT `source` FROM `tmdb_poster_mappings` WHERE `detailsUrl` = '$TMDB_ROW'"),
             )
         }
