@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.ui.home
 
+import com.kraat.lostfilmnewtv.data.model.ReleaseWatchFilter
 import com.kraat.lostfilmnewtv.data.model.CatalogSort
 import com.kraat.lostfilmnewtv.data.model.SeriesStatus
 import androidx.lifecycle.SavedStateHandle
@@ -318,7 +319,12 @@ class HomeViewModel @Inject constructor(
             state.updateModes(
                 *HomeFeedMode.entries.map { mode ->
                     mode to { md: HomeModeData ->
-                        val updatedItems = md.items.updateWatched(detailsUrl, isWatched)
+                        val items = md.items.updateWatched(detailsUrl, isWatched)
+                        val updatedItems = if (mode == HomeFeedMode.Favorites) {
+                            state.favoriteReleaseFilter.apply(items)
+                        } else {
+                            items
+                        }
                         md.copy(
                             items = updatedItems,
                             contentState = md.contentState.updateItems(updatedItems),
@@ -326,6 +332,11 @@ class HomeViewModel @Inject constructor(
                     }
                 }.toTypedArray(),
             ).resolveSelection()
+        }
+        continueFilteredNewFeed()
+        val state = _uiState.value
+        if (started && state.isFavoritesRailVisible && state.favoriteReleaseFilter != ReleaseWatchFilter.All) {
+            loadFavoriteReleases(retainVisibleItemsOnFailure = state.favoriteItems.isNotEmpty())
         }
     }
 
@@ -409,7 +420,9 @@ class HomeViewModel @Inject constructor(
                 allNewItems = state.items,
                 detailsUrl = detailsUrl,
                 isFavorite = isFavorite,
-            )
+            ).let { items ->
+                state.favoriteReleaseFilter.apply(items)
+            }
             state.updateMode(HomeFeedMode.Favorites) { md ->
                 md.copy(
                     items = updatedFavoriteItems,
@@ -439,6 +452,7 @@ class HomeViewModel @Inject constructor(
                 resolved
             }
         }
+        if (mode == HomeFeedMode.AllNew) continueFilteredNewFeed()
     }
 
     private fun loadPage(pageNumber: Int, isPagingRequest: Boolean) {
@@ -546,6 +560,7 @@ class HomeViewModel @Inject constructor(
                             }
                         }
                     }
+                continueFilteredNewFeed()
             } catch (exception: CancellationException) {
                 throw exception
             }
@@ -554,6 +569,9 @@ class HomeViewModel @Inject constructor(
 
     private fun collectNextPage(pageNumber: Int, isPagingRequest: Boolean) {
         // Поздний ответ предыдущей загрузки может перезаписать уже применённую страницу.
+        val initialState = _uiState.value
+        val startingFilter = initialState.newReleaseFilter
+        val startingVisibleCount = initialState.visibleNewItems.size
         allNewLoadJob?.cancel()
         _uiState.update { state ->
             state.copy(
@@ -616,6 +634,10 @@ class HomeViewModel @Inject constructor(
                         }
                     }
                 }
+                if (appliedEmission) {
+                    val visibleCount = if (_uiState.value.newReleaseFilter == startingFilter) startingVisibleCount else 0
+                    continueFilteredNewFeed(visibleCount)
+                }
             } finally {
                 // Страховка для реализаций репозитория, чей observePage завершается
                 // после одной cache-эмиссии: эмиссия пропущена, а flow уже закрыт —
@@ -631,11 +653,65 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    fun onReleaseFilterSelected(filter: ReleaseWatchFilter) {
+        val state = _uiState.value
+        when (state.selectedMode) {
+            HomeFeedMode.Favorites -> onFavoriteFilterSelected(filter)
+            HomeFeedMode.AllNew -> {
+                if (state.newReleaseFilter == filter) return
+                _focusState.update {
+                    it.copy(
+                        rememberedItemKeyByMode = it.rememberedItemKeyByMode - HomeFeedMode.AllNew,
+                        selectedItemKey = null,
+                    )
+                }
+                _uiState.update { it.copy(newReleaseFilter = filter).resolveSelection() }
+                continueFilteredNewFeed()
+            }
+            else -> Unit
+        }
+    }
+
+    private fun continueFilteredNewFeed(previousVisibleCount: Int = 0) {
+        val state = _uiState.value
+        val data = state.modeData(HomeFeedMode.AllNew)
+        if (state.selectedMode == HomeFeedMode.AllNew && state.newReleaseFilter != ReleaseWatchFilter.All &&
+            state.visibleNewItems.size <= previousVisibleCount && data.contentState is HomeModeContentState.Content &&
+            data.pagingErrorMessage == null
+        ) {
+            onEndReached()
+        }
+    }
+
+    private fun onFavoriteFilterSelected(filter: ReleaseWatchFilter) {
+        val state = _uiState.value
+        if (state.selectedMode != HomeFeedMode.Favorites || state.favoriteReleaseFilter == filter) return
+
+        _focusState.update { focus ->
+            focus.copy(
+                rememberedItemKeyByMode = focus.rememberedItemKeyByMode - HomeFeedMode.Favorites,
+                selectedItemKey = null,
+            )
+        }
+        favoriteRequestToken++
+        favoriteLoadJob?.cancel()
+        _uiState.update {
+            it.copy(
+                favoriteReleaseFilter = filter,
+                rememberedItemKeyByMode = it.rememberedItemKeyByMode - HomeFeedMode.Favorites,
+            ).updateMode(HomeFeedMode.Favorites) { data ->
+                HomeModeData(isVisible = data.isVisible)
+            }.resolveSelection()
+        }
+        loadFavoriteReleases()
+    }
+
     private fun loadFavoriteReleases(
         pageNumber: Int = 1,
         isPagingRequest: Boolean = false,
         retainVisibleItemsOnFailure: Boolean = false,
     ) {
+        val filter = _uiState.value.favoriteReleaseFilter
         val requestToken = favoriteRequestToken + 1
         favoriteRequestToken = requestToken
         if (!isPagingRequest) {
@@ -656,11 +732,12 @@ class HomeViewModel @Inject constructor(
         }
         favoriteLoadJob = viewModelScope.launch(ioDispatcher) {
             try {
-                favoritesRepository.observeFavoriteReleases(pageNumber).collect { result ->
+                favoritesRepository.observeFavoriteReleases(pageNumber, filter).collect { result ->
                     if (favoriteRequestToken != requestToken) {
                         return@collect
                     }
                     _uiState.update { state ->
+                        if (state.favoriteReleaseFilter != filter) return@update state
                         val md = state.modeData(HomeFeedMode.Favorites)
                         when (result) {
                             is FavoriteReleasesResult.Partial -> {

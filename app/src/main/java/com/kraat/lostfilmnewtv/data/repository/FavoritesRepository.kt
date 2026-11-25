@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.data.repository
 
+import com.kraat.lostfilmnewtv.data.model.ReleaseWatchFilter
 import android.content.SharedPreferences
 import android.util.Log
 import com.kraat.lostfilmnewtv.data.db.FavoriteReleaseCacheEntity
@@ -56,7 +57,7 @@ private const val FAVORITE_RELEASES_ROOM_FRESH_MS = 15 * 60 * 1000L
 
 interface FavoritesRepository {
     val sessionRevision: Long get() = 0L
-    fun observeFavoriteReleases(pageNumber: Int = 1): Flow<FavoriteReleasesResult>
+    fun observeFavoriteReleases(pageNumber: Int = 1, filter: ReleaseWatchFilter = ReleaseWatchFilter.All): Flow<FavoriteReleasesResult>
     suspend fun loadFavoriteSeries(pageNumber: Int = 1, sort: CatalogSort = CatalogSort.Added): FavoriteSeriesResult
     suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult
     suspend fun invalidateCache()
@@ -114,7 +115,7 @@ class FavoritesRepositoryImpl @Inject constructor(
         val favoriteSeriesCount: Int,
     )
 
-    override fun observeFavoriteReleases(pageNumber: Int): Flow<FavoriteReleasesResult> = channelFlow {
+    override fun observeFavoriteReleases(pageNumber: Int, filter: ReleaseWatchFilter): Flow<FavoriteReleasesResult> = channelFlow {
         val generation = favoriteReleasesCacheMutex.withLock {
             discardLegacyCache()
             if (hasAuthenticatedSession()) sessionGeneration else null
@@ -148,7 +149,8 @@ class FavoritesRepositoryImpl @Inject constructor(
                     val roomCacheFresh = !hasLegacyImages &&
                         (clock() - roomMetadata.fetchedAt) < FAVORITE_RELEASES_ROOM_FRESH_MS
                     val pageOffset = (normalizedPageNumber - 1) * FAVORITE_RELEASES_PAGE_SIZE
-                    val pageItems = roomItems
+                    val eligibleRoomItems = filter.apply(roomItems)
+                    val pageItems = eligibleRoomItems
                         .drop(pageOffset)
                         .take(FAVORITE_RELEASES_PAGE_SIZE)
                         .mapIndexed { index, item -> item.copy(positionInPage = pageOffset + index) }
@@ -168,7 +170,7 @@ class FavoritesRepositoryImpl @Inject constructor(
                         send(FavoriteReleasesResult.Success(
                             items = pageItems,
                             pageNumber = normalizedPageNumber,
-                            hasNextPage = roomItems.size > pageOffset + FAVORITE_RELEASES_PAGE_SIZE,
+                            hasNextPage = eligibleRoomItems.size > pageOffset + FAVORITE_RELEASES_PAGE_SIZE,
                             favoriteSeriesCount = roomMetadata.favoriteSeriesCount,
                         ))
                         return@channelFlow
@@ -183,7 +185,14 @@ class FavoritesRepositoryImpl @Inject constructor(
                 val fetched = fetchAllFavoriteReleasesStreaming(generation) { partialItems, total ->
                     favoriteReleasesCacheMutex.withLock {
                         if (generation == sessionGeneration) {
-                            trySend(FavoriteReleasesResult.Partial(items = partialItems, favoriteSeriesCount = total))
+                            val eligibleItems = if (filter != ReleaseWatchFilter.All) {
+                                filter.apply(partialItems)
+                                    .drop((normalizedPageNumber - 1) * FAVORITE_RELEASES_PAGE_SIZE)
+                                    .take(FAVORITE_RELEASES_PAGE_SIZE)
+                            } else {
+                                partialItems
+                            }
+                            trySend(FavoriteReleasesResult.Partial(items = eligibleItems, favoriteSeriesCount = total))
                         }
                     }
                 } ?: run {
@@ -203,7 +212,8 @@ class FavoritesRepositoryImpl @Inject constructor(
             }
 
             val pageOffset = (normalizedPageNumber - 1) * FAVORITE_RELEASES_PAGE_SIZE
-            val items = allItems
+            val eligibleItems = filter.apply(allItems)
+            val items = eligibleItems
                 .drop(pageOffset)
                 .take(FAVORITE_RELEASES_PAGE_SIZE)
                 .mapIndexed { index, item -> item.copy(positionInPage = pageOffset + index) }
@@ -216,7 +226,7 @@ class FavoritesRepositoryImpl @Inject constructor(
             send(FavoriteReleasesResult.Success(
                 items = items,
                 pageNumber = normalizedPageNumber,
-                hasNextPage = allItems.size > pageOffset + FAVORITE_RELEASES_PAGE_SIZE,
+                hasNextPage = eligibleItems.size > pageOffset + FAVORITE_RELEASES_PAGE_SIZE,
                 favoriteSeriesCount = favoriteSeriesCount,
             ))
         } catch (exception: CancellationException) {

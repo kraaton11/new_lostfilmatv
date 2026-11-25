@@ -28,6 +28,15 @@ sealed interface FavoriteMutationResult {
     ) : FavoriteMutationResult
 }
 
+enum class ReleaseWatchFilter(private val watched: Boolean?) {
+    All(null),
+    Unwatched(false),
+    Watched(true);
+
+    fun apply(items: List<ReleaseSummary>): List<ReleaseSummary> =
+        if (watched == null) items else items.filter { it.isWatched == watched }
+}
+
 sealed interface FavoriteReleasesResult {
     data class Success(
         val items: List<ReleaseSummary>,

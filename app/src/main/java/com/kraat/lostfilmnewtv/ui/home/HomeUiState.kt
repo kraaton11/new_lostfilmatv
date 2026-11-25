@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.ui.home
 
+import com.kraat.lostfilmnewtv.data.model.ReleaseWatchFilter
 import com.kraat.lostfilmnewtv.data.model.CatalogSort
 import com.kraat.lostfilmnewtv.data.model.SeriesStatus
 import com.kraat.lostfilmnewtv.data.model.MovieMetadata
@@ -36,9 +37,12 @@ data class HomeUiState(
     val isInitialLoading: Boolean = false,
     val fullScreenErrorMessage: String? = null,
     val isHomeMenuLabelsEnabled: Boolean = true,
+    val favoriteReleaseFilter: ReleaseWatchFilter = ReleaseWatchFilter.All,
+    val newReleaseFilter: ReleaseWatchFilter = ReleaseWatchFilter.All,
 ) {
     // Convenience read accessors — keep existing call sites compiling unchanged
     val items: List<ReleaseSummary> get() = modeData(HomeFeedMode.AllNew).items
+    val visibleNewItems: List<ReleaseSummary> get() = newReleaseFilter.apply(items)
     val favoriteItems: List<ReleaseSummary> get() = modeData(HomeFeedMode.Favorites).items
     val favoriteSeriesItems: List<ReleaseSummary> get() = modeData(HomeFeedMode.FavoriteSeries).items
     val movieItems: List<ReleaseSummary> get() = modeData(HomeFeedMode.Movies).items
@@ -212,7 +216,7 @@ data class HomeFocusState(
 }
 
 internal fun HomeUiState.itemsForMode(mode: HomeFeedMode): List<ReleaseSummary> =
-    modeData(mode).items
+    if (mode == HomeFeedMode.AllNew) visibleNewItems else modeData(mode).items
 
 private fun defaultModeStates(): Map<HomeFeedMode, HomeModeData> =
     HomeFeedMode.entries.associateWith { HomeModeData() }

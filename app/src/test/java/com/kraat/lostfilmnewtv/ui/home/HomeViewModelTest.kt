@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.ui.home
 
+import com.kraat.lostfilmnewtv.data.model.ReleaseWatchFilter
 import com.kraat.lostfilmnewtv.data.model.CatalogSort
 import com.kraat.lostfilmnewtv.data.model.SeriesStatus
 import android.content.Context
@@ -302,6 +303,34 @@ class HomeViewModelTest {
 
         assertEquals(listOf(1, 2), repository.pageRequests)
         assertEquals(1, syncCalls)
+    }
+
+    @Test
+    fun releaseFilter_skipsPagesWithoutMatchesAndRestoresUnfilteredItems() = runTest(dispatcher) {
+        val first = summary(detailsUrl = "https://www.lostfilm.today/series/first/")
+        val second = summary(detailsUrl = "https://www.lostfilm.today/series/second/")
+        val watched = summary(detailsUrl = "https://www.lostfilm.today/series/third/").copy(isWatched = true)
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(1, listOf(first), true, false),
+                2 to PageState.Content(2, listOf(first, second), true, false),
+                3 to PageState.Content(3, listOf(first, second, watched), false, false),
+            ),
+        )
+        val viewModel = createViewModel(repository, SavedStateHandle(), ioDispatcher = dispatcher)
+        viewModel.onStart()
+        advanceUntilIdle()
+
+        viewModel.onReleaseFilterSelected(ReleaseWatchFilter.Watched)
+        advanceUntilIdle()
+
+        assertEquals(listOf(1, 2, 3), repository.pageRequests)
+        assertEquals(listOf(watched), viewModel.uiState.value.visibleNewItems)
+        assertEquals(watched.detailsUrl, viewModel.uiState.value.selectedItemKey)
+
+        viewModel.onReleaseFilterSelected(ReleaseWatchFilter.All)
+        assertEquals(listOf(first, second, watched), viewModel.uiState.value.visibleNewItems)
+        assertEquals(ReleaseWatchFilter.All, viewModel.uiState.value.favoriteReleaseFilter)
     }
 
     @Test
@@ -1859,7 +1888,7 @@ private class FakeLostFilmRepository(
         return FavoriteMutationResult.RequiresLogin()
     }
 
-    override fun observeFavoriteReleases(pageNumber: Int): Flow<FavoriteReleasesResult> {
+    override fun observeFavoriteReleases(pageNumber: Int, filter: ReleaseWatchFilter): Flow<FavoriteReleasesResult> {
         favoriteReleaseCalls += 1
         favoriteReleaseRequests += pageNumber
         return flow { emit(favoriteReleaseResults.removeFirstOrNull() ?: FavoriteReleasesResult.Unavailable()) }

@@ -139,10 +139,9 @@ class HomeScreenTest {
         }
 
         composeRule.onNodeWithTag("home-hero-stage").assertExists()
-        composeRule.onNodeWithText("S09E13").assertExists()
+        composeRule.onNodeWithText("Сезон 9  ·  Серия 13  ·  14.03.2026").assertExists()
         composeRule.onNodeWithText("9-1-1").assertExists()
         composeRule.onNodeWithText("Маменькин сынок").assertExists()
-        composeRule.onNodeWithText("14.03.2026").assertExists()
     }
 
     @Test
@@ -709,7 +708,7 @@ class HomeScreenTest {
 
     @Test
     @Config(qualifiers = "w1366dp-h768dp-land")
-    fun homeScreen_longEpisodeTitle_staysOnMetadataLine_withReleaseMetadata() {
+    fun homeScreen_longEpisodeTitle_staysOnOneLine_withReleaseMetadata() {
         val longEpisodeTitle = "Когда слишком много правды, она перестает помещаться в одну строку и начинает бороться за место на экране"
 
         composeRule.setContent {
@@ -730,8 +729,7 @@ class HomeScreenTest {
             action(textLayouts)
         }
 
-        composeRule.onNodeWithText("S09E13").assertExists()
-        composeRule.onNodeWithText("14.03.2026").assertExists()
+        composeRule.onNodeWithText("Сезон 9  ·  Серия 13  ·  14.03.2026").assertExists()
         assertEquals(1, textLayouts.first().lineCount)
     }
 

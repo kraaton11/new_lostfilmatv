@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.di
 
+import com.kraat.lostfilmnewtv.data.model.ReleaseWatchFilter
 import com.kraat.lostfilmnewtv.data.auth.AuthRepositoryContract
 import com.kraat.lostfilmnewtv.data.model.CatalogSort
 import com.kraat.lostfilmnewtv.data.model.AuthState
@@ -81,7 +82,7 @@ class UnitTestFakeRepository : LostFilmRepository, FavoritesRepository {
     override suspend fun loadWatchedState(detailsUrl: String) = watchedStateResult
     override suspend fun setEpisodeWatched(detailsUrl: String, playEpisodeId: String, targetWatched: Boolean) = markWatchedResult
     override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean) = favoriteResult
-    override fun observeFavoriteReleases(pageNumber: Int): Flow<FavoriteReleasesResult> =
+    override fun observeFavoriteReleases(pageNumber: Int, filter: ReleaseWatchFilter): Flow<FavoriteReleasesResult> =
         flowOf(favoriteReleasesResult)
     override suspend fun loadFavoriteSeries(pageNumber: Int, sort: CatalogSort) = FavoriteSeriesResult.Unavailable()
     override suspend fun invalidateCache() {}

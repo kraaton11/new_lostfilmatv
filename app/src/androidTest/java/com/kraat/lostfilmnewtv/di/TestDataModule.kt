@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.di
 
+import com.kraat.lostfilmnewtv.data.model.ReleaseWatchFilter
 import com.kraat.lostfilmnewtv.data.auth.AuthRepositoryContract
 import com.kraat.lostfilmnewtv.data.model.AuthState
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
@@ -68,7 +69,7 @@ class TestFakeRepository : LostFilmRepository {
         targetWatched: Boolean,
     ): Boolean? = setEpisodeWatchedResult
     override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult = setFavoriteResult
-    override fun observeFavoriteReleases(pageNumber: Int): Flow<FavoriteReleasesResult> =
+    override fun observeFavoriteReleases(pageNumber: Int, filter: ReleaseWatchFilter): Flow<FavoriteReleasesResult> =
         flowOf(favoriteReleasesResult)
 }
 

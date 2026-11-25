@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.ui.details
 
+import com.kraat.lostfilmnewtv.data.model.ReleaseWatchFilter
 import androidx.lifecycle.SavedStateHandle
 import com.kraat.lostfilmnewtv.data.model.CatalogSort
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
@@ -531,7 +532,7 @@ private class PreviewThenExtrasRepository(
     private val previewResult: DetailsResult,
     private val extrasResult: CompletableDeferred<DetailsResult>,
 ) : LostFilmRepository, FavoritesRepository {
-    override fun observeFavoriteReleases(pageNumber: Int): Flow<FavoriteReleasesResult> = flow { emit(FavoriteReleasesResult.Unavailable()) }
+    override fun observeFavoriteReleases(pageNumber: Int, filter: ReleaseWatchFilter): Flow<FavoriteReleasesResult> = flow { emit(FavoriteReleasesResult.Unavailable()) }
     override suspend fun loadFavoriteSeries(pageNumber: Int, sort: CatalogSort): FavoriteSeriesResult = FavoriteSeriesResult.Unavailable()
     override suspend fun invalidateCache() {}
     override suspend fun loadPage(pageNumber: Int): PageState {
@@ -562,7 +563,7 @@ private class FakeDetailsRepository(
     private val watchedStateResult: Boolean? = false,
     private val favoriteResult: CompletableDeferred<FavoriteMutationResult> = CompletableDeferred(FavoriteMutationResult.RequiresLogin()),
 ) : LostFilmRepository, FavoritesRepository {
-    override fun observeFavoriteReleases(pageNumber: Int): Flow<FavoriteReleasesResult> = flow { emit(FavoriteReleasesResult.Unavailable()) }
+    override fun observeFavoriteReleases(pageNumber: Int, filter: ReleaseWatchFilter): Flow<FavoriteReleasesResult> = flow { emit(FavoriteReleasesResult.Unavailable()) }
     override suspend fun loadFavoriteSeries(pageNumber: Int, sort: CatalogSort): FavoriteSeriesResult = FavoriteSeriesResult.Unavailable()
     override suspend fun invalidateCache() {}
     override suspend fun loadPage(pageNumber: Int): PageState {
@@ -586,7 +587,7 @@ private class FakeDetailsRepository(
 private class SequencedDetailsRepository(
     private val results: List<CompletableDeferred<DetailsResult>>,
 ) : LostFilmRepository, FavoritesRepository {
-    override fun observeFavoriteReleases(pageNumber: Int): Flow<FavoriteReleasesResult> = flow { emit(FavoriteReleasesResult.Unavailable()) }
+    override fun observeFavoriteReleases(pageNumber: Int, filter: ReleaseWatchFilter): Flow<FavoriteReleasesResult> = flow { emit(FavoriteReleasesResult.Unavailable()) }
     override suspend fun loadFavoriteSeries(pageNumber: Int, sort: CatalogSort): FavoriteSeriesResult = FavoriteSeriesResult.Unavailable()
     override suspend fun invalidateCache() {}
     private var index = 0
@@ -614,7 +615,7 @@ private class SequencedDetailsRepository(
 private class ReloadingDetailsRepository(
     private val results: List<DetailsResult>,
 ) : LostFilmRepository, FavoritesRepository {
-    override fun observeFavoriteReleases(pageNumber: Int): Flow<FavoriteReleasesResult> = flow { emit(FavoriteReleasesResult.Unavailable()) }
+    override fun observeFavoriteReleases(pageNumber: Int, filter: ReleaseWatchFilter): Flow<FavoriteReleasesResult> = flow { emit(FavoriteReleasesResult.Unavailable()) }
     override suspend fun loadFavoriteSeries(pageNumber: Int, sort: CatalogSort): FavoriteSeriesResult = FavoriteSeriesResult.Unavailable()
     override suspend fun invalidateCache() {}
     val loadedDetailsUrls = mutableListOf<String>()

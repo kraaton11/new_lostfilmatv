@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.data.repository
 
+import com.kraat.lostfilmnewtv.data.model.ReleaseWatchFilter
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.kraat.lostfilmnewtv.data.db.FavoriteReleaseCacheEntity
@@ -1918,6 +1919,35 @@ class LostFilmRepositoryTest {
         assertEquals(1, result.items.size)
         assertEquals("Alpha", result.items.first().titleRu)
         assertEquals(1, result.favoriteSeriesCount)
+    }
+
+    @Test
+    fun loadFavoriteReleases_filtersWatchedBeforePaging() = runTest {
+        createRepository(pageHandler = { error("Unexpected request") }, isAuthenticated = true)
+        val items = (1..61).map { episode ->
+            FavoriteReleaseCacheEntity(
+                detailsUrl = "https://www.lostfilm.today/series/alpha/season_1/episode_$episode/",
+                kind = "SERIES", titleRu = "Alpha", episodeTitleRu = null,
+                seasonNumber = 1, episodeNumber = episode, releaseDateRu = "14.03.2026",
+                posterUrl = "", positionInList = episode - 1, fetchedAt = NOW, isWatched = episode <= 30,
+            )
+        }
+        releaseDao.replaceFavoriteReleasesCache(
+            items, FavoriteReleaseCacheMetadataEntity(fetchedAt = NOW, favoriteSeriesCount = 1, itemCount = items.size),
+        )
+
+        val first = favoritesRepository.observeFavoriteReleases(filter = ReleaseWatchFilter.Unwatched).last() as FavoriteReleasesResult.Success
+        val second = favoritesRepository.observeFavoriteReleases(2, filter = ReleaseWatchFilter.Unwatched).last() as FavoriteReleasesResult.Success
+        assertEquals((31..60).toList(), first.items.map { it.episodeNumber })
+        assertTrue(first.hasNextPage)
+        assertEquals(listOf(61), second.items.map { it.episodeNumber })
+        assertFalse(second.hasNextPage)
+        val all = favoritesRepository.observeFavoriteReleases().last() as FavoriteReleasesResult.Success
+        assertEquals((1..30).toList(), all.items.map { it.episodeNumber })
+        val watched = favoritesRepository.observeFavoriteReleases(filter = ReleaseWatchFilter.Watched)
+            .last() as FavoriteReleasesResult.Success
+        assertEquals((1..30).toList(), watched.items.map { it.episodeNumber })
+        assertFalse(watched.hasNextPage)
     }
 
     @Test

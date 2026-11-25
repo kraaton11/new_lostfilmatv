@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.ui.details
 
+import com.kraat.lostfilmnewtv.data.model.ReleaseWatchFilter
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -723,7 +724,7 @@ private class RouteFakeDetailsRepository(
         }
     }
 
-    override fun observeFavoriteReleases(pageNumber: Int): Flow<FavoriteReleasesResult> = flow {
+    override fun observeFavoriteReleases(pageNumber: Int, filter: ReleaseWatchFilter): Flow<FavoriteReleasesResult> = flow {
         emit(FavoriteReleasesResult.Unavailable())
     }
 

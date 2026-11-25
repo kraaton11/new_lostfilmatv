@@ -127,6 +127,7 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                 loadReleasePreview = homeViewModel::loadReleasePreview,
                 onModeSelected = homeViewModel::onModeSelected,
                 onCatalogSortSelected = homeViewModel::onCatalogSortSelected,
+                onReleaseFilterSelected = homeViewModel::onReleaseFilterSelected,
                 onSeriesStatusSelected = homeViewModel::onSeriesStatusSelected,
                 onOpenDetails = { url -> navController.navigate(AppDestination.Details.createRoute(url, isAuthenticated)) },
                 onOpenSeriesOverview = { url -> navController.navigate(AppDestination.SeriesOverview.createRoute(url)) },

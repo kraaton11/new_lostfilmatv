@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.ui.guide
 
+import com.kraat.lostfilmnewtv.data.model.ReleaseWatchFilter
 import androidx.lifecycle.SavedStateHandle
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.assertIsFocused
@@ -154,7 +155,7 @@ private fun routeViewModel(
 private class FakeSeriesGuideRepository(
     private val scriptedGuideResults: ConcurrentHashMap<String, MutableList<SeriesGuideResult>>,
 ) : LostFilmRepository, FavoritesRepository {
-    override fun observeFavoriteReleases(pageNumber: Int): Flow<FavoriteReleasesResult> = flow { emit(FavoriteReleasesResult.Unavailable()) }
+    override fun observeFavoriteReleases(pageNumber: Int, filter: ReleaseWatchFilter): Flow<FavoriteReleasesResult> = flow { emit(FavoriteReleasesResult.Unavailable()) }
     override suspend fun loadFavoriteSeries(pageNumber: Int, sort: CatalogSort): FavoriteSeriesResult = FavoriteSeriesResult.Unavailable()
     override suspend fun invalidateCache() {}
     val loadedGuideUrls = CopyOnWriteArrayList<String>()
