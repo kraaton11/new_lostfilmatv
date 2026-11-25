@@ -1092,7 +1092,7 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun favoriteSeriesMode_loadsSeriesRoots_andStoresCount() = runTest(dispatcher) {
+    fun favoriteSeriesMode_loadsSeriesRoots_andPagesWithSelectedSort() = runTest(dispatcher) {
         val favoriteSeries = listOf(
             summary(
                 detailsUrl = "https://www.lostfilm.today/series/alpha",
@@ -1107,7 +1107,11 @@ class HomeViewModelTest {
             pageResults = mapOf(
                 1 to PageState.Content(pageNumber = 1, items = emptyList(), hasNextPage = false, isStale = false),
             ),
-            favoriteSeriesResults = mutableListOf(FavoriteSeriesResult.Success(favoriteSeries)),
+            favoriteSeriesResults = mutableListOf(
+                FavoriteSeriesResult.Success(favoriteSeries),
+                FavoriteSeriesResult.Success(listOf(favoriteSeries[1]), hasNextPage = true),
+                FavoriteSeriesResult.Success(listOf(favoriteSeries[0])),
+            ),
         )
         val viewModel = createViewModel(
             repository = repository,
@@ -1122,6 +1126,18 @@ class HomeViewModelTest {
         assertEquals(HomeFeedMode.FavoriteSeries, viewModel.uiState.value.selectedMode)
         assertEquals(favoriteSeries, viewModel.uiState.value.favoriteSeriesItems)
         assertEquals(HomeModeContentState.Content(favoriteSeries), viewModel.uiState.value.favoriteSeriesModeState)
+        assertEquals(2, viewModel.uiState.value.favoriteSeriesCount)
+
+        viewModel.onCatalogSortSelected(CatalogSort.Rating)
+        advanceUntilIdle()
+        viewModel.onEndReached()
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(1 to CatalogSort.Added, 1 to CatalogSort.Rating, 2 to CatalogSort.Rating),
+            repository.favoriteSeriesRequests,
+        )
+        assertEquals(favoriteSeries.reversed(), viewModel.uiState.value.favoriteSeriesItems)
         assertEquals(2, viewModel.uiState.value.favoriteSeriesCount)
     }
 
@@ -1849,7 +1865,10 @@ private class FakeLostFilmRepository(
         return flow { emit(favoriteReleaseResults.removeFirstOrNull() ?: FavoriteReleasesResult.Unavailable()) }
     }
 
-    override suspend fun loadFavoriteSeries(): FavoriteSeriesResult {
+    val favoriteSeriesRequests = mutableListOf<Pair<Int, CatalogSort>>()
+
+    override suspend fun loadFavoriteSeries(pageNumber: Int, sort: CatalogSort): FavoriteSeriesResult {
+        favoriteSeriesRequests += pageNumber to sort
         return favoriteSeriesResults.removeFirstOrNull() ?: FavoriteSeriesResult.Unavailable()
     }
 

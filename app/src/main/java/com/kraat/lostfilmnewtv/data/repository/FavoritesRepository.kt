@@ -5,6 +5,7 @@ import android.util.Log
 import com.kraat.lostfilmnewtv.data.db.FavoriteReleaseCacheEntity
 import com.kraat.lostfilmnewtv.data.db.FavoriteReleaseCacheMetadataEntity
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
+import com.kraat.lostfilmnewtv.data.model.CatalogSort
 import com.kraat.lostfilmnewtv.data.model.FavoriteMetadata
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
@@ -16,11 +17,12 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.FAVORITE_PUBLISH_CHECK_CONCURRENCY
 import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.FAVORITE_SERIES_LOAD_CONCURRENCY
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
+import com.kraat.lostfilmnewtv.data.network.SERIES_CATALOG_PAGE_SIZE
 import com.kraat.lostfilmnewtv.data.parser.BASE_URL
-import com.kraat.lostfilmnewtv.data.parser.FavoriteSeriesRef
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmFavoriteSeriesParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSeasonEpisodesParser
+import com.kraat.lostfilmnewtv.data.parser.LostFilmSeriesCatalogParser
 import com.kraat.lostfilmnewtv.data.parser.hasLegacyArtwork
 import com.kraat.lostfilmnewtv.data.parser.resolveUrl
 import com.kraat.lostfilmnewtv.data.parser.toEntity
@@ -55,7 +57,7 @@ private const val FAVORITE_RELEASES_ROOM_FRESH_MS = 15 * 60 * 1000L
 interface FavoritesRepository {
     val sessionRevision: Long get() = 0L
     fun observeFavoriteReleases(pageNumber: Int = 1): Flow<FavoriteReleasesResult>
-    suspend fun loadFavoriteSeries(): FavoriteSeriesResult
+    suspend fun loadFavoriteSeries(pageNumber: Int = 1, sort: CatalogSort = CatalogSort.Added): FavoriteSeriesResult
     suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult
     suspend fun invalidateCache()
     suspend fun changeSession(change: suspend () -> Unit) = change()
@@ -70,6 +72,7 @@ class FavoritesRepositoryImpl @Inject constructor(
 ) : FavoritesRepository {
 
     private val favoriteSeriesParser = LostFilmFavoriteSeriesParser()
+    private val seriesCatalogParser = LostFilmSeriesCatalogParser()
     private val seasonEpisodesParser = LostFilmSeasonEpisodesParser()
     private val detailsParser = LostFilmDetailsParser()
 
@@ -427,28 +430,32 @@ class FavoritesRepositoryImpl @Inject constructor(
         releaseDao.replaceFavoriteReleasesCache(cacheEntities, metadata)
     }
 
-    override suspend fun loadFavoriteSeries(): FavoriteSeriesResult {
+    override suspend fun loadFavoriteSeries(pageNumber: Int, sort: CatalogSort): FavoriteSeriesResult {
         if (!hasAuthenticatedSession()) {
             return FavoriteSeriesResult.Unavailable("Войдите в LostFilm")
         }
 
         return try {
-            val fetchedAt = clock()
-            val favoritesHtml = httpClient.fetchAccountPage(favoriteSeriesRoute)
-            val seriesRefs = favoriteSeriesParser.parse(favoritesHtml)
+            val json = httpClient.fetchFavoriteSeriesCatalogPage(pageNumber, sort)
+            val series = withContext(Dispatchers.Default) {
+                seriesCatalogParser.parseSearchJson(json, pageNumber, clock(), favoritesOnly = true)
+            }
             val semaphore = Semaphore(FAVORITE_SERIES_LOAD_CONCURRENCY)
             val items = coroutineScope {
-                seriesRefs.mapIndexed { index, series ->
+                series.map { item ->
                     async {
                         semaphore.withPermit {
-                            val poster = loadFavoriteSeriesPoster(series.seriesUrl) ?: series.posterUrl
-                            series.toFavoriteSeriesSummary(index, fetchedAt).copy(posterUrl = poster)
+                            val poster = loadFavoriteSeriesPoster(item.detailsUrl) ?: item.posterUrl
+                            item.copy(posterUrl = poster)
                         }
                     }
                 }.awaitAll()
             }
 
-            FavoriteSeriesResult.Success(items)
+            FavoriteSeriesResult.Success(items, hasNextPage = series.size >= SERIES_CATALOG_PAGE_SIZE)
+        } catch (e: IllegalArgumentException) {
+            Log.w(TAG, "Failed to parse favorite series catalog", e)
+            FavoriteSeriesResult.Unavailable()
         } catch (e: IOException) {
             Log.w(TAG, "Failed to load favorite series list", e)
             FavoriteSeriesResult.Unavailable()
@@ -621,22 +628,4 @@ class FavoritesRepositoryImpl @Inject constructor(
             false
         }
     }
-
-    private fun FavoriteSeriesRef.toFavoriteSeriesSummary(
-        positionInPage: Int,
-        fetchedAt: Long,
-    ): ReleaseSummary = ReleaseSummary(
-        id = seriesUrl,
-        kind = ReleaseKind.SERIES,
-        titleRu = titleRu,
-        episodeTitleRu = null,
-        seasonNumber = null,
-        episodeNumber = null,
-        releaseDateRu = "",
-        posterUrl = posterUrl,
-        detailsUrl = seriesUrl,
-        pageNumber = 1,
-        positionInPage = positionInPage,
-        fetchedAt = fetchedAt,
-    )
 }

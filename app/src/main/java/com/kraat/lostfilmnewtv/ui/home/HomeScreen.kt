@@ -84,6 +84,9 @@ import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.delay
 import com.kraat.lostfilmnewtv.data.parser.LostFilmBaseUrl
 
+private val ReleaseHeroHeight = 252.dp
+private val FavoriteSeriesInfoHeight = 148.dp
+
 @Composable
 fun HomeScreen(
     state: HomeUiState = demoHomeUiState(),
@@ -125,6 +128,7 @@ fun HomeScreen(
     val activeModeData = state.modeData(state.selectedMode)
     val isSeriesCatalog = state.selectedMode == HomeFeedMode.Series
     val isCatalog = state.selectedMode == HomeFeedMode.Movies || isSeriesCatalog
+    val hasCatalogSort = isCatalog || state.selectedMode == HomeFeedMode.FavoriteSeries
     val seriesStatus = activeModeData.seriesStatus
     val sortOptions = if (isSeriesCatalog && seriesStatus == SeriesStatus.Completed) {
         completedSeriesSortOptions
@@ -287,7 +291,7 @@ fun HomeScreen(
         modifier = Modifier
             .fillMaxSize()
             .onPreviewKeyEvent { event ->
-                if (!isCatalog) return@onPreviewKeyEvent false
+                if (!hasCatalogSort) return@onPreviewKeyEvent false
                 val keyEvent = event.nativeKeyEvent
                 val isInitialPress = keyEvent.action == KeyEvent.ACTION_DOWN && keyEvent.repeatCount == 0
                 if (isSeriesCatalog && keyEvent.keyCode == KeyEvent.KEYCODE_INFO) {
@@ -423,7 +427,7 @@ fun HomeScreen(
                     .padding(top = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                if (isCatalog) {
+                if (hasCatalogSort) {
                     CatalogSortLegend(
                         options = sortOptions,
                         selectedSort = activeModeData.catalogSort,
@@ -473,17 +477,23 @@ fun HomeScreen(
                     ) {
                         when (activeModeState) {
                             is HomeModeContentState.Content -> {
-                                if (isCatalog) {
-                                    CatalogInfoPanel(
-                                        item = focusedItem,
-                                        preview = releasePreview,
-                                        isSeries = state.selectedMode == HomeFeedMode.Series,
-                                    )
-                                    Spacer(Modifier.weight(1f))
-                                } else {
-                                    HomeHeroStage(
+                                when {
+                                    state.selectedMode == HomeFeedMode.FavoriteSeries -> {
+                                        FavoriteSeriesInfoPanel(item = focusedItem, preview = releasePreview)
+                                        Spacer(Modifier.weight(1f))
+                                    }
+                                    isCatalog -> {
+                                        CatalogInfoPanel(
+                                            item = focusedItem,
+                                            preview = releasePreview,
+                                            isSeries = isSeriesCatalog,
+                                        )
+                                        Spacer(Modifier.weight(1f))
+                                    }
+                                    else -> HomeHeroStage(
                                         item = heroItem,
                                         modifier = Modifier.fillMaxWidth(),
+                                        releasePreview = releasePreview,
                                     )
                                 }
                                 HomeRailSectionHeader(
@@ -566,6 +576,8 @@ fun HomeScreen(
                                         .fillMaxWidth()
                                         .weight(1f),
                                     selectedMode = state.selectedMode,
+                                    seriesStatus = seriesStatus,
+                                    favoriteSeriesCount = state.favoriteSeriesCount,
                                 )
                             }
                         }
@@ -772,17 +784,76 @@ private fun CatalogInfoPanel(item: ReleaseSummary?, preview: HomeReleasePreview,
 }
 
 @Composable
+private fun FavoriteSeriesInfoPanel(item: ReleaseSummary?, preview: HomeReleasePreview) {
+    val series = preview.seriesOverview
+    val year = series?.premiereDateRu?.extractYear() ?: item?.originalReleaseYear
+    val title = listOfNotNull(item?.titleRu, year?.toString()).joinToString("  ·  ")
+    val status = series?.statusRu?.takeIf { it.isNotBlank() } ?: item?.availabilityLabel
+    val rating = series?.imdbRating?.takeIf { (it.toDoubleOrNull() ?: 0.0) > 0.0 }?.let { "IMDb $it" }
+        ?: series?.tmdbRating?.takeIf { (it.toDoubleOrNull() ?: 0.0) > 0.0 }?.let { "TMDB $it" }
+    val facts = listOfNotNull(series?.genresRu, series?.channelCountryRu, rating)
+        .filter { it.isNotBlank() }
+        .joinToString("  ·  ")
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(FavoriteSeriesInfoHeight)
+            .padding(start = 12.dp, top = 4.dp, end = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = title,
+                modifier = Modifier.weight(1f, fill = false),
+                color = TextPrimary,
+                fontSize = 27.sp,
+                lineHeight = 32.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            status?.takeIf { it.isNotBlank() }?.let { HeroMetaPill(it, highlighted = true) }
+        }
+        if (facts.isNotEmpty()) {
+            Text(facts, color = HomeAccentGold, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        (preview.description ?: item?.seriesOverviewRu)?.takeIf { it.isNotBlank() }?.let { description ->
+            Text(
+                text = description,
+                modifier = Modifier.width(680.dp),
+                color = HomeTextSecondary,
+                fontSize = 16.sp,
+                lineHeight = 21.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
 private fun HomeHeroStage(
     item: ReleaseSummary?,
+    releasePreview: HomeReleasePreview,
     modifier: Modifier = Modifier,
 ) {
     Crossfade(
         targetState = item,
         modifier = modifier
-            .height(252.dp)
+            .height(ReleaseHeroHeight)
             .testTag("home-hero-stage"),
         label = "homeHeroStage",
     ) { targetItem ->
+        val preview = releasePreview.takeIf { targetItem?.detailsUrl == item?.detailsUrl }
+        val movieYear = if (targetItem?.kind == ReleaseKind.MOVIE) {
+            preview?.movieYear ?: targetItem.originalReleaseYear
+        } else {
+            null
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -796,10 +867,8 @@ private fun HomeHeroStage(
                 .padding(start = 2.dp, top = 4.dp, end = 280.dp, bottom = 8.dp),
             verticalArrangement = Arrangement.spacedBy(9.dp),
         ) {
-            ReleaseHeroMetaRow(targetItem)
-
             Text(
-                text = targetItem?.titleRu.orEmpty(),
+                text = listOfNotNull(targetItem?.titleRu, movieYear?.toString()).joinToString("  ·  "),
                 color = TextPrimary,
                 fontSize = 36.sp,
                 lineHeight = 40.sp,
@@ -808,7 +877,12 @@ private fun HomeHeroStage(
                 overflow = TextOverflow.Clip,
             )
 
-            targetItem?.episodeTitleRu?.takeIf { it.isNotBlank() }?.let { episodeTitle ->
+            if (targetItem != null) ReleaseHeroDetails(targetItem, preview)
+
+            val episodeTitle = targetItem
+                ?.takeIf { it.kind == ReleaseKind.SERIES }
+                ?.episodeTitleRu
+            episodeTitle?.takeIf { it.isNotBlank() }?.let {
                 Text(
                     text = episodeTitle,
                     style = TextStyle(
@@ -829,7 +903,7 @@ private fun HomeHeroStage(
                     color = HomeTextSecondary,
                     fontSize = 16.sp,
                     lineHeight = 22.sp,
-                    maxLines = 5,
+                    maxLines = 3,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.width(760.dp),
                 )
@@ -839,27 +913,38 @@ private fun HomeHeroStage(
 }
 
 @Composable
-private fun ReleaseHeroMetaRow(item: ReleaseSummary?) {
-    Row(
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        item?.availabilityLabel?.takeIf { it.isNotBlank() }?.let { label ->
-            HeroMetaPill(label = label, highlighted = true)
-        }
-        seasonEpisodeHeroLabel(item)?.let { label ->
-            HeroMetaPill(label = label, highlighted = true)
-        }
-        item?.releaseDateRu?.takeIf { it.isNotBlank() }?.let { date ->
-            HeroMetaPill(label = date)
-        }
-        item?.kind?.let { kind ->
-            HeroMetaPill(
-                label = when (kind) {
-                    ReleaseKind.SERIES -> "Сериал"
-                    ReleaseKind.MOVIE -> "Фильм"
-                },
-            )
+private fun ReleaseHeroDetails(item: ReleaseSummary, preview: HomeReleasePreview?) {
+    val movie = preview?.movieMetadata
+    val facts = if (item.kind == ReleaseKind.SERIES) {
+        listOfNotNull(
+            item.seasonNumber?.let { "Сезон $it" },
+            item.episodeNumber?.let { "Серия $it" },
+            item.releaseDateRu.takeIf { it.isNotBlank() },
+        )
+    } else {
+        listOfNotNull(
+            movie?.genres?.joinToString(", ")?.takeIf { it.isNotBlank() },
+            movie?.durationMinutes?.let { "$it мин" },
+            movie?.imdbRating?.takeIf { (it.toDoubleOrNull() ?: 0.0) > 0.0 }?.let { "IMDb $it" },
+            item.releaseDateRu.takeIf { it.isNotBlank() },
+        )
+    }
+    if (facts.isNotEmpty() || item.isWatched || !item.availabilityLabel.isNullOrBlank()) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            item.availabilityLabel?.takeIf { it.isNotBlank() }?.let { HeroMetaPill(it, highlighted = true) }
+            if (item.isWatched) HeroMetaPill("Просмотрено", highlighted = true)
+            if (facts.isNotEmpty()) {
+                Text(
+                    text = facts.joinToString("  ·  "),
+                    color = HomeAccentGold,
+                    fontSize = 15.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
@@ -892,13 +977,6 @@ private fun HeroMetaPill(
     )
 }
 
-private fun seasonEpisodeHeroLabel(item: ReleaseSummary?): String? {
-    if (item?.kind != ReleaseKind.SERIES) return null
-    val season = item.seasonNumber?.let { "S${it.toString().padStart(2, '0')}" }
-    val episode = item.episodeNumber?.let { "E${it.toString().padStart(2, '0')}" }
-    return listOfNotNull(season, episode).joinToString("").takeIf { it.isNotBlank() }
-}
-
 private fun ReleaseSummary?.heroDescription(): String {
     val item = this ?: return ""
     return when (item.kind) {
@@ -922,10 +1000,10 @@ private fun HomeRailSectionHeader(
         HomeFeedMode.Movies -> "Фильмы"
         HomeFeedMode.Series -> "Сериалы · ${seriesStatus.label}"
     }
-    val countLabel = if (selectedMode == HomeFeedMode.Favorites) {
-        favoriteSeriesCount?.let { "${it.formatFavoriteSeriesCount()} в избранном" }
-    } else {
-        null
+    val countLabel = when (selectedMode) {
+        HomeFeedMode.Favorites -> favoriteSeriesCount?.let { "${it.formatFavoriteSeriesCount()} в избранном" }
+        HomeFeedMode.FavoriteSeries -> favoriteSeriesCount?.formatFavoriteSeriesCount()
+        else -> null
     }
 
     Row(
@@ -1025,6 +1103,8 @@ private fun HomeBackdrop(backdropPath: String?) {
 private fun HomeLoadingSkeleton(
     modifier: Modifier = Modifier,
     selectedMode: HomeFeedMode = HomeFeedMode.AllNew,
+    seriesStatus: SeriesStatus = SeriesStatus.All,
+    favoriteSeriesCount: Int? = null,
 ) {
     val shimmerBrush = rememberShimmerSkeletonBrush(
         label = "homeSkeleton",
@@ -1039,70 +1119,25 @@ private fun HomeLoadingSkeleton(
     )
 
     if (selectedMode == HomeFeedMode.Movies || selectedMode == HomeFeedMode.Series) {
-        CatalogLoadingSkeleton(selectedMode, shimmerBrush, modifier)
+        CatalogLoadingSkeleton(selectedMode, seriesStatus, shimmerBrush, modifier)
         return
     }
 
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(7.dp),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(252.dp)
-                .background(
-                    Brush.horizontalGradient(
-                        0f to BackgroundPrimary.copy(alpha = 0.68f),
-                        0.54f to BackgroundPrimary.copy(alpha = 0.22f),
-                        1f to Color.Transparent,
-                    ),
-                )
-                .padding(start = 2.dp, top = 4.dp, end = 280.dp, bottom = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(9.dp),
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                repeat(4) { index ->
-                    ShimmerSkeletonBox(
-                        brush = shimmerBrush,
-                        modifier = Modifier.size(width = listOf(64.dp, 58.dp, 74.dp, 68.dp)[index], height = 23.dp),
-                        shape = RoundedCornerShape(999.dp),
-                        baseColor = HomePanelSurface.copy(alpha = 0.46f),
-                        borderColor = HomePanelBorder.copy(alpha = 0.46f),
-                    )
-                }
-            }
-            ShimmerSkeletonBox(
-                brush = shimmerBrush,
-                modifier = Modifier.size(width = 650.dp, height = 40.dp),
-                shape = RoundedCornerShape(10.dp),
-            )
-            ShimmerSkeletonBox(
-                brush = shimmerBrush,
-                modifier = Modifier.size(width = 410.dp, height = 22.dp),
-                shape = RoundedCornerShape(8.dp),
-            )
-            repeat(5) { index ->
-                ShimmerSkeletonBox(
-                    brush = shimmerBrush,
-                    modifier = Modifier.size(width = listOf(760.dp, 735.dp, 710.dp, 690.dp, 520.dp)[index], height = 16.dp),
-                    shape = RoundedCornerShape(8.dp),
-                )
-            }
+    val isFavoriteSeries = selectedMode == HomeFeedMode.FavoriteSeries
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(7.dp)) {
+        if (isFavoriteSeries) {
+            FavoriteSeriesInfoSkeleton(shimmerBrush)
+            Spacer(Modifier.weight(1f))
+        } else {
+            ReleaseHeroSkeleton(shimmerBrush)
         }
 
-        ShimmerSkeletonBox(
-            brush = shimmerBrush,
-            modifier = Modifier
-                .padding(start = 2.dp)
-                .size(width = 128.dp, height = 18.dp),
-            shape = RoundedCornerShape(9.dp),
-        )
-
+        HomeRailSectionHeader(selectedMode, favoriteSeriesCount)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 2.dp),
+                .height(218.dp)
+                .padding(start = 12.dp, top = 12.dp, end = 10.dp, bottom = 20.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             repeat(8) {
@@ -1119,7 +1154,52 @@ private fun HomeLoadingSkeleton(
 }
 
 @Composable
-private fun CatalogLoadingSkeleton(mode: HomeFeedMode, brush: Brush, modifier: Modifier) {
+private fun ReleaseHeroSkeleton(brush: Brush) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(ReleaseHeroHeight)
+            .padding(start = 2.dp, top = 4.dp, end = 280.dp, bottom = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(9.dp),
+    ) {
+        ShimmerSkeletonBox(brush, Modifier.size(540.dp, 40.dp), RoundedCornerShape(10.dp))
+        ShimmerSkeletonBox(brush, Modifier.size(240.dp, 19.dp), RoundedCornerShape(8.dp))
+        ShimmerSkeletonBox(brush, Modifier.size(330.dp, 22.dp), RoundedCornerShape(8.dp))
+        listOf(680.dp, 660.dp, 480.dp).forEach { width ->
+            ShimmerSkeletonBox(brush, Modifier.size(width, 13.dp), RoundedCornerShape(8.dp))
+        }
+    }
+}
+
+@Composable
+private fun FavoriteSeriesInfoSkeleton(brush: Brush) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(FavoriteSeriesInfoHeight)
+            .padding(start = 12.dp, top = 4.dp, end = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            ShimmerSkeletonBox(brush, Modifier.size(300.dp, 32.dp), RoundedCornerShape(10.dp))
+            ShimmerSkeletonBox(brush, Modifier.size(86.dp, 21.dp), RoundedCornerShape(999.dp))
+        }
+        ShimmerSkeletonBox(brush, Modifier.size(410.dp, 19.dp), RoundedCornerShape(8.dp))
+        ShimmerSkeletonBox(brush, Modifier.size(590.dp, 13.dp), RoundedCornerShape(8.dp))
+        ShimmerSkeletonBox(brush, Modifier.size(470.dp, 13.dp), RoundedCornerShape(8.dp))
+    }
+}
+
+@Composable
+private fun CatalogLoadingSkeleton(
+    mode: HomeFeedMode,
+    seriesStatus: SeriesStatus,
+    brush: Brush,
+    modifier: Modifier,
+) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(7.dp)) {
         Column(
             modifier = Modifier
@@ -1139,7 +1219,7 @@ private fun CatalogLoadingSkeleton(mode: HomeFeedMode, brush: Brush, modifier: M
             }
         }
         Spacer(Modifier.weight(1f))
-        HomeRailSectionHeader(selectedMode = mode, favoriteSeriesCount = null)
+        HomeRailSectionHeader(selectedMode = mode, favoriteSeriesCount = null, seriesStatus = seriesStatus)
         BoxWithConstraints(
             modifier = Modifier.fillMaxWidth().padding(bottom = 30.dp),
             contentAlignment = Alignment.Center,

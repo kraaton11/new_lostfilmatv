@@ -53,6 +53,7 @@ sealed interface FavoriteReleasesResult {
 sealed interface FavoriteSeriesResult {
     data class Success(
         val items: List<ReleaseSummary>,
+        val hasNextPage: Boolean = false,
     ) : FavoriteSeriesResult
 
     data class Unavailable(

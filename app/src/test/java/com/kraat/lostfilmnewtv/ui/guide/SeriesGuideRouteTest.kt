@@ -12,6 +12,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import com.kraat.lostfilmnewtv.data.model.CatalogSort
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.model.PageState
@@ -154,7 +155,7 @@ private class FakeSeriesGuideRepository(
     private val scriptedGuideResults: ConcurrentHashMap<String, MutableList<SeriesGuideResult>>,
 ) : LostFilmRepository, FavoritesRepository {
     override fun observeFavoriteReleases(pageNumber: Int): Flow<FavoriteReleasesResult> = flow { emit(FavoriteReleasesResult.Unavailable()) }
-    override suspend fun loadFavoriteSeries(): FavoriteSeriesResult = FavoriteSeriesResult.Unavailable()
+    override suspend fun loadFavoriteSeries(pageNumber: Int, sort: CatalogSort): FavoriteSeriesResult = FavoriteSeriesResult.Unavailable()
     override suspend fun invalidateCache() {}
     val loadedGuideUrls = CopyOnWriteArrayList<String>()
 

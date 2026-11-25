@@ -12,6 +12,7 @@ import com.kraat.lostfilmnewtv.data.db.ReleaseDetailsEntity
 import com.kraat.lostfilmnewtv.data.parser.toEntity
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
+import com.kraat.lostfilmnewtv.data.model.CatalogSort
 import com.kraat.lostfilmnewtv.data.model.FavoriteSeriesResult
 import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
 import com.kraat.lostfilmnewtv.data.model.FavoriteTargetKind
@@ -1076,14 +1077,20 @@ class LostFilmRepositoryTest {
     }
 
     @Test
-    fun loadFavoriteSeries_returnsSeriesRootsFromAccountPage() = runTest {
+    fun loadFavoriteSeries_returnsOnlyFavoritesFromSortedCatalog() = runTest {
         val accountRequests = mutableListOf<String>()
         val repository = createRepository(
             pageHandler = { fixture("new-page-1.html") },
             accountPageHandler = { path ->
                 accountRequests += path
                 when (path) {
-                    "/my/type_1" -> favoriteSeriesAccountPageHtml()
+                    "/series/?type=search&s=2&t=99" -> """
+                        {"data":[
+                            {"title":"Alpha","link":"/series/alpha","img":"/Static/Images/1/Posters/icon.jpg","not_favorited":false},
+                            {"title":"Beta","link":"/series/beta","img":"/Static/Images/2/Posters/icon.jpg","not_favorited":false},
+                            {"title":"Other","link":"/series/other","not_favorited":true}
+                        ]}
+                    """.trimIndent()
                     else -> error("Unexpected account path $path")
                 }
             },
@@ -1104,11 +1111,11 @@ class LostFilmRepositoryTest {
             isAuthenticated = true,
         )
 
-        val result = favoritesRepository.loadFavoriteSeries()
+        val result = favoritesRepository.loadFavoriteSeries(sort = CatalogSort.Alphabetical)
 
         assertTrue(result is FavoriteSeriesResult.Success)
         result as FavoriteSeriesResult.Success
-        assertEquals(listOf("/my/type_1"), accountRequests)
+        assertEquals(listOf("/series/?type=search&s=2&t=99"), accountRequests)
         assertEquals(
             listOf(
                 "https://www.lostfilm.today/series/alpha",

@@ -28,7 +28,10 @@ interface LostFilmHttpClient {
         pageNumber: Int = 1,
         sort: CatalogSort = CatalogSort.Added,
         status: SeriesStatus = SeriesStatus.All,
-    ): String = fetchDetails(seriesCatalogPageUrl(pageNumber, sort, status))
+    ): String = fetchDetails(seriesCatalogPageUrl(pageNumber, sort, status.queryValue))
+
+    suspend fun fetchFavoriteSeriesCatalogPage(pageNumber: Int, sort: CatalogSort): String =
+        fetchAccountPage(seriesCatalogPagePath(pageNumber, sort, FAVORITE_SERIES_FILTER))
 
     suspend fun fetchSchedulePage(): String = fetchDetails(schedulePageUrl())
 
@@ -84,8 +87,13 @@ class OkHttpLostFilmHttpClient(
         sort: CatalogSort,
         status: SeriesStatus,
     ): String = withContext(Dispatchers.IO) {
-        executeSeriesCatalogSearch(pageNumber, sort, status)
+        executeSeriesCatalogSearch(pageNumber, sort, status.queryValue)
     }
+
+    override suspend fun fetchFavoriteSeriesCatalogPage(pageNumber: Int, sort: CatalogSort): String =
+        withContext(Dispatchers.IO) {
+            executeSeriesCatalogSearch(pageNumber, sort, FAVORITE_SERIES_FILTER)
+        }
 
     override suspend fun fetchSchedulePage(): String = withContext(Dispatchers.IO) {
         executeLostFilm(schedulePageUrl())
@@ -187,7 +195,7 @@ class OkHttpLostFilmHttpClient(
         }
     }
 
-    private suspend fun executeSeriesCatalogSearch(pageNumber: Int, sort: CatalogSort, status: SeriesStatus): String {
+    private suspend fun executeSeriesCatalogSearch(pageNumber: Int, sort: CatalogSort, status: Int): String {
         val offset = ((pageNumber.coerceAtLeast(1) - 1) * SERIES_CATALOG_PAGE_SIZE).coerceAtLeast(0)
         val ajaxUrl = requireLostFilmUrl("$BASE_URL/ajaxik.php")
         val cookieHeader = sessionStore?.read()?.toCookieString()?.takeIf { it.isNotBlank() }
@@ -202,7 +210,7 @@ class OkHttpLostFilmHttpClient(
                     .add("type", "search")
                     .add("o", offset.toString())
                     .add("s", sort.queryValue.toString())
-                    .add("t", status.queryValue.toString())
+                    .add("t", status.toString())
                     .build(),
             )
 
@@ -223,7 +231,8 @@ class OkHttpLostFilmHttpClient(
     }
 }
 
-private const val SERIES_CATALOG_PAGE_SIZE = 20
+internal const val SERIES_CATALOG_PAGE_SIZE = 20
+private const val FAVORITE_SERIES_FILTER = 99
 
 private fun moviesPageUrl(pageNumber: Int, sort: CatalogSort): String {
     val offset = ((pageNumber.coerceAtLeast(1) - 1) * 20).coerceAtLeast(0)
@@ -234,12 +243,15 @@ private fun moviesPageUrl(pageNumber: Int, sort: CatalogSort): String {
     }
 }
 
-private fun seriesCatalogPageUrl(pageNumber: Int, sort: CatalogSort, status: SeriesStatus): String {
+private fun seriesCatalogPageUrl(pageNumber: Int, sort: CatalogSort, status: Int): String =
+    "$BASE_URL${seriesCatalogPagePath(pageNumber, sort, status)}"
+
+private fun seriesCatalogPagePath(pageNumber: Int, sort: CatalogSort, status: Int): String {
     val offset = ((pageNumber.coerceAtLeast(1) - 1) * SERIES_CATALOG_PAGE_SIZE).coerceAtLeast(0)
     return if (offset == 0) {
-        "$BASE_URL/series/?type=search&s=${sort.queryValue}&t=${status.queryValue}"
+        "/series/?type=search&s=${sort.queryValue}&t=$status"
     } else {
-        "$BASE_URL/series/?type=search&s=${sort.queryValue}&t=${status.queryValue}&o=$offset"
+        "/series/?type=search&s=${sort.queryValue}&t=$status&o=$offset"
     }
 }
 

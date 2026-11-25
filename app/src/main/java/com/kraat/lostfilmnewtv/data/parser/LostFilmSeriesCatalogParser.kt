@@ -26,6 +26,7 @@ class LostFilmSeriesCatalogParser {
         json: String,
         pageNumber: Int,
         fetchedAt: Long = 0L,
+        favoritesOnly: Boolean = false,
     ): List<ReleaseSummary> {
         val root = Json.parseToJsonElement(json).jsonObject
         val data = root["data"]?.jsonArray ?: return emptyList()
@@ -33,6 +34,7 @@ class LostFilmSeriesCatalogParser {
         return buildList {
             data.forEachIndexed { index, element ->
                 val item = element.jsonObject
+                if (favoritesOnly && item.booleanValue("not_favorited")) return@forEachIndexed
                 val detailsUrl = resolveUrl(item.stringValue("link")).takeIf { it.isNotBlank() } ?: return@forEachIndexed
                 val titleRu = item.stringValue("title").normalizeText().takeIf { it.isNotBlank() } ?: return@forEachIndexed
                 val titleEn = item.stringValue("title_orig").normalizeText().takeIf { it.isNotBlank() }

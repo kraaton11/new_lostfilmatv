@@ -136,6 +136,29 @@ class AuthenticatedLostFilmHttpClientTest {
     }
 
     @Test
+    fun fetchFavoriteSeriesCatalogPage_postsFavoriteFilterWithSession() = runTest {
+        var capturedRequest: Request? = null
+        val client = AuthenticatedLostFilmHttpClient(
+            sessionStore = FakeSessionStore(
+                LostFilmSession(listOf(LostFilmCookie("lf_session", "cookie-value", ".lostfilm.today"))),
+            ),
+            okHttpClient = recordingClient { request ->
+                capturedRequest = request
+                "{\"data\":[]}"
+            },
+        )
+
+        client.fetchFavoriteSeriesCatalogPage(pageNumber = 2, sort = CatalogSort.Alphabetical)
+
+        val request = requireNotNull(capturedRequest)
+        assertEquals("https://www.lostfilm.today/ajaxik.php", request.url.toString())
+        assertEquals("lf_session=cookie-value", request.header("Cookie"))
+        val buffer = okio.Buffer()
+        requireNotNull(request.body).writeTo(buffer)
+        assertEquals("act=serial&type=search&o=20&s=2&t=99", buffer.readUtf8())
+    }
+
+    @Test
     fun fetchDetails_marksSessionExpired_whenCookieBackedRequestLooksAnonymous() = runTest {
         val sessionStore = FakeSessionStore(
             LostFilmSession(

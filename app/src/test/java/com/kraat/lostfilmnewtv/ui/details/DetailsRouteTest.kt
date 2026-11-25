@@ -15,6 +15,7 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.semantics.SemanticsActions
+import com.kraat.lostfilmnewtv.data.model.CatalogSort
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.model.PageState
@@ -726,7 +727,7 @@ private class RouteFakeDetailsRepository(
         emit(FavoriteReleasesResult.Unavailable())
     }
 
-    override suspend fun loadFavoriteSeries(): FavoriteSeriesResult = FavoriteSeriesResult.Unavailable()
+    override suspend fun loadFavoriteSeries(pageNumber: Int, sort: CatalogSort): FavoriteSeriesResult = FavoriteSeriesResult.Unavailable()
 
     override suspend fun invalidateCache() {}
 
