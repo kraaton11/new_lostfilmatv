@@ -1,5 +1,7 @@
 package com.kraat.lostfilmnewtv.data.network
 
+import com.kraat.lostfilmnewtv.data.model.CatalogSort
+import com.kraat.lostfilmnewtv.data.model.SeriesStatus
 import com.kraat.lostfilmnewtv.data.auth.SessionStore
 import com.kraat.lostfilmnewtv.data.model.FavoriteToggleNetworkResult
 import com.kraat.lostfilmnewtv.data.model.LostFilmCookie
@@ -95,6 +97,10 @@ class AuthenticatedLostFilmHttpClientTest {
 
         val request = requireNotNull(capturedRequest)
         assertEquals("https://www.lostfilm.today/movies/?type=search&s=6&t=0", request.url.toString())
+
+        client.fetchMoviesPage(pageNumber = 2, sort = CatalogSort.Rating)
+
+        assertEquals("https://www.lostfilm.today/movies/?type=search&s=1&t=0&o=20", capturedRequest?.url.toString())
     }
 
     @Test
@@ -118,6 +124,15 @@ class AuthenticatedLostFilmHttpClientTest {
         val buffer = okio.Buffer()
         requestBody!!.writeTo(buffer)
         assertEquals("act=serial&type=search&o=0&s=6&t=0", buffer.readUtf8())
+
+        client.fetchSeriesCatalogPage(
+            pageNumber = 2,
+            sort = CatalogSort.CompletionDate,
+            status = SeriesStatus.Completed,
+        )
+
+        requireNotNull(capturedRequest?.body).writeTo(buffer)
+        assertEquals("act=serial&type=search&o=20&s=4&t=5", buffer.readUtf8())
     }
 
     @Test

@@ -1,5 +1,7 @@
 package com.kraat.lostfilmnewtv.ui.home
 
+import com.kraat.lostfilmnewtv.data.model.CatalogSort
+import com.kraat.lostfilmnewtv.data.model.SeriesStatus
 import com.kraat.lostfilmnewtv.data.model.MovieMetadata
 import com.kraat.lostfilmnewtv.data.model.SeriesOverview
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
@@ -16,6 +18,8 @@ data class HomeModeData(
     val nextPage: Int = 1,
     val hasNextPage: Boolean = true,
     val isVisible: Boolean = true,
+    val catalogSort: CatalogSort = CatalogSort.Added,
+    val seriesStatus: SeriesStatus = SeriesStatus.All,
 )
 
 data class HomeUiState(

@@ -1,5 +1,7 @@
 package com.kraat.lostfilmnewtv.data.repository
 
+import com.kraat.lostfilmnewtv.data.model.CatalogSort
+import com.kraat.lostfilmnewtv.data.model.SeriesStatus
 import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
 import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
@@ -74,10 +76,14 @@ interface LostFilmRepository {
         emit(loadPage(pageNumber))
     }
 
-    suspend fun loadMovies(pageNumber: Int = 1): PageState =
+    suspend fun loadMovies(pageNumber: Int = 1, sort: CatalogSort = CatalogSort.Added): PageState =
         PageState.Error(pageNumber = pageNumber, message = "Фильмы недоступны")
 
-    suspend fun loadSeriesCatalog(pageNumber: Int = 1): PageState =
+    suspend fun loadSeriesCatalog(
+        pageNumber: Int = 1,
+        sort: CatalogSort = CatalogSort.Added,
+        status: SeriesStatus = SeriesStatus.All,
+    ): PageState =
         PageState.Error(pageNumber = pageNumber, message = "Каталог сериалов недоступен")
 
     suspend fun loadDetails(detailsUrl: String): DetailsResult

@@ -1,5 +1,7 @@
 package com.kraat.lostfilmnewtv.ui.home
 
+import com.kraat.lostfilmnewtv.data.model.CatalogSort
+import com.kraat.lostfilmnewtv.data.model.SeriesStatus
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -23,6 +25,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.delay
@@ -781,7 +784,49 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    fun onCatalogSortSelected(sort: CatalogSort) {
+        val state = _uiState.value
+        val mode = state.selectedMode
+        val data = state.modeData(mode)
+        if (data.catalogSort == sort) return
+        restartCatalog(mode, sort, data.seriesStatus)
+    }
+
+    fun onSeriesStatusSelected(status: SeriesStatus) {
+        val state = _uiState.value
+        val data = state.modeData(HomeFeedMode.Series)
+        if (state.selectedMode != HomeFeedMode.Series || data.seriesStatus == status) return
+
+        val sort = when {
+            status == SeriesStatus.Completed -> CatalogSort.CompletionDate
+            data.catalogSort == CatalogSort.CompletionDate -> CatalogSort.Newest
+            else -> data.catalogSort
+        }
+        restartCatalog(HomeFeedMode.Series, sort, status)
+    }
+
+    private fun restartCatalog(mode: HomeFeedMode, sort: CatalogSort, status: SeriesStatus) {
+        when (mode) {
+            HomeFeedMode.Movies -> moviesLoadJob?.cancel()
+            HomeFeedMode.Series -> seriesLoadJob?.cancel()
+            else -> return
+        }
+        _uiState.update {
+            it.copy(rememberedItemKeyByMode = it.rememberedItemKeyByMode - mode)
+                .updateMode(mode) { data ->
+                    HomeModeData(isVisible = data.isVisible, catalogSort = sort, seriesStatus = status)
+                }
+                .resolveSelection()
+        }
+        if (mode == HomeFeedMode.Movies) {
+            loadMovies(pageNumber = 1, isPagingRequest = false)
+        } else {
+            loadSeriesCatalog(pageNumber = 1, isPagingRequest = false)
+        }
+    }
+
     private fun loadMovies(pageNumber: Int, isPagingRequest: Boolean) {
+        val sort = _uiState.value.modeData(HomeFeedMode.Movies).catalogSort
         if (!isPagingRequest) {
             moviesLoadJob?.cancel()
         }
@@ -795,7 +840,9 @@ class HomeViewModel @Inject constructor(
             }
         }
         moviesLoadJob = viewModelScope.launch(ioDispatcher) {
-            when (val result = repository.loadMovies(pageNumber)) {
+            val result = repository.loadMovies(pageNumber, sort)
+            ensureActive()
+            when (result) {
                 is PageState.Content -> {
                     val existingItems = _uiState.value.movieItems
                     val updatedItems = if (isPagingRequest) {
@@ -813,6 +860,7 @@ class HomeViewModel @Inject constructor(
                         HomeModeContentState.Content(updatedItems)
                     }
                     _uiState.update { state ->
+                        if (state.modeData(HomeFeedMode.Movies).catalogSort != sort) return@update state
                         state.updateMode(HomeFeedMode.Movies) { md ->
                             md.copy(
                                 items = updatedItems,
@@ -827,6 +875,7 @@ class HomeViewModel @Inject constructor(
                 }
                 is PageState.Error -> {
                     _uiState.update { state ->
+                        if (state.modeData(HomeFeedMode.Movies).catalogSort != sort) return@update state
                         val md = state.modeData(HomeFeedMode.Movies)
                         if (isPagingRequest && md.items.isNotEmpty()) {
                             state.updateMode(HomeFeedMode.Movies) {
@@ -852,6 +901,9 @@ class HomeViewModel @Inject constructor(
     }
 
     private fun loadSeriesCatalog(pageNumber: Int, isPagingRequest: Boolean) {
+        val selection = _uiState.value.modeData(HomeFeedMode.Series)
+        val sort = selection.catalogSort
+        val status = selection.seriesStatus
         if (!isPagingRequest) {
             seriesLoadJob?.cancel()
         }
@@ -865,7 +917,9 @@ class HomeViewModel @Inject constructor(
             }
         }
         seriesLoadJob = viewModelScope.launch(ioDispatcher) {
-            when (val result = repository.loadSeriesCatalog(pageNumber)) {
+            val result = repository.loadSeriesCatalog(pageNumber, sort, status)
+            ensureActive()
+            when (result) {
                 is PageState.Content -> {
                     val existingItems = _uiState.value.seriesItems
                     val updatedItems = if (isPagingRequest) {
@@ -883,6 +937,8 @@ class HomeViewModel @Inject constructor(
                         HomeModeContentState.Content(updatedItems)
                     }
                     _uiState.update { state ->
+                        val current = state.modeData(HomeFeedMode.Series)
+                        if (current.catalogSort != sort || current.seriesStatus != status) return@update state
                         state.updateMode(HomeFeedMode.Series) { md ->
                             md.copy(
                                 items = updatedItems,
@@ -897,6 +953,8 @@ class HomeViewModel @Inject constructor(
                 }
                 is PageState.Error -> {
                     _uiState.update { state ->
+                        val current = state.modeData(HomeFeedMode.Series)
+                        if (current.catalogSort != sort || current.seriesStatus != status) return@update state
                         val md = state.modeData(HomeFeedMode.Series)
                         if (isPagingRequest && md.items.isNotEmpty()) {
                             state.updateMode(HomeFeedMode.Series) {

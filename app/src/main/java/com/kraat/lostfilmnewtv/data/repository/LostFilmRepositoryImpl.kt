@@ -1,5 +1,7 @@
 package com.kraat.lostfilmnewtv.data.repository
 
+import com.kraat.lostfilmnewtv.data.model.CatalogSort
+import com.kraat.lostfilmnewtv.data.model.SeriesStatus
 import com.kraat.lostfilmnewtv.data.db.PageCacheMetadataEntity
 import com.kraat.lostfilmnewtv.data.db.ReleaseDao
 import com.kraat.lostfilmnewtv.data.db.ReleaseDetailsEntity
@@ -178,12 +180,12 @@ class LostFilmRepositoryImpl(
 
     }
 
-    override suspend fun loadMovies(pageNumber: Int): PageState {
+    override suspend fun loadMovies(pageNumber: Int, sort: CatalogSort): PageState {
         cleanupExpiredDataIfNeeded()
 
         return try {
             val fetchedAt = clock()
-            val html = anonymousHttpClient.fetchMoviesPage(pageNumber)
+            val html = anonymousHttpClient.fetchMoviesPage(pageNumber, sort)
             val parsedItems = withContext(Dispatchers.Default) {
                 listParser.parse(
                     html = html,
@@ -211,10 +213,14 @@ class LostFilmRepositoryImpl(
         }
     }
 
-    override suspend fun loadSeriesCatalog(pageNumber: Int): PageState {
+    override suspend fun loadSeriesCatalog(
+        pageNumber: Int,
+        sort: CatalogSort,
+        status: SeriesStatus,
+    ): PageState {
         return try {
             val fetchedAt = clock()
-            val json = anonymousHttpClient.fetchSeriesCatalogPage(pageNumber)
+            val json = anonymousHttpClient.fetchSeriesCatalogPage(pageNumber, sort, status)
             val parsedItems = withContext(Dispatchers.Default) {
                 seriesCatalogParser.parseSearchJson(
                     json = json,

@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.ui
 
+import android.view.KeyEvent
 import androidx.activity.ComponentActivity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -16,11 +17,14 @@ import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performSemanticsAction
+import com.kraat.lostfilmnewtv.data.model.CatalogSort
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
 import com.kraat.lostfilmnewtv.ui.home.HOME_RAIL_ALL_NEW
 import com.kraat.lostfilmnewtv.ui.home.HOME_RAIL_FAVORITES
+import com.kraat.lostfilmnewtv.ui.home.HOME_RAIL_MOVIES
+import com.kraat.lostfilmnewtv.ui.home.HomeModeData
 import com.kraat.lostfilmnewtv.ui.home.HomeContentRail
 import com.kraat.lostfilmnewtv.ui.home.HomeFeedMode
 import com.kraat.lostfilmnewtv.ui.home.HomeModeContentState
@@ -36,6 +40,48 @@ import org.junit.Test
 class HomeScreenTest {
     @get:Rule
     val composeRule = createAndroidComposeRule<ComponentActivity>()
+
+    @Test
+    fun movieSort_keepsMenuCollapsedAndRestoresFocusToSortedCatalog() {
+        val movie = seededState().items[1]
+        val rankedMovie = movie.copy(id = "ranked", detailsUrl = "${movie.detailsUrl}/ranked")
+        var state by mutableStateOf(
+            HomeUiState(
+                selectedMode = HomeFeedMode.Movies,
+                availableModes = listOf(HomeFeedMode.Movies),
+                isHomeMenuLabelsEnabled = false,
+            ).updateMode(HomeFeedMode.Movies) {
+                HomeModeData(listOf(movie), HomeModeContentState.Content(listOf(movie)))
+            },
+        )
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(
+                    state = state,
+                    onCatalogSortSelected = { sort ->
+                        state = state.updateMode(HomeFeedMode.Movies) { HomeModeData(catalogSort = sort) }
+                    },
+                )
+            }
+        }
+        val initialCard = composeRule.onNodeWithTag(posterTag(HOME_RAIL_MOVIES, movie.detailsUrl))
+        initialCard.assertIsFocused()
+
+        composeRule.runOnIdle {
+            composeRule.activity.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_PROG_BLUE))
+            composeRule.activity.dispatchKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_PROG_BLUE))
+        }
+        composeRule.onNodeWithText("Показать меню").assertDoesNotExist()
+
+        composeRule.runOnIdle {
+            assertEquals(CatalogSort.Rating, state.modeData(HomeFeedMode.Movies).catalogSort)
+            state = state.updateMode(HomeFeedMode.Movies) {
+                HomeModeData(listOf(rankedMovie), HomeModeContentState.Content(listOf(rankedMovie)))
+            }
+        }
+        composeRule.onNodeWithTag(posterTag(HOME_RAIL_MOVIES, rankedMovie.detailsUrl)).assertIsFocused()
+        composeRule.onNodeWithText("Показать меню").assertDoesNotExist()
+    }
 
     @Test
     fun homeScreen_initialFocus_landsOnFirstRailCard() {

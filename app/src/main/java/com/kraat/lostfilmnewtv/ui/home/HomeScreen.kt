@@ -1,9 +1,11 @@
 package com.kraat.lostfilmnewtv.ui.home
+import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -34,12 +36,15 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -57,6 +62,8 @@ import kotlinx.coroutines.flow.StateFlow
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.kraat.lostfilmnewtv.ui.components.resolveArtworkForDisplay
+import com.kraat.lostfilmnewtv.data.model.CatalogSort
+import com.kraat.lostfilmnewtv.data.model.SeriesStatus
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.parser.extractYear
@@ -104,6 +111,8 @@ fun HomeScreen(
     isUpdateDownloading: Boolean = false,
     updateDownloadProgress: Int? = null,
     loadReleasePreview: suspend (String) -> HomeReleasePreview = { HomeReleasePreview() },
+    onCatalogSortSelected: (CatalogSort) -> Unit = {},
+    onSeriesStatusSelected: (SeriesStatus) -> Unit = {},
 ) {
     val focusState by if (focusStateFlow != null) {
         focusStateFlow.collectAsStateWithLifecycle()
@@ -114,6 +123,14 @@ fun HomeScreen(
 
     val lifecycleOwner = LocalLifecycleOwner.current
     val activeModeData = state.modeData(state.selectedMode)
+    val isSeriesCatalog = state.selectedMode == HomeFeedMode.Series
+    val isCatalog = state.selectedMode == HomeFeedMode.Movies || isSeriesCatalog
+    val seriesStatus = activeModeData.seriesStatus
+    val sortOptions = if (isSeriesCatalog && seriesStatus == SeriesStatus.Completed) {
+        completedSeriesSortOptions
+    } else {
+        catalogSortOptions
+    }
     val activeModeState = activeModeData.contentState
     val isAllNewMode by remember(state.selectedMode) {
         derivedStateOf { state.selectedMode == HomeFeedMode.AllNew }
@@ -141,6 +158,9 @@ fun HomeScreen(
     var isSwitchingModeFromRail by remember { mutableStateOf(false) }
     var contentReturnFocusRequestVersion by remember { mutableStateOf(0) }
     var isContentRailFocused by remember(activeRailId) { mutableStateOf(false) }
+    var isCatalogSortFocusPending by remember(activeRailId) { mutableStateOf(false) }
+    var showSeriesStatuses by remember(activeRailId) { mutableStateOf(false) }
+    var statusReturnRequester by remember(activeRailId) { mutableStateOf<FocusRequester?>(null) }
     var isHomeMenuFocused by rememberSaveable { mutableStateOf(true) }
     val shouldShowHomeMenuLabels = state.isHomeMenuLabelsEnabled || isHomeMenuFocused
 
@@ -178,6 +198,7 @@ fun HomeScreen(
     val loginActionRequester = remember { FocusRequester() }
     val retryActionRequester = remember { FocusRequester() }
     val contentEntryRequester = remember { FocusRequester() }
+    val catalogSortFocusRequester = remember { FocusRequester() }
     val cardFocusRequesters = remember(activeRailId) {
         linkedMapOf<String, FocusRequester>()
     }
@@ -244,12 +265,66 @@ fun HomeScreen(
         if (activeModeState == HomeModeContentState.Loading) {
             return@LaunchedEffect
         }
-        requestFocusWhenReady(startupAuxFocusTarget)
+        if (requestFocusWhenReady(startupAuxFocusTarget)) isCatalogSortFocusPending = false
+    }
+
+    fun focusCatalogDuringReload() {
+        isCatalogSortFocusPending = true
+        startupContentFocusPending = true
+        catalogSortFocusRequester.requestFocus()
+        isHomeMenuFocused = false
+        focusedItemKey = null
+    }
+
+    fun dismissSeriesStatuses() {
+        showSeriesStatuses = false
+        statusReturnRequester?.let { requester ->
+            focusScope.launch { requestFocusWhenReady(requester) }
+        }
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .onPreviewKeyEvent { event ->
+                if (!isCatalog) return@onPreviewKeyEvent false
+                val keyEvent = event.nativeKeyEvent
+                val isInitialPress = keyEvent.action == KeyEvent.ACTION_DOWN && keyEvent.repeatCount == 0
+                if (isSeriesCatalog && keyEvent.keyCode == KeyEvent.KEYCODE_INFO) {
+                    if (isInitialPress && !showSeriesStatuses) {
+                        statusReturnRequester = if (isContentRailFocused) {
+                            focusedItemKey?.let { cardFocusRequesters[homeItemKey(activeRailId, it)] }
+                                ?: newestContentRequester
+                        } else {
+                            modeFocusRequesters[HomeFeedMode.Series]
+                        }
+                        showSeriesStatuses = true
+                    }
+                    return@onPreviewKeyEvent true
+                }
+                val statusStep = when (keyEvent.keyCode) {
+                    KeyEvent.KEYCODE_CHANNEL_UP -> 1
+                    KeyEvent.KEYCODE_CHANNEL_DOWN -> -1
+                    else -> 0
+                }
+                if (isSeriesCatalog && statusStep != 0) {
+                    if (isInitialPress && !showSeriesStatuses) {
+                        val statuses = SeriesStatus.entries
+                        val nextIndex = (seriesStatus.ordinal + statusStep + statuses.size) % statuses.size
+                        focusCatalogDuringReload()
+                        onSeriesStatusSelected(statuses[nextIndex])
+                    }
+                    return@onPreviewKeyEvent true
+                }
+                val option = sortOptions.firstOrNull { it.keyCode == keyEvent.keyCode }
+                    ?: return@onPreviewKeyEvent false
+                if (!showSeriesStatuses && isInitialPress && option.sort != activeModeData.catalogSort) {
+                    if (isContentRailFocused) focusCatalogDuringReload()
+                    focusedItemKey = null
+                    onCatalogSortSelected(option.sort)
+                }
+                true
+            }
             .background(
                 Brush.verticalGradient(
                     0f to Color(0xFF07111B),
@@ -268,7 +343,7 @@ fun HomeScreen(
         ) {
             val headerPrimaryRequester = modeFocusRequesters.getValue(state.selectedMode)
 
-            BackHandler(enabled = isContentRailFocused) {
+            BackHandler(enabled = isContentRailFocused && !showSeriesStatuses) {
                 focusScope.launch {
                     requestFocusWhenReady(headerPrimaryRequester)
                 }
@@ -288,6 +363,7 @@ fun HomeScreen(
                 },
                 onHeaderInteraction = {
                     if (!isSwitchingModeFromRail) {
+                        isCatalogSortFocusPending = false
                         if (initialMenuFocusIgnored) {
                             startupContentFocusPending = false
                         } else {
@@ -347,6 +423,21 @@ fun HomeScreen(
                     .padding(top = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                if (isCatalog) {
+                    CatalogSortLegend(
+                        options = sortOptions,
+                        selectedSort = activeModeData.catalogSort,
+                        showStatusHint = isSeriesCatalog,
+                        modifier = Modifier
+                            .focusRequester(catalogSortFocusRequester)
+                            .focusProperties {
+                                canFocus = isCatalogSortFocusPending
+                                left = headerPrimaryRequester
+                            }
+                            .focusable(),
+                    )
+                }
+
                 if (isAllNewMode && state.fullScreenErrorMessage != null && state.items.isNotEmpty()) {
                     HomeStatusPanel(
                         tag = "home-error-status",
@@ -382,8 +473,6 @@ fun HomeScreen(
                     ) {
                         when (activeModeState) {
                             is HomeModeContentState.Content -> {
-                                val isCatalog = state.selectedMode == HomeFeedMode.Movies ||
-                                    state.selectedMode == HomeFeedMode.Series
                                 if (isCatalog) {
                                     CatalogInfoPanel(
                                         item = focusedItem,
@@ -400,6 +489,7 @@ fun HomeScreen(
                                 HomeRailSectionHeader(
                                     selectedMode = state.selectedMode,
                                     favoriteSeriesCount = state.favoriteSeriesCount,
+                                    seriesStatus = seriesStatus,
                                 )
                                 HomeRail(
                                     railId = activeRailId,
@@ -413,6 +503,7 @@ fun HomeScreen(
                                     leftTargetRequester = headerPrimaryRequester,
                                     isPaging = activeModeData.isPaging,
                                     onItemFocused = { detailsUrl ->
+                                        isCatalogSortFocusPending = false
                                         startupContentFocusPending = false
                                         isHomeMenuFocused = false
                                         isSwitchingModeFromRail = false
@@ -492,6 +583,134 @@ fun HomeScreen(
                 }
             }
             }
+        }
+        if (showSeriesStatuses) {
+            BackHandler { dismissSeriesStatuses() }
+            SeriesStatusPicker(
+                selectedStatus = seriesStatus,
+                onSelected = { status ->
+                    if (status == seriesStatus) {
+                        dismissSeriesStatuses()
+                    } else {
+                        focusCatalogDuringReload()
+                        showSeriesStatuses = false
+                        onSeriesStatusSelected(status)
+                    }
+                },
+            )
+        }
+    }
+}
+
+private data class CatalogSortOption(
+    val sort: CatalogSort,
+    val keyCode: Int,
+    val color: Color,
+    val label: String,
+)
+
+private val catalogSortOptions = listOf(
+    CatalogSortOption(CatalogSort.Added, KeyEvent.KEYCODE_PROG_RED, Color(0xFFFF636B), "По добавлению"),
+    CatalogSortOption(CatalogSort.Newest, KeyEvent.KEYCODE_PROG_GREEN, Color(0xFF69DD93), "По новизне"),
+    CatalogSortOption(CatalogSort.Alphabetical, KeyEvent.KEYCODE_PROG_YELLOW, Color(0xFFFFD46E), "По алфавиту"),
+    CatalogSortOption(CatalogSort.Rating, KeyEvent.KEYCODE_PROG_BLUE, Color(0xFF71B2FF), "По рейтингу"),
+)
+
+private val completedSeriesSortOptions = catalogSortOptions.map { option ->
+    if (option.sort == CatalogSort.Alphabetical) {
+        option.copy(sort = CatalogSort.CompletionDate, label = "По дате завершения")
+    } else {
+        option
+    }
+}
+
+private val SeriesStatus.label: String
+    get() = when (this) {
+        SeriesStatus.All -> "Все"
+        SeriesStatus.New -> "Новые"
+        SeriesStatus.Ongoing -> "Снимающиеся"
+        SeriesStatus.Completed -> "Завершённые"
+    }
+
+@Composable
+private fun SeriesStatusPicker(selectedStatus: SeriesStatus, onSelected: (SeriesStatus) -> Unit) {
+    val selectedRequester = remember { FocusRequester() }
+    LaunchedEffect(selectedStatus) { requestFocusWhenReady(selectedRequester) }
+    Box(
+        modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.7f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            modifier = Modifier
+                .width(300.dp)
+                .background(HomePanelSurfaceStrong, RoundedCornerShape(12.dp))
+                .padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Text("Статус сериала", color = TextPrimary, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
+            SeriesStatus.entries.forEach { status ->
+                var focused by remember { mutableStateOf(false) }
+                Button(
+                    onClick = { onSelected(status) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .border(2.dp, if (focused) TextPrimary else Color.Transparent, RoundedCornerShape(24.dp))
+                        .onFocusChanged { focused = it.isFocused }
+                        .then(if (status == selectedStatus) Modifier.focusRequester(selectedRequester) else Modifier)
+                        .focusProperties {
+                            left = FocusRequester.Cancel
+                            right = FocusRequester.Cancel
+                            if (status == SeriesStatus.All) up = FocusRequester.Cancel
+                            if (status == SeriesStatus.Completed) down = FocusRequester.Cancel
+                        },
+                ) {
+                    Text(if (status == selectedStatus) "${status.label} ✓" else status.label)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CatalogSortLegend(
+    options: List<CatalogSortOption>,
+    selectedSort: CatalogSort,
+    showStatusHint: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        options.forEach { option ->
+            val selected = option.sort == selectedSort
+            val shape = RoundedCornerShape(6.dp)
+            Row(
+                modifier = Modifier
+                    .border(1.dp, if (selected) option.color else Color.Transparent, shape)
+                    .padding(horizontal = 7.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(7.dp).background(option.color, RoundedCornerShape(50)))
+                Text(
+                    text = if (selected) "${option.label} ✓" else option.label,
+                    color = if (selected) TextPrimary else HomeTextSecondary,
+                    fontSize = 12.sp,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                    maxLines = 1,
+                )
+            }
+        }
+        if (showStatusHint) {
+            Text(
+                text = "CH+/CH- Статус",
+                modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp),
+                color = TextPrimary,
+                fontSize = 12.sp,
+                maxLines = 1,
+            )
         }
     }
 }
@@ -694,13 +913,14 @@ private fun ReleaseSummary?.heroDescription(): String {
 private fun HomeRailSectionHeader(
     selectedMode: HomeFeedMode,
     favoriteSeriesCount: Int?,
+    seriesStatus: SeriesStatus = SeriesStatus.All,
 ) {
     val title = when (selectedMode) {
         HomeFeedMode.AllNew -> "Свежие релизы"
         HomeFeedMode.Favorites -> "Избранное"
         HomeFeedMode.FavoriteSeries -> "Мои сериалы"
         HomeFeedMode.Movies -> "Фильмы"
-        HomeFeedMode.Series -> "Сериалы"
+        HomeFeedMode.Series -> "Сериалы · ${seriesStatus.label}"
     }
     val countLabel = if (selectedMode == HomeFeedMode.Favorites) {
         favoriteSeriesCount?.let { "${it.formatFavoriteSeriesCount()} в избранном" }

@@ -1,5 +1,7 @@
 package com.kraat.lostfilmnewtv.ui.home
 
+import com.kraat.lostfilmnewtv.data.model.CatalogSort
+import com.kraat.lostfilmnewtv.data.model.SeriesStatus
 import android.content.Context
 import androidx.lifecycle.SavedStateHandle
 import androidx.test.core.app.ApplicationProvider
@@ -351,6 +353,109 @@ class HomeViewModelTest {
         assertEquals(listOf(1, 2), repository.movieRequests)
         assertEquals(listOf(firstMovie, secondMovie), viewModel.uiState.value.movieItems)
         assertFalse(viewModel.uiState.value.moviesHasNextPage)
+    }
+
+    @Test
+    fun onCatalogSortSelected_restartsCatalogAndUsesNewSortForPaging() = runTest(dispatcher) {
+        val firstMovie = summary(detailsUrl = "https://www.lostfilm.today/movies/First")
+        val rankedMovie = summary(detailsUrl = "https://www.lostfilm.today/movies/Ranked")
+        val secondMovie = summary(detailsUrl = "https://www.lostfilm.today/movies/Second")
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(1 to PageState.Content(1, emptyList(), false, false)),
+            movieResults = mutableMapOf(
+                1 to PageState.Content(1, listOf(firstMovie), true, false),
+                2 to PageState.Content(2, listOf(secondMovie), false, false),
+            ),
+        )
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            initialSelectedMode = HomeFeedMode.Movies,
+            ioDispatcher = dispatcher,
+        )
+        viewModel.onStart()
+        advanceUntilIdle()
+        repository.movieResults[1] = PageState.Content(1, listOf(rankedMovie), true, false)
+
+        viewModel.onCatalogSortSelected(CatalogSort.Rating)
+        advanceUntilIdle()
+        viewModel.onCatalogSortSelected(CatalogSort.Rating)
+        viewModel.onEndReached()
+        advanceUntilIdle()
+
+        assertEquals(listOf(1, 1, 2), repository.movieRequests)
+        assertEquals(listOf(CatalogSort.Added, CatalogSort.Rating, CatalogSort.Rating), repository.movieSorts)
+        assertEquals(CatalogSort.Rating, viewModel.uiState.value.modeData(HomeFeedMode.Movies).catalogSort)
+        assertEquals(listOf(rankedMovie, secondMovie), viewModel.uiState.value.movieItems)
+    }
+
+    @Test
+    fun onCatalogSortSelected_inSeriesMode_reloadsAndKeepsMovieSortSeparate() = runTest(dispatcher) {
+        val firstSeries = summary(detailsUrl = "https://www.lostfilm.today/series/First")
+        val rankedSeries = summary(detailsUrl = "https://www.lostfilm.today/series/Ranked")
+        val secondSeries = summary(detailsUrl = "https://www.lostfilm.today/series/Second")
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(1 to PageState.Content(1, emptyList(), false, false)),
+            seriesResults = mutableMapOf(
+                1 to PageState.Content(1, listOf(firstSeries), true, false),
+                2 to PageState.Content(2, listOf(secondSeries), false, false),
+            ),
+        )
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            initialSelectedMode = HomeFeedMode.Series,
+            ioDispatcher = dispatcher,
+        )
+        viewModel.onStart()
+        advanceUntilIdle()
+        repository.seriesResults[1] = PageState.Content(1, listOf(rankedSeries), true, false)
+
+        viewModel.onCatalogSortSelected(CatalogSort.Rating)
+        advanceUntilIdle()
+        viewModel.onEndReached()
+        advanceUntilIdle()
+
+        assertEquals(listOf(1 to CatalogSort.Added, 1 to CatalogSort.Rating, 2 to CatalogSort.Rating), repository.seriesRequests)
+        val state = viewModel.uiState.value
+        assertEquals(CatalogSort.Added, state.modeData(HomeFeedMode.Movies).catalogSort)
+        assertEquals(CatalogSort.Rating, state.modeData(HomeFeedMode.Series).catalogSort)
+        assertEquals(listOf(rankedSeries, secondSeries), state.seriesItems)
+    }
+
+    @Test
+    fun onSeriesStatusSelected_usesCompletionDateAndKeepsStatusWhenPaging() = runTest(dispatcher) {
+        val series = summary(detailsUrl = "https://www.lostfilm.today/series/First")
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(1 to PageState.Content(1, emptyList(), false, false)),
+            seriesResults = mutableMapOf(
+                1 to PageState.Content(1, listOf(series), true, false),
+                2 to PageState.Content(2, emptyList(), false, false),
+            ),
+        )
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            initialSelectedMode = HomeFeedMode.Series,
+            ioDispatcher = dispatcher,
+        )
+        viewModel.onStart()
+        advanceUntilIdle()
+        viewModel.onSeriesStatusSelected(SeriesStatus.Completed)
+        advanceUntilIdle()
+        viewModel.onEndReached()
+        advanceUntilIdle()
+        viewModel.onSeriesStatusSelected(SeriesStatus.Ongoing)
+        advanceUntilIdle()
+
+        assertEquals(
+            listOf(1 to CatalogSort.Added, 1 to CatalogSort.CompletionDate, 2 to CatalogSort.CompletionDate, 1 to CatalogSort.Newest),
+            repository.seriesRequests,
+        )
+        assertEquals(
+            listOf(SeriesStatus.All, SeriesStatus.Completed, SeriesStatus.Completed, SeriesStatus.Ongoing),
+            repository.seriesStatuses,
+        )
     }
 
     @Test
@@ -1670,9 +1775,13 @@ private class FakeLostFilmRepository(
      * контроль тайминга между эмиссиями.
      */
     val observePageEmissions: Map<Int, List<PageState>> = emptyMap(),
+    val seriesResults: MutableMap<Int, PageState> = mutableMapOf(),
 ) : LostFilmRepository, FavoritesRepository {
     val pageRequests = mutableListOf<Int>()
     val movieRequests = mutableListOf<Int>()
+    val movieSorts = mutableListOf<CatalogSort>()
+    val seriesRequests = mutableListOf<Pair<Int, CatalogSort>>()
+    val seriesStatuses = mutableListOf<SeriesStatus>()
     val favoriteReleaseRequests = mutableListOf<Int>()
     var favoriteReleaseCalls = 0
     val observePageCalls = mutableListOf<Int>()
@@ -1692,11 +1801,18 @@ private class FakeLostFilmRepository(
         return flow { emit(loadPage(pageNumber)) }
     }
 
-    override suspend fun loadMovies(pageNumber: Int): PageState {
+    override suspend fun loadMovies(pageNumber: Int, sort: CatalogSort): PageState {
         movieRequests += pageNumber
+        movieSorts += sort
         return checkNotNull(movieResults[pageNumber]) {
             "Missing fake movie result for page $pageNumber"
         }
+    }
+
+    override suspend fun loadSeriesCatalog(pageNumber: Int, sort: CatalogSort, status: SeriesStatus): PageState {
+        seriesRequests += pageNumber to sort
+        seriesStatuses += status
+        return seriesResults[pageNumber] ?: super<LostFilmRepository>.loadSeriesCatalog(pageNumber, sort, status)
     }
 
     override suspend fun loadDetails(detailsUrl: String): DetailsResult {
