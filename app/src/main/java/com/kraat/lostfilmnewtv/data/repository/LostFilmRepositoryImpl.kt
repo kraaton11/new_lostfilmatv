@@ -549,9 +549,16 @@ class LostFilmRepositoryImpl(
         }
     }
 
-    override suspend fun loadSchedule(): ScheduleResult {
+    override suspend fun loadSchedule(favoritesOnly: Boolean): ScheduleResult {
         return try {
-            val html = anonymousHttpClient.fetchSchedulePage()
+            val html = if (favoritesOnly) {
+                if (!hasAuthenticatedSession()) {
+                    return ScheduleResult.Error("Войдите в LostFilm, чтобы увидеть расписание избранных сериалов")
+                }
+                httpClient.fetchAccountPage("/schedule/my_1/type_0")
+            } else {
+                anonymousHttpClient.fetchSchedulePage()
+            }
             val schedule = withContext(Dispatchers.Default) {
                 scheduleParser.parse(html)
             }

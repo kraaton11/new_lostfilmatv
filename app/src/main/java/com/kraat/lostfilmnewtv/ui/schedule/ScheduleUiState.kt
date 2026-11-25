@@ -6,4 +6,5 @@ data class ScheduleUiState(
     val isLoading: Boolean = false,
     val schedule: ScheduleMonth? = null,
     val errorMessage: String? = null,
+    val favoritesOnly: Boolean = false,
 )

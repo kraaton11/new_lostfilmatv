@@ -104,7 +104,7 @@ interface LostFilmRepository {
     suspend fun search(query: String): SearchResultsResult =
         SearchResultsResult.Error(query, "Поиск недоступен")
 
-    suspend fun loadSchedule(): ScheduleResult =
+    suspend fun loadSchedule(favoritesOnly: Boolean = false): ScheduleResult =
         ScheduleResult.Error("Расписание недоступно")
 
     suspend fun loadWatchedState(detailsUrl: String): Boolean?

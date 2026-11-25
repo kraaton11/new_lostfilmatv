@@ -18,6 +18,7 @@ fun ScheduleRoute(
     ScheduleScreen(
         state = state.value,
         onRetry = viewModel::onRetry,
+        onModeSelected = viewModel::onModeSelected,
         onOpenItem = onOpenItem,
     )
 }

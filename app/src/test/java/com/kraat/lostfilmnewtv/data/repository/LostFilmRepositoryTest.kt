@@ -2216,6 +2216,32 @@ class LostFilmRepositoryTest {
         )
     }
 
+    @Test
+    fun loadSchedule_favoritesUsesAccountPage() = runTest {
+        val requestedPaths = mutableListOf<String>()
+        val repository = createRepository(
+            pageHandler = { error("Unexpected release request") },
+            isAuthenticated = true,
+            accountPageHandler = { path ->
+                requestedPaths += path
+                fixture("schedule-list.html")
+            },
+        )
+
+        val result = repository.loadSchedule(favoritesOnly = true) as ScheduleResult.Success
+
+        assertEquals(listOf("/schedule/my_1/type_0"), requestedPaths)
+        assertTrue(result.schedule.days.flatMap { it.items }.any { !it.posterUrl.isNullOrBlank() })
+    }
+
+    @Test
+    fun loadSchedule_favoritesRequiresSignIn() = runTest {
+        val repository = createRepository(pageHandler = { error("Unexpected release request") })
+
+        assertEquals(ScheduleResult.Error("Войдите в LostFilm, чтобы увидеть расписание избранных сериалов"),
+            repository.loadSchedule(favoritesOnly = true))
+    }
+
     private suspend fun seedPage(pageNumber: Int, fetchedAt: Long) {
         val parsed = LostFilmListParser().parse(
             html = fixture("new-page-1.html"),

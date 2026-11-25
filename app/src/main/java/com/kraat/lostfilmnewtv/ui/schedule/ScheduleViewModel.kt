@@ -9,6 +9,7 @@ import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -36,13 +37,27 @@ class ScheduleViewModel @Inject constructor(
         load()
     }
 
-    private fun load() {
+    fun onModeSelected(favoritesOnly: Boolean) {
+        if (_uiState.value.favoritesOnly != favoritesOnly) load(favoritesOnly)
+    }
+
+    private fun load(favoritesOnly: Boolean = _uiState.value.favoritesOnly) {
         loadJob?.cancel()
-        _uiState.update { it.copy(isLoading = true, errorMessage = null) }
+        _uiState.update { state ->
+            state.copy(
+                favoritesOnly = favoritesOnly,
+                isLoading = true,
+                schedule = state.schedule.takeIf { state.favoritesOnly == favoritesOnly },
+                errorMessage = null,
+            )
+        }
         loadJob = viewModelScope.launch(ioDispatcher) {
-            when (val result = repository.loadSchedule()) {
+            val result = repository.loadSchedule(favoritesOnly)
+            ensureActive()
+            when (result) {
                 is ScheduleResult.Success -> {
                     _uiState.update {
+                        if (it.favoritesOnly != favoritesOnly) return@update it
                         it.copy(
                             isLoading = false,
                             schedule = result.schedule,
@@ -52,6 +67,7 @@ class ScheduleViewModel @Inject constructor(
                 }
                 is ScheduleResult.Error -> {
                     _uiState.update {
+                        if (it.favoritesOnly != favoritesOnly) return@update it
                         it.copy(
                             isLoading = false,
                             errorMessage = result.message,

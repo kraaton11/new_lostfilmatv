@@ -1,10 +1,12 @@
 package com.kraat.lostfilmnewtv.ui.schedule
 
+import android.view.KeyEvent
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,16 +33,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -56,6 +59,7 @@ import com.kraat.lostfilmnewtv.data.model.ScheduleDay
 import com.kraat.lostfilmnewtv.data.model.ScheduleItem
 import com.kraat.lostfilmnewtv.ui.components.ShimmerSkeletonBox
 import com.kraat.lostfilmnewtv.ui.components.rememberShimmerSkeletonBrush
+import com.kraat.lostfilmnewtv.ui.home.requestFocusWhenReady
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
 import com.kraat.lostfilmnewtv.ui.theme.DetailsAccentGold
 import com.kraat.lostfilmnewtv.ui.theme.DetailsAccentGoldFocus
@@ -79,21 +83,44 @@ fun ScheduleScreen(
     state: ScheduleUiState,
     onRetry: () -> Unit,
     onOpenItem: (ScheduleItem) -> Unit,
+    onModeSelected: (Boolean) -> Unit = {},
 ) {
     val firstItemRequester = remember { FocusRequester() }
     val retryRequester = remember { FocusRequester() }
+    val modeRequester = remember { FocusRequester() }
+    var isSwitchingMode by remember { mutableStateOf(false) }
+    val days = state.schedule?.days.orEmpty()
+    val hasScheduleItems = days.any { it.items.isNotEmpty() }
 
-    LaunchedEffect(state.schedule, state.errorMessage) {
-        withFrameNanos { }
-        when {
-            state.schedule?.days?.any { it.items.isNotEmpty() } == true -> firstItemRequester.requestFocus()
-            state.errorMessage != null -> retryRequester.requestFocus()
+    LaunchedEffect(state.schedule, state.errorMessage, state.isLoading) {
+        val target = when {
+            hasScheduleItems -> firstItemRequester
+            state.errorMessage != null -> retryRequester
+            else -> modeRequester
         }
+        requestFocusWhenReady(target)
+        if (target != modeRequester) isSwitchingMode = false
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .onPreviewKeyEvent { event ->
+                val keyEvent = event.nativeKeyEvent
+                val favoritesOnly = when (keyEvent.keyCode) {
+                    KeyEvent.KEYCODE_PROG_RED -> false
+                    KeyEvent.KEYCODE_PROG_GREEN -> true
+                    else -> return@onPreviewKeyEvent false
+                }
+                if (keyEvent.action == KeyEvent.ACTION_DOWN && keyEvent.repeatCount == 0 &&
+                    favoritesOnly != state.favoritesOnly
+                ) {
+                    isSwitchingMode = true
+                    modeRequester.requestFocus()
+                    onModeSelected(favoritesOnly)
+                }
+                true
+            }
             .background(scheduleBackgroundBrush()),
     ) {
         Column(
@@ -114,6 +141,18 @@ fun ScheduleScreen(
                     color = DetailsTextSecondary,
                     fontSize = 14.sp,
                 )
+            }
+
+            Row(
+                modifier = Modifier
+                    .focusRequester(modeRequester)
+                    .focusProperties { canFocus = isSwitchingMode || !hasScheduleItems && state.errorMessage == null }
+                    .focusable(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                ScheduleModeLabel("Все", Color(0xFFFF636B), selected = !state.favoritesOnly)
+                ScheduleModeLabel("Избранные сериалы", Color(0xFF69DD93), selected = state.favoritesOnly)
             }
 
             when {
@@ -140,10 +179,14 @@ fun ScheduleScreen(
                     }
                 }
 
-                state.schedule?.days.isNullOrEmpty() -> {
+                !hasScheduleItems -> {
                     ScheduleCenteredStatePanel {
                         Text(
-                            text = "В расписании пока нет релизов",
+                            text = if (state.favoritesOnly) {
+                                "В расписании избранных сериалов пока нет релизов"
+                            } else {
+                                "В расписании пока нет релизов"
+                            },
                             color = TextPrimary,
                             fontSize = 18.sp,
                         )
@@ -151,11 +194,10 @@ fun ScheduleScreen(
                 }
 
                 else -> {
-                    val days = state.schedule?.days.orEmpty()
                     val todayDate = days.firstOrNull { it.isToday }?.date ?: LocalDate.now()
-                    val initialDayIndex = days.indexOfFirst { it.date >= todayDate }
+                    val initialDayIndex = days.indexOfFirst { it.date >= todayDate && it.items.isNotEmpty() }
                         .takeIf { it >= 0 }
-                        ?: 0
+                        ?: days.indexOfFirst { it.items.isNotEmpty() }
                     val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialDayIndex)
                     LaunchedEffect(days, initialDayIndex) {
                         if (days.isNotEmpty()) {
@@ -198,6 +240,24 @@ fun ScheduleScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun ScheduleModeLabel(label: String, color: Color, selected: Boolean) {
+    Row(
+        modifier = Modifier
+            .border(1.dp, if (selected) color else Color.Transparent, ScheduleRowShape)
+            .padding(horizontal = 8.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.width(7.dp).height(7.dp).background(color, RoundedCornerShape(50)))
+        Text(
+            text = if (selected) "$label ✓" else label,
+            color = if (selected) TextPrimary else DetailsTextSecondary,
+            fontSize = 13.sp,
+        )
     }
 }
 
