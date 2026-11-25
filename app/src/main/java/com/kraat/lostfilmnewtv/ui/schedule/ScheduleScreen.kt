@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -43,6 +44,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -66,7 +68,6 @@ import com.kraat.lostfilmnewtv.ui.theme.DetailsAccentGoldFocus
 import com.kraat.lostfilmnewtv.ui.theme.DetailsBackgroundMid
 import com.kraat.lostfilmnewtv.ui.theme.DetailsBackgroundTop
 import com.kraat.lostfilmnewtv.ui.theme.DetailsBorderDefault
-import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceFocused
 import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceReadable
 import com.kraat.lostfilmnewtv.ui.theme.DetailsTextSecondary
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
@@ -76,7 +77,13 @@ import java.time.format.DateTimeFormatter
 
 private val fullDateFormatter: DateTimeFormatter = DateTimeFormatter.ofPattern("dd.MM.yyyy")
 private val ScheduleRowShape = RoundedCornerShape(8.dp)
-private val EpisodeChipShape = RoundedCornerShape(6.dp)
+private val ScheduleRowHeight = 74.dp
+private val ScheduleArtworkSize = 54.dp
+private val SchedulePreviewArtworkSize = 104.dp
+private val ScheduleColumnSpacing = 22.dp
+private val SchedulePreviewShape = RoundedCornerShape(16.dp)
+
+private data class ScheduleSelection(val item: ScheduleItem, val date: LocalDate)
 
 @Composable
 fun ScheduleScreen(
@@ -129,19 +136,12 @@ fun ScheduleScreen(
                 .padding(start = 48.dp, top = 24.dp, end = 48.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(
-                    text = "Расписание",
-                    color = TextPrimary,
-                    fontSize = 30.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                Text(
-                    text = state.schedule?.title ?: "Даты выхода серий и фильмов LostFilm",
-                    color = DetailsTextSecondary,
-                    fontSize = 14.sp,
-                )
-            }
+            Text(
+                text = "Расписание",
+                color = TextPrimary,
+                fontSize = 30.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
 
             Row(
                 modifier = Modifier
@@ -221,21 +221,31 @@ fun ScheduleScreen(
                             )
                         }
                     }
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                    val initialDay = days[initialDayIndex]
+                    var selection by remember(days) {
+                        mutableStateOf(ScheduleSelection(initialDay.items.first(), initialDay.date))
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(ScheduleColumnSpacing),
                     ) {
-                        itemsIndexed(days, key = { _, day -> day.date.toString() }) { index, day ->
-                            ScheduleDaySection(
-                                day = day,
-                                todayDate = todayDate,
-                                firstItemRequester = if (index == initialDayIndex) firstItemRequester else null,
-                                onOpenItem = onOpenItem,
-                            )
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier.weight(0.58f).fillMaxHeight(),
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp),
+                        ) {
+                            itemsIndexed(days, key = { _, day -> day.date.toString() }) { index, day ->
+                                ScheduleDaySection(
+                                    day = day,
+                                    todayDate = todayDate,
+                                    firstItemRequester = if (index == initialDayIndex) firstItemRequester else null,
+                                    onItemFocused = { item -> selection = ScheduleSelection(item, day.date) },
+                                    onOpenItem = onOpenItem,
+                                )
+                            }
                         }
+                        ScheduleReleasePreview(selection, Modifier.weight(0.42f))
                     }
                 }
             }
@@ -275,115 +285,66 @@ private fun ColumnScope.ScheduleLoadingSkeleton() {
         verticalOffset = 180f,
         durationMillis = 1_350,
     )
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxWidth()
-            .weight(1f)
-            .testTag("schedule-loading"),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+    Row(
+        modifier = Modifier.fillMaxWidth().weight(1f).testTag("schedule-loading"),
+        horizontalArrangement = Arrangement.spacedBy(ScheduleColumnSpacing),
     ) {
-        items(4) { index ->
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    ShimmerSkeletonBox(
-                        brush = brush,
-                        modifier = Modifier
-                            .width(
-                                when (index) {
-                                    0 -> 86.dp
-                                    1 -> 132.dp
-                                    2 -> 184.dp
-                                    else -> 64.dp
-                                },
-                            )
-                            .height(22.dp),
-                        shape = RoundedCornerShape(8.dp),
-                    )
-                }
-                repeat(if (index == 0) 4 else if (index == 1) 3 else 2) { rowIndex ->
+        LazyColumn(
+            modifier = Modifier.weight(0.58f).fillMaxHeight(),
+            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 4.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            items(4) { index ->
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(
-                        modifier = Modifier
-                            .fillMaxWidth(if (rowIndex == 1) 0.96f else 1f)
-                            .height(82.dp)
-                            .clip(ScheduleRowShape)
-                            .background(DetailsSurfaceReadable)
-                            .border(1.dp, HomePanelBorder, ScheduleRowShape)
-                            .padding(start = 8.dp, end = 22.dp, top = 6.dp, bottom = 6.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        ShimmerSkeletonBox(
-                            brush = brush,
+                        ShimmerSkeletonBox(brush, Modifier.width(108.dp).height(24.dp), RoundedCornerShape(8.dp))
+                        ShimmerSkeletonBox(brush, Modifier.width(80.dp).height(15.dp), RoundedCornerShape(6.dp))
+                    }
+                    repeat(if (index == 0) 4 else 2) {
+                        Row(
                             modifier = Modifier
-                                .width(58.dp)
-                                .height(58.dp),
-                            shape = RoundedCornerShape(6.dp),
-                            baseColor = Color(0xFF172636),
-                        )
-                        Column(
-                            modifier = Modifier.width(178.dp),
-                            verticalArrangement = Arrangement.Center,
+                                .fillMaxWidth()
+                                .height(ScheduleRowHeight)
+                                .clip(ScheduleRowShape)
+                                .background(DetailsSurfaceReadable)
+                                .border(1.dp, HomePanelBorder, ScheduleRowShape)
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
                         ) {
                             ShimmerSkeletonBox(
-                                brush = brush,
-                                modifier = Modifier
-                                    .fillMaxWidth(if (rowIndex == 0) 0.74f else 0.64f)
-                                    .height(20.dp),
-                                shape = RoundedCornerShape(8.dp),
+                                brush,
+                                Modifier.width(ScheduleArtworkSize).height(ScheduleArtworkSize),
+                                RoundedCornerShape(6.dp),
+                                baseColor = Color(0xFF172636),
                             )
-                            ShimmerSkeletonBox(
-                                brush = brush,
-                                modifier = Modifier
-                                    .padding(top = 5.dp)
-                                    .height(14.dp)
-                                    .fillMaxWidth(if (rowIndex == 0) 0.42f else 0.34f),
-                                shape = RoundedCornerShape(7.dp),
-                            )
-                        }
-                        ShimmerSkeletonBox(
-                            brush = brush,
-                            modifier = Modifier
-                                .width(92.dp)
-                                .height(36.dp),
-                            shape = EpisodeChipShape,
-                            baseColor = Color(0xFF3B277E),
-                        )
-                        ShimmerSkeletonBox(
-                            brush = brush,
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(18.dp),
-                            shape = RoundedCornerShape(7.dp),
-                        )
-                        Column(
-                            modifier = Modifier.width(118.dp),
-                            horizontalAlignment = Alignment.End,
-                            verticalArrangement = Arrangement.Center,
-                        ) {
-                            ShimmerSkeletonBox(
-                                brush = brush,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(16.dp),
-                                shape = RoundedCornerShape(7.dp),
-                            )
-                            ShimmerSkeletonBox(
-                                brush = brush,
-                                modifier = Modifier
-                                    .padding(top = 5.dp)
-                                    .width(74.dp)
-                                    .height(13.dp),
-                                shape = RoundedCornerShape(7.dp),
-                            )
+                            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                ShimmerSkeletonBox(brush, Modifier.width(270.dp).height(22.dp), RoundedCornerShape(8.dp))
+                                ShimmerSkeletonBox(brush, Modifier.width(185.dp).height(16.dp), RoundedCornerShape(7.dp))
+                            }
                         }
                     }
                 }
             }
+        }
+        Column(
+            modifier = Modifier
+                .weight(0.42f)
+                .background(DetailsSurfaceReadable, SchedulePreviewShape)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            ShimmerSkeletonBox(
+                brush,
+                Modifier.width(SchedulePreviewArtworkSize).height(SchedulePreviewArtworkSize),
+                RoundedCornerShape(8.dp),
+            )
+            ShimmerSkeletonBox(brush, Modifier.fillMaxWidth(0.85f).height(30.dp), RoundedCornerShape(8.dp))
+            ShimmerSkeletonBox(brush, Modifier.fillMaxWidth(0.65f).height(18.dp), RoundedCornerShape(6.dp))
+            ShimmerSkeletonBox(brush, Modifier.width(110.dp).height(16.dp), RoundedCornerShape(6.dp))
         }
     }
 }
@@ -393,8 +354,10 @@ private fun ScheduleDaySection(
     day: ScheduleDay,
     todayDate: LocalDate,
     firstItemRequester: FocusRequester?,
+    onItemFocused: (ScheduleItem) -> Unit,
     onOpenItem: (ScheduleItem) -> Unit,
 ) {
+    val groupDate = day.date.format(fullDateFormatter)
     Column(
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -403,24 +366,17 @@ private fun ScheduleDaySection(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
-                text = day.label,
+                text = day.relativeDayLabel(todayDate) ?: day.label,
                 color = TextPrimary,
-                fontSize = 18.sp,
+                fontSize = 20.sp,
                 fontWeight = FontWeight.SemiBold,
             )
             Text(
-                text = day.date.format(fullDateFormatter),
+                text = groupDate,
                 color = DetailsTextSecondary,
                 fontSize = 13.sp,
             )
-            day.relativeDayLabel(todayDate)?.let { relativeLabel ->
-                Text(
-                    text = relativeLabel,
-                    color = DetailsAccentGold,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
+
         }
 
         Column(
@@ -430,7 +386,9 @@ private fun ScheduleDaySection(
             day.items.forEachIndexed { index, item ->
                 ScheduleItemRow(
                     item = item,
+                    groupDate = groupDate,
                     onClick = { onOpenItem(item) },
+                    onFocused = { onItemFocused(item) },
                     modifier = if (index == 0 && firstItemRequester != null) {
                         Modifier.focusRequester(firstItemRequester)
                     } else {
@@ -459,7 +417,9 @@ private fun ScheduleDay.dayHasSchedulePeriodLabel(): Boolean {
 @Composable
 private fun ScheduleItemRow(
     item: ScheduleItem,
+    groupDate: String,
     onClick: () -> Unit,
+    onFocused: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var isFocused by remember { mutableStateOf(false) }
@@ -471,21 +431,24 @@ private fun ScheduleItemRow(
         ),
         label = "scheduleItemScale",
     )
-    val kindLabel = when (item.kind) {
-        ReleaseKind.SERIES -> "Сериал"
-        ReleaseKind.MOVIE -> "Фильм"
+    val episodeLabel = item.episodeLabel?.takeIf { it.isNotBlank() }?.replace('х', '×')
+    val episodeTitle = item.episodeTitle?.takeIf { it.isNotBlank() && it != item.title }
+    val subtitle = listOfNotNull(episodeLabel, episodeTitle).joinToString(" · ").ifBlank {
+        if (item.kind == ReleaseKind.MOVIE) "Фильм" else "Сериал"
     }
+    val releaseDate = item.releaseDateLabel?.takeIf { it.isNotBlank() && !it.contains(groupDate) }
+    val relativeDate = item.relativeDateLabel?.takeIf { it.isNotBlank() }
 
     Button(
         onClick = onClick,
         shape = ScheduleRowShape,
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (isFocused) DetailsSurfaceFocused else DetailsSurfaceReadable,
+            containerColor = if (isFocused) lerp(DetailsSurfaceReadable, Color.White, 0.08f) else DetailsSurfaceReadable,
         ),
         contentPadding = PaddingValues(0.dp),
         modifier = modifier
             .fillMaxWidth()
-            .height(82.dp)
+            .height(ScheduleRowHeight)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -495,92 +458,88 @@ private fun ScheduleItemRow(
                 color = if (isFocused) DetailsAccentGoldFocus else HomePanelBorder,
                 shape = ScheduleRowShape,
             )
-            .onFocusChanged { isFocused = it.isFocused },
+            .onFocusChanged {
+                if (it.isFocused && !isFocused) onFocused()
+                isFocused = it.isFocused
+            },
     ) {
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(start = 8.dp, end = 22.dp, top = 6.dp, bottom = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(start = 10.dp, end = 18.dp, top = 6.dp, bottom = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             ScheduleItemImage(
                 item = item,
-                modifier = Modifier
-                    .width(58.dp)
-                    .height(58.dp),
+                modifier = Modifier.width(ScheduleArtworkSize).height(ScheduleArtworkSize),
             )
             Column(
-                modifier = Modifier.width(178.dp),
-                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
             ) {
                 Text(
                     text = item.title,
                     color = TextPrimary,
-                    fontSize = 18.sp,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = kindLabel,
+                    text = subtitle,
                     color = DetailsTextSecondary,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
+                    fontSize = 15.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            Box(
-                modifier = Modifier
-                    .width(92.dp)
-                    .height(36.dp)
-                    .background(Color(0xFF3B277E), EpisodeChipShape)
-                    .padding(horizontal = 8.dp),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = item.episodeLabel?.takeIf { it.isNotBlank() } ?: kindLabel,
-                    color = TextPrimary,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            Text(
-                text = item.episodeTitle?.takeIf { it.isNotBlank() } ?: kindLabel,
-                color = DetailsTextSecondary,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            Column(
-                modifier = Modifier.width(118.dp),
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Text(
-                    text = item.releaseDateLabel?.takeIf { it.isNotBlank() } ?: kindLabel,
-                    color = DetailsTextSecondary.copy(alpha = 0.88f),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                item.relativeDateLabel?.takeIf { it.isNotBlank() }?.let { relativeDateLabel ->
-                    Text(
-                        text = relativeDateLabel,
-                        color = DetailsAccentGold,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+            if (releaseDate != null || relativeDate != null) {
+                Column(horizontalAlignment = Alignment.End) {
+                    releaseDate?.let {
+                        Text(it, color = DetailsTextSecondary, fontSize = 13.sp, maxLines = 1)
+                    }
+                    relativeDate?.let {
+                        Text(it, color = DetailsAccentGold, fontSize = 12.sp, maxLines = 1)
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun ScheduleReleasePreview(selection: ScheduleSelection, modifier: Modifier = Modifier) {
+    val item = selection.item
+    val releaseDate = item.releaseDateLabel?.takeIf { it.isNotBlank() } ?: selection.date.format(fullDateFormatter)
+    val episodeLabel = item.episodeLabel?.takeIf { it.isNotBlank() }?.replace('х', '×')
+    val episodeTitle = item.episodeTitle?.takeIf { it.isNotBlank() && it != item.title }
+    val episode = listOfNotNull(episodeLabel, episodeTitle).joinToString(" · ")
+
+    Column(
+        modifier = modifier
+            .background(DetailsSurfaceReadable, SchedulePreviewShape)
+            .border(1.dp, HomePanelBorder, SchedulePreviewShape)
+            .padding(20.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        ScheduleItemImage(
+            item = item,
+            modifier = Modifier.width(SchedulePreviewArtworkSize).height(SchedulePreviewArtworkSize),
+        )
+        Text(
+            text = item.title,
+            color = TextPrimary,
+            fontSize = 25.sp,
+            lineHeight = 30.sp,
+            fontWeight = FontWeight.SemiBold,
+        )
+        if (episode.isNotEmpty()) {
+            Text(episode, color = DetailsTextSecondary, fontSize = 17.sp)
+        }
+        Text(releaseDate, color = DetailsAccentGold, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+        item.relativeDateLabel?.takeIf { it.isNotBlank() }?.let {
+            Text(it, color = DetailsTextSecondary, fontSize = 14.sp)
         }
     }
 }
