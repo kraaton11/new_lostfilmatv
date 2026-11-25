@@ -1547,7 +1547,7 @@ class LostFilmRepositoryTest {
     }
 
     @Test
-    fun loadFavoriteReleases_skipsSeriesRootRequest_whenSeasonMarksAreAvailable() = runTest {
+    fun loadFavoriteReleases_loadsWatchedMarksForOlderReleasesWithoutSeriesRootRequest() = runTest {
         val detailsRequests = mutableListOf<String>()
         val repository = createRepository(
             pageHandler = { fixture("new-page-1.html") },
@@ -1582,12 +1582,11 @@ class LostFilmRepositoryTest {
                                 seasonNumber = 1,
                                 episodeNumber = 4,
                                 episodeTitle = "The Gathering Storm",
-                                releaseDateRu = "15.03.2026",
+                                releaseDateRu = "15.02.2026",
                                 episodeId = "1072001004",
                             ),
                         ),
                     )
-                    "https://www.lostfilm.today/series/marshals/season_1/episode_4/" -> seriesEpisodeDetailsHtml(playEpisodeId = "1072001004")
                     "https://www.lostfilm.today/series/marshals" -> error("Series root request should be skipped when marks exist")
                     else -> error("Unexpected details request: $requestedUrl")
                 }
@@ -1606,7 +1605,6 @@ class LostFilmRepositoryTest {
         assertEquals(
             listOf(
                 "https://www.lostfilm.today/series/marshals/seasons",
-                "https://www.lostfilm.today/series/marshals/season_1/episode_4/",
             ),
             detailsRequests,
         )

@@ -302,8 +302,6 @@ class FavoritesRepositoryImpl @Inject constructor(
 
                         val serialId = seasonEpisodesParser.parseSerialId(seasonsHtml)
 
-                        // Optimize watched marks: Only fetch AJAX marks if this series has a new release within the last 14 days,
-                        // otherwise we fallback on seasonsHtml's checked buttons or local DB cache.
                         val parsedUncheckedEpisodes = withContext(Dispatchers.Default) {
                             seasonEpisodesParser.parse(
                                 html = seasonsHtml,
@@ -315,21 +313,18 @@ class FavoritesRepositoryImpl @Inject constructor(
                             )
                         }
 
-                        val shouldFetchAJAXMarks = serialId != null && parsedUncheckedEpisodes.hasRecentRelease()
-
-                        var watchedEpisodeIds = if (shouldFetchAJAXMarks && serialId != null) {
-                            getOrFetchWatchedMarks(serialId, seasonsUrl, generation)
+                        val watchedEpisodeIds = if (serialId != null && parsedUncheckedEpisodes.isNotEmpty()) {
+                            getOrFetchWatchedMarks(serialId, seasonsUrl, generation).ifEmpty {
+                                try {
+                                    val rootHtml = httpClient.fetchDetails(series.seriesUrl)
+                                    seasonEpisodesParser.parseWatchedEpisodeIdsFromPage(rootHtml)
+                                } catch (e: IOException) {
+                                    Log.w(TAG, "Failed to fetch watched state from series root page", e)
+                                    emptySet()
+                                }
+                            }
                         } else {
                             emptySet()
-                        }
-
-                        if (watchedEpisodeIds.isEmpty() && shouldFetchAJAXMarks) {
-                            try {
-                                val rootHtml = httpClient.fetchDetails(series.seriesUrl)
-                                watchedEpisodeIds = seasonEpisodesParser.parseWatchedEpisodeIdsFromPage(rootHtml)
-                            } catch (e: IOException) {
-                                Log.w(TAG, "Failed to fetch watched state from series root page", e)
-                            }
                         }
 
                         val seriesItems = if (watchedEpisodeIds.isNotEmpty()) {
@@ -532,17 +527,6 @@ class FavoritesRepositoryImpl @Inject constructor(
         } catch (e: IOException) {
             Log.w(TAG, "Failed to toggle favorite", e)
             FavoriteMutationResult.Error("Не удалось обновить избранное")
-        }
-    }
-
-    private fun List<ReleaseSummary>.hasRecentRelease(): Boolean {
-        val fourteenDaysAgo = Instant.ofEpochMilli(clock())
-            .atZone(ZoneOffset.UTC)
-            .toLocalDate()
-            .minusDays(14)
-        return any { item ->
-            val releaseDate = parseFavoriteReleaseDate(item.releaseDateRu)
-            releaseDate != null && !releaseDate.isBefore(fourteenDaysAgo)
         }
     }
 
