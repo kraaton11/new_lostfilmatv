@@ -4,6 +4,7 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseWatchFilter
 import com.kraat.lostfilmnewtv.data.model.CatalogSort
 import com.kraat.lostfilmnewtv.data.model.SeriesStatus
 import android.content.Context
+import android.os.Looper
 import androidx.lifecycle.SavedStateHandle
 import androidx.test.core.app.ApplicationProvider
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
@@ -13,9 +14,12 @@ import com.kraat.lostfilmnewtv.data.model.PageState
 import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
+import com.kraat.lostfilmnewtv.data.model.WatchHistoryEntry
+import com.kraat.lostfilmnewtv.data.model.WatchHistoryFilter
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.data.repository.FavoritesRepository
+import com.kraat.lostfilmnewtv.data.repository.ScheduleResult
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPreferences
@@ -24,6 +28,8 @@ import com.kraat.lostfilmnewtv.tvchannel.HomeChannelProgramSource
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPublisher
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPublisherResult
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelSyncManager
+import com.kraat.lostfilmnewtv.ui.history.HistoryViewModel
+import com.kraat.lostfilmnewtv.ui.schedule.ScheduleViewModel
 import com.kraat.lostfilmnewtv.updates.AppUpdateAvailabilityStore
 import com.kraat.lostfilmnewtv.updates.AppUpdateCoordinator
 import com.kraat.lostfilmnewtv.updates.AppUpdateInfo
@@ -49,6 +55,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -56,6 +63,103 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35])
 class HomeViewModelTest {
     private val dispatcher = StandardTestDispatcher()
+
+    @Test
+    fun recreatedHome_restoresFiltersAndUsesThemForInitialLoads() = runTest(dispatcher) {
+        val favorite = summary(detailsUrl = "https://www.lostfilm.today/series/favorite/season_1/episode_1/")
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(1 to PageState.Content(1, listOf(favorite), false, false)),
+            seriesResults = mutableMapOf(1 to PageState.Content(1, emptyList(), false, false)),
+            favoriteSeriesPaths = setOf("/series/favorite"),
+        )
+        val prefsName = "home-filter-restart-test"
+        val viewModel = createViewModel(
+            repository, SavedStateHandle(), initialFavoritesRailVisible = true,
+            ioDispatcher = dispatcher, clock = { favoritesTestTime }, prefsName = prefsName,
+        )
+        viewModel.onReleaseFilterSelected(ReleaseWatchFilter.Favorites)
+        viewModel.onModeSelected(HomeFeedMode.Favorites)
+        viewModel.onReleaseFilterSelected(ReleaseWatchFilter.Watched)
+        viewModel.onModeSelected(HomeFeedMode.Movies)
+        viewModel.onCatalogSortSelected(CatalogSort.Rating)
+        viewModel.onHomeModeVisibilityChanged(HomeFeedMode.FavoriteSeries, true)
+        viewModel.onModeSelected(HomeFeedMode.FavoriteSeries)
+        viewModel.onCatalogSortSelected(CatalogSort.Alphabetical)
+        viewModel.onModeSelected(HomeFeedMode.Series)
+        viewModel.onSeriesStatusSelected(SeriesStatus.Completed)
+        viewModel.onModeSelected(HomeFeedMode.AllNew)
+        advanceUntilIdle()
+
+        val freshPageGate = CompletableDeferred<Unit>()
+        val favoritePathsGate = CompletableDeferred<Unit>()
+        val restartedRepository = FakeLostFilmRepository(
+            observePageFlows = mapOf(1 to flow {
+                emit(PageState.Content(1, listOf(favorite), true, true))
+                freshPageGate.await()
+                emit(PageState.Content(1, listOf(favorite), false, false))
+            }),
+            pageResults = mapOf(2 to PageState.Content(2, listOf(favorite), false, false)),
+            seriesResults = mutableMapOf(1 to PageState.Content(1, emptyList(), false, false)),
+            favoriteSeriesPaths = setOf("/series/favorite"),
+            favoritePathsGate = favoritePathsGate,
+        )
+        val restarted = createViewModel(
+            restartedRepository, SavedStateHandle(), initialFavoritesRailVisible = true,
+            ioDispatcher = dispatcher, clock = { favoritesTestTime }, prefsName = prefsName,
+            reusePreferences = true,
+        )
+        restarted.onStart()
+        advanceUntilIdle()
+        restarted.onHomeModeVisibilityChanged(HomeFeedMode.FavoriteSeries, true)
+        favoritePathsGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(listOf(1), restartedRepository.observePageCalls)
+        freshPageGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(ReleaseWatchFilter.Favorites, restarted.uiState.value.newReleaseFilter)
+        assertEquals(listOf(favorite), restarted.uiState.value.visibleNewItems)
+        assertEquals(ReleaseWatchFilter.Watched, restarted.uiState.value.favoriteReleaseFilter)
+        assertEquals(listOf(CatalogSort.Rating), restartedRepository.movieSorts)
+        assertEquals(listOf(1 to CatalogSort.Alphabetical), restartedRepository.favoriteSeriesRequests)
+        assertEquals(listOf(1 to CatalogSort.CompletionDate), restartedRepository.seriesRequests)
+        assertEquals(listOf(SeriesStatus.Completed), restartedRepository.seriesStatuses)
+    }
+
+    @Test
+    fun recreatedHistory_usesSavedFilterForInitialLoad() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsName = "history-filter-restart-test"
+        val repository = FakeLostFilmRepository()
+        val viewModel = HistoryViewModel(repository, PlaybackPreferencesStore(context, prefsName))
+        viewModel.selectFilter(WatchHistoryFilter.Ongoing)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        val restarted = HistoryViewModel(repository, PlaybackPreferencesStore(context, prefsName))
+        restarted.setAuthenticated(true)
+        shadowOf(Looper.getMainLooper()).idle()
+
+        assertEquals(WatchHistoryFilter.Ongoing, restarted.selectedFilter.value)
+        assertEquals(listOf(WatchHistoryFilter.Ongoing, WatchHistoryFilter.Ongoing), repository.historyRequests)
+    }
+
+    @Test
+    fun recreatedSchedule_usesSavedFilterForInitialLoad() = runTest(dispatcher) {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsName = "schedule-filter-restart-test"
+        val repository = FakeLostFilmRepository()
+        val viewModel = ScheduleViewModel(repository, PlaybackPreferencesStore(context, prefsName), dispatcher)
+        viewModel.onModeSelected(true)
+        advanceUntilIdle()
+
+        val restarted = ScheduleViewModel(repository, PlaybackPreferencesStore(context, prefsName), dispatcher)
+        restarted.onStart()
+        advanceUntilIdle()
+
+        assertTrue(restarted.uiState.value.favoritesOnly)
+        assertEquals(listOf(true, true), repository.scheduleRequests)
+    }
 
     @Test
     fun onStart_loadsFirstPageAutomatically() = runTest(dispatcher) {
@@ -1906,8 +2010,25 @@ private class FakeLostFilmRepository(
     val observePageEmissions: Map<Int, List<PageState>> = emptyMap(),
     val seriesResults: MutableMap<Int, PageState> = mutableMapOf(),
     private val favoriteSeriesPaths: Set<String>? = null,
+    private val favoritePathsGate: CompletableDeferred<Unit>? = null,
 ) : LostFilmRepository, FavoritesRepository {
-    override suspend fun loadFavoriteSeriesPaths(): Set<String>? = favoriteSeriesPaths
+    override suspend fun loadFavoriteSeriesPaths(): Set<String>? {
+        favoritePathsGate?.await()
+        return favoriteSeriesPaths
+    }
+
+    val historyRequests = mutableListOf<WatchHistoryFilter>()
+    val scheduleRequests = mutableListOf<Boolean>()
+
+    override suspend fun loadWatchHistory(filter: WatchHistoryFilter): List<WatchHistoryEntry> {
+        historyRequests += filter
+        return emptyList()
+    }
+
+    override suspend fun loadSchedule(favoritesOnly: Boolean): ScheduleResult {
+        scheduleRequests += favoritesOnly
+        return ScheduleResult.Error("not needed")
+    }
 
     val pageRequests = mutableListOf<Int>()
     val movieRequests = mutableListOf<Int>()
@@ -2027,10 +2148,11 @@ private fun createViewModel(
     channelSyncGate: CompletableDeferred<Unit>? = null,
     ioDispatcher: CoroutineDispatcher,
     clock: () -> Long = { System.currentTimeMillis() },
+    prefsName: String = "home-view-model-test-${homePrefsCounter++}",
+    reusePreferences: Boolean = false,
 ): HomeViewModel {
     val context = ApplicationProvider.getApplicationContext<Context>()
-    val prefsName = "home-view-model-test-${homePrefsCounter++}"
-    context.deleteSharedPreferences(prefsName)
+    if (!reusePreferences) context.deleteSharedPreferences(prefsName)
     val preferencesStore = PlaybackPreferencesStore(context, prefsName = prefsName).also {
         it.writeHomeSelectedFeedMode(initialSelectedMode)
         it.writeHomeFavoritesRailEnabled(initialFavoritesRailVisible)

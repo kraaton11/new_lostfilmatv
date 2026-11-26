@@ -103,6 +103,20 @@ class HomeViewModel @Inject constructor(
         isMoviesModeVisible = initialMoviesModeVisible,
         isSeriesModeVisible = initialSeriesModeVisible,
         isHomeMenuLabelsEnabled = initialHomeMenuLabelsEnabled,
+    ).copy(
+        newReleaseFilter = preferencesStore.readReleaseFilter(HomeFeedMode.AllNew),
+        favoriteReleaseFilter = preferencesStore.readReleaseFilter(HomeFeedMode.Favorites),
+    ).updateModes(
+        HomeFeedMode.Movies to { it.copy(catalogSort = preferencesStore.readCatalogSort(HomeFeedMode.Movies)) },
+        HomeFeedMode.FavoriteSeries to {
+            it.copy(catalogSort = preferencesStore.readCatalogSort(HomeFeedMode.FavoriteSeries))
+        },
+        HomeFeedMode.Series to {
+            it.copy(
+                catalogSort = preferencesStore.readCatalogSort(HomeFeedMode.Series),
+                seriesStatus = preferencesStore.readSeriesStatus(),
+            )
+        },
     ).withResolvedHomeSelection()
 
     private val _uiState = MutableStateFlow(initialUiState)
@@ -148,6 +162,9 @@ class HomeViewModel @Inject constructor(
             preferencesStore.writeHomeSelectedFeedMode(HomeFeedMode.AllNew)
         }
         loadPage(pageNumber = 1, isPagingRequest = false)
+        if (_uiState.value.newReleaseFilter == ReleaseWatchFilter.Favorites) {
+            loadNewFavorites(firstPageLoad = allNewLoadJob)
+        }
         if (_uiState.value.isMoviesModeVisible) loadMovies(pageNumber = 1, isPagingRequest = false)
         if (_uiState.value.isSeriesModeVisible) loadSeriesCatalog(pageNumber = 1, isPagingRequest = false)
         if (_uiState.value.isFavoritesRailVisible) loadFavoriteReleases()
@@ -690,6 +707,7 @@ class HomeViewModel @Inject constructor(
             HomeFeedMode.Favorites -> if (filter != ReleaseWatchFilter.Favorites) onFavoriteFilterSelected(filter)
             HomeFeedMode.AllNew -> {
                 if (state.newReleaseFilter == filter) return
+                preferencesStore.writeReleaseFilter(HomeFeedMode.AllNew, filter)
                 _focusState.update {
                     it.copy(
                         rememberedItemKeyByMode = it.rememberedItemKeyByMode - HomeFeedMode.AllNew,
@@ -715,7 +733,7 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private fun loadNewFavorites() {
+    private fun loadNewFavorites(firstPageLoad: Job? = null) {
         newFavoritesLoadJob?.cancel()
         val today = Instant.ofEpochMilli(clock()).atZone(ZoneId.systemDefault()).toLocalDate()
         _uiState.update {
@@ -733,6 +751,8 @@ class HomeViewModel @Inject constructor(
             } catch (_: IOException) {
                 emptySet<String>() to HomeModeContentState.Error("Не удалось загрузить избранное")
             }
+            // Подгрузка избранного не должна отменять обновление первой страницы при запуске.
+            firstPageLoad?.join()
             _uiState.update {
                 it.copy(favoriteSeriesPaths = paths, newFavoritesStatus = status).resolveSelection()
             }
@@ -765,6 +785,7 @@ class HomeViewModel @Inject constructor(
     private fun onFavoriteFilterSelected(filter: ReleaseWatchFilter) {
         val state = _uiState.value
         if (state.selectedMode != HomeFeedMode.Favorites || state.favoriteReleaseFilter == filter) return
+        preferencesStore.writeReleaseFilter(HomeFeedMode.Favorites, filter)
 
         _focusState.update { focus ->
             focus.copy(
@@ -989,6 +1010,7 @@ class HomeViewModel @Inject constructor(
             HomeFeedMode.FavoriteSeries -> favoriteSeriesLoadJob?.cancel()
             else -> return
         }
+        preferencesStore.writeCatalogSelection(mode, sort, status)
         _uiState.update {
             it.copy(rememberedItemKeyByMode = it.rememberedItemKeyByMode - mode)
                 .updateMode(mode) { data ->

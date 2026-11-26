@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.kraat.lostfilmnewtv.data.model.WatchHistoryEntry
 import com.kraat.lostfilmnewtv.data.model.WatchHistoryFilter
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
+import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import java.io.IOException
 import javax.inject.Inject
@@ -24,10 +25,11 @@ internal sealed interface HistoryState {
 @HiltViewModel
 internal class HistoryViewModel @Inject constructor(
     private val repository: LostFilmRepository,
+    private val preferencesStore: PlaybackPreferencesStore,
 ) : ViewModel() {
     private val state = MutableStateFlow<HistoryState>(HistoryState.Loading)
     val uiState = state.asStateFlow()
-    private val filter = MutableStateFlow(WatchHistoryFilter.All)
+    private val filter = MutableStateFlow(preferencesStore.readHistoryFilter())
     val selectedFilter = filter.asStateFlow()
     private var loadJob: Job? = null
 
@@ -42,6 +44,7 @@ internal class HistoryViewModel @Inject constructor(
 
     fun selectFilter(selected: WatchHistoryFilter) {
         if (selected == filter.value) return
+        preferencesStore.writeHistoryFilter(selected)
         filter.value = selected
         load()
     }

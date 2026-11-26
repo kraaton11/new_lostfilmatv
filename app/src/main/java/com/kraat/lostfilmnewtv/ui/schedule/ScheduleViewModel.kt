@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.data.repository.ScheduleResult
+import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineDispatcher
@@ -19,9 +20,12 @@ import kotlinx.coroutines.launch
 @HiltViewModel
 class ScheduleViewModel @Inject constructor(
     private val repository: LostFilmRepository,
+    private val preferencesStore: PlaybackPreferencesStore,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(ScheduleUiState(isLoading = true))
+    private val _uiState = MutableStateFlow(
+        ScheduleUiState(isLoading = true, favoritesOnly = preferencesStore.readScheduleFavoritesOnly()),
+    )
     val uiState: StateFlow<ScheduleUiState> = _uiState.asStateFlow()
 
     private var started = false
@@ -38,7 +42,9 @@ class ScheduleViewModel @Inject constructor(
     }
 
     fun onModeSelected(favoritesOnly: Boolean) {
-        if (_uiState.value.favoritesOnly != favoritesOnly) load(favoritesOnly)
+        if (_uiState.value.favoritesOnly == favoritesOnly) return
+        preferencesStore.writeScheduleFavoritesOnly(favoritesOnly)
+        load(favoritesOnly)
     }
 
     private fun load(favoritesOnly: Boolean = _uiState.value.favoritesOnly) {

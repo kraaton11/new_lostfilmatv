@@ -1,6 +1,10 @@
 package com.kraat.lostfilmnewtv.playback
 
 import android.content.Context
+import com.kraat.lostfilmnewtv.data.model.CatalogSort
+import com.kraat.lostfilmnewtv.data.model.ReleaseWatchFilter
+import com.kraat.lostfilmnewtv.data.model.SeriesStatus
+import com.kraat.lostfilmnewtv.data.model.WatchHistoryFilter
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.ui.home.HomeFeedMode
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
@@ -199,8 +203,46 @@ class PlaybackPreferencesStore(
             .apply()
     }
 
+    fun readReleaseFilter(mode: HomeFeedMode): ReleaseWatchFilter =
+        readEnum("release_filter_${mode.storageValue}", ReleaseWatchFilter.All)
+
+    fun writeReleaseFilter(mode: HomeFeedMode, filter: ReleaseWatchFilter) {
+        prefs.edit().putString("release_filter_${mode.storageValue}", filter.name).apply()
+    }
+
+    fun readCatalogSort(mode: HomeFeedMode): CatalogSort =
+        readEnum("catalog_sort_${mode.storageValue}", CatalogSort.Added)
+
+    fun readSeriesStatus(): SeriesStatus = readEnum(KEY_SERIES_STATUS, SeriesStatus.All)
+
+    fun writeCatalogSelection(mode: HomeFeedMode, sort: CatalogSort, status: SeriesStatus) {
+        val editor = prefs.edit().putString("catalog_sort_${mode.storageValue}", sort.name)
+        if (mode == HomeFeedMode.Series) editor.putString(KEY_SERIES_STATUS, status.name)
+        editor.apply()
+    }
+
+    fun readHistoryFilter(): WatchHistoryFilter = readEnum(KEY_HISTORY_FILTER, WatchHistoryFilter.All)
+
+    fun writeHistoryFilter(filter: WatchHistoryFilter) {
+        prefs.edit().putString(KEY_HISTORY_FILTER, filter.name).apply()
+    }
+
+    fun readScheduleFavoritesOnly(): Boolean = prefs.getBoolean(KEY_SCHEDULE_FAVORITES_ONLY, false)
+
+    fun writeScheduleFavoritesOnly(favoritesOnly: Boolean) {
+        prefs.edit().putBoolean(KEY_SCHEDULE_FAVORITES_ONLY, favoritesOnly).apply()
+    }
+
+    private inline fun <reified T : Enum<T>> readEnum(key: String, default: T): T {
+        val storedName = prefs.getString(key, null)
+        return enumValues<T>().firstOrNull { it.name == storedName } ?: default
+    }
+
     private companion object {
         const val DEFAULT_PREFS_NAME = "lostfilm_playback_prefs"
+        const val KEY_SERIES_STATUS = "series_status"
+        const val KEY_HISTORY_FILTER = "history_filter"
+        const val KEY_SCHEDULE_FAVORITES_ONLY = "schedule_favorites_only"
         const val KEY_DEFAULT_QUALITY = "default_quality"
         const val KEY_UPDATE_CHECK_MODE = "update_check_mode"
         const val KEY_ANDROID_TV_CHANNEL_MODE = "android_tv_channel_mode"
