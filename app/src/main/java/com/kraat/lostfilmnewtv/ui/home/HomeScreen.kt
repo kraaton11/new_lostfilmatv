@@ -4,6 +4,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.MarqueeSpacing
 import androidx.compose.foundation.border
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
@@ -28,6 +30,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -40,6 +43,7 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -86,7 +90,7 @@ import kotlinx.coroutines.delay
 import com.kraat.lostfilmnewtv.data.parser.LostFilmBaseUrl
 
 private val ReleaseHeroHeight = 212.dp
-private val FavoriteSeriesInfoHeight = 148.dp
+private val FavoriteSeriesInfoHeight = 192.dp
 
 @Composable
 fun HomeScreen(
@@ -153,7 +157,7 @@ fun HomeScreen(
     } else {
         activeModeData.contentState
     }
-    val isEmptyFilteredRail = hasReleaseWatchFilter && activeModeState == HomeModeContentState.Empty
+    val isEmptyRail = activeModeState == HomeModeContentState.Empty
     val isAllNewMode by remember(state.selectedMode) {
         derivedStateOf { state.selectedMode == HomeFeedMode.AllNew }
     }
@@ -176,7 +180,8 @@ fun HomeScreen(
     var lastSyncedKey by remember { mutableStateOf<String?>(null) }
     var startupContentFocusPending by rememberSaveable { mutableStateOf(true) }
     var initialMenuFocusIgnored by remember { mutableStateOf(false) }
-    var isSwitchingModeFromRail by remember { mutableStateOf(false) }
+    var pendingRailMode by remember { mutableStateOf<HomeFeedMode?>(null) }
+    val isSwitchingModeFromRail = pendingRailMode != null
     var contentReturnFocusRequestVersion by remember { mutableStateOf(0) }
     var isContentRailFocused by remember(activeRailId) { mutableStateOf(false) }
     var isFilterFocusPending by remember(activeRailId) { mutableStateOf(false) }
@@ -198,7 +203,7 @@ fun HomeScreen(
             if (event == Lifecycle.Event.ON_RESUME) {
                 startupContentFocusPending = true
                 initialMenuFocusIgnored = false
-                isSwitchingModeFromRail = false
+                pendingRailMode = null
                 onResume()
             }
         }
@@ -240,7 +245,7 @@ fun HomeScreen(
         is HomeModeContentState.Content -> newestContentRequester ?: contentEntryRequester
         is HomeModeContentState.Error -> retryActionRequester
         is HomeModeContentState.LoginRequired -> loginActionRequester
-        HomeModeContentState.Empty -> filterFocusRequester.takeIf { isEmptyFilteredRail }
+        HomeModeContentState.Empty -> filterFocusRequester.takeIf { isEmptyRail }
         else -> null
     }
     val railItems = (activeModeState as? HomeModeContentState.Content)?.items ?: activeItems
@@ -268,27 +273,31 @@ fun HomeScreen(
         val currentIndex = modeSwitchOrder.indexOf(state.selectedMode)
         if (currentIndex < 0 || modeSwitchOrder.size < 2) return
         val nextIndex = (currentIndex + offset + modeSwitchOrder.size) % modeSwitchOrder.size
-        isSwitchingModeFromRail = true
-        startupContentFocusPending = true
-        contentReturnFocusRequestVersion += 1
-        onModeSelected(modeSwitchOrder[nextIndex])
+        val nextMode = modeSwitchOrder[nextIndex]
+        pendingRailMode = nextMode
+        onModeSelected(nextMode)
     }
 
     val startupAuxFocusTarget = when (activeModeState) {
         is HomeModeContentState.Error -> retryActionRequester
         is HomeModeContentState.LoginRequired -> loginActionRequester
-        HomeModeContentState.Empty -> filterFocusRequester.takeIf { isEmptyFilteredRail }
+        HomeModeContentState.Empty -> filterFocusRequester.takeIf { isEmptyRail }
         else -> null
     }
 
-    LaunchedEffect(startupContentFocusPending, activeModeState, startupAuxFocusTarget) {
-        if (!startupContentFocusPending || startupAuxFocusTarget == null) {
+    val shouldFocusContent = if (isSwitchingModeFromRail) pendingRailMode == state.selectedMode else startupContentFocusPending
+    LaunchedEffect(shouldFocusContent, activeModeState, startupAuxFocusTarget) {
+        if (!shouldFocusContent || startupAuxFocusTarget == null) {
             return@LaunchedEffect
         }
         if (activeModeState == HomeModeContentState.Loading) {
             return@LaunchedEffect
         }
-        if (requestFocusWhenReady(startupAuxFocusTarget)) isFilterFocusPending = false
+        if (requestFocusWhenReady(startupAuxFocusTarget)) {
+            pendingRailMode = null
+            startupContentFocusPending = false
+            isFilterFocusPending = false
+        }
     }
 
     fun focusFilterDuringReload() {
@@ -461,7 +470,7 @@ fun HomeScreen(
                         modifier = Modifier
                             .focusRequester(filterFocusRequester)
                             .focusProperties {
-                                canFocus = isFilterFocusPending || isEmptyFilteredRail
+                                canFocus = isFilterFocusPending || isEmptyRail
                                 left = headerPrimaryRequester
                             }
                             .focusable(),
@@ -475,7 +484,7 @@ fun HomeScreen(
                         modifier = Modifier
                             .focusRequester(filterFocusRequester)
                             .focusProperties {
-                                canFocus = isFilterFocusPending
+                                canFocus = isFilterFocusPending || isEmptyRail
                                 left = headerPrimaryRequester
                             }
                             .focusable(),
@@ -504,6 +513,7 @@ fun HomeScreen(
                         HomeActionPanel(
                             message = state.fullScreenErrorMessage,
                             actionLabel = "Повторить",
+                            actionFocusRequester = retryActionRequester,
                             onAction = onRetry,
                             modifier = Modifier.fillMaxWidth().weight(1f).padding(vertical = 8.dp),
                         )
@@ -548,7 +558,7 @@ fun HomeScreen(
                                     focusedItemKey = focusedItemKey,
                                     entryFocusRequester = contentEntryRequester,
                                     cardFocusRequesters = cardFocusRequesters,
-                                    shouldRequestFocus = startupContentFocusPending,
+                                    shouldRequestFocus = shouldFocusContent,
                                     returnFocusRequestVersion = contentReturnFocusRequestVersion,
                                     leftTargetRequester = headerPrimaryRequester,
                                     isPaging = activeModeData.isPaging,
@@ -556,7 +566,7 @@ fun HomeScreen(
                                         isFilterFocusPending = false
                                         startupContentFocusPending = false
                                         isHomeMenuFocused = false
-                                        isSwitchingModeFromRail = false
+                                        if (pendingRailMode == state.selectedMode) pendingRailMode = null
                                         focusedItemKey = detailsUrl
                                         onItemFocused(detailsUrl)
                                     },
@@ -860,6 +870,13 @@ private fun CatalogInfoPanel(item: ReleaseSummary?, preview: HomeReleasePreview,
     }
 }
 
+private fun Modifier.loopingTitle(): Modifier = basicMarquee(
+    iterations = Int.MAX_VALUE,
+    initialDelayMillis = 2_000,
+    repeatDelayMillis = 0,
+    spacing = MarqueeSpacing(32.dp),
+)
+
 @Composable
 private fun FavoriteSeriesInfoPanel(item: ReleaseSummary?, preview: HomeReleasePreview) {
     val series = preview.seriesOverview
@@ -883,16 +900,19 @@ private fun FavoriteSeriesInfoPanel(item: ReleaseSummary?, preview: HomeReleaseP
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = title,
-                modifier = Modifier.weight(1f, fill = false),
-                color = TextPrimary,
-                fontSize = 27.sp,
-                lineHeight = 32.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            key(item?.detailsUrl, title) {
+                Text(
+                    text = title,
+                    modifier = Modifier
+                        .weight(1f, fill = false)
+                        .loopingTitle(),
+                    color = TextPrimary,
+                    fontSize = 27.sp,
+                    lineHeight = 32.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                )
+            }
             status?.takeIf { it.isNotBlank() }?.let { HeroMetaPill(it, highlighted = true) }
         }
         if (facts.isNotEmpty()) {
@@ -905,7 +925,7 @@ private fun FavoriteSeriesInfoPanel(item: ReleaseSummary?, preview: HomeReleaseP
                 color = HomeTextSecondary,
                 fontSize = 16.sp,
                 lineHeight = 21.sp,
-                maxLines = 2,
+                maxLines = 4,
                 overflow = TextOverflow.Ellipsis,
             )
         }
@@ -944,17 +964,19 @@ private fun HomeHeroStage(
                 .padding(start = 2.dp, top = 4.dp, end = 280.dp, bottom = 8.dp),
             verticalArrangement = Arrangement.spacedBy(9.dp),
         ) {
-            Text(
-                text = listOfNotNull(targetItem?.titleRu, movieYear?.toString()).joinToString("  ·  "),
-                color = TextPrimary,
-                fontSize = 36.sp,
-                lineHeight = 40.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 2,
-                overflow = TextOverflow.Clip,
-            )
+            key(targetItem?.detailsUrl) {
+                Text(
+                    modifier = Modifier.loopingTitle(),
+                    text = listOfNotNull(targetItem?.titleRu, movieYear?.toString()).joinToString("  ·  "),
+                    color = TextPrimary,
+                    fontSize = 30.sp,
+                    lineHeight = 40.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Clip,
+                )
+            }
 
-            if (targetItem != null) ReleaseHeroDetails(targetItem, preview)
 
             val episodeTitle = targetItem
                 ?.takeIf { it.kind == ReleaseKind.SERIES }
@@ -973,6 +995,8 @@ private fun HomeHeroStage(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+
+            if (targetItem != null) ReleaseHeroDetails(targetItem, preview)
 
             targetItem.heroDescription().takeIf { it.isNotBlank() }?.let { description ->
                 Text(
@@ -1011,12 +1035,12 @@ private fun ReleaseHeroDetails(item: ReleaseSummary, preview: HomeReleasePreview
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            item.availabilityLabel?.takeIf { it.isNotBlank() }?.let { HeroMetaPill(it, highlighted = true) }
-            if (item.isWatched) HeroMetaPill("Просмотрено", highlighted = true)
+            item.availabilityLabel?.takeIf { it.isNotBlank() }?.let { HeroMetaPill(it) }
+            if (item.isWatched) HeroMetaPill("Просмотрено")
             if (facts.isNotEmpty()) {
                 Text(
                     text = facts.joinToString("  ·  "),
-                    color = HomeAccentGold,
+                    color = HomeTextSecondary,
                     fontSize = 15.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -1444,7 +1468,7 @@ internal suspend fun requestFocusWhenReady(requester: FocusRequester): Boolean {
     withTimeoutOrNull(1_000L) {
         while (!focusMoved) {
             withFrameNanos { }
-            focusMoved = runCatching { requester.requestFocus(); true }.getOrDefault(false)
+            focusMoved = runCatching { requester.requestFocus(FocusDirection.Enter) }.getOrDefault(false)
         }
     }
     return focusMoved

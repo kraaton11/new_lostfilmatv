@@ -102,6 +102,31 @@ class HomeScreenTest {
     }
 
     @Test
+    fun compactMenu_switchingTabsKeepsFocusOnDestinationCard() {
+        var state by mutableStateOf(seededModeState().copy(isHomeMenuLabelsEnabled = false))
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(state = state, onModeSelected = { state = state.copy(selectedMode = it) })
+            }
+        }
+        val first = composeRule.onNodeWithTag(posterTag(firstDetailsUrl))
+        val favorite = composeRule.onNodeWithTag(posterTag(HOME_RAIL_FAVORITES, favoriteDetailsUrl))
+        repeat(3) {
+            first.assertIsFocused().performKeyInput {
+                keyDown(Key.DirectionDown)
+                keyUp(Key.DirectionDown)
+            }
+            favorite.assertIsFocused()
+            composeRule.onNodeWithText("Показать меню").assertDoesNotExist()
+            favorite.performKeyInput {
+                keyDown(Key.DirectionUp)
+                keyUp(Key.DirectionUp)
+            }
+            first.assertIsFocused()
+        }
+    }
+
+    @Test
     fun railFocus_keepsVerticalFocusAndBackMovesToModeToggle() {
         composeRule.setContent {
             LostFilmTheme {
