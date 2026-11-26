@@ -136,7 +136,7 @@ TV: автоматически получает сессию и сохраняе
 | **Авторизация** | EncryptedSharedPreferences (AES-256-GCM) |
 | **Изображения** | Coil |
 | **Сериализация** | kotlinx.serialization |
-| **Auth Bridge** | Python / FastAPI |
+| **Вход с телефона** | Встроенный HTTP-сервер NanoHTTPD |
 
 ---
 
@@ -168,29 +168,9 @@ TV: автоматически получает сессию и сохраняе
 
 ---
 
-## Auth Bridge
+## Авторизация
 
-Отдельный Python/FastAPI сервис для QR-авторизации. Исходники: [`backend/auth_bridge/`](backend/auth_bridge/)
-
-Публичный сервер: `https://auth.bazuka.pp.ua`
-
-### Запуск локального сервера
-
-```bash
-cd backend/auth_bridge
-cp .env.example .env
-# Настройте .env под ваш домен
-docker compose up -d
-```
-
-### Обновление на продакшн-сервере
-
-```bash
-ssh ubuntu@<server>
-cd /home/ubuntu/lostfilm-auth-bridge
-docker compose pull auth-backend
-docker compose up -d auth-backend
-```
+QR-код открывает страницу входа, которую приложение запускает на телевизоре для телефона в той же локальной сети. Логин и пароль также можно ввести на телевизоре. Подробнее в [руководстве для разработчиков](../DEVELOPMENT.md#авторизация-lostfilm).
 
 ---
 
@@ -202,7 +182,7 @@ docker compose up -d auth-backend
 │   │   ├── auth/          # Авторизация, EncryptedSessionStore
 │   │   ├── db/            # Room: entities, DAO, Database
 │   │   ├── model/         # Доменные модели
-│   │   ├── network/       # HTTP-клиенты, AuthBridgeClient
+│   │   ├── network/       # HTTP-клиенты LostFilm
 │   │   ├── parser/        # HTML-парсеры (Jsoup)
 │   │   └── repository/    # LostFilmRepositoryImpl
 │   ├── ui/
@@ -216,7 +196,7 @@ docker compose up -d auth-backend
 │   ├── platform/torrserve/ # TorrServe интеграция
 │   ├── updates/           # Автообновление через GitHub
 │   └── playback/          # PlaybackPreferencesStore
-└── backend/auth_bridge/   # Python/FastAPI Auth Bridge
+└── backend/auth_bridge/   # Исторический сервер авторизации
 ```
 
 ---

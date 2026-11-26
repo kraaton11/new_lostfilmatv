@@ -9,8 +9,6 @@
 | JDK | 17 |
 | Android SDK | compileSdk 35, minSdk 28 |
 | Gradle | 8.x (wrapper включен) |
-| Python | 3.12+ (для auth bridge) |
-| Docker | Опционально, для auth bridge |
 
 ## Сборка из исходников
 
@@ -114,40 +112,12 @@ Release APK:
 app/build/outputs/apk/release/app-release.apk
 ```
 
-## Auth Bridge
+## Авторизация LostFilm
 
-`backend/auth_bridge` — FastAPI-сервис для QR-авторизации. Телевизор создает pairing, показывает QR-код, пользователь сканирует его телефоном и входит через браузер, после чего приложение получает сессию.
+- **С телефона по Wi‑Fi.** При выборе входа с телефона приложение запускает встроенный HTTP-сервер `PhoneLoginServer` (NanoHTTPD) на телевизоре. QR-код открывает локальную страницу входа в браузере телефона. Телефон и телевизор должны быть в одной локальной сети.
+- **На телевизоре.** Логин, пароль и капчу можно ввести прямо в приложении. Запросы входа отправляются с телевизора в LostFilm, а сессия сохраняется локально в зашифрованном хранилище.
 
-### Локальный запуск
-
-```bash
-cd backend/auth_bridge
-cp .env.example .env
-# Отредактируйте .env при необходимости
-docker compose up -d
-```
-
-Сервис будет доступен на `http://localhost:8000`.
-
-### Разработка без Docker
-
-```bash
-cd backend/auth_bridge/backend
-pip install -e .
-uvicorn app.main:app --reload
-```
-
-### Тесты backend
-
-```bash
-pip install ./backend/auth_bridge/backend
-python -m unittest discover -s backend/auth_bridge/backend/tests -p 'test_*.py'
-```
-
-### Документация Auth Bridge
-
-- [auth-bridge-server-install.md](docs/auth-bridge-server-install.md) — установка на сервер
-- [auth-bridge-ops.md](docs/auth-bridge-ops.md) — эксплуатация и мониторинг
+Внешний Auth Bridge использовался в старых версиях. Исходники в `backend/auth_bridge` и инструкции по его эксплуатации сохранены для сопровождения старых версий.
 
 ## Стек технологий
 
@@ -164,13 +134,6 @@ python -m unittest discover -s backend/auth_bridge/backend/tests -p 'test_*.py'
 - **Фоновые задачи:** WorkManager
 - **Сериализация:** kotlinx.serialization
 
-### Backend
-
-- **Язык:** Python 3.12+
-- **Фреймворк:** FastAPI
-- **ASGI сервер:** Uvicorn
-- **Валидация:** Pydantic
-
 ## Структура проекта
 
 ```text
@@ -185,15 +148,10 @@ new_lostfilmatv/
 │   │   ├── res/                  Ресурсы (layouts, drawables, strings)
 │   │   └── AndroidManifest.xml
 │   └── build.gradle.kts
-├── backend/
-│   └── auth_bridge/              FastAPI сервис QR-авторизации
-│       ├── backend/
-│       │   ├── app/              FastAPI приложение
-│       │   └── tests/            Unit-тесты
-│       └── docker-compose.yml
+├── backend/auth_bridge/         Исторический сервер авторизации
 ├── docs/                         Документация
 │   ├── screenshots/              Скриншоты приложения
-│   ├── auth-bridge-*.md          Документация backend
+│   ├── auth-bridge-*.md          Архивные инструкции Auth Bridge
 │   └── README.project.md         Описание проекта
 ├── scripts/                      Вспомогательные скрипты
 ├── .github/workflows/            CI/CD пайплайны
@@ -238,8 +196,6 @@ GitHub Actions автоматически:
 
 - [docs/README.project.md](docs/README.project.md) — подробное описание проекта
 - [docs/github-setup.md](docs/github-setup.md) — настройка GitHub репозитория
-- [docs/auth-bridge-server-install.md](docs/auth-bridge-server-install.md) — установка auth bridge
-- [docs/auth-bridge-ops.md](docs/auth-bridge-ops.md) — эксплуатация auth bridge
 
 ## Поддержка
 

@@ -6,7 +6,7 @@
 
 ## Что это за проект
 
-Android TV приложение (`com.kraat.lostfilmnewtv`) для просмотра новых релизов и избранного с lostfilm.today. Рядом живёт небольшой FastAPI-сервис (`backend/auth_bridge`) для QR-авторизации.
+Android TV приложение (`com.kraat.lostfilmnewtv`) для просмотра новых релизов и избранного с lostfilm.today. Для входа с телефона приложение запускает локальный HTTP-сервер на телевизоре. `backend/auth_bridge` относится к старым версиям.
 
 ---
 
@@ -19,7 +19,7 @@ app/                        Android TV клиент (Kotlin, Jetpack Compose for
       auth/                 QR-авторизация, хранение сессии
       db/                   Room: ReleaseDao, сущности, миграции
       model/                доменные модели (ReleaseSummary, ReleaseDetails, …)
-      network/              OkHttp-клиенты: LostFilmHttpClient, AuthBridgeClient, TmdbPosterClient
+      network/              OkHttp-клиенты: LostFilmHttpClient, LostFilmLoginClient, TmdbPosterClient
       parser/               Jsoup-парсеры HTML-страниц lostfilm.today
       poster/               Обогащение постерами через TMDB API
       repository/           LostFilmRepository / LostFilmRepositoryImpl
@@ -52,7 +52,7 @@ scripts/
 |---|---|
 | JDK | 17 (Temurin) |
 | Android SDK | compileSdk 35, minSdk 28 |
-| Python | 3.12 |
+| Python | 3.12 (только для исторического Auth Bridge) |
 | Gradle | через wrapper `./gradlew` |
 
 Не вызывай `gradle` напрямую — только `./gradlew`.
@@ -84,14 +84,14 @@ scripts/
 ./gradlew :app:connectedDebugAndroidTest
 ```
 
-### Python / auth bridge
+### Python / исторический Auth Bridge
 
 ```bash
 pip install ./backend/auth_bridge/backend
 python -m unittest discover -s backend/auth_bridge/backend/tests -p 'test_*.py'
 ```
 
-### Запуск auth bridge локально
+### Локальный запуск Auth Bridge для старых версий
 
 ```bash
 cd backend/auth_bridge
@@ -150,18 +150,9 @@ UI (Jetpack Compose for TV)
 | `settings` | Качество, TV-канал, обновления, аккаунт |
 | `auth` | QR-авторизация |
 
-### QR-авторизация
+### Авторизация
 
-```
-TV (AuthRepository)
-  → AuthBridgeClient.createPairing()        POST /pairing
-  → показывает QR-код пользователю
-  → pollPairingStatus() каждые N секунд     GET  /pairing/{id}
-  → claimAndPersistSession()                POST /pairing/{id}/claim
-  → LostFilmSessionVerifier.verify(session) проверяет сессию на lostfilm.today
-  → AuthBridgeClient.finalizeClaim()        POST /pairing/{id}/finalize
-  → EncryptedSessionStore.save(session)     шифрует и сохраняет локально
-```
+`AuthRepository.startPhoneLogin()` запускает `PhoneLoginServer` на телевизоре. QR-код открывает страницу входа в браузере телефона в той же локальной сети. Приложение также поддерживает ввод логина и пароля на телевизоре через `LostFilmLoginClient`. Сессия хранится локально в `EncryptedSessionStore`.
 
 ### Кеш данных
 
