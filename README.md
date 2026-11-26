@@ -35,6 +35,10 @@ Android TV приложение для просмотра новых релиз�
 |---|---|
 | ![Главный экран с новыми релизами](docs/screenshots/home.png) | ![Экран фильмов](docs/screenshots/movies.png) |
 
+| Избранное | Мои сериалы |
+| --- | --- |
+| ![Свежие эпизоды из избранного](docs/screenshots/favorites.png) | ![Коллекция избранных сериалов](docs/screenshots/favorite-series.png) |
+
 | Детали релиза | Обзор сериала |
 |---|---|
 | ![Экран деталей релиза](docs/screenshots/details.png) | ![Экран обзора сериала](docs/screenshots/overview.png) |
