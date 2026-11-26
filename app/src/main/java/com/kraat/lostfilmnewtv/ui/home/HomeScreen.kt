@@ -145,14 +145,19 @@ fun HomeScreen(
     }
     val hasReleaseWatchFilter = isFavorites || state.selectedMode == HomeFeedMode.AllNew
     val releaseWatchFilter = if (isFavorites) state.favoriteReleaseFilter else state.newReleaseFilter
+    val releaseFilterOptions = if (isFavorites) favoriteFilterOptions else newReleaseFilterOptions
     val isFilteredNewFeed = state.selectedMode == HomeFeedMode.AllNew && releaseWatchFilter != ReleaseWatchFilter.All
     val activeItems = if (isFilteredNewFeed) state.visibleNewItems else activeModeData.items
-    val filteredPagingError = activeModeData.pagingErrorMessage.takeIf { isFilteredNewFeed && activeItems.isEmpty() }
-    val activeModeState = if (isFilteredNewFeed && activeModeData.contentState is HomeModeContentState.Content) {
+    val filteredPagingError = activeModeData.pagingErrorMessage.takeIf {
+        isFilteredNewFeed && state.newFavoritesStatus == null && state.canPageNewFeed && activeItems.isEmpty()
+    }
+    val activeModeState = if (isFilteredNewFeed && state.newFavoritesStatus != null) {
+        state.newFavoritesStatus
+    } else if (isFilteredNewFeed && activeModeData.contentState is HomeModeContentState.Content) {
         when {
             activeItems.isNotEmpty() -> HomeModeContentState.Content(activeItems)
             filteredPagingError != null -> HomeModeContentState.Error(filteredPagingError)
-            activeModeData.hasNextPage -> HomeModeContentState.Loading
+            state.canPageNewFeed -> HomeModeContentState.Loading
             else -> HomeModeContentState.Empty
         }
     } else {
@@ -324,7 +329,7 @@ fun HomeScreen(
                 val keyEvent = event.nativeKeyEvent
                 val isInitialPress = keyEvent.action == KeyEvent.ACTION_DOWN && keyEvent.repeatCount == 0
                 if (hasReleaseWatchFilter) {
-                    val option = favoriteFilterOptions.firstOrNull { it.keyCode == keyEvent.keyCode }
+                    val option = releaseFilterOptions.firstOrNull { it.keyCode == keyEvent.keyCode }
                         ?: return@onPreviewKeyEvent false
                     if (isInitialPress && option.filter != releaseWatchFilter) {
                         focusFilterDuringReload()
@@ -471,6 +476,7 @@ fun HomeScreen(
                 if (hasReleaseWatchFilter) {
                     ReleaseWatchFilterLegend(
                         selectedFilter = releaseWatchFilter,
+                        options = releaseFilterOptions,
                         modifier = Modifier
                             .focusRequester(filterFocusRequester)
                             .focusProperties {
@@ -508,6 +514,7 @@ fun HomeScreen(
                 when {
                     isAllNewMode && state.isInitialLoading && state.items.isEmpty() && state.fullScreenErrorMessage == null -> {
                         HomeLoadingSkeleton(
+                            newReleaseFilter = state.newReleaseFilter,
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .weight(1f),
@@ -554,6 +561,7 @@ fun HomeScreen(
                                     selectedMode = state.selectedMode,
                                     favoriteSeriesCount = state.favoriteSeriesCount,
                                     seriesStatus = seriesStatus,
+                                    newReleaseFilter = state.newReleaseFilter,
                                 )
                                 HomeRail(
                                     railId = activeRailId,
@@ -596,7 +604,7 @@ fun HomeScreen(
                                 HomeActionPanel(
                                     message = when (state.selectedMode) {
                                         HomeFeedMode.Favorites -> when (state.favoriteReleaseFilter) {
-                                            ReleaseWatchFilter.All -> "Пока нет новых релизов в избранном"
+                                            ReleaseWatchFilter.All, ReleaseWatchFilter.Favorites -> "Пока нет новых релизов в избранном"
                                             ReleaseWatchFilter.Unwatched -> "Нет непросмотренных релизов"
                                             ReleaseWatchFilter.Watched -> "Нет просмотренных релизов"
                                         }
@@ -604,6 +612,8 @@ fun HomeScreen(
                                         HomeFeedMode.Movies -> "Пока нет фильмов"
                                         HomeFeedMode.AllNew -> when (releaseWatchFilter) {
                                             ReleaseWatchFilter.All -> "Пока нет новых релизов"
+                                            ReleaseWatchFilter.Favorites ->
+                                                "За последние ${NEW_FAVORITES_WINDOW_DAYS} дней новых эпизодов в избранном нет"
                                             ReleaseWatchFilter.Unwatched -> "Нет непросмотренных релизов"
                                             ReleaseWatchFilter.Watched -> "Нет просмотренных релизов"
                                         }
@@ -644,6 +654,7 @@ fun HomeScreen(
                                     selectedMode = state.selectedMode,
                                     seriesStatus = seriesStatus,
                                     favoriteSeriesCount = state.favoriteSeriesCount,
+                                    newReleaseFilter = state.newReleaseFilter,
                                 )
                             }
                         }
@@ -790,14 +801,21 @@ private val favoriteFilterOptions = listOf(
     FavoriteFilterOption(ReleaseWatchFilter.Watched, KeyEvent.KEYCODE_PROG_YELLOW, Color(0xFFFFD46E), "Просмотренные"),
 )
 
+private val newReleaseFilterOptions = favoriteFilterOptions +
+    FavoriteFilterOption(ReleaseWatchFilter.Favorites, KeyEvent.KEYCODE_PROG_BLUE, Color(0xFF71B2FF), "Избранное")
+
 @Composable
-private fun ReleaseWatchFilterLegend(selectedFilter: ReleaseWatchFilter, modifier: Modifier = Modifier) {
+private fun ReleaseWatchFilterLegend(
+    selectedFilter: ReleaseWatchFilter,
+    options: List<FavoriteFilterOption>,
+    modifier: Modifier = Modifier,
+) {
     Row(
         modifier = modifier,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        favoriteFilterOptions.forEach { option ->
+        options.forEach { option ->
             RemoteModeLabel(option.label, option.color, selected = option.filter == selectedFilter)
         }
     }
@@ -1102,9 +1120,14 @@ private fun HomeRailSectionHeader(
     selectedMode: HomeFeedMode,
     favoriteSeriesCount: Int?,
     seriesStatus: SeriesStatus = SeriesStatus.All,
+    newReleaseFilter: ReleaseWatchFilter = ReleaseWatchFilter.All,
 ) {
     val title = when (selectedMode) {
-        HomeFeedMode.AllNew -> "Свежие релизы"
+        HomeFeedMode.AllNew -> if (newReleaseFilter == ReleaseWatchFilter.Favorites) {
+            "Новинки в избранном за ${NEW_FAVORITES_WINDOW_DAYS} дней"
+        } else {
+            "Новинки"
+        }
         HomeFeedMode.Favorites -> "Избранное"
         HomeFeedMode.FavoriteSeries -> "Мои сериалы"
         HomeFeedMode.Movies -> "Фильмы"
@@ -1215,6 +1238,7 @@ private fun HomeLoadingSkeleton(
     selectedMode: HomeFeedMode = HomeFeedMode.AllNew,
     seriesStatus: SeriesStatus = SeriesStatus.All,
     favoriteSeriesCount: Int? = null,
+    newReleaseFilter: ReleaseWatchFilter = ReleaseWatchFilter.All,
 ) {
     val shimmerBrush = rememberShimmerSkeletonBrush(
         label = "homeSkeleton",
@@ -1242,7 +1266,7 @@ private fun HomeLoadingSkeleton(
             ReleaseHeroSkeleton(shimmerBrush)
         }
 
-        HomeRailSectionHeader(selectedMode, favoriteSeriesCount)
+        HomeRailSectionHeader(selectedMode, favoriteSeriesCount, newReleaseFilter = newReleaseFilter)
         Row(
             modifier = Modifier
                 .fillMaxWidth()

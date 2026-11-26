@@ -58,6 +58,7 @@ private const val FAVORITE_RELEASES_ROOM_FRESH_MS = 15 * 60 * 1000L
 interface FavoritesRepository {
     val sessionRevision: Long get() = 0L
     fun observeFavoriteReleases(pageNumber: Int = 1, filter: ReleaseWatchFilter = ReleaseWatchFilter.All): Flow<FavoriteReleasesResult>
+    suspend fun loadFavoriteSeriesPaths(): Set<String>? = null
     suspend fun loadFavoriteSeries(pageNumber: Int = 1, sort: CatalogSort = CatalogSort.Added): FavoriteSeriesResult
     suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult
     suspend fun invalidateCache()
@@ -434,6 +435,12 @@ class FavoritesRepositoryImpl @Inject constructor(
             itemCount = allItems.size,
         )
         releaseDao.replaceFavoriteReleasesCache(cacheEntities, metadata)
+    }
+
+    override suspend fun loadFavoriteSeriesPaths(): Set<String>? {
+        if (!hasAuthenticatedSession()) return null
+        return favoriteSeriesParser.parse(httpClient.fetchAccountPage(favoriteSeriesRoute))
+            .mapTo(mutableSetOf()) { java.net.URI(it.seriesUrl).path.trimEnd('/') }
     }
 
     override suspend fun loadFavoriteSeries(pageNumber: Int, sort: CatalogSort): FavoriteSeriesResult {

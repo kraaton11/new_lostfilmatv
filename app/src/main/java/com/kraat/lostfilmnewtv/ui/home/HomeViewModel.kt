@@ -21,6 +21,9 @@ import com.kraat.lostfilmnewtv.updates.AppUpdateCoordinator
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelSyncManager
 import dagger.hilt.android.lifecycle.HiltViewModel
+import java.io.IOException
+import java.time.Instant
+import java.time.ZoneId
 import javax.inject.Inject
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
@@ -38,6 +41,8 @@ import kotlinx.coroutines.withContext
 
 private const val FOCUS_KEY = "home.focused_item_key"
 private const val HOME_RESUME_REFRESH_INTERVAL_MS = 30 * 60 * 1000L
+private const val NEW_FAVORITES_MIN_ITEMS = 7
+private const val NEW_FAVORITES_PREFETCH_ITEMS = 3
 private val favoriteSeriesSlugRegex = Regex("""/series/([^/]+)""")
 
 @HiltViewModel
@@ -121,6 +126,7 @@ class HomeViewModel @Inject constructor(
     private var started = false
     private var favoriteRequestToken = 0L
     private var allNewLoadJob: Job? = null
+    private var newFavoritesLoadJob: Job? = null
     private var favoriteLoadJob: Job? = null
     private var favoriteSeriesLoadJob: Job? = null
     private var moviesLoadJob: Job? = null
@@ -150,9 +156,16 @@ class HomeViewModel @Inject constructor(
 
     fun onResume() {
         if (!started) return
+        val now = clock()
+        val state = _uiState.value
+        if (state.newReleaseFilter == ReleaseWatchFilter.Favorites) {
+            val today = Instant.ofEpochMilli(now).atZone(ZoneId.systemDefault()).toLocalDate()
+            if (today != state.newFavoritesToday) {
+                _uiState.update { it.copy(newFavoritesToday = today).resolveSelection() }
+            }
+        }
         if (allNewLoadJob?.isActive == true) return
 
-        val now = clock()
         if (now - lastAllNewRefreshAt < HOME_RESUME_REFRESH_INTERVAL_MS) return
 
         loadPage(pageNumber = 1, isPagingRequest = false)
@@ -183,7 +196,12 @@ class HomeViewModel @Inject constructor(
                 loadSeriesCatalog(pageNumber = 1, isPagingRequest = false)
                 return
             }
-            HomeFeedMode.AllNew -> Unit
+            HomeFeedMode.AllNew -> {
+                if (_uiState.value.newFavoritesStatus is HomeModeContentState.Error) {
+                    loadNewFavorites()
+                    return
+                }
+            }
         }
         loadPage(pageNumber = 1, isPagingRequest = false)
         loadMovies(pageNumber = 1, isPagingRequest = false)
@@ -231,7 +249,7 @@ class HomeViewModel @Inject constructor(
         val md = state.modeData(mode)
         when (mode) {
             HomeFeedMode.AllNew -> {
-                if (state.isInitialLoading || md.isPaging || !md.hasNextPage || state.fullScreenErrorMessage != null) return
+                if (state.isInitialLoading || md.isPaging || !state.canPageNewFeed || state.fullScreenErrorMessage != null) return
                 loadPage(pageNumber = md.nextPage, isPagingRequest = true)
             }
             HomeFeedMode.Movies -> {
@@ -300,6 +318,10 @@ class HomeViewModel @Inject constructor(
                 rememberedItemKeyByMode = focus.rememberedItemKeyByMode + (mode to normalizedKey),
                 selectedItemKey = if (mode == state.selectedMode) normalizedKey else focus.selectedItemKey,
             )
+        }
+
+        if (mode == HomeFeedMode.AllNew && state.newReleaseFilter == ReleaseWatchFilter.Favorites) {
+            continueFilteredNewFeed()
         }
 
         saveFocusJob?.cancel()
@@ -394,6 +416,7 @@ class HomeViewModel @Inject constructor(
     fun onFavoriteContentInvalidated() {
         if (!started) return
         favoriteSessionRevision = favoritesRepository.sessionRevision
+        if (_uiState.value.newReleaseFilter == ReleaseWatchFilter.Favorites) loadNewFavorites()
         favoriteRequestToken++
         favoriteLoadJob?.cancel()
         favoriteSeriesLoadJob?.cancel()
@@ -417,6 +440,7 @@ class HomeViewModel @Inject constructor(
 
     fun onFavoriteStateChanged(detailsUrl: String, isFavorite: Boolean) {
         if (!started) return
+        if (_uiState.value.newReleaseFilter == ReleaseWatchFilter.Favorites) loadNewFavorites()
         _uiState.update { state ->
             val updatedFavoriteItems = applyOptimisticFavoriteChange(
                 currentFavoriteItems = state.favoriteItems,
@@ -663,7 +687,7 @@ class HomeViewModel @Inject constructor(
     fun onReleaseFilterSelected(filter: ReleaseWatchFilter) {
         val state = _uiState.value
         when (state.selectedMode) {
-            HomeFeedMode.Favorites -> onFavoriteFilterSelected(filter)
+            HomeFeedMode.Favorites -> if (filter != ReleaseWatchFilter.Favorites) onFavoriteFilterSelected(filter)
             HomeFeedMode.AllNew -> {
                 if (state.newReleaseFilter == filter) return
                 _focusState.update {
@@ -672,20 +696,68 @@ class HomeViewModel @Inject constructor(
                         selectedItemKey = null,
                     )
                 }
-                _uiState.update { it.copy(newReleaseFilter = filter).resolveSelection() }
-                continueFilteredNewFeed()
+                newFavoritesLoadJob?.cancel()
+                if (filter == ReleaseWatchFilter.Favorites) {
+                    loadNewFavorites()
+                } else {
+                    _uiState.update {
+                        it.copy(
+                            newReleaseFilter = filter,
+                            favoriteSeriesPaths = emptySet(),
+                            newFavoritesStatus = null,
+                            newFavoritesToday = null,
+                        ).resolveSelection()
+                    }
+                    continueFilteredNewFeed()
+                }
             }
             else -> Unit
+        }
+    }
+
+    private fun loadNewFavorites() {
+        newFavoritesLoadJob?.cancel()
+        val today = Instant.ofEpochMilli(clock()).atZone(ZoneId.systemDefault()).toLocalDate()
+        _uiState.update {
+            it.copy(
+                newReleaseFilter = ReleaseWatchFilter.Favorites,
+                favoriteSeriesPaths = emptySet(),
+                newFavoritesStatus = HomeModeContentState.Loading,
+                newFavoritesToday = today,
+            ).resolveSelection()
+        }
+        newFavoritesLoadJob = viewModelScope.launch {
+            val (paths, status) = try {
+                val paths = withContext(ioDispatcher) { favoritesRepository.loadFavoriteSeriesPaths() }
+                paths.orEmpty() to if (paths == null) HomeModeContentState.LoginRequired() else null
+            } catch (_: IOException) {
+                emptySet<String>() to HomeModeContentState.Error("Не удалось загрузить избранное")
+            }
+            _uiState.update {
+                it.copy(favoriteSeriesPaths = paths, newFavoritesStatus = status).resolveSelection()
+            }
+            continueFilteredNewFeed()
         }
     }
 
     private fun continueFilteredNewFeed(previousVisibleCount: Int = 0) {
         val state = _uiState.value
         val data = state.modeData(HomeFeedMode.AllNew)
-        if (state.selectedMode == HomeFeedMode.AllNew && state.newReleaseFilter != ReleaseWatchFilter.All &&
-            state.visibleNewItems.size <= previousVisibleCount && data.contentState is HomeModeContentState.Content &&
-            data.pagingErrorMessage == null
+        if (state.selectedMode != HomeFeedMode.AllNew || state.newReleaseFilter == ReleaseWatchFilter.All ||
+            !state.canPageNewFeed || data.isPaging || data.contentState !is HomeModeContentState.Content ||
+            data.pagingErrorMessage != null
         ) {
+            return
+        }
+
+        val visibleItems = state.visibleNewItems
+        var targetCount = 0
+        if (state.newReleaseFilter == ReleaseWatchFilter.Favorites) {
+            val focusedKey = _focusState.value.selectedItemKey
+            val focusedIndex = visibleItems.indexOfFirst { it.detailsUrl == focusedKey }
+            targetCount = maxOf(NEW_FAVORITES_MIN_ITEMS, focusedIndex + 1 + NEW_FAVORITES_PREFETCH_ITEMS)
+        }
+        if (visibleItems.size < targetCount || visibleItems.size <= previousVisibleCount) {
             onEndReached()
         }
     }

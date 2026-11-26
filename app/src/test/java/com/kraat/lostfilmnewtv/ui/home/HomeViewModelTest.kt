@@ -305,6 +305,111 @@ class HomeViewModelTest {
     }
 
     @Test
+    fun favoritesFilter_fillsSevenEpisodesAcrossPagesAndRestoresAllReleases() = runTest(dispatcher) {
+        val other = summary(detailsUrl = "https://www.lostfilm.today/series/other/season_1/episode_1/")
+        val favorites = (1..7).map { episode ->
+            summary(detailsUrl = "https://www.lostfilm.today/series/favorite/season_2/episode_${episode}/")
+        }
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(1, listOf(other) + favorites.take(2), true, false),
+                2 to PageState.Content(2, listOf(other) + favorites.take(3), true, false),
+                3 to PageState.Content(3, listOf(other) + favorites, true, false),
+            ),
+            favoriteSeriesPaths = setOf("/series/favorite"),
+        )
+        val viewModel = createViewModel(
+            repository, SavedStateHandle(), ioDispatcher = dispatcher, clock = { favoritesTestTime },
+        )
+        viewModel.onStart()
+        advanceUntilIdle()
+
+        viewModel.onReleaseFilterSelected(ReleaseWatchFilter.Favorites)
+        advanceUntilIdle()
+
+        assertEquals(listOf(1, 2, 3), repository.pageRequests)
+        assertEquals(favorites, viewModel.uiState.value.visibleNewItems)
+        assertEquals(favorites.first().detailsUrl, viewModel.uiState.value.selectedItemKey)
+
+        viewModel.onReleaseFilterSelected(ReleaseWatchFilter.All)
+        assertEquals(listOf(other) + favorites, viewModel.uiState.value.visibleNewItems)
+    }
+
+    @Test
+    fun favoritesFilter_prefetchesBeforeLastCardAndKeepsFocusedEpisode() = runTest(dispatcher) {
+        val favorites = (1..8).map { episode ->
+            summary(detailsUrl = "https://www.lostfilm.today/series/favorite/season_2/episode_${episode}/")
+        }
+        val firstPage = favorites.take(7)
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(1, firstPage, true, false),
+                2 to PageState.Content(2, firstPage, true, false),
+                3 to PageState.Content(3, favorites, false, false),
+            ),
+            favoriteSeriesPaths = setOf("/series/favorite"),
+        )
+        val viewModel = createViewModel(
+            repository, SavedStateHandle(), ioDispatcher = dispatcher, clock = { favoritesTestTime },
+        )
+        viewModel.onStart()
+        advanceUntilIdle()
+        viewModel.onReleaseFilterSelected(ReleaseWatchFilter.Favorites)
+        advanceUntilIdle()
+        assertEquals(listOf(1), repository.pageRequests)
+
+        val focused = favorites[4]
+        viewModel.onItemFocused(focused.detailsUrl)
+        advanceUntilIdle()
+
+        assertEquals(listOf(1, 2, 3), repository.pageRequests)
+        assertEquals(favorites, viewModel.uiState.value.visibleNewItems)
+        assertEquals(focused.detailsUrl, viewModel.uiState.value.selectedItemKey)
+    }
+
+    @Test
+    fun favoritesFilter_excludesOlderEpisodesAndStopsAtAnOlderPage() = runTest(dispatcher) {
+        val recent = summary(detailsUrl = "https://www.lostfilm.today/series/favorite/season_2/episode_5/")
+        val boundary = recent.copy(
+            detailsUrl = "https://www.lostfilm.today/series/favorite/season_2/episode_4/",
+            releaseDateRu = "13.02.2026",
+            pageNumber = 2,
+        )
+        val old = boundary.copy(
+            detailsUrl = "https://www.lostfilm.today/series/favorite/season_2/episode_3/",
+            releaseDateRu = "12.02.2026",
+        )
+        val older = old.copy(
+            detailsUrl = "https://www.lostfilm.today/series/favorite/season_2/episode_2/",
+            releaseDateRu = "11.02.2026",
+            pageNumber = 3,
+        )
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(
+                1 to PageState.Content(1, listOf(recent), true, false),
+                2 to PageState.Content(2, listOf(recent, boundary, old), true, false),
+                3 to PageState.Content(3, listOf(recent, boundary, old, older), true, false),
+            ),
+            favoriteSeriesPaths = setOf("/series/favorite"),
+        )
+        val viewModel = createViewModel(
+            repository, SavedStateHandle(), ioDispatcher = dispatcher, clock = { favoritesTestTime },
+        )
+        viewModel.onStart()
+        advanceUntilIdle()
+        viewModel.onReleaseFilterSelected(ReleaseWatchFilter.Favorites)
+        advanceUntilIdle()
+        viewModel.onEndReached()
+        advanceUntilIdle()
+
+        assertEquals(listOf(1, 2, 3), repository.pageRequests)
+        assertEquals(listOf(recent, boundary), viewModel.uiState.value.visibleNewItems)
+
+        viewModel.onReleaseFilterSelected(ReleaseWatchFilter.All)
+        assertEquals(listOf(recent, boundary, old, older), viewModel.uiState.value.visibleNewItems)
+    }
+
+    @Test
     fun releaseFilter_skipsPagesWithoutMatchesAndRestoresUnfilteredItems() = runTest(dispatcher) {
         val first = summary(detailsUrl = "https://www.lostfilm.today/series/first/")
         val second = summary(detailsUrl = "https://www.lostfilm.today/series/second/")
@@ -1800,7 +1905,10 @@ private class FakeLostFilmRepository(
      */
     val observePageEmissions: Map<Int, List<PageState>> = emptyMap(),
     val seriesResults: MutableMap<Int, PageState> = mutableMapOf(),
+    private val favoriteSeriesPaths: Set<String>? = null,
 ) : LostFilmRepository, FavoritesRepository {
+    override suspend fun loadFavoriteSeriesPaths(): Set<String>? = favoriteSeriesPaths
+
     val pageRequests = mutableListOf<Int>()
     val movieRequests = mutableListOf<Int>()
     val movieSorts = mutableListOf<CatalogSort>()
@@ -1902,6 +2010,8 @@ private fun summary(
     fetchedAt = 0L,
     isWatched = isWatched,
 )
+
+private val favoritesTestTime = java.time.Instant.parse("2026-03-14T12:00:00Z").toEpochMilli()
 
 private var homePrefsCounter = 0
 private var updatePrefsCounter = 0

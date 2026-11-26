@@ -31,7 +31,8 @@ sealed interface FavoriteMutationResult {
 enum class ReleaseWatchFilter(private val watched: Boolean?) {
     All(null),
     Unwatched(false),
-    Watched(true);
+    Watched(true),
+    Favorites(null);
 
     fun apply(items: List<ReleaseSummary>): List<ReleaseSummary> =
         if (watched == null) items else items.filter { it.isWatched == watched }

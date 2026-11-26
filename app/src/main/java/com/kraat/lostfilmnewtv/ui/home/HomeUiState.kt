@@ -6,6 +6,10 @@ import com.kraat.lostfilmnewtv.data.model.SeriesStatus
 import com.kraat.lostfilmnewtv.data.model.MovieMetadata
 import com.kraat.lostfilmnewtv.data.model.SeriesOverview
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.DateTimeParseException
+import java.time.format.ResolverStyle
 
 /**
  * Per-mode state that holds items, content state, pagination and visibility for a single
@@ -23,6 +27,17 @@ data class HomeModeData(
     val seriesStatus: SeriesStatus = SeriesStatus.All,
 )
 
+private val favoriteSeriesPath = Regex("""/series/[^/?#]+""")
+private val newReleaseDateFormat = DateTimeFormatter.ofPattern("dd.MM.uuuu")
+    .withResolverStyle(ResolverStyle.STRICT)
+internal const val NEW_FAVORITES_WINDOW_DAYS = 30L
+
+private fun ReleaseSummary.newReleaseDate(): LocalDate? = try {
+    LocalDate.parse(releaseDateRu.trim(), newReleaseDateFormat)
+} catch (_: DateTimeParseException) {
+    null
+}
+
 data class HomeUiState(
     val modeStates: Map<HomeFeedMode, HomeModeData> = defaultModeStates(),
     val rails: List<HomeContentRail> = fallbackHomeRails(
@@ -39,10 +54,42 @@ data class HomeUiState(
     val isHomeMenuLabelsEnabled: Boolean = true,
     val favoriteReleaseFilter: ReleaseWatchFilter = ReleaseWatchFilter.All,
     val newReleaseFilter: ReleaseWatchFilter = ReleaseWatchFilter.All,
+    val favoriteSeriesPaths: Set<String> = emptySet(),
+    val newFavoritesStatus: HomeModeContentState? = null,
+    val newFavoritesToday: LocalDate? = null,
 ) {
     // Convenience read accessors — keep existing call sites compiling unchanged
     val items: List<ReleaseSummary> get() = modeData(HomeFeedMode.AllNew).items
-    val visibleNewItems: List<ReleaseSummary> get() = newReleaseFilter.apply(items)
+    val visibleNewItems: List<ReleaseSummary>
+        get() = if (newReleaseFilter == ReleaseWatchFilter.Favorites) {
+            val today = newFavoritesToday
+            if (today == null) {
+                emptyList()
+            } else {
+                val startOfWindow = today.minusDays(NEW_FAVORITES_WINDOW_DAYS - 1)
+                items.filter {
+                    favoriteSeriesPath.find(it.detailsUrl)?.value in favoriteSeriesPaths &&
+                        it.newReleaseDate()?.let { date -> date in startOfWindow..today } == true
+                }
+            }
+        } else {
+            newReleaseFilter.apply(items)
+        }
+
+    val canPageNewFeed: Boolean
+        get() {
+            if (!hasNextPage) return false
+            if (newReleaseFilter != ReleaseWatchFilter.Favorites) return true
+            if (favoriteSeriesPaths.isEmpty()) return false
+            val today = newFavoritesToday ?: return false
+            val startOfWindow = today.minusDays(NEW_FAVORITES_WINDOW_DAYS - 1)
+            val lastPage = items.lastOrNull()?.pageNumber ?: return true
+            val dates = items.asReversed().asSequence()
+                .takeWhile { it.pageNumber == lastPage }
+                .mapNotNull { it.newReleaseDate() }
+                .toList()
+            return dates.isEmpty() || dates.any { it >= startOfWindow }
+        }
     val favoriteItems: List<ReleaseSummary> get() = modeData(HomeFeedMode.Favorites).items
     val favoriteSeriesItems: List<ReleaseSummary> get() = modeData(HomeFeedMode.FavoriteSeries).items
     val movieItems: List<ReleaseSummary> get() = modeData(HomeFeedMode.Movies).items
