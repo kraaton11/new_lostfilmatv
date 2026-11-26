@@ -33,7 +33,7 @@ Android TV приложение для просмотра новых релиз�
 
 | Главный экран | Фильмы |
 |---|---|
-| ![Главный экран с новыми релизами](docs/screenshots/home.png) | ![Экран фильмов](docs/screenshots/movies.png) |
+| ![Главный экран с новыми релизами](docs/screenshots/home.png) | ![Экран фильмов](docs/screenshots/movies-catalog.png) |
 
 | Избранное | Мои сериалы |
 | --- | --- |
