@@ -10,6 +10,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.focusable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -79,6 +81,7 @@ fun HomeHeader(
     onBackToContent: () -> Boolean,
     onSearchClick: () -> Unit,
     onScheduleClick: () -> Unit,
+    onHistoryClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onUpdateClick: () -> Unit,
     selectedNavItem: NavItem,
@@ -90,6 +93,7 @@ fun HomeHeader(
     modeFocusRequesters: Map<HomeFeedMode, FocusRequester>,
     searchFocusRequester: FocusRequester,
     scheduleFocusRequester: FocusRequester,
+    historyFocusRequester: FocusRequester,
     updateFocusRequester: FocusRequester,
     settingsFocusRequester: FocusRequester,
     menuLabelsFocusRequester: FocusRequester,
@@ -159,7 +163,7 @@ fun HomeHeader(
             .padding(horizontal = if (showLabels) 16.dp else 9.dp, vertical = 8.dp),
     ) {
         Column(
-            modifier = Modifier.fillMaxHeight(),
+            modifier = Modifier.fillMaxHeight().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(4.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -211,6 +215,33 @@ fun HomeHeader(
                     .focusRequester(scheduleFocusRequester)
                     .focusProperties {
                         up = lastModeRequester ?: searchFocusRequester
+                        down = historyFocusRequester
+                        right = downTarget ?: FocusRequester.Default
+                        left = FocusRequester.Cancel
+                    },
+            )
+            HomeHeaderActionButton(
+                label = "История",
+                subtitle = "Просмотренные сериалы",
+                leadingIcon = HeaderActionIcon.History,
+                onClick = {
+                    onNavItemSelected(NavItem.HISTORY)
+                    onHistoryClick()
+                },
+                onLongClick = { onNavItemLongClick(NavItem.HISTORY) },
+                onInteraction = onHeaderInteraction,
+                onBackClick = onBackToContent,
+                isPrimary = selectedNavItem == NavItem.HISTORY,
+                isVisualFocusEnabled = isVisualFocusEnabled,
+                minWidth = if (showLabels) ExpandedMenuWidth - 36.dp else CollapsedMenuWidth - 20.dp,
+                hideSubtitle = true,
+                showLabel = showLabels,
+                modifier = Modifier
+                    .then(if (showLabels) Modifier.fillMaxWidth() else Modifier.width(CollapsedMenuWidth - 20.dp))
+                    .testTag("home-action-history")
+                    .focusRequester(historyFocusRequester)
+                    .focusProperties {
+                        up = scheduleFocusRequester
                         down = searchFocusRequester
                         right = downTarget ?: FocusRequester.Default
                         left = FocusRequester.Cancel
@@ -238,7 +269,7 @@ fun HomeHeader(
                     .testTag("home-action-search")
                     .focusRequester(searchFocusRequester)
                     .focusProperties {
-                        up = scheduleFocusRequester
+                        up = historyFocusRequester
                         down = if (hasUpdate) updateFocusRequester else settingsFocusRequester
                         left = FocusRequester.Cancel
                         right = downTarget ?: FocusRequester.Default
@@ -538,6 +569,7 @@ private fun HomeModeSegmentButton(
 private enum class HeaderActionIcon {
     Search,
     Calendar,
+    History,
     Refresh,
     Settings,
     MenuCollapse,
@@ -696,6 +728,7 @@ private fun HeaderVectorIcon(icon: HeaderActionIcon, color: Color) {
     when (icon) {
         HeaderActionIcon.Search -> SearchIcon(color = color)
         HeaderActionIcon.Calendar -> CalendarIcon(color = color)
+        HeaderActionIcon.History -> HistoryIcon(color = color)
         HeaderActionIcon.Refresh -> RefreshIcon(color = color)
         HeaderActionIcon.Settings -> SettingsLineIcon(color = color)
         HeaderActionIcon.MenuCollapse -> MenuVisibilityIcon(color = color, collapsed = false)
@@ -910,6 +943,20 @@ private fun MenuVisibilityIcon(color: Color, collapsed: Boolean) {
             strokeWidth = 2.0f,
             cap = androidx.compose.ui.graphics.StrokeCap.Round,
         )
+    }
+}
+
+@Composable
+private fun HistoryIcon(color: Color) {
+    androidx.compose.foundation.Canvas(modifier = Modifier.size(24.dp)) {
+        val stroke = 2.1f
+        drawCircle(
+            color = color,
+            radius = size.minDimension * 0.34f,
+            style = androidx.compose.ui.graphics.drawscope.Stroke(width = stroke),
+        )
+        drawLine(color, Offset(center.x, size.height * 0.28f), center, stroke)
+        drawLine(color, center, Offset(size.width * 0.65f, size.height * 0.59f), stroke)
     }
 }
 

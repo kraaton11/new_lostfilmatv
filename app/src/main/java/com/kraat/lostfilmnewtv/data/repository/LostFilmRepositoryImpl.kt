@@ -14,6 +14,8 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.model.SeriesGuide
+import com.kraat.lostfilmnewtv.data.model.WatchHistoryEntry
+import com.kraat.lostfilmnewtv.data.model.WatchHistoryFilter
 import com.kraat.lostfilmnewtv.data.network.LostFilmConcurrencyLimits.WATCHED_MARKS_LOAD_CONCURRENCY
 import com.kraat.lostfilmnewtv.data.network.LostFilmHttpClient
 import com.kraat.lostfilmnewtv.data.parser.BASE_URL
@@ -21,6 +23,7 @@ import com.kraat.lostfilmnewtv.data.parser.lostFilmArtworkPath
 import com.kraat.lostfilmnewtv.data.parser.lostFilmImagePath
 import com.kraat.lostfilmnewtv.data.parser.hasLegacyArtwork
 import com.kraat.lostfilmnewtv.data.parser.LostFilmDetailsParser
+import com.kraat.lostfilmnewtv.data.parser.LostFilmHistoryParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmListParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmSearchParser
 import com.kraat.lostfilmnewtv.data.parser.LostFilmScheduleParser
@@ -581,6 +584,15 @@ class LostFilmRepositoryImpl(
             } else {
                 throw exception
             }
+        }
+    }
+
+    override suspend fun loadWatchHistory(filter: WatchHistoryFilter): List<WatchHistoryEntry> {
+        if (!hasAuthenticatedSession()) throw IOException("История просмотра требует входа в LostFilm")
+        val path = if (filter == WatchHistoryFilter.All) "/my/order_2" else "/my/order_2/type_${filter.type}"
+        val html = httpClient.fetchAccountPage(path)
+        return withContext(Dispatchers.Default) {
+            LostFilmHistoryParser().parse(html) ?: throw IOException("LostFilm history list missing")
         }
     }
 

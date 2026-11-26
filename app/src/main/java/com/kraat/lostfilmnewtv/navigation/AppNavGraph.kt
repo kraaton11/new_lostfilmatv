@@ -29,6 +29,7 @@ import com.kraat.lostfilmnewtv.ui.overview.SeriesOverviewRoute
 import com.kraat.lostfilmnewtv.ui.search.SearchRoute
 import com.kraat.lostfilmnewtv.ui.home.HomeViewModel
 import com.kraat.lostfilmnewtv.ui.home.NavItem
+import com.kraat.lostfilmnewtv.ui.history.HistoryRoute
 import com.kraat.lostfilmnewtv.ui.schedule.ScheduleRoute
 import com.kraat.lostfilmnewtv.ui.settings.SettingsRoute
 import com.kraat.lostfilmnewtv.ui.settings.SettingsViewModel
@@ -142,6 +143,7 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                     when (navItem) {
                         NavItem.SEARCH -> navController.navigate(AppDestination.Search.route)
                         NavItem.SCHEDULE -> navController.navigate(AppDestination.Schedule.route)
+                        NavItem.HISTORY -> navController.navigate(AppDestination.History.route)
                         NavItem.SETTINGS -> navController.navigate(AppDestination.Settings.createRoute())
                         else -> Unit
                     }
@@ -151,6 +153,7 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                     else navController.navigate(AppDestination.Auth.createRoute())
                 },
                 onSearchClick = { navController.navigate(AppDestination.Search.route) },
+                onHistoryClick = { navController.navigate(AppDestination.History.route) },
                 onScheduleClick = { navController.navigate(AppDestination.Schedule.route) },
                 onSettingsClick = { navController.navigate(AppDestination.Settings.createRoute()) },
                 onHomeMenuLabelsVisibilitySelected = homeViewModel::onHomeMenuLabelsVisibilityChanged,
@@ -264,6 +267,14 @@ fun AppNavGraph(initialDetailsUrl: String? = null) {
                         }
                     }
                 },
+            )
+        }
+
+        composable(AppDestination.History.route) {
+            HistoryRoute(
+                isAuthenticated = isAuthenticated,
+                onSignIn = { navController.navigate(AppDestination.Auth.createRoute(autoStart = true)) },
+                onOpenSeries = { url -> navController.navigate(AppDestination.SeriesGuide.createRoute(url)) },
             )
         }
 

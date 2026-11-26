@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.data.repository
 
+import com.kraat.lostfilmnewtv.data.model.WatchHistoryFilter
 import com.kraat.lostfilmnewtv.data.model.ReleaseWatchFilter
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
@@ -2308,6 +2309,28 @@ class LostFilmRepositoryTest {
 
         assertEquals(ScheduleResult.Error("Войдите в LostFilm, чтобы увидеть расписание избранных сериалов"),
             repository.loadSchedule(favoritesOnly = true))
+    }
+
+    @Test
+    fun loadWatchHistory_usesSelectedAccountFilterAndKeepsWatchOrder() = runTest {
+        val requestedPaths = mutableListOf<String>()
+        val repository = createRepository(
+            pageHandler = { error("Unexpected release request") },
+            isAuthenticated = true,
+            accountPageHandler = { path ->
+                requestedPaths += path
+                """<div class="serials-list-box"></div>"""
+            },
+        )
+
+        for (filter in WatchHistoryFilter.entries) {
+            assertTrue(repository.loadWatchHistory(filter).isEmpty())
+        }
+
+        assertEquals(
+            listOf("/my/order_2", "/my/order_2/type_1", "/my/order_2/type_2", "/my/order_2/type_3"),
+            requestedPaths,
+        )
     }
 
     private suspend fun seedPage(pageNumber: Int, fetchedAt: Long) {

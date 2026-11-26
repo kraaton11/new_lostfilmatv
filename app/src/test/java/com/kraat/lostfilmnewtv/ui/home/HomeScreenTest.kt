@@ -1193,11 +1193,10 @@ class HomeScreenTest {
         }
 
         composeRule.onNodeWithTag("home-mode-toggle")
-            .performKeyInput {
-                repeat(3) {
-                    pressKey(Key.DirectionDown)
-                }
-            }
+            .performKeyInput { repeat(2) { pressKey(Key.DirectionDown) } }
+
+        composeRule.onNodeWithTag("home-action-history").assertIsFocused()
+            .performKeyInput { repeat(2) { pressKey(Key.DirectionDown) } }
 
         composeRule.waitUntil(timeoutMillis = 5_000) {
             val node = composeRule.onAllNodesWithTag("home-action-settings")

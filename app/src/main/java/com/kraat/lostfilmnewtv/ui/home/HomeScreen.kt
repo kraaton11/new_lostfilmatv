@@ -105,6 +105,7 @@ fun HomeScreen(
     onEndReached: () -> Unit = {},
     onSearchClick: () -> Unit = {},
     onScheduleClick: () -> Unit = {},
+    onHistoryClick: () -> Unit = {},
     onSettingsClick: () -> Unit = {},
     onUpdateClick: () -> Unit = {},
     onHomeMenuLabelsVisibilitySelected: (Boolean) -> Unit = {},
@@ -218,6 +219,7 @@ fun HomeScreen(
     }
     val searchRequester = remember { FocusRequester() }
     val scheduleRequester = remember { FocusRequester() }
+    val historyRequester = remember { FocusRequester() }
     val settingsRequester = remember { FocusRequester() }
     val updateRequester = remember { FocusRequester() }
     val menuLabelsRequester = remember { FocusRequester() }
@@ -433,6 +435,7 @@ fun HomeScreen(
                 },
                 onSearchClick = onSearchClick,
                 onScheduleClick = onScheduleClick,
+                onHistoryClick = onHistoryClick,
                 onSettingsClick = onSettingsClick,
                 onUpdateClick = if (savedAppUpdate != null) onUpdateClick else onRetry,
                 selectedNavItem = selectedNavItem,
@@ -444,6 +447,7 @@ fun HomeScreen(
                 modeFocusRequesters = modeFocusRequesters,
                 searchFocusRequester = searchRequester,
                 scheduleFocusRequester = scheduleRequester,
+                historyFocusRequester = historyRequester,
                 updateFocusRequester = updateRequester,
                 settingsFocusRequester = settingsRequester,
                 menuLabelsFocusRequester = menuLabelsRequester,

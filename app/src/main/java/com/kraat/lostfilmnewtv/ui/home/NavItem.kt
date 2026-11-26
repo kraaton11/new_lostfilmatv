@@ -4,6 +4,7 @@ enum class NavItem {
     HOME,
     SEARCH,
     SCHEDULE,
+    HISTORY,
     UPDATE,
     SETTINGS,
 }

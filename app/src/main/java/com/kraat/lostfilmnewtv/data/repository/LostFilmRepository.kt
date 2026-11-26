@@ -8,6 +8,9 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseDetails
 import com.kraat.lostfilmnewtv.data.model.ScheduleMonth
 import com.kraat.lostfilmnewtv.data.model.SeriesGuide
 import com.kraat.lostfilmnewtv.data.model.SeriesOverview
+import com.kraat.lostfilmnewtv.data.model.WatchHistoryEntry
+import com.kraat.lostfilmnewtv.data.model.WatchHistoryFilter
+import java.io.IOException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
@@ -106,6 +109,9 @@ interface LostFilmRepository {
 
     suspend fun loadSchedule(favoritesOnly: Boolean = false): ScheduleResult =
         ScheduleResult.Error("Расписание недоступно")
+
+    suspend fun loadWatchHistory(filter: WatchHistoryFilter): List<WatchHistoryEntry> =
+        throw IOException("История просмотра недоступна")
 
     suspend fun loadWatchedState(detailsUrl: String): Boolean?
 

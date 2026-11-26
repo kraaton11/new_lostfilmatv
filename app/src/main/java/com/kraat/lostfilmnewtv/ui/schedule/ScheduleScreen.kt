@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.sp
 import coil.request.ImageRequest
 import com.kraat.lostfilmnewtv.ui.components.resolveArtworkForDisplay
 import com.kraat.lostfilmnewtv.ui.components.PosterImage
+import com.kraat.lostfilmnewtv.ui.components.TvColorKeyLabel
 import com.kraat.lostfilmnewtv.data.model.ReleaseKind
 import com.kraat.lostfilmnewtv.data.model.ScheduleDay
 import com.kraat.lostfilmnewtv.data.model.ScheduleItem
@@ -151,8 +152,8 @@ fun ScheduleScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                ScheduleModeLabel("Все", Color(0xFFFF636B), selected = !state.favoritesOnly)
-                ScheduleModeLabel("Избранные сериалы", Color(0xFF69DD93), selected = state.favoritesOnly)
+                TvColorKeyLabel("Все", Color(0xFFFF636B), selected = !state.favoritesOnly)
+                TvColorKeyLabel("Избранные сериалы", Color(0xFF69DD93), selected = state.favoritesOnly)
             }
 
             when {
@@ -250,24 +251,6 @@ fun ScheduleScreen(
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun ScheduleModeLabel(label: String, color: Color, selected: Boolean) {
-    Row(
-        modifier = Modifier
-            .border(1.dp, if (selected) color else Color.Transparent, ScheduleRowShape)
-            .padding(horizontal = 8.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.width(7.dp).height(7.dp).background(color, RoundedCornerShape(50)))
-        Text(
-            text = if (selected) "$label ✓" else label,
-            color = if (selected) TextPrimary else DetailsTextSecondary,
-            fontSize = 13.sp,
-        )
     }
 }
 
