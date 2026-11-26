@@ -77,8 +77,21 @@ class DetailsViewModel @Inject constructor(
 
     fun onRetry() = loadDetails()
 
-    suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean =
-        repository.setEpisodeWatched(detailsUrl, playEpisodeId, targetWatched = true) == true
+    suspend fun markEpisodeWatched(detailsUrl: String, playEpisodeId: String): Boolean {
+        if (repository.setEpisodeWatched(detailsUrl, playEpisodeId, targetWatched = true) != true) {
+            return false
+        }
+
+        val details = _uiState.value.details
+        if (details?.detailsUrl == detailsUrl && details.playEpisodeId == playEpisodeId) {
+            watchedMutationCount++
+            watchedStateJob?.cancel()
+            _uiState.update {
+                it.copy(isWatched = true, isWatchedStateLoading = false).withWatchedPresentation()
+            }
+        }
+        return true
+    }
 
     fun onWatchedClick() {
         val currentState = _uiState.value

@@ -1504,6 +1504,7 @@ class LostFilmRepositoryTest {
 
     @Test
     fun loadFavoriteReleases_marksWatchedEpisodesFromSeasonMarksResponse() = runTest {
+        var pilotWatched = false
         val watchedMarksRequests = mutableListOf<String>()
         val repository = createRepository(
             pageHandler = { fixture("new-page-1.html") },
@@ -1561,7 +1562,7 @@ class LostFilmRepositoryTest {
             watchedEpisodeMarksHandler = { serialId ->
                 watchedMarksRequests += serialId
                 when (serialId) {
-                    "1072" -> """["1072001002"]"""
+                    "1072" -> if (pilotWatched) """["1072001002","1072001001"]""" else """["1072001002"]"""
                     "2088" -> "[]"
                     else -> error("Unexpected serial id $serialId")
                 }
@@ -1578,6 +1579,12 @@ class LostFilmRepositoryTest {
         assertFalse(result.items.first { it.detailsUrl.endsWith("/season_1/episode_1/") }.isWatched)
         assertFalse(result.items.first { it.detailsUrl.endsWith("/season_3/episode_1/") }.isWatched)
         assertTrue(result.items.any { it.detailsUrl.endsWith("/season_1/episode_1/") })
+
+        pilotWatched = true
+        favoritesRepository.invalidateCache()
+
+        val refreshed = favoritesRepository.observeFavoriteReleases().last() as FavoriteReleasesResult.Success
+        assertTrue(refreshed.items.first { it.detailsUrl.endsWith("/season_1/episode_1/") }.isWatched)
     }
 
     @Test
@@ -1951,6 +1958,31 @@ class LostFilmRepositoryTest {
         assertEquals(1, result.items.size)
         assertEquals("Alpha", result.items.first().titleRu)
         assertEquals(1, result.favoriteSeriesCount)
+    }
+
+    @Test
+    fun loadFavoriteReleases_refreshesCacheCreatedBeforeWatchedInvalidationFix() = runTest {
+        val preferences = ApplicationProvider.getApplicationContext<android.content.Context>()
+            .getSharedPreferences("favorite-cache-upgrade-test", android.content.Context.MODE_PRIVATE)
+        preferences.edit().clear().putBoolean("session_cache_initialized", true).commit()
+        releaseDao.replaceFavoriteReleasesCache(
+            items = emptyList(),
+            metadata = FavoriteReleaseCacheMetadataEntity(
+                fetchedAt = NOW,
+                favoriteSeriesCount = 1,
+                itemCount = 0,
+            ),
+        )
+        createRepository(
+            pageHandler = { error("Unexpected page request") },
+            accountPageHandler = { "<html></html>" },
+            isAuthenticated = true,
+            cachePreferences = preferences,
+        )
+
+        val result = favoritesRepository.observeFavoriteReleases().last() as FavoriteReleasesResult.Success
+
+        assertEquals(0, result.favoriteSeriesCount)
     }
 
     @Test
@@ -2375,6 +2407,7 @@ class LostFilmRepositoryTest {
         },
         accountPageHandler: suspend (String) -> String = { error("Unexpected account page request: $it") },
         isAuthenticated: Boolean = false,
+        cachePreferences: android.content.SharedPreferences? = null,
     ): LostFilmRepository {
         val fakeHttpClient = FakeLostFilmHttpClient(
             pageHandler = pageHandler,
@@ -2389,6 +2422,7 @@ class LostFilmRepositoryTest {
         favoritesRepository = FavoritesRepositoryImpl(
             httpClient = fakeHttpClient,
             releaseDao = releaseDao,
+            cachePreferences = cachePreferences,
             hasAuthenticatedSession = { isAuthenticated },
             clock = { NOW },
         )

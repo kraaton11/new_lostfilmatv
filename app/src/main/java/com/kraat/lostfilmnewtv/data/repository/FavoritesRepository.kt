@@ -389,6 +389,7 @@ class FavoritesRepositoryImpl @Inject constructor(
     }
 
     private suspend fun invalidateFavoriteReleasesCache() = favoriteReleasesCacheMutex.withLock {
+        watchedMarksCache.clear()
         clearFavoriteReleasesCache()
     }
 
@@ -409,7 +410,7 @@ class FavoritesRepositoryImpl @Inject constructor(
 
     private suspend fun discardLegacyCache() {
         val preferences = cachePreferences ?: return
-        val key = "session_cache_initialized"
+        val key = "session_cache_watched_marks_v2"
         if (preferences.getBoolean(key, false)) return
         clearFavoriteReleasesCache()
         preferences.edit().putBoolean(key, true).apply()

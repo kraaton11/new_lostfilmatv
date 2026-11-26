@@ -445,6 +445,8 @@ class DetailsRouteTest {
             )
         }
 
+        composeRule.waitForNodeWithTag("details-watched-action")
+        composeRule.onNodeWithText("Отметить просмотренным").assertExists()
         composeRule.waitForNodeWithTag(torrServeButtonTag(routeRowId(detailsUrl, 0)))
         composeRule.onNodeWithTag(torrServeButtonTag(routeRowId(detailsUrl, 0)))
             .performSemanticsAction(SemanticsActions.OnClick)
@@ -453,6 +455,7 @@ class DetailsRouteTest {
         assertEquals(listOf(detailsUrl to "362009013"), repository.markedEpisodes)
         assertEquals(listOf(detailsUrl), watchedDetailsUrls)
         assertEquals(1, channelSyncCalls.get())
+        composeRule.onNodeWithText("Просмотрено").assertExists()
     }
 
     @Test
