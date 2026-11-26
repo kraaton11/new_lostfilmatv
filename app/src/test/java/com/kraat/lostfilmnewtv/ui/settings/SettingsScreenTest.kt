@@ -351,7 +351,7 @@ class SettingsScreenTest {
 
         composeRule.onNodeWithTag("settings-section-home-screen").assertExists()
         composeRule.onNodeWithTag("settings-section-home-screen-summary", useUnmergedTree = true)
-            .assertTextEquals("Избранное выкл · мои сериалы вкл · фильмы вкл · сериалы вкл · подписи вкл")
+            .assertTextEquals("Избранное выкл · фильмы вкл · сериалы вкл · подписи вкл")
 
         composeRule.onNodeWithTag("settings-section-home-screen")
             .performSemanticsAction(SemanticsActions.OnClick)
@@ -387,7 +387,7 @@ class SettingsScreenTest {
         }
 
         composeRule.onNodeWithTag("settings-section-home-screen-summary", useUnmergedTree = true)
-            .assertTextEquals("Избранное вкл · мои сериалы вкл · фильмы вкл · сериалы вкл · подписи вкл")
+            .assertTextEquals("Избранное вкл · фильмы вкл · сериалы вкл · подписи вкл")
 
         composeRule.onNodeWithTag("settings-section-home-screen")
             .performSemanticsAction(SemanticsActions.OnClick)

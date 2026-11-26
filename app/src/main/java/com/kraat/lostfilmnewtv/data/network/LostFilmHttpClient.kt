@@ -31,7 +31,7 @@ interface LostFilmHttpClient {
     ): String = fetchDetails(seriesCatalogPageUrl(pageNumber, sort, status.queryValue))
 
     suspend fun fetchFavoriteSeriesCatalogPage(pageNumber: Int, sort: CatalogSort): String =
-        fetchAccountPage(seriesCatalogPagePath(pageNumber, sort, FAVORITE_SERIES_FILTER))
+        fetchAccountPage(seriesCatalogPagePath(pageNumber, sort, SeriesStatus.Favorites.queryValue))
 
     suspend fun fetchSchedulePage(): String = fetchDetails(schedulePageUrl())
 
@@ -92,7 +92,7 @@ class OkHttpLostFilmHttpClient(
 
     override suspend fun fetchFavoriteSeriesCatalogPage(pageNumber: Int, sort: CatalogSort): String =
         withContext(Dispatchers.IO) {
-            executeSeriesCatalogSearch(pageNumber, sort, FAVORITE_SERIES_FILTER)
+            executeSeriesCatalogSearch(pageNumber, sort, SeriesStatus.Favorites.queryValue)
         }
 
     override suspend fun fetchSchedulePage(): String = withContext(Dispatchers.IO) {
@@ -232,7 +232,6 @@ class OkHttpLostFilmHttpClient(
 }
 
 internal const val SERIES_CATALOG_PAGE_SIZE = 20
-private const val FAVORITE_SERIES_FILTER = 99
 
 private fun moviesPageUrl(pageNumber: Int, sort: CatalogSort): String {
     val offset = ((pageNumber.coerceAtLeast(1) - 1) * 20).coerceAtLeast(0)

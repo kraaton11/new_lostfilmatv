@@ -603,7 +603,11 @@ fun HomeScreen(
                                             ReleaseWatchFilter.Unwatched -> "Нет непросмотренных релизов"
                                             ReleaseWatchFilter.Watched -> "Нет просмотренных релизов"
                                         }
-                                        HomeFeedMode.Series -> "Пока нет сериалов"
+                                        HomeFeedMode.Series -> if (seriesStatus == SeriesStatus.Favorites) {
+                                            "Пока нет избранных сериалов"
+                                        } else {
+                                            "Пока нет сериалов"
+                                        }
                                     },
                                     modifier = Modifier.fillMaxWidth().weight(1f),
                                 )
@@ -700,6 +704,7 @@ private val SeriesStatus.label: String
         SeriesStatus.New -> "Новые"
         SeriesStatus.Ongoing -> "Снимающиеся"
         SeriesStatus.Completed -> "Завершённые"
+        SeriesStatus.Favorites -> "Избранные"
     }
 
 @Composable
@@ -731,7 +736,7 @@ private fun SeriesStatusPicker(selectedStatus: SeriesStatus, onSelected: (Series
                             left = FocusRequester.Cancel
                             right = FocusRequester.Cancel
                             if (status == SeriesStatus.All) up = FocusRequester.Cancel
-                            if (status == SeriesStatus.Completed) down = FocusRequester.Cancel
+                            if (status == SeriesStatus.entries.last()) down = FocusRequester.Cancel
                         },
                 ) {
                     Text(if (status == selectedStatus) "${status.label} ✓" else status.label)

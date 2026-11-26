@@ -13,5 +13,6 @@ sealed interface PageState {
         val pageNumber: Int,
         val message: String,
         val retryable: Boolean = true,
+        val loginRequired: Boolean = false,
     ) : PageState
 }

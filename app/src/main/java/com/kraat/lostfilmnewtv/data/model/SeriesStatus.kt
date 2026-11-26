@@ -5,4 +5,5 @@ enum class SeriesStatus(val queryValue: Int) {
     New(1),
     Ongoing(2),
     Completed(5),
+    Favorites(99),
 }

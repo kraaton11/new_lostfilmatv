@@ -158,7 +158,6 @@ class HomeViewModelTest {
         assertEquals(
             listOf(
                 HomeFeedMode.AllNew,
-                HomeFeedMode.FavoriteSeries,
                 HomeFeedMode.Movies,
                 HomeFeedMode.Series,
             ),
@@ -450,6 +449,36 @@ class HomeViewModelTest {
         assertEquals(CatalogSort.Added, state.modeData(HomeFeedMode.Movies).catalogSort)
         assertEquals(CatalogSort.Rating, state.modeData(HomeFeedMode.Series).catalogSort)
         assertEquals(listOf(rankedSeries, secondSeries), state.seriesItems)
+    }
+
+    @Test
+    fun onSeriesStatusSelected_favoritesUsesCatalogPagingAndReloadsAfterMutation() = runTest(dispatcher) {
+        val series = summary(detailsUrl = "https://www.lostfilm.today/series/First")
+        val repository = FakeLostFilmRepository(
+            pageResults = mapOf(1 to PageState.Content(1, emptyList(), false, false)),
+            seriesResults = mutableMapOf(
+                1 to PageState.Content(1, listOf(series), true, false),
+                2 to PageState.Content(2, emptyList(), false, false),
+            ),
+        )
+        val viewModel = createViewModel(
+            repository = repository,
+            savedStateHandle = SavedStateHandle(),
+            initialSelectedMode = HomeFeedMode.Series,
+            ioDispatcher = dispatcher,
+        )
+        viewModel.onStart()
+        advanceUntilIdle()
+        viewModel.onSeriesStatusSelected(SeriesStatus.Favorites)
+        advanceUntilIdle()
+        viewModel.onEndReached()
+        advanceUntilIdle()
+        viewModel.onFavoriteStateChanged(series.detailsUrl, isFavorite = false)
+        advanceUntilIdle()
+
+        assertEquals(listOf(1, 1, 2, 1), repository.seriesRequests.map { it.first })
+        assertEquals(listOf(SeriesStatus.All) + List(3) { SeriesStatus.Favorites }, repository.seriesStatuses)
+        assertTrue(repository.favoriteSeriesRequests.isEmpty())
     }
 
     @Test
@@ -1118,56 +1147,6 @@ class HomeViewModelTest {
 
         assertEquals(HomeFeedMode.AllNew, viewModel.uiState.value.selectedMode)
         assertEquals(HomeFeedMode.AllNew, checkNotNull(lastHomePreferencesStore).readHomeSelectedFeedMode())
-    }
-
-    @Test
-    fun favoriteSeriesMode_loadsSeriesRoots_andPagesWithSelectedSort() = runTest(dispatcher) {
-        val favoriteSeries = listOf(
-            summary(
-                detailsUrl = "https://www.lostfilm.today/series/alpha",
-                titleRu = "Alpha",
-            ),
-            summary(
-                detailsUrl = "https://www.lostfilm.today/series/beta",
-                titleRu = "Beta",
-            ),
-        )
-        val repository = FakeLostFilmRepository(
-            pageResults = mapOf(
-                1 to PageState.Content(pageNumber = 1, items = emptyList(), hasNextPage = false, isStale = false),
-            ),
-            favoriteSeriesResults = mutableListOf(
-                FavoriteSeriesResult.Success(favoriteSeries),
-                FavoriteSeriesResult.Success(listOf(favoriteSeries[1]), hasNextPage = true),
-                FavoriteSeriesResult.Success(listOf(favoriteSeries[0])),
-            ),
-        )
-        val viewModel = createViewModel(
-            repository = repository,
-            savedStateHandle = SavedStateHandle(),
-            initialSelectedMode = HomeFeedMode.FavoriteSeries,
-            ioDispatcher = dispatcher,
-        )
-
-        viewModel.onStart()
-        advanceUntilIdle()
-
-        assertEquals(HomeFeedMode.FavoriteSeries, viewModel.uiState.value.selectedMode)
-        assertEquals(favoriteSeries, viewModel.uiState.value.favoriteSeriesItems)
-        assertEquals(HomeModeContentState.Content(favoriteSeries), viewModel.uiState.value.favoriteSeriesModeState)
-        assertEquals(2, viewModel.uiState.value.favoriteSeriesCount)
-
-        viewModel.onCatalogSortSelected(CatalogSort.Rating)
-        advanceUntilIdle()
-        viewModel.onEndReached()
-        advanceUntilIdle()
-
-        assertEquals(
-            listOf(1 to CatalogSort.Added, 1 to CatalogSort.Rating, 2 to CatalogSort.Rating),
-            repository.favoriteSeriesRequests,
-        )
-        assertEquals(favoriteSeries.reversed(), viewModel.uiState.value.favoriteSeriesItems)
-        assertEquals(2, viewModel.uiState.value.favoriteSeriesCount)
     }
 
     @Test

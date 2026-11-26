@@ -136,7 +136,7 @@ class AuthenticatedLostFilmHttpClientTest {
     }
 
     @Test
-    fun fetchFavoriteSeriesCatalogPage_postsFavoriteFilterWithSession() = runTest {
+    fun fetchSeriesCatalogPage_postsFavoriteFilterWithSession() = runTest {
         var capturedRequest: Request? = null
         val client = AuthenticatedLostFilmHttpClient(
             sessionStore = FakeSessionStore(
@@ -148,7 +148,11 @@ class AuthenticatedLostFilmHttpClientTest {
             },
         )
 
-        client.fetchFavoriteSeriesCatalogPage(pageNumber = 2, sort = CatalogSort.Alphabetical)
+        client.fetchSeriesCatalogPage(
+            pageNumber = 2,
+            sort = CatalogSort.Alphabetical,
+            status = SeriesStatus.Favorites,
+        )
 
         val request = requireNotNull(capturedRequest)
         assertEquals("https://www.lostfilm.today/ajaxik.php", request.url.toString())

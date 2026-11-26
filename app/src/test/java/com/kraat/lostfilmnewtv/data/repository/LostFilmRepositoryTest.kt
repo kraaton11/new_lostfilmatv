@@ -13,6 +13,7 @@ import com.kraat.lostfilmnewtv.data.db.ReleaseDetailsEntity
 import com.kraat.lostfilmnewtv.data.parser.toEntity
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
+import com.kraat.lostfilmnewtv.data.model.SeriesStatus
 import com.kraat.lostfilmnewtv.data.model.CatalogSort
 import com.kraat.lostfilmnewtv.data.model.FavoriteSeriesResult
 import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
@@ -1075,6 +1076,38 @@ class LostFilmRepositoryTest {
         assertTrue(result.items.isEmpty())
         assertEquals(0, result.favoriteSeriesCount)
         assertEquals(listOf("/my/type_1"), accountRequests)
+    }
+
+    @Test
+    fun loadSeriesCatalog_favoritesExcludesUnfavoritedRows() = runTest {
+        val requests = mutableListOf<String>()
+        val repository = createRepository(
+            pageHandler = { error("Unexpected releases request") },
+            detailsHandler = { url ->
+                requests += url
+                """
+                {"data":[
+                    {"title":"Alpha","link":"/series/alpha","not_favorited":false},
+                    {"title":"Other","link":"/series/other","not_favorited":true}
+                ]}
+                """.trimIndent()
+            },
+            isAuthenticated = true,
+        )
+
+        val result = repository.loadSeriesCatalog(2, CatalogSort.Alphabetical, SeriesStatus.Favorites)
+
+        assertEquals(listOf("https://www.lostfilm.today/series/?type=search&s=2&t=99&o=20"), requests)
+        assertEquals(listOf("Alpha"), (result as PageState.Content).items.map { it.titleRu })
+    }
+
+    @Test
+    fun loadSeriesCatalog_favoritesRequiresSession() = runTest {
+        val repository = createRepository(pageHandler = { error("Unexpected releases request") })
+
+        val result = repository.loadSeriesCatalog(1, CatalogSort.Added, SeriesStatus.Favorites)
+
+        assertTrue((result as PageState.Error).loginRequired)
     }
 
     @Test

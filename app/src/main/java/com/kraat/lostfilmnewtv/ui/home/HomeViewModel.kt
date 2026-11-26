@@ -58,8 +58,7 @@ class HomeViewModel @Inject constructor(
     private val initialFavoritesRailVisible: Boolean
         get() = preferencesStore.readHomeFavoritesRailEnabled()
 
-    private val initialFavoriteSeriesModeVisible: Boolean
-        get() = preferencesStore.readHomeFavoriteSeriesEnabled()
+    private val initialFavoriteSeriesModeVisible = false
 
     private val initialMoviesModeVisible: Boolean
         get() = preferencesStore.readHomeMoviesEnabled()
@@ -410,6 +409,10 @@ class HomeViewModel @Inject constructor(
         }
         if (_uiState.value.isFavoritesRailVisible) loadFavoriteReleases()
         if (_uiState.value.isFavoriteSeriesModeVisible) loadFavoriteSeries()
+        val series = _uiState.value.modeData(HomeFeedMode.Series)
+        if (series.isVisible && series.seriesStatus == SeriesStatus.Favorites) {
+            loadSeriesCatalog(pageNumber = 1, isPagingRequest = false)
+        }
     }
 
     fun onFavoriteStateChanged(detailsUrl: String, isFavorite: Boolean) {
@@ -432,6 +435,10 @@ class HomeViewModel @Inject constructor(
         }
         if (_uiState.value.isFavoritesRailVisible) loadFavoriteReleases(retainVisibleItemsOnFailure = true)
         if (_uiState.value.isFavoriteSeriesModeVisible) loadFavoriteSeries()
+        val series = _uiState.value.modeData(HomeFeedMode.Series)
+        if (series.isVisible && series.seriesStatus == SeriesStatus.Favorites) {
+            loadSeriesCatalog(pageNumber = 1, isPagingRequest = false)
+        }
     }
 
     fun onModeSelected(mode: HomeFeedMode) {
@@ -1069,7 +1076,11 @@ class HomeViewModel @Inject constructor(
                                     items = emptyList(),
                                     isPaging = false,
                                     pagingErrorMessage = null,
-                                    contentState = HomeModeContentState.Error(result.message),
+                                    contentState = if (result.loginRequired) {
+                                        HomeModeContentState.LoginRequired(result.message)
+                                    } else {
+                                        HomeModeContentState.Error(result.message)
+                                    },
                                 )
                             }.resolveSelection()
                         }

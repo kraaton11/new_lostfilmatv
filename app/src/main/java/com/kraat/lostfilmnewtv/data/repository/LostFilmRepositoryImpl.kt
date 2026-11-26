@@ -220,12 +220,22 @@ class LostFilmRepositoryImpl(
     ): PageState {
         return try {
             val fetchedAt = clock()
-            val json = anonymousHttpClient.fetchSeriesCatalogPage(pageNumber, sort, status)
+            if (status == SeriesStatus.Favorites && !hasAuthenticatedSession()) {
+                return PageState.Error(
+                    pageNumber = pageNumber,
+                    message = "Войдите в LostFilm, чтобы увидеть избранные сериалы",
+                    retryable = false,
+                    loginRequired = true,
+                )
+            }
+            val client = if (status == SeriesStatus.Favorites) httpClient else anonymousHttpClient
+            val json = client.fetchSeriesCatalogPage(pageNumber, sort, status)
             val parsedItems = withContext(Dispatchers.Default) {
                 seriesCatalogParser.parseSearchJson(
                     json = json,
                     pageNumber = pageNumber,
                     fetchedAt = fetchedAt,
+                    favoritesOnly = status == SeriesStatus.Favorites,
                 )
             }
             PageState.Content(
