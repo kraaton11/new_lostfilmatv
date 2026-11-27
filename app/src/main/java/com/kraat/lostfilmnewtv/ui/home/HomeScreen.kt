@@ -462,7 +462,7 @@ fun HomeScreen(
                 onHomeMenuLabelsVisibilitySelected = onHomeMenuLabelsVisibilitySelected,
                 isVisualFocusEnabled = !isSwitchingModeFromRail,
                 modifier = Modifier
-                    .width(if (shouldShowHomeMenuLabels) 204.dp else 68.dp)
+                    .width(if (shouldShowHomeMenuLabels) ExpandedMenuWidth else CollapsedMenuWidth)
                     .fillMaxHeight(),
             )
 

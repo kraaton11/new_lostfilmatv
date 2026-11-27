@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -66,9 +65,10 @@ import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 import com.kraat.lostfilmnewtv.ui.theme.HomeTextMuted
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
 
-private val ExpandedMenuWidth = 204.dp
-private val CollapsedMenuWidth = 68.dp
-private val MenuButtonHeight = 38.dp
+internal val ExpandedMenuWidth = 174.dp
+internal val CollapsedMenuWidth = 68.dp
+private val MenuButtonHeight = 35.dp
+private val MenuButtonContentPadding = 14.dp
 private val MenuShape = RoundedCornerShape(20.dp)
 private val MenuButtonShape = RoundedCornerShape(12.dp)
 
@@ -160,7 +160,7 @@ fun HomeHeader(
                 ),
                 shape = MenuShape,
             )
-            .padding(horizontal = if (showLabels) 16.dp else 9.dp, vertical = 8.dp),
+            .padding(horizontal = if (showLabels) 10.dp else 9.dp, vertical = 8.dp),
     ) {
         Column(
             modifier = Modifier.fillMaxHeight().verticalScroll(rememberScrollState()),
@@ -335,7 +335,7 @@ fun HomeHeader(
                     },
             )
             HomeHeaderActionButton(
-                label = if (menuLabelsEnabled) "Скрыть меню" else "Показать меню",
+                label = if (menuLabelsEnabled) "Свернуть" else "Развернуть",
                 subtitle = "",
                 leadingIcon = if (menuLabelsEnabled) HeaderActionIcon.MenuCollapse else HeaderActionIcon.MenuExpand,
                 onClick = {
@@ -517,7 +517,6 @@ private fun HomeModeSegmentButton(
                 false
             }
             .graphicsLayer {
-                scaleX = scale
                 scaleY = scale
             }
             .background(
@@ -547,7 +546,7 @@ private fun HomeModeSegmentButton(
         Row(
             modifier = Modifier
                 .then(if (showLabel) Modifier.fillMaxWidth() else Modifier)
-                .padding(horizontal = if (showLabel) 10.dp else 0.dp),
+                .padding(horizontal = if (showLabel) MenuButtonContentPadding else 0.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -642,7 +641,6 @@ private fun HomeHeaderActionButton(
             .height(if (compact) 38.dp else MenuButtonHeight)
             .widthIn(min = minWidth)
             .graphicsLayer {
-                scaleX = scale
                 scaleY = scale
             }
             .background(
@@ -666,8 +664,10 @@ private fun HomeHeaderActionButton(
                 onLongClick = onLongClick,
             )
             .padding(
-                horizontal = if (!showLabel) 0.dp else if (compact) 11.dp else 18.dp,
-                vertical = if (compact) 3.dp else 3.dp,
+                start = if (showLabel) MenuButtonContentPadding else 0.dp,
+                end = if (showLabel) 8.dp else 0.dp,
+                top = 3.dp,
+                bottom = 3.dp,
             ),
         contentAlignment = if (showLabel) Alignment.CenterStart else Alignment.Center,
     ) {
@@ -749,7 +749,7 @@ private fun HeaderModeIcon(mode: HomeFeedMode, color: Color) {
 
 @Composable
 private fun SparklesIcon(color: Color) {
-    androidx.compose.foundation.Canvas(modifier = Modifier.size(24.dp).offset(x = 1.dp)) {
+    androidx.compose.foundation.Canvas(modifier = Modifier.size(24.dp)) {
         val stroke = androidx.compose.ui.graphics.drawscope.Stroke(
             width = 2.0f,
             cap = androidx.compose.ui.graphics.StrokeCap.Round,
@@ -782,7 +782,7 @@ private fun SparklesIcon(color: Color) {
 
 @Composable
 private fun HeartIcon(color: Color) {
-    androidx.compose.foundation.Canvas(modifier = Modifier.size(24.dp).offset(x = 1.dp)) {
+    androidx.compose.foundation.Canvas(modifier = Modifier.size(24.dp)) {
         val stroke = androidx.compose.ui.graphics.drawscope.Stroke(
             width = 2.1f,
             cap = androidx.compose.ui.graphics.StrokeCap.Round,
