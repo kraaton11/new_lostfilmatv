@@ -1006,6 +1006,7 @@ private fun PosterCard(details: ReleaseDetails?) {
                 contentScale = ContentScale.Fit,
                 modifier = Modifier.fillMaxSize(),
                 alpha = 0.92f,
+                fillLandscapeBackground = false,
             )
         }
         Box(
