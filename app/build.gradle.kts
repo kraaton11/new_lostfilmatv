@@ -157,6 +157,7 @@ dependencies {
     kspTest(libs.hilt.android.compiler)
     testImplementation(libs.mockito.core)
     androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.hilt.android.testing)
     kspAndroidTest(libs.hilt.android.compiler)

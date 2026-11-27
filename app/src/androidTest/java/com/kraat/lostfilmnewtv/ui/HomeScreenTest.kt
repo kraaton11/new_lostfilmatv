@@ -396,7 +396,6 @@ class HomeScreenTest {
                         selectedItem = seededModeState().favoriteItems.first(),
                         selectedItemKey = favoriteDetailsUrl,
                     ),
-                    isAuthenticated = true,
                     savedAppUpdate = SavedAppUpdate(
                         latestVersion = "0.2.0",
                         apkUrl = "https://example.test/app.apk",

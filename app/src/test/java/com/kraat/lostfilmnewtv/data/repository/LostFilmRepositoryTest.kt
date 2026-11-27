@@ -112,8 +112,7 @@ class LostFilmRepositoryTest {
 
     @Test
     fun observePage_skipsNetwork_whenRoomCacheIsFresh() = runTest {
-        // Seed Room with cache fetched 5 minutes ago — within 10-min TTL.
-        seedPage(pageNumber = 1, fetchedAt = NOW - 5 * 60 * 1000L)
+        seedPage(pageNumber = 1, fetchedAt = NOW - 29 * 60 * 1000L)
         val repository = createRepository(
             // Network handler would error if called.
             pageHandler = { error("Fresh Room cache should prevent network request") },
@@ -129,8 +128,7 @@ class LostFilmRepositoryTest {
 
     @Test
     fun observePage_hitsNetwork_whenRoomCacheIsStale() = runTest {
-        // Seed Room with cache fetched 15 minutes ago — outside 10-min TTL.
-        seedPage(pageNumber = 1, fetchedAt = NOW - 15 * 60 * 1000L)
+        seedPage(pageNumber = 1, fetchedAt = NOW - 30 * 60 * 1000L)
         val repository = createRepository(
             pageHandler = { fixture("new-page-1.html") },
         )
@@ -2277,7 +2275,8 @@ class LostFilmRepositoryTest {
 
     @Test
     fun observePage_emitsOnlyStaleContent_whenNetworkFailsWithCache() = runTest {
-        seedPage(pageNumber = 1, fetchedAt = NOW - SEVEN_DAYS_MS / 2)
+        val cachedAt = NOW - 30 * 60 * 1000L
+        seedPage(pageNumber = 1, fetchedAt = cachedAt)
         val repository = createRepository(
             pageHandler = { throw IOException("offline") },
         )
@@ -2287,6 +2286,7 @@ class LostFilmRepositoryTest {
         val contents = emissions.filterIsInstance<PageState.Content>()
         assertEquals(2, contents.size)
         assertTrue(contents.all { it.isStale })
+        assertEquals(cachedAt, releaseDao.getPageMetadata(1)?.fetchedAt)
     }
 
     @Test

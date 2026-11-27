@@ -1,13 +1,16 @@
 package com.kraat.lostfilmnewtv.di
 
-import com.kraat.lostfilmnewtv.data.model.ReleaseWatchFilter
 import com.kraat.lostfilmnewtv.data.auth.AuthRepositoryContract
 import com.kraat.lostfilmnewtv.data.model.AuthState
+import com.kraat.lostfilmnewtv.data.model.CatalogSort
 import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
+import com.kraat.lostfilmnewtv.data.model.FavoriteSeriesResult
 import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
 import com.kraat.lostfilmnewtv.data.model.PageState
+import com.kraat.lostfilmnewtv.data.model.ReleaseWatchFilter
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
+import com.kraat.lostfilmnewtv.data.repository.FavoritesRepository
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.data.repository.SearchResultsResult
 import com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult
@@ -35,7 +38,13 @@ object TestDataModule {
 
     @Provides
     @Singleton
-    fun provideFakeRepository(): LostFilmRepository = TestFakeRepository()
+    fun provideFakeRepository(): TestFakeRepository = TestFakeRepository()
+
+    @Provides
+    fun provideLostFilmRepository(repository: TestFakeRepository): LostFilmRepository = repository
+
+    @Provides
+    fun provideFavoritesRepository(repository: TestFakeRepository): FavoritesRepository = repository
 
     @Provides
     @Singleton
@@ -46,7 +55,7 @@ object TestDataModule {
  * Изменяемый фейк репозитория для тестов.
  * Свойства можно переопределять прямо в тесте через [TestFakeRepository.pageState] и т.д.
  */
-class TestFakeRepository : LostFilmRepository {
+class TestFakeRepository : LostFilmRepository, FavoritesRepository {
     var pageState: PageState = PageState.Content(pageNumber = 1, items = emptyList(), hasNextPage = false, isStale = false)
     var detailsResult: DetailsResult = DetailsResult.Error("detailsUrl", "Not configured")
     var seriesGuideResult: SeriesGuideResult = SeriesGuideResult.Error("Not configured")
@@ -71,6 +80,11 @@ class TestFakeRepository : LostFilmRepository {
     override suspend fun setFavorite(detailsUrl: String, targetFavorite: Boolean): FavoriteMutationResult = setFavoriteResult
     override fun observeFavoriteReleases(pageNumber: Int, filter: ReleaseWatchFilter): Flow<FavoriteReleasesResult> =
         flowOf(favoriteReleasesResult)
+
+    override suspend fun loadFavoriteSeries(pageNumber: Int, sort: CatalogSort): FavoriteSeriesResult =
+        FavoriteSeriesResult.Unavailable()
+
+    override suspend fun invalidateCache() = Unit
 }
 
 class TestFakeAuthRepository : AuthRepositoryContract {

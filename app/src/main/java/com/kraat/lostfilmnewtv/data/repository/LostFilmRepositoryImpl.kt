@@ -62,9 +62,9 @@ private const val TAG = "LostFilmRepository"
 private const val FRESH_WINDOW_MS = 6 * 60 * 60 * 1000L
 private const val RETENTION_WINDOW_MS = 7 * 24 * 60 * 60 * 1000L
 
-// How long the Room-persisted page 1 cache stays fresh. While the cache is fresh,
+// How long a Room-persisted new releases page stays fresh. While the cache is fresh,
 // observePage skips the network request and serves data directly from Room.
-private const val NEW_RELEASES_ROOM_FRESH_MS = 10 * 60 * 1000L
+private const val NEW_RELEASES_ROOM_FRESH_MS = 30 * 60 * 1000L
 private const val MOVIES_PAGE_SIZE = 20
 private const val SERIES_CATALOG_PAGE_SIZE = 20
 private const val CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000L
@@ -735,7 +735,7 @@ class LostFilmRepositoryImpl(
                 pageNumber = pageNumber,
                 items = cachedItems,
                 hasNextPage = cachedMetadata.itemCount > 0,
-                isStale = now - cachedMetadata.fetchedAt > FRESH_WINDOW_MS,
+                isStale = now - cachedMetadata.fetchedAt >= NEW_RELEASES_ROOM_FRESH_MS,
                 pagingErrorMessage = if (pageNumber > 1) {
                     exception.message ?: "Unable to load page $pageNumber"
                 } else {

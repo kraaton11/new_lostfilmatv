@@ -1,18 +1,20 @@
 package com.kraat.lostfilmnewtv.ui
 
-import androidx.test.core.app.ActivityScenario
+import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
-import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.junit4.createEmptyComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performTextInput
+import androidx.test.core.app.ActivityScenario
 import com.kraat.lostfilmnewtv.MainActivity
-import com.kraat.lostfilmnewtv.data.model.FavoriteMutationResult
 import com.kraat.lostfilmnewtv.data.model.FavoriteReleasesResult
 import com.kraat.lostfilmnewtv.data.model.LostFilmSearchItem
 import com.kraat.lostfilmnewtv.data.model.PageState
@@ -22,7 +24,6 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.data.repository.DetailsResult
 import com.kraat.lostfilmnewtv.data.repository.LostFilmRepository
 import com.kraat.lostfilmnewtv.data.repository.SearchResultsResult
-import com.kraat.lostfilmnewtv.data.repository.SeriesGuideResult
 import com.kraat.lostfilmnewtv.di.TestFakeRepository
 import com.kraat.lostfilmnewtv.ui.home.posterTag
 import dagger.hilt.android.testing.HiltAndroidRule
@@ -94,38 +95,41 @@ class AnonymousBrowsingSmokeTest {
 
     @Test
     fun anonymousHome_launchesThroughRealAppWiring() {
-        waitForText("Новые релизы")
         waitForFocusedPoster()
 
-        assertTrue(composeRule.onAllNodesWithText("Новые релизы").fetchSemanticsNodes().isNotEmpty())
+        composeRule.onNodeWithText("Новинки").assertIsDisplayed()
         composeRule.onNodeWithTag(posterTag(SMOKE_SUMMARY.detailsUrl)).assertIsDisplayed()
     }
 
     @Test
+    @OptIn(ExperimentalTestApi::class)
     fun anonymousDetails_opensFromHomeThroughRealNavGraph() {
         waitForFocusedPoster()
 
-        composeRule.onNodeWithTag(posterTag(SMOKE_SUMMARY.detailsUrl)).performClick()
+        composeRule.onNodeWithTag(posterTag(SMOKE_SUMMARY.detailsUrl)).performKeyInput {
+            keyDown(Key.DirectionCenter)
+            keyUp(Key.DirectionCenter)
+        }
 
         waitForText("Smoke Series Details")
         assertTrue(composeRule.onAllNodesWithText("Smoke Series Details").fetchSemanticsNodes().isNotEmpty())
         assertTrue(composeRule.onAllNodesWithText("Pilot").fetchSemanticsNodes().isNotEmpty())
-        assertTrue(composeRule.onAllNodesWithText("Сезон 1 • Серия 1").fetchSemanticsNodes().isNotEmpty())
+        composeRule.onNodeWithText("Сезон 1").assertIsDisplayed()
+        composeRule.onNodeWithText("Серия 1").assertIsDisplayed()
         assertTrue(composeRule.onAllNodesWithText("TorrServe").fetchSemanticsNodes().isEmpty())
-        composeRule.onNodeWithTag("details-primary-action").assertIsNotEnabled()
-        assertTrue(composeRule.onAllNodesWithText("Недоступно").fetchSemanticsNodes().isNotEmpty())
+        composeRule.onNodeWithTag("details-primary-action").assertIsEnabled()
+        composeRule.onNodeWithText("Войти в LostFilm").assertIsDisplayed()
         assertTrue(composeRule.onAllNodesWithTag("details-back").fetchSemanticsNodes().isEmpty())
 
         scenario?.onActivity { activity ->
             activity.onBackPressedDispatcher.onBackPressed()
         }
-        waitForText("Новые релизы")
         waitForFocusedPoster()
     }
 
     @Test
     fun anonymousSearch_opensFromHomeThroughRealNavGraph() {
-        waitForText("Новые релизы")
+        waitForFocusedPoster()
 
         composeRule.onNodeWithTag("home-action-search").performClick()
 
