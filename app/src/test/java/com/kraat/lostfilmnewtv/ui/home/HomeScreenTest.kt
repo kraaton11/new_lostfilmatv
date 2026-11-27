@@ -795,6 +795,37 @@ class HomeScreenTest {
     }
 
     @Test
+    fun favorites_loadsNextPageWhenItBecomesAvailableWhileLastCardIsFocused() {
+        val items = seededState().items
+        val favorite = items.first()
+        var state by mutableStateOf(
+            homeStateWithModes(HomeFeedMode.Favorites, items, listOf(favorite))
+                .updateMode(HomeFeedMode.Favorites) { it.copy(hasNextPage = false) },
+        )
+        var requests = 0
+        composeRule.setContent {
+            LostFilmTheme {
+                HomeScreen(
+                    state = state,
+                    onEndReached = { if (state.favoritesHasNextPage) requests++ },
+                )
+            }
+        }
+
+        val card = composeRule.onNodeWithTag(posterTag(HOME_RAIL_FAVORITES, favorite.detailsUrl))
+        card.performSemanticsAction(SemanticsActions.RequestFocus)
+        card.assertIsFocused()
+        composeRule.runOnIdle {
+            assertEquals(0, requests)
+            state = state.updateMode(HomeFeedMode.Favorites) {
+                it.copy(hasNextPage = true, nextPage = 2)
+            }
+        }
+        card.assertIsFocused()
+        composeRule.runOnIdle { assertEquals(1, requests) }
+    }
+
+    @Test
     fun homeScreen_withPagingError_keepsRailVisible_andShowsInlineStatusPanel() {
         composeRule.setContent {
             LostFilmTheme {

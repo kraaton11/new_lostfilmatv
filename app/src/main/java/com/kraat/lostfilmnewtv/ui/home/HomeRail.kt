@@ -75,6 +75,7 @@ fun HomeRail(
     onMoveToNextMode: (() -> Unit)? = null,
     onEndReached: () -> Unit,
     modifier: Modifier = Modifier,
+    favoritePageToLoad: Int? = null,
 ) {
     val itemKeys = remember(items) { items.map { it.detailsUrl } }
     val targetKey = if (focusedItemKey in itemKeys) {
@@ -88,6 +89,10 @@ fun HomeRail(
     }
     val listState = remember(railId) { LazyListState() }
     var focusedCardKey by remember(railId) { mutableStateOf<String?>(null) }
+    val isLastCardFocused = focusedCardKey != null && focusedCardKey == itemKeys.lastOrNull()
+    LaunchedEffect(favoritePageToLoad, isLastCardFocused) {
+        if (favoritePageToLoad != null && isLastCardFocused) onEndReached()
+    }
     var handledReturnFocusRequestVersion by remember(railId) {
         mutableStateOf(returnFocusRequestVersion)
     }
@@ -176,7 +181,7 @@ fun HomeRail(
                                 onRailFocusChanged(true)
                                 focusedCardKey = item.detailsUrl
                                 onItemFocused(item.detailsUrl)
-                                if (index == items.lastIndex) {
+                                if (railId != HOME_RAIL_FAVORITES && index == items.lastIndex) {
                                     onEndReached()
                                 }
                             } else if (focusedCardKey == item.detailsUrl) {

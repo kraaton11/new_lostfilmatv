@@ -598,6 +598,10 @@ fun HomeScreen(
                                     onMoveToPreviousMode = { switchModeFromRail(offset = -1) },
                                     onMoveToNextMode = { switchModeFromRail(offset = 1) },
                                     onEndReached = onEndReached,
+                                    favoritePageToLoad = activeModeData.nextPage.takeIf {
+                                        isFavorites && activeModeData.hasNextPage && !activeModeData.isPaging &&
+                                            activeModeData.pagingErrorMessage == null
+                                    },
                                 )
                             }
                             HomeModeContentState.Empty -> {

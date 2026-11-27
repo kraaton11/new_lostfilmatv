@@ -276,6 +276,7 @@ class HomeViewModel @Inject constructor(
             HomeFeedMode.Favorites -> {
                 if (md.isPaging ||
                     !md.hasNextPage ||
+                    md.pagingErrorMessage != null ||
                     md.contentState !is HomeModeContentState.Content
                 ) {
                     return
@@ -812,6 +813,7 @@ class HomeViewModel @Inject constructor(
         retainVisibleItemsOnFailure: Boolean = false,
     ) {
         val filter = _uiState.value.favoriteReleaseFilter
+        val previousHasNextPage = _uiState.value.favoritesHasNextPage
         val requestToken = favoriteRequestToken + 1
         favoriteRequestToken = requestToken
         if (!isPagingRequest) {
@@ -822,6 +824,7 @@ class HomeViewModel @Inject constructor(
                 md.copy(
                     isPaging = isPagingRequest,
                     pagingErrorMessage = null,
+                    hasNextPage = isPagingRequest && md.hasNextPage,
                     contentState = if (isPagingRequest || retainVisibleItemsOnFailure) {
                         md.contentState
                     } else {
@@ -841,11 +844,8 @@ class HomeViewModel @Inject constructor(
                         val md = state.modeData(HomeFeedMode.Favorites)
                         when (result) {
                             is FavoriteReleasesResult.Partial -> {
-                                val updatedItems = if (isPagingRequest) {
-                                    (md.items + result.items).distinctBy { it.detailsUrl }
-                                } else {
-                                    result.items
-                                }
+                                if (isPagingRequest) return@update state
+                                val updatedItems = result.items
                                 val favoriteState = if (updatedItems.isEmpty()) {
                                     md.contentState // keep Loading while streaming
                                 } else {
@@ -886,7 +886,7 @@ class HomeViewModel @Inject constructor(
                             is FavoriteReleasesResult.Unavailable -> {
                                 if (retainVisibleItemsOnFailure) {
                                     return@update state.updateMode(HomeFeedMode.Favorites) {
-                                        it.copy(isPaging = false)
+                                        it.copy(isPaging = false, hasNextPage = previousHasNextPage)
                                     }.resolveSelection()
                                 }
                                 if (isPagingRequest && md.items.isNotEmpty()) {
