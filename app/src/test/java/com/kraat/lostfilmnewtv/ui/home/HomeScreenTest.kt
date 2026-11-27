@@ -1337,6 +1337,11 @@ class HomeScreenTest {
         val first = composeRule.onNodeWithTag(posterTag(HOME_RAIL_MOVIES, movies[0].detailsUrl))
         val second = composeRule.onNodeWithTag(posterTag(HOME_RAIL_MOVIES, movies[1].detailsUrl))
         first.performSemanticsAction(SemanticsActions.RequestFocus)
+        assertEquals(
+            carousel.fetchSemanticsNode().boundsInRoot.left + 12f,
+            first.fetchSemanticsNode().boundsInRoot.left,
+            2f,
+        )
         first.performKeyInput { pressKey(Key.DirectionRight) }
 
         second.assertIsFocused()
@@ -1344,7 +1349,7 @@ class HomeScreenTest {
         assertTrue(cardBounds.width > cardBounds.height)
         val carouselBounds = carousel.fetchSemanticsNode().boundsInRoot
         assertTrue(cardBounds.width < carouselBounds.width * 0.34f)
-        assertEquals(carouselBounds.center.x, cardBounds.center.x, 2f)
+        assertTrue(cardBounds.center.x <= carouselBounds.center.x + 2f)
         composeRule.waitUntil(timeoutMillis = 5_000) {
             composeRule.onAllNodesWithText("Описание второго фильма").fetchSemanticsNodes().isNotEmpty()
         }
@@ -1396,12 +1401,16 @@ class HomeScreenTest {
         val first = composeRule.onNodeWithTag(posterTag(HOME_RAIL_SERIES, series[0].detailsUrl))
         val second = composeRule.onNodeWithTag(posterTag(HOME_RAIL_SERIES, series[1].detailsUrl))
         first.performSemanticsAction(SemanticsActions.RequestFocus)
+        assertEquals(
+            carousel.fetchSemanticsNode().boundsInRoot.left + 12f,
+            first.fetchSemanticsNode().boundsInRoot.left,
+            2f,
+        )
         first.performKeyInput { pressKey(Key.DirectionRight) }
         second.assertIsFocused()
-        assertEquals(
-            carousel.fetchSemanticsNode().boundsInRoot.center.x,
-            second.fetchSemanticsNode().boundsInRoot.center.x,
-            2f,
+        assertTrue(
+            second.fetchSemanticsNode().boundsInRoot.center.x <=
+                carousel.fetchSemanticsNode().boundsInRoot.center.x + 2f,
         )
         composeRule.waitUntil(timeoutMillis = 5_000) {
             composeRule.onAllNodesWithText("Описание второго сериала").fetchSemanticsNodes().isNotEmpty()

@@ -49,7 +49,7 @@ import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 
 private const val HOME_PAGING_SKELETON_COUNT = 4
 private val HOME_RAIL_CARD_SPACING = 8.dp
-private val HOME_RAIL_HORIZONTAL_PADDING = 12.dp
+internal val HOME_RAIL_HORIZONTAL_PADDING = 12.dp
 @OptIn(ExperimentalFoundationApi::class)
 private val carouselCentering = object : BringIntoViewSpec {
     override fun calculateScrollDistance(offset: Float, size: Float, containerSize: Float): Float =
@@ -126,7 +126,7 @@ fun HomeRail(
         val carouselCardWidth = homeCarouselCardWidth(maxWidth, maxHeight)
         val carouselCardSize = DpSize(carouselCardWidth, carouselCardWidth * (9f / 16f))
         val spacing = if (isCarousel) carouselCardWidth * -0.15f else HOME_RAIL_CARD_SPACING
-        val carouselInsets = (maxWidth - carouselCardWidth) / 2
+        val carouselEndPadding = (maxWidth - carouselCardWidth) / 2
         CompositionLocalProvider(
             LocalBringIntoViewSpec provides if (isCarousel) carouselCentering else LocalBringIntoViewSpec.current,
         ) {
@@ -146,7 +146,10 @@ fun HomeRail(
                     .then(if (isCarousel) Modifier.testTag(carouselTag) else Modifier),
                 horizontalArrangement = Arrangement.spacedBy(spacing),
                 verticalAlignment = if (isCarousel) Alignment.CenterVertically else Alignment.Top,
-                contentPadding = if (isCarousel) PaddingValues(horizontal = carouselInsets) else PaddingValues(
+                contentPadding = if (isCarousel) PaddingValues(
+                    start = HOME_RAIL_HORIZONTAL_PADDING,
+                    end = carouselEndPadding,
+                ) else PaddingValues(
                     start = HOME_RAIL_HORIZONTAL_PADDING,
                     top = 12.dp,
                     end = 10.dp,
@@ -200,6 +203,8 @@ fun HomeRail(
                         HomeCarouselCard(
                             item = item,
                             selected = (focusedCardKey ?: targetKey) == item.detailsUrl,
+                            isFocused = focusedCardKey == item.detailsUrl,
+                            isSeries = railId == HOME_RAIL_SERIES,
                             onClick = open,
                             modifier = cardModifier.size(carouselCardSize),
                         )

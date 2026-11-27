@@ -897,7 +897,7 @@ private fun CatalogInfoPanel(item: ReleaseSummary?, preview: HomeReleasePreview,
     }
 }
 
-private fun Modifier.loopingTitle(): Modifier = basicMarquee(
+internal fun Modifier.loopingTitle(): Modifier = basicMarquee(
     iterations = Int.MAX_VALUE,
     initialDelayMillis = 2_000,
     repeatDelayMillis = 0,
@@ -1356,10 +1356,11 @@ private fun CatalogLoadingSkeleton(
         HomeRailSectionHeader(selectedMode = mode, favoriteSeriesCount = null, seriesStatus = seriesStatus)
         BoxWithConstraints(
             modifier = Modifier.fillMaxWidth().padding(bottom = 30.dp),
-            contentAlignment = Alignment.Center,
+            contentAlignment = Alignment.CenterStart,
         ) {
             val cardWidth = homeCarouselCardWidth(maxWidth, maxHeight)
             Row(
+                modifier = Modifier.padding(start = HOME_RAIL_HORIZONTAL_PADDING),
                 horizontalArrangement = Arrangement.spacedBy(cardWidth * -0.15f),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -1369,7 +1370,7 @@ private fun CatalogLoadingSkeleton(
                         modifier = Modifier
                             .size(cardWidth, cardWidth * (9f / 16f))
                             .graphicsLayer {
-                                scaleX = if (index == 1) 1f else 0.82f
+                                scaleX = if (index == 0) 1f else 0.82f
                                 scaleY = scaleX
                             },
                         shape = RoundedCornerShape(14.dp),

@@ -1,6 +1,7 @@
 package com.kraat.lostfilmnewtv.ui.home
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,23 +21,29 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import androidx.tv.material3.Border
 import androidx.tv.material3.Card
 import androidx.tv.material3.CardDefaults
 import com.kraat.lostfilmnewtv.data.model.ReleaseSummary
 import com.kraat.lostfilmnewtv.ui.components.PosterImage
 import com.kraat.lostfilmnewtv.ui.components.resolveArtworkForDisplay
+import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGold
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 
 @Composable
 internal fun HomeCarouselCard(
     item: ReleaseSummary,
     selected: Boolean,
+    isFocused: Boolean,
+    isSeries: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val emphasis by animateFloatAsState(if (selected) 1f else 0f, label = "Carousel card focus")
-    val artwork = resolveArtworkForDisplay(item.backdropUrl)
-        ?: resolveArtworkForDisplay(item.posterUrl)
+    val poster = resolveArtworkForDisplay(item.posterUrl)
+    val backdrop = resolveArtworkForDisplay(item.backdropUrl)
+    val artwork = if (isSeries) poster else backdrop ?: poster
+    val shape = RoundedCornerShape(14.dp)
 
     Card(
         onClick = onClick,
@@ -46,7 +53,8 @@ internal fun HomeCarouselCard(
                 scaleX = 0.82f + 0.18f * emphasis
                 scaleY = scaleX
             },
-        shape = CardDefaults.shape(RoundedCornerShape(14.dp)),
+        shape = CardDefaults.shape(shape),
+        border = CardDefaults.border(focusedBorder = Border(BorderStroke(2.dp, HomeAccentGold), shape = shape)),
         scale = CardDefaults.scale(focusedScale = 1f),
         colors = CardDefaults.colors(
             containerColor = HomePanelSurfaceStrong,
@@ -58,7 +66,7 @@ internal fun HomeCarouselCard(
             Box(
                 Modifier.fillMaxSize().background(
                     Brush.verticalGradient(
-                        0.25f to Color.Transparent,
+                        0.40f to Color.Transparent,
                         1f to Color.Black.copy(alpha = 0.90f),
                     ),
                 ),
@@ -72,15 +80,17 @@ internal fun HomeCarouselCard(
                     fontSize = 16.sp,
                     lineHeight = 19.sp,
                     fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
+                    modifier = if (isFocused) Modifier.loopingTitle() else Modifier,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = if (isFocused) TextOverflow.Clip else TextOverflow.Ellipsis,
                 )
                 item.originalReleaseYear?.let { year ->
                     Text(text = year.toString(), color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
                 }
             }
             if (emphasis < 1f) {
-                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = (1f - emphasis) * 0.38f)))
+                Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = (1f - emphasis) * 0.22f)))
             }
         }
     }
