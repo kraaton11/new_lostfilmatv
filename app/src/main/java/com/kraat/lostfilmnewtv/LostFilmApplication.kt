@@ -36,6 +36,7 @@ class LostFilmApplication : Application(), Configuration.Provider, ImageLoaderFa
         super.onCreate()
         // Apply the user-configured LostFilm host before any networking can happen.
         LostFilmBaseUrl.set(playbackPreferencesStore.readLostFilmBaseUrl())
+        LostFilmBaseUrl.setAutomatic(playbackPreferencesStore.readLostFilmAutomaticMirror())
         // Фоновый предпрогрев тяжелых синглтонов
         CoroutineScope(Dispatchers.IO).launch {
             okHttpClient.get()

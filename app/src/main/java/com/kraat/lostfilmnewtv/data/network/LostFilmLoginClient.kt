@@ -86,7 +86,8 @@ class LostFilmLoginClient(
                 .add("rem", "1")
                 .build()
 
-            val request = baseRequest("${base()}/ajaxik.users.php")
+            val loginBase = base().toHttpUrl()
+            val request = baseRequest("${loginBase.toString().trimEnd('/')}/ajaxik.users.php")
                 .header("Accept", "application/json, text/javascript, */*; q=0.01")
                 .header("X-Requested-With", "XMLHttpRequest")
                 .post(form)
@@ -102,12 +103,17 @@ class LostFilmLoginClient(
 
             val ok = payload["result"].asString() == "ok"
             val success = payload["success"].asBoolean()
-            val hasSessionCookie = jar.all().any { it.name.equals("lf_session", ignoreCase = true) }
+            val cookies = jar.loadForRequest(loginBase)
+            val hasSessionCookie = cookies.any { it.name.equals("lf_session", ignoreCase = true) }
 
             when {
                 (ok && success) || hasSessionCookie -> {
                     captchaRequired = false
-                    LoginResult.Success(buildSession())
+                    LoginResult.Success(
+                        LostFilmSession(cookies = cookies.map {
+                            LostFilmCookie(name = it.name, value = it.value, domain = it.domain, path = it.path)
+                        }),
+                    )
                 }
                 ok && payload["need_captcha"].asBoolean() -> {
                     captchaRequired = true
@@ -120,14 +126,6 @@ class LostFilmLoginClient(
                 else -> LoginResult.InvalidCredentials
             }
         }
-
-    private fun buildSession(): LostFilmSession {
-        val host = base().toHttpUrl()
-        val cookies = jar.loadForRequest(host).map {
-            LostFilmCookie(name = it.name, value = it.value, domain = it.domain, path = it.path)
-        }
-        return LostFilmSession(cookies = cookies)
-    }
 
     private fun base(): String = baseUrlProvider().trimEnd('/')
 
@@ -167,9 +165,6 @@ class LostFilmLoginClient(
             val now = System.currentTimeMillis()
             return store.filter { it.expiresAt > now && it.matches(url) }
         }
-
-        @Synchronized
-        fun all(): List<Cookie> = store.toList()
 
         @Synchronized
         fun clear() = store.clear()

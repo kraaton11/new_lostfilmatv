@@ -39,4 +39,25 @@ class LostFilmLoginClientTest {
             assertTrue(server.takeRequest().body.readUtf8().contains("need_captcha=1&captcha=1234"))
         }
     }
+
+    @Test
+    fun buildsSessionForTheServerThatReceivedTheLogin() = runTest {
+        MockWebServer().use { server ->
+            server.enqueue(
+                MockResponse().setBody("""{"result":"ok","success":true}""")
+                    .addHeader("Set-Cookie", "lf_session=session-token; Path=/"),
+            )
+            var baseUrl = server.url("/").toString()
+            val transport = OkHttpClient.Builder()
+                .addInterceptor { chain ->
+                    chain.proceed(chain.request()).also { baseUrl = "https://www.lostfilm.download" }
+                }
+                .build()
+            val client = LostFilmLoginClient(transport) { baseUrl }
+
+            val result = client.login("tv@example.test", "password", null) as LostFilmLoginClient.LoginResult.Success
+
+            assertEquals("session-token", result.session.cookies.single().value)
+        }
+    }
 }

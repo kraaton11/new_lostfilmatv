@@ -5,11 +5,14 @@ import androidx.compose.ui.test.assertTextEquals
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextInput
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -28,6 +31,9 @@ class SettingsServerSectionTest {
         onChanged: (String) -> Unit = {},
         onSave: () -> Unit = {},
         onReset: () -> Unit = {},
+        onCheck: () -> Unit = {},
+        onSelect: (String) -> Unit = {},
+        onToggleAutomatic: () -> Unit = {},
     ) {
         composeRule.setContent {
             LostFilmTheme {
@@ -51,6 +57,9 @@ class SettingsServerSectionTest {
                     onLostFilmHostChanged = onChanged,
                     onSaveLostFilmHostClick = onSave,
                     onResetLostFilmHostClick = onReset,
+                    onCheckLostFilmHostClick = onCheck,
+                    onSelectLostFilmMirror = onSelect,
+                    onToggleLostFilmAutomaticMirror = onToggleAutomatic,
                 )
             }
         }
@@ -64,6 +73,22 @@ class SettingsServerSectionTest {
         composeRule.onNodeWithTag("settings-lostfilm-host", useUnmergedTree = true).assertExists()
         composeRule.onNodeWithTag("settings-lostfilm-host-save").assertExists()
         composeRule.onNodeWithTag("settings-lostfilm-host-reset").assertExists()
+    }
+
+    @Test
+    fun serverSection_routesCheckMirrorSelectionAndAutomaticToggle() {
+        val actions = mutableListOf<String>()
+        setServerSection(
+            onCheck = { actions += "check" },
+            onSelect = { actions += it },
+            onToggleAutomatic = { actions += "toggle" },
+        )
+
+        composeRule.onNodeWithTag("settings-lostfilm-host-check").performScrollTo().performClick()
+        composeRule.onNodeWithTag("settings-lostfilm-mirror-www.lostfilm.download").performScrollTo().performClick()
+        composeRule.onNodeWithTag("settings-lostfilm-automatic-mirror").performScrollTo().performClick()
+
+        assertEquals(listOf("check", "https://www.lostfilm.download", "toggle"), actions)
     }
 
     @Test

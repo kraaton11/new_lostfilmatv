@@ -180,20 +180,22 @@ fun Element?.textOrEmpty(): String = this?.text()?.normalizeText().orEmpty()
 
 fun String.normalizeText(): String = trim().replace('\u00A0', ' ')
 
-fun resolveUrl(url: String): String =
+fun resolveUrl(url: String): String = resolveUrl(url, BASE_URL)
+
+internal fun resolveUrl(url: String, baseUrl: String): String =
     when {
-        url.startsWith("http://") || url.startsWith("https://") -> url.onSelectedLostFilmMirror()
-        url.startsWith("//") -> "https:$url".onSelectedLostFilmMirror()
-        url.startsWith("/") -> "$BASE_URL$url"
+        url.startsWith("http://") || url.startsWith("https://") -> url.onSelectedLostFilmMirror(baseUrl)
+        url.startsWith("//") -> "https:$url".onSelectedLostFilmMirror(baseUrl)
+        url.startsWith("/") -> "$baseUrl$url"
         url.isBlank() -> ""
-        else -> "$BASE_URL/$url"
+        else -> "$baseUrl/$url"
     }
 
-private fun String.onSelectedLostFilmMirror(): String {
+private fun String.onSelectedLostFilmMirror(baseUrl: String): String {
     val link = toHttpUrlOrNull() ?: return this
     if (!link.host.isKnownLostFilmMirror()) return this
     if (!link.encodedPath.startsWith("/series/") && !link.encodedPath.startsWith("/movies/")) return this
-    val selected = BASE_URL.toHttpUrlOrNull() ?: return this
+    val selected = baseUrl.toHttpUrlOrNull() ?: return this
     return selected.newBuilder()
         .encodedPath(link.encodedPath)
         .encodedQuery(link.encodedQuery)

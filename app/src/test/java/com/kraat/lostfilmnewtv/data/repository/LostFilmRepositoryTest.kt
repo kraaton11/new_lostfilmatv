@@ -583,7 +583,7 @@ class LostFilmRepositoryTest {
             detailsHandler = { requestedUrl ->
                 detailsRequests += requestedUrl
                 when (requestedUrl) {
-                    "https://www.lostfilm.today/search/?q=house%20dragon" -> fixture("search-dragon.html")
+                    "/search/?q=house%20dragon" -> fixture("search-dragon.html")
                     else -> error("Unexpected details request: $requestedUrl")
                 }
             },
@@ -592,7 +592,7 @@ class LostFilmRepositoryTest {
         val result = repository.search("  house   dragon ")
 
         assertEquals(
-            listOf("https://www.lostfilm.today/search/?q=house%20dragon"),
+            listOf("/search/?q=house%20dragon"),
             detailsRequests,
         )
         assertEquals(
@@ -610,7 +610,7 @@ class LostFilmRepositoryTest {
             pageHandler = { fixture("new-page-1.html") },
             detailsHandler = { requestedUrl ->
                 when (requestedUrl) {
-                    "https://www.lostfilm.today/search/?q=dragon" -> throw IOException("offline")
+                    "/search/?q=dragon" -> throw IOException("offline")
                     else -> error("Unexpected details request: $requestedUrl")
                 }
             },

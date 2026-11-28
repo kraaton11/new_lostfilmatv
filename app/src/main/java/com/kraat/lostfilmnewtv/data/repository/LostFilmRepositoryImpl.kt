@@ -539,7 +539,7 @@ class LostFilmRepositoryImpl(
         return try {
             val encodedQuery = URLEncoder.encode(normalizedQuery, StandardCharsets.UTF_8.toString())
                 .replace("+", "%20")
-            val html = anonymousHttpClient.fetchDetails("$BASE_URL/search/?q=$encodedQuery")
+            val html = anonymousHttpClient.fetchDetails("/search/?q=$encodedQuery")
             val parsedItems = withContext(Dispatchers.Default) {
                 searchParser.parse(html)
             }

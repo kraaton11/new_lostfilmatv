@@ -187,6 +187,12 @@ class PlaybackPreferencesStore(
             .apply()
     }
 
+    fun readLostFilmAutomaticMirror(): Boolean = prefs.getBoolean("lostfilm_automatic_mirror", false)
+
+    fun writeLostFilmAutomaticMirror(enabled: Boolean) {
+        prefs.edit().putBoolean("lostfilm_automatic_mirror", enabled).apply()
+    }
+
     fun readLostFilmBaseUrl(): String {
         return prefs.getString(KEY_LOSTFILM_BASE_URL, null)
             ?.takeIf { it.isNotBlank() }

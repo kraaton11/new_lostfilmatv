@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.kraat.lostfilmnewtv.data.parser.LostFilmBaseUrl
 
 @Composable
 fun SettingsRoute(
@@ -42,6 +43,12 @@ fun SettingsRoute(
         onTorrServeLoginChanged = viewModel::onTorrServeLoginChanged,
         onTorrServePasswordChanged = viewModel::onTorrServePasswordChanged,
         lostFilmHost = state.value.lostFilmHost,
+        activeLostFilmHost = LostFilmBaseUrl.url.collectAsStateWithLifecycle().value,
+        isCheckingLostFilmHost = state.value.isCheckingLostFilmHost,
+        isLostFilmAutomaticMirror = state.value.isLostFilmAutomaticMirror,
+        onCheckLostFilmHostClick = viewModel::onCheckLostFilmHostClick,
+        onSelectLostFilmMirror = viewModel::onSelectLostFilmMirror,
+        onToggleLostFilmAutomaticMirror = viewModel::onToggleLostFilmAutomaticMirror,
         lostFilmHostStatusText = state.value.lostFilmHostStatusText,
         onLostFilmHostChanged = viewModel::onLostFilmHostChanged,
         onSaveLostFilmHostClick = viewModel::onSaveLostFilmHostClick,

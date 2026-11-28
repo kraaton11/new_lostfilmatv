@@ -4,19 +4,24 @@ import com.kraat.lostfilmnewtv.data.model.CatalogSort
 import com.kraat.lostfilmnewtv.data.model.SeriesStatus
 import android.util.Log
 import com.kraat.lostfilmnewtv.data.parser.BASE_URL
+import com.kraat.lostfilmnewtv.data.parser.LostFilmBaseUrl
 import com.kraat.lostfilmnewtv.data.parser.resolveUrl
 import com.kraat.lostfilmnewtv.data.auth.SessionStore
 import com.kraat.lostfilmnewtv.data.model.FavoriteToggleNetworkResult
 import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlin.coroutines.coroutineContext
 import okhttp3.FormBody
 import okhttp3.HttpUrl
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
-private fun schedulePageUrl(): String = "$BASE_URL/schedule/my_0/type_0"
+private fun schedulePageUrl(baseUrl: String = BASE_URL): String = "$baseUrl/schedule/my_0/type_0"
 
 interface LostFilmHttpClient {
     suspend fun fetchNewPage(pageNumber: Int): String
@@ -73,13 +78,16 @@ class OkHttpLostFilmHttpClient(
     private val okHttpClient: OkHttpClient,
 ) : LostFilmHttpClient {
 
+    private val mirrorChecker by lazy { LostFilmMirrorChecker(okHttpClient) }
+
     override suspend fun fetchNewPage(pageNumber: Int): String = withContext(Dispatchers.IO) {
-        val url = if (pageNumber <= 1) "$BASE_URL/new/" else "$BASE_URL/new/page_$pageNumber"
-        executeLostFilm(url)
+        executeLostFilm(expectReleasePage = pageNumber <= 1) { baseUrl ->
+            if (pageNumber <= 1) "$baseUrl/new/" else "$baseUrl/new/page_$pageNumber"
+        }
     }
 
     override suspend fun fetchMoviesPage(pageNumber: Int, sort: CatalogSort): String = withContext(Dispatchers.IO) {
-        executeLostFilm(moviesPageUrl(pageNumber, sort))
+        executeLostFilm { moviesPageUrl(pageNumber, sort, it) }
     }
 
     override suspend fun fetchSeriesCatalogPage(
@@ -96,15 +104,15 @@ class OkHttpLostFilmHttpClient(
         }
 
     override suspend fun fetchSchedulePage(): String = withContext(Dispatchers.IO) {
-        executeLostFilm(schedulePageUrl())
+        executeLostFilm(url = ::schedulePageUrl)
     }
 
     override suspend fun fetchDetails(detailsUrl: String): String = withContext(Dispatchers.IO) {
-        executeLostFilm(resolveUrl(detailsUrl))
+        executeLostFilm { resolveUrl(detailsUrl, it) }
     }
 
     override suspend fun fetchAccountPage(path: String): String = withContext(Dispatchers.IO) {
-        executeLostFilm(resolveUrl(path))
+        executeLostFilm(publicPage = false) { resolveUrl(path, it) }
     }
 
     override suspend fun fetchSeasonWatchedEpisodeMarks(
@@ -120,7 +128,7 @@ class OkHttpLostFilmHttpClient(
     }
 
     override suspend fun fetchTorrentRedirect(playEpisodeId: String): String = withContext(Dispatchers.IO) {
-        executeLostFilm("$BASE_URL/v_search.php?a=$playEpisodeId")
+        executeLostFilm(publicPage = false) { "$it/v_search.php?a=$playEpisodeId" }
     }
 
     override suspend fun fetchTorrentPage(url: String): String = withContext(Dispatchers.IO) {
@@ -157,9 +165,53 @@ class OkHttpLostFilmHttpClient(
         )
     }
 
-    private suspend fun executeLostFilm(url: String): String {
-        val parsedUrl = requireLostFilmUrl(url)
+    private suspend fun executeLostFilm(
+        publicPage: Boolean = true,
+        expectReleasePage: Boolean = false,
+        url: (String) -> String,
+    ): String {
         val cookieHeader = sessionStore?.read()?.toCookieString()?.takeIf { it.isNotBlank() }
+        val selection = LostFilmBaseUrl.selection
+        val automatic = publicPage && cookieHeader == null && selection.automatic
+        return withMirrorRetry(selection, automatic) { baseUrl ->
+            val target = requireLostFilmUrl(url(baseUrl), baseUrl)
+            val body = executeLostFilmRequest(target, cookieHeader)
+            if (automatic && expectReleasePage && !isLostFilmReleasePage(body)) {
+                throw IOException("Unexpected release page for ${target.redactedForError()}")
+            }
+            body
+        }
+    }
+
+    private suspend fun <T> withMirrorRetry(
+        selection: LostFilmBaseUrl.Selection,
+        automatic: Boolean,
+        request: suspend (String) -> T,
+    ): T {
+        try {
+            return request(selection.activeUrl)
+        } catch (failure: IOException) {
+            if (!automatic || !failure.allowsMirrorRetry()) throw failure
+            val mirror = mirrorCheckMutex.withLock {
+                coroutineContext.ensureActive()
+                val current = LostFilmBaseUrl.selection
+                if (current !== selection) {
+                    current.activeUrl.takeIf { current.revision == selection.revision }
+                } else {
+                    val available = LostFilmBaseUrl.failoverMirrors.firstOrNull {
+                        coroutineContext.ensureActive()
+                        it != selection.activeUrl && mirrorChecker.isAvailable(it)
+                    }
+                    coroutineContext.ensureActive()
+                    available?.takeIf { LostFilmBaseUrl.switchMirror(selection, it) }
+                }
+            } ?: throw failure
+            coroutineContext.ensureActive()
+            return request(mirror)
+        }
+    }
+
+    private suspend fun executeLostFilmRequest(parsedUrl: HttpUrl, cookieHeader: String?): String {
         val requestBuilder = Request.Builder()
             .url(parsedUrl)
             .header("User-Agent", USER_AGENT_PUBLIC)
@@ -168,7 +220,7 @@ class OkHttpLostFilmHttpClient(
 
         okHttpClient.newCall(requestBuilder.build()).execute().use { response ->
             if (!response.isSuccessful) {
-                throw IOException("HTTP ${response.code} for ${parsedUrl.redactedForError()}")
+                throw LostFilmHttpFailure(response.code, parsedUrl)
             }
             val body = response.body?.string()
                 ?: throw IOException("Empty response body for ${parsedUrl.redactedForError()}")
@@ -195,15 +247,23 @@ class OkHttpLostFilmHttpClient(
         }
     }
 
-    private suspend fun executeSeriesCatalogSearch(pageNumber: Int, sort: CatalogSort, status: Int): String {
+    private suspend fun executeSeriesCatalogSearch(pageNumber: Int, sort: CatalogSort, status: Int): String =
+        LostFilmBaseUrl.selection.let { selection ->
+            val automatic = selection.automatic && sessionStore == null && status != SeriesStatus.Favorites.queryValue
+            withMirrorRetry(selection, automatic) { baseUrl ->
+                executeSeriesCatalogRequest(baseUrl, pageNumber, sort, status)
+            }
+        }
+
+    private suspend fun executeSeriesCatalogRequest(baseUrl: String, pageNumber: Int, sort: CatalogSort, status: Int): String {
         val offset = ((pageNumber.coerceAtLeast(1) - 1) * SERIES_CATALOG_PAGE_SIZE).coerceAtLeast(0)
-        val ajaxUrl = requireLostFilmUrl("$BASE_URL/ajaxik.php")
+        val ajaxUrl = requireLostFilmUrl("$baseUrl/ajaxik.php", baseUrl)
         val cookieHeader = sessionStore?.read()?.toCookieString()?.takeIf { it.isNotBlank() }
         val requestBuilder = Request.Builder()
             .url(ajaxUrl)
             .header("User-Agent", USER_AGENT_PUBLIC)
             .header("Accept", "application/json, text/javascript, */*; q=0.01")
-            .header("Referer", "$BASE_URL/series/")
+            .header("Referer", "$baseUrl/series/")
             .post(
                 FormBody.Builder()
                     .add("act", "serial")
@@ -218,7 +278,7 @@ class OkHttpLostFilmHttpClient(
 
         okHttpClient.newCall(requestBuilder.build()).execute().use { response ->
             if (!response.isSuccessful) {
-                throw IOException("HTTP ${response.code} for ${ajaxUrl.redactedForError()}")
+                throw LostFilmHttpFailure(response.code, ajaxUrl)
             }
             return response.body?.string()
                 ?: throw IOException("Empty response body for ${ajaxUrl.redactedForError()}")
@@ -226,6 +286,8 @@ class OkHttpLostFilmHttpClient(
     }
 
     companion object {
+        private val mirrorCheckMutex = Mutex()
+
         const val USER_AGENT_PUBLIC =
             "Mozilla/5.0 (Android TV; LostFilmNewTV) AppleWebKit/537.36 Chrome/132.0.0.0 Safari/537.36"
     }
@@ -233,12 +295,12 @@ class OkHttpLostFilmHttpClient(
 
 internal const val SERIES_CATALOG_PAGE_SIZE = 20
 
-private fun moviesPageUrl(pageNumber: Int, sort: CatalogSort): String {
+private fun moviesPageUrl(pageNumber: Int, sort: CatalogSort, baseUrl: String = BASE_URL): String {
     val offset = ((pageNumber.coerceAtLeast(1) - 1) * 20).coerceAtLeast(0)
     return if (offset == 0) {
-        "$BASE_URL/movies/?type=search&s=${sort.queryValue}&t=0"
+        "$baseUrl/movies/?type=search&s=${sort.queryValue}&t=0"
     } else {
-        "$BASE_URL/movies/?type=search&s=${sort.queryValue}&t=0&o=$offset"
+        "$baseUrl/movies/?type=search&s=${sort.queryValue}&t=0&o=$offset"
     }
 }
 
@@ -383,10 +445,22 @@ private fun executeToggleFavorite(
     }
 }
 
-private fun requireLostFilmUrl(url: String): HttpUrl {
-    val parsed = url.toHttpUrlOrNull() ?: throw IOException("Invalid LostFilm URL")
-    if (parsed.scheme != "https" || parsed.host !in lostFilmCookieHosts()) {
-        throw IOException("Rejected non-LostFilm URL: ${parsed.redactedForError()}")
+private class LostFilmHttpFailure(val code: Int, url: HttpUrl) :
+    IOException("HTTP $code for ${url.redactedForError()}")
+
+private fun IOException.allowsMirrorRetry(): Boolean =
+    when (this) {
+        is RejectedLostFilmUrl -> false
+        is LostFilmHttpFailure -> code == 403 || code == 451 || code in 500..599
+        else -> true
+    }
+
+private class RejectedLostFilmUrl(message: String) : IOException(message)
+
+private fun requireLostFilmUrl(url: String, baseUrl: String = BASE_URL): HttpUrl {
+    val parsed = url.toHttpUrlOrNull() ?: throw RejectedLostFilmUrl("Invalid LostFilm URL")
+    if (parsed.scheme != "https" || parsed.host !in lostFilmCookieHosts(baseUrl)) {
+        throw RejectedLostFilmUrl("Rejected non-LostFilm URL: ${parsed.redactedForError()}")
     }
     return parsed
 }
@@ -412,8 +486,8 @@ private const val TORRENT_PAGE_HOST = "n.tracktor.site"
  * Hosts allowed for LostFilm requests, derived from the currently configured base URL
  * (`BASE_URL`). Changing the host in Settings therefore also updates this allowlist.
  */
-private fun lostFilmCookieHosts(): Set<String> {
-    val host = BASE_URL.toHttpUrlOrNull()?.host?.takeIf { it.isNotBlank() } ?: FALLBACK_LOSTFILM_HOST
+private fun lostFilmCookieHosts(baseUrl: String = BASE_URL): Set<String> {
+    val host = baseUrl.toHttpUrlOrNull()?.host?.takeIf { it.isNotBlank() } ?: FALLBACK_LOSTFILM_HOST
     val bareHost = host.removePrefix("www.")
     return setOf(bareHost, "www.$bareHost")
 }

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.kraat.lostfilmnewtv.BuildConfig
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import com.kraat.lostfilmnewtv.data.parser.LostFilmBaseUrl
+import com.kraat.lostfilmnewtv.data.network.LostFilmMirrorChecker
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.playback.WatchedMarkingMode
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
@@ -43,6 +44,7 @@ class SettingsViewModel @Inject constructor(
     private val appUpdateBackgroundScheduler: AppUpdateBackgroundScheduler,
     private val releaseApkLauncher: ReleaseApkLauncher,
     private val torrServeEndpointChecker: TorrServeEndpointChecker,
+    private val lostFilmMirrorChecker: LostFilmMirrorChecker,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
@@ -53,6 +55,7 @@ class SettingsViewModel @Inject constructor(
     private var activeRefreshJob: Job? = null
     private var installJob: Job? = null
     private var torrServeCheckJob: Job? = null
+    private var lostFilmCheckJob: Job? = null
     private var refreshRequestToken: Long = 0
     private var lastCheckTimestamp = 0L
 
@@ -72,6 +75,7 @@ class SettingsViewModel @Inject constructor(
             torrServeLogin = preferencesStore.readTorrServeLogin(),
             torrServePassword = preferencesStore.readTorrServePassword(),
             lostFilmHost = preferencesStore.readLostFilmBaseUrl(),
+            isLostFilmAutomaticMirror = preferencesStore.readLostFilmAutomaticMirror(),
             installedVersionText = BuildConfig.VERSION_NAME,
             savedAppUpdate = initialSavedUpdate,
             installUrl = initialSavedUpdate?.apkUrl,
@@ -212,7 +216,41 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun onLostFilmHostChanged(value: String) {
-        _uiState.update { it.copy(lostFilmHost = value, lostFilmHostStatusText = null) }
+        lostFilmCheckJob?.cancel()
+        _uiState.update {
+            it.copy(lostFilmHost = value, lostFilmHostStatusText = null, isCheckingLostFilmHost = false)
+        }
+    }
+
+    fun onSelectLostFilmMirror(url: String) {
+        onLostFilmHostChanged(url)
+        onSaveLostFilmHostClick()
+    }
+
+    fun onToggleLostFilmAutomaticMirror() {
+        val enabled = !_uiState.value.isLostFilmAutomaticMirror
+        preferencesStore.writeLostFilmAutomaticMirror(enabled)
+        LostFilmBaseUrl.setAutomatic(enabled)
+        _uiState.update { it.copy(isLostFilmAutomaticMirror = enabled) }
+    }
+
+    fun onCheckLostFilmHostClick() {
+        if (lostFilmCheckJob?.isActive == true) return
+        val address = normalizeLostFilmHost(_uiState.value.lostFilmHost)
+        if (address == null) {
+            _uiState.update { it.copy(lostFilmHostStatusText = "Неверный адрес сервера") }
+            return
+        }
+        _uiState.update { it.copy(isCheckingLostFilmHost = true, lostFilmHostStatusText = null) }
+        lostFilmCheckJob = viewModelScope.launch {
+            val available = withContext(ioDispatcher) { lostFilmMirrorChecker.isAvailable(address) }
+            _uiState.update {
+                it.copy(
+                    isCheckingLostFilmHost = false,
+                    lostFilmHostStatusText = if (available) "Сервер доступен" else "Сервер недоступен",
+                )
+            }
+        }
     }
 
     fun onSaveLostFilmHostClick() {
@@ -221,6 +259,7 @@ class SettingsViewModel @Inject constructor(
             _uiState.update { it.copy(lostFilmHostStatusText = "Неверный адрес сервера") }
             return
         }
+        lostFilmCheckJob?.cancel()
         preferencesStore.writeLostFilmBaseUrl(normalized)
         val previousBaseUrl = LostFilmBaseUrl.get()
         LostFilmBaseUrl.set(normalized)
@@ -230,12 +269,14 @@ class SettingsViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 lostFilmHost = normalized,
+                isCheckingLostFilmHost = false,
                 lostFilmHostStatusText = "Адрес сохранен",
             )
         }
     }
 
     fun onResetLostFilmHostClick() {
+        lostFilmCheckJob?.cancel()
         preferencesStore.resetLostFilmBaseUrl()
         val restored = preferencesStore.readLostFilmBaseUrl()
         val previousBaseUrl = LostFilmBaseUrl.get()
@@ -246,6 +287,7 @@ class SettingsViewModel @Inject constructor(
         _uiState.update {
             it.copy(
                 lostFilmHost = restored,
+                isCheckingLostFilmHost = false,
                 lostFilmHostStatusText = "Адрес сброшен",
             )
         }
@@ -381,6 +423,7 @@ class SettingsViewModel @Inject constructor(
         torrServeEndpointChecker: TorrServeEndpointChecker,
         ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
         debounceIntervalMs: Long,
+        lostFilmMirrorChecker: LostFilmMirrorChecker = LostFilmMirrorChecker(okhttp3.OkHttpClient()),
     ) : this(
         preferencesStore = preferencesStore,
         appUpdateCoordinator = appUpdateCoordinator,
@@ -389,6 +432,7 @@ class SettingsViewModel @Inject constructor(
         appUpdateBackgroundScheduler = appUpdateBackgroundScheduler,
         releaseApkLauncher = releaseApkLauncher,
         torrServeEndpointChecker = torrServeEndpointChecker,
+        lostFilmMirrorChecker = lostFilmMirrorChecker,
         ioDispatcher = ioDispatcher,
     ) {
         this.debounceIntervalMs = debounceIntervalMs

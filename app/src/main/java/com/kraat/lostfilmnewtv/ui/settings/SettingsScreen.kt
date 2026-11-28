@@ -28,8 +28,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import com.kraat.lostfilmnewtv.data.parser.LostFilmBaseUrl
 import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGold
 import com.kraat.lostfilmnewtv.ui.theme.HomeTextMuted
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -79,6 +85,12 @@ fun SettingsScreen(
     onCheckTorrServeClick: () -> Unit = {},
     lostFilmHost: String = "",
     lostFilmHostStatusText: String? = null,
+    activeLostFilmHost: String = LostFilmBaseUrl.DEFAULT,
+    isCheckingLostFilmHost: Boolean = false,
+    isLostFilmAutomaticMirror: Boolean = false,
+    onCheckLostFilmHostClick: () -> Unit = {},
+    onSelectLostFilmMirror: (String) -> Unit = {},
+    onToggleLostFilmAutomaticMirror: () -> Unit = {},
     onLostFilmHostChanged: (String) -> Unit = {},
     onSaveLostFilmHostClick: () -> Unit = {},
     onResetLostFilmHostClick: () -> Unit = {},
@@ -133,6 +145,11 @@ fun SettingsScreen(
             put(SettingsFocusTarget.LostFilmHost.toTag(), FocusRequester())
             put(SettingsFocusTarget.LostFilmHostSave.toTag(), FocusRequester())
             put(SettingsFocusTarget.LostFilmHostReset.toTag(), FocusRequester())
+            put(SettingsFocusTarget.LostFilmHostCheck.toTag(), FocusRequester())
+            put(SettingsFocusTarget.LostFilmAutomaticMirror.toTag(), FocusRequester())
+            LostFilmBaseUrl.selectableMirrors.forEach { url ->
+                put(SettingsFocusTarget.LostFilmMirror(url).toTag(), FocusRequester())
+            }
             put(SettingsFocusTarget.CheckForUpdates.toTag(), FocusRequester())
             put(SettingsFocusTarget.InstallUpdate.toTag(), FocusRequester())
             put(SettingsFocusTarget.AccountAuth.toTag(), FocusRequester())
@@ -148,7 +165,7 @@ fun SettingsScreen(
                 SettingsSection.HOME_SCREEN.name to SettingsFocusTarget.HomeFavoritesToggle,
                 SettingsSection.CHANNEL.name to SettingsFocusTarget.ChannelMode(selectedChannelMode),
                 SettingsSection.TORRSERVE.name to SettingsFocusTarget.TorrServeBaseUrl,
-                SettingsSection.SERVER.name to SettingsFocusTarget.LostFilmHost,
+                SettingsSection.SERVER.name to SettingsFocusTarget.LostFilmHostCheck,
                 SettingsSection.UPDATES.name to SettingsFocusTarget.UpdateChannel(selectedUpdateMode),
                 SettingsSection.ACCOUNT.name to SettingsFocusTarget.AccountAuth,
             ),
@@ -587,11 +604,54 @@ fun SettingsScreen(
                             SettingsOptionsSection {
                                 SettingsOverviewCard(
                                     title = "Адрес хоста",
-                                    subtitle = "Адрес сервера LostFilm, к которому обращается приложение. По умолчанию https://www.lostfilm.today.",
+                                    subtitle = "Активный сервер: ${activeLostFilmHost.substringAfter("://")}",
                                 ) {
-                                    SettingsOverviewValue(text = lostFilmHostStatusText ?: "Сейчас: ${lostFilmHost.ifBlank { "по умолчанию" }}")
+                                    lostFilmHostStatusText?.let { SettingsOverviewValue(text = it) }
                                 }
                                 Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    val checkTarget = SettingsFocusTarget.LostFilmHostCheck
+                                    SettingsRowButton(
+                                        title = "Проверить доступность",
+                                        value = if (isCheckingLostFilmHost) "Проверяем…" else "",
+                                        onClick = onCheckLostFilmHostClick,
+                                        tag = checkTarget.toTag(),
+                                        onFocused = {
+                                            rememberedActionBySection = rememberedActionBySection +
+                                                (SettingsSection.SERVER.name to checkTarget)
+                                        },
+                                        modifier = Modifier.focusRequester(contentRequesters.getValue(checkTarget.toTag())),
+                                    )
+                                    val automaticTarget = SettingsFocusTarget.LostFilmAutomaticMirror
+                                    SettingsRowButton(
+                                        title = "Автопереключение",
+                                        description = "При сбое загрузки публичных страниц проверить другой сервер.",
+                                        value = if (isLostFilmAutomaticMirror) "Включено" else "Выключено",
+                                        toggle = true,
+                                        isSelected = isLostFilmAutomaticMirror,
+                                        onClick = onToggleLostFilmAutomaticMirror,
+                                        tag = automaticTarget.toTag(),
+                                        onFocused = {
+                                            rememberedActionBySection = rememberedActionBySection +
+                                                (SettingsSection.SERVER.name to automaticTarget)
+                                        },
+                                        modifier = Modifier.focusRequester(contentRequesters.getValue(automaticTarget.toTag())),
+                                    )
+                                    LostFilmBaseUrl.selectableMirrors.forEach { url ->
+                                        val target = SettingsFocusTarget.LostFilmMirror(url)
+                                        SettingsRowButton(
+                                            title = url.substringAfter("://").removePrefix("www."),
+                                            value = if (url == activeLostFilmHost) "Активен" else "",
+                                            radio = true,
+                                            isSelected = url == activeLostFilmHost,
+                                            onClick = { onSelectLostFilmMirror(url) },
+                                            tag = target.toTag(),
+                                            onFocused = {
+                                                rememberedActionBySection = rememberedActionBySection +
+                                                    (SettingsSection.SERVER.name to target)
+                                            },
+                                            modifier = Modifier.focusRequester(contentRequesters.getValue(target.toTag())),
+                                        )
+                                    }
                                     SettingsTextField(
                                         value = lostFilmHost,
                                         onValueChange = onLostFilmHostChanged,
@@ -602,7 +662,22 @@ fun SettingsScreen(
                                                 SettingsSection.SERVER.name to SettingsFocusTarget.LostFilmHost
                                             )
                                         },
-                                        modifier = Modifier.focusRequester(contentRequesters.getValue(SettingsFocusTarget.LostFilmHost.toTag())),
+                                        modifier = Modifier
+                                            .focusRequester(contentRequesters.getValue(SettingsFocusTarget.LostFilmHost.toTag()))
+                                            .onPreviewKeyEvent { event ->
+                                                val target = when (event.key) {
+                                                    Key.DirectionUp -> SettingsFocusTarget.LostFilmMirror(
+                                                        LostFilmBaseUrl.selectableMirrors.last(),
+                                                    )
+                                                    Key.DirectionDown -> SettingsFocusTarget.LostFilmHostSave
+                                                    else -> null
+                                                }
+                                                if (target != null && event.type == KeyEventType.KeyDown) {
+                                                    contentRequesters.getValue(target.toTag()).requestFocus()
+                                                } else {
+                                                    false
+                                                }
+                                            },
                                     )
                                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                         SettingsRowButton(
@@ -1060,7 +1135,7 @@ private fun targetContentTag(
         section == SettingsSection.TORRSERVE -> SettingsFocusTarget.TorrServeBaseUrl
         section == SettingsSection.UPDATES -> SettingsFocusTarget.UpdateChannel(selectedUpdateMode)
         section == SettingsSection.ACCOUNT -> SettingsFocusTarget.AccountAuth
-        section == SettingsSection.SERVER -> SettingsFocusTarget.LostFilmHost
+        section == SettingsSection.SERVER -> SettingsFocusTarget.LostFilmHostCheck
         section == SettingsSection.ABOUT -> SettingsFocusTarget.AboutGitHubLink
         else -> SettingsFocusTarget.PlaybackQuality(selectedQuality)
     }

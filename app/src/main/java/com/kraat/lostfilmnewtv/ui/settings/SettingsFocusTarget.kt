@@ -13,6 +13,9 @@ sealed class SettingsFocusTarget {
     data object TorrServeReset : SettingsFocusTarget()
     data object LostFilmHost : SettingsFocusTarget()
     data object LostFilmHostSave : SettingsFocusTarget()
+    data class LostFilmMirror(val url: String) : SettingsFocusTarget()
+    data object LostFilmAutomaticMirror : SettingsFocusTarget()
+    data object LostFilmHostCheck : SettingsFocusTarget()
     data object LostFilmHostReset : SettingsFocusTarget()
     data object HomeFavoritesToggle : SettingsFocusTarget()
     data object HomeMoviesToggle : SettingsFocusTarget()
@@ -37,6 +40,9 @@ fun SettingsFocusTarget.toTag(): String = when (this) {
     SettingsFocusTarget.TorrServeReset -> "settings-torrserve-reset"
     SettingsFocusTarget.LostFilmHost -> "settings-lostfilm-host"
     SettingsFocusTarget.LostFilmHostSave -> "settings-lostfilm-host-save"
+    is SettingsFocusTarget.LostFilmMirror -> "settings-lostfilm-mirror-${url.substringAfter("://")}"
+    SettingsFocusTarget.LostFilmAutomaticMirror -> "settings-lostfilm-automatic-mirror"
+    SettingsFocusTarget.LostFilmHostCheck -> "settings-lostfilm-host-check"
     SettingsFocusTarget.LostFilmHostReset -> "settings-lostfilm-host-reset"
     SettingsFocusTarget.HomeFavoritesToggle -> "settings-home-favorites-toggle"
     SettingsFocusTarget.HomeMoviesToggle -> "settings-home-movies-toggle"

@@ -21,6 +21,8 @@ data class SettingsUiState(
     val torrServePassword: String = "",
     val isTorrServeConnected: Boolean = false,
     val lostFilmHost: String = "",
+    val isCheckingLostFilmHost: Boolean = false,
+    val isLostFilmAutomaticMirror: Boolean = false,
     val lostFilmHostStatusText: String? = null,
     val torrServeStatusText: String? = null,
     val isCheckingTorrServe: Boolean = false,
