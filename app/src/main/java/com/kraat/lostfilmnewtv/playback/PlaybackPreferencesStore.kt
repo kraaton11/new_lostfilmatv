@@ -1,15 +1,18 @@
 package com.kraat.lostfilmnewtv.playback
 
 import android.content.Context
+import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import com.kraat.lostfilmnewtv.data.model.CatalogSort
 import com.kraat.lostfilmnewtv.data.model.ReleaseWatchFilter
 import com.kraat.lostfilmnewtv.data.model.SeriesStatus
 import com.kraat.lostfilmnewtv.data.model.WatchHistoryFilter
+import com.kraat.lostfilmnewtv.data.parser.LostFilmBaseUrl
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.ui.home.HomeFeedMode
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
-import com.kraat.lostfilmnewtv.data.parser.LostFilmBaseUrl
-import com.kraat.lostfilmnewtv.playback.WatchedMarkingMode
 
 internal const val DEFAULT_TORRSERVE_BASE_URL = "http://127.0.0.1:8090"
 
@@ -17,266 +20,230 @@ class PlaybackPreferencesStore(
     context: Context,
     prefsName: String = DEFAULT_PREFS_NAME,
 ) {
-    private val prefs = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+    private val prefs = PlaybackPreferencesDataStore.get(context, prefsName)
 
     fun readDefaultQuality(): PlaybackQualityPreference {
         return PlaybackQualityPreference.fromStorageValue(
-            prefs.getString(KEY_DEFAULT_QUALITY, null),
+            prefs[KEY_DEFAULT_QUALITY],
         )
     }
 
     fun writeDefaultQuality(value: PlaybackQualityPreference) {
-        prefs.edit()
-            .putString(KEY_DEFAULT_QUALITY, value.storageValue)
-            .apply()
+        prefs.update { this[KEY_DEFAULT_QUALITY] = value.storageValue }
     }
 
     fun readUpdateCheckMode(): UpdateCheckMode {
         return UpdateCheckMode.fromStorageValue(
-            prefs.getString(KEY_UPDATE_CHECK_MODE, null),
+            prefs[KEY_UPDATE_CHECK_MODE],
         )
     }
 
     fun writeUpdateCheckMode(value: UpdateCheckMode) {
-        prefs.edit()
-            .putString(KEY_UPDATE_CHECK_MODE, value.storageValue)
-            .apply()
+        prefs.update { this[KEY_UPDATE_CHECK_MODE] = value.storageValue }
     }
 
     fun readAndroidTvChannelMode(): AndroidTvChannelMode {
         return AndroidTvChannelMode.fromStorageValue(
-            prefs.getString(KEY_ANDROID_TV_CHANNEL_MODE, null),
+            prefs[KEY_ANDROID_TV_CHANNEL_MODE],
         )
     }
 
     fun writeAndroidTvChannelMode(value: AndroidTvChannelMode) {
-        prefs.edit()
-            .putString(KEY_ANDROID_TV_CHANNEL_MODE, value.storageValue)
-            .apply()
+        prefs.update { this[KEY_ANDROID_TV_CHANNEL_MODE] = value.storageValue }
     }
 
     fun readAndroidTvChannelId(): Long? {
-        return if (prefs.contains(KEY_ANDROID_TV_CHANNEL_ID)) {
-            prefs.getLong(KEY_ANDROID_TV_CHANNEL_ID, 0L)
-        } else {
-            null
-        }
+        return prefs[KEY_ANDROID_TV_CHANNEL_ID]
     }
 
     fun writeAndroidTvChannelId(value: Long) {
-        prefs.edit()
-            .putLong(KEY_ANDROID_TV_CHANNEL_ID, value)
-            .apply()
+        prefs.update { this[KEY_ANDROID_TV_CHANNEL_ID] = value }
     }
 
     fun clearAndroidTvChannelId() {
-        prefs.edit()
-            .remove(KEY_ANDROID_TV_CHANNEL_ID)
-            .apply()
+        prefs.update { remove(KEY_ANDROID_TV_CHANNEL_ID) }
     }
 
     fun readAndroidTvFavoritesChannelId(): Long? {
-        return if (prefs.contains(KEY_ANDROID_TV_FAVORITES_CHANNEL_ID)) {
-            prefs.getLong(KEY_ANDROID_TV_FAVORITES_CHANNEL_ID, 0L)
-        } else {
-            null
-        }
+        return prefs[KEY_ANDROID_TV_FAVORITES_CHANNEL_ID]
     }
 
     fun writeAndroidTvFavoritesChannelId(value: Long) {
-        prefs.edit()
-            .putLong(KEY_ANDROID_TV_FAVORITES_CHANNEL_ID, value)
-            .apply()
+        prefs.update { this[KEY_ANDROID_TV_FAVORITES_CHANNEL_ID] = value }
     }
 
     fun clearAndroidTvFavoritesChannelId() {
-        prefs.edit()
-            .remove(KEY_ANDROID_TV_FAVORITES_CHANNEL_ID)
-            .apply()
+        prefs.update { remove(KEY_ANDROID_TV_FAVORITES_CHANNEL_ID) }
     }
 
     fun readHomeFavoritesRailEnabled(): Boolean {
-        return prefs.getBoolean(KEY_HOME_FAVORITES_RAIL_ENABLED, true)
+        return prefs[KEY_HOME_FAVORITES_RAIL_ENABLED] ?: true
     }
 
     fun writeHomeFavoritesRailEnabled(value: Boolean) {
-        prefs.edit()
-            .putBoolean(KEY_HOME_FAVORITES_RAIL_ENABLED, value)
-            .apply()
+        prefs.update { this[KEY_HOME_FAVORITES_RAIL_ENABLED] = value }
     }
 
     fun readHomeFavoriteSeriesEnabled(): Boolean {
-        return prefs.getBoolean(KEY_HOME_FAVORITE_SERIES_ENABLED, true)
+        return prefs[KEY_HOME_FAVORITE_SERIES_ENABLED] ?: true
     }
 
     fun writeHomeFavoriteSeriesEnabled(value: Boolean) {
-        prefs.edit()
-            .putBoolean(KEY_HOME_FAVORITE_SERIES_ENABLED, value)
-            .apply()
+        prefs.update { this[KEY_HOME_FAVORITE_SERIES_ENABLED] = value }
     }
 
     fun readHomeMoviesEnabled(): Boolean {
-        return prefs.getBoolean(KEY_HOME_MOVIES_ENABLED, true)
+        return prefs[KEY_HOME_MOVIES_ENABLED] ?: true
     }
 
     fun writeHomeMoviesEnabled(value: Boolean) {
-        prefs.edit()
-            .putBoolean(KEY_HOME_MOVIES_ENABLED, value)
-            .apply()
+        prefs.update { this[KEY_HOME_MOVIES_ENABLED] = value }
     }
 
     fun readHomeSeriesEnabled(): Boolean {
-        return prefs.getBoolean(KEY_HOME_SERIES_ENABLED, true)
+        return prefs[KEY_HOME_SERIES_ENABLED] ?: true
     }
 
     fun writeHomeSeriesEnabled(value: Boolean) {
-        prefs.edit()
-            .putBoolean(KEY_HOME_SERIES_ENABLED, value)
-            .apply()
+        prefs.update { this[KEY_HOME_SERIES_ENABLED] = value }
     }
 
     fun readHomeMenuLabelsEnabled(): Boolean {
-        return prefs.getBoolean(KEY_HOME_MENU_LABELS_ENABLED, true)
+        return prefs[KEY_HOME_MENU_LABELS_ENABLED] ?: true
     }
 
     fun writeHomeMenuLabelsEnabled(value: Boolean) {
-        prefs.edit()
-            .putBoolean(KEY_HOME_MENU_LABELS_ENABLED, value)
-            .apply()
+        prefs.update { this[KEY_HOME_MENU_LABELS_ENABLED] = value }
     }
 
     fun readWatchedMarkingMode(): WatchedMarkingMode {
         return WatchedMarkingMode.fromStorageValue(
-            prefs.getString(KEY_WATCHED_MARKING_MODE, null),
+            prefs[KEY_WATCHED_MARKING_MODE],
         )
     }
 
     fun writeWatchedMarkingMode(value: WatchedMarkingMode) {
-        prefs.edit()
-            .putString(KEY_WATCHED_MARKING_MODE, value.storageValue)
-            .apply()
+        prefs.update { this[KEY_WATCHED_MARKING_MODE] = value.storageValue }
     }
 
     fun readTorrServeBaseUrl(): String {
-        return prefs.getString(KEY_TORRSERVE_BASE_URL, null)
+        return prefs[KEY_TORRSERVE_BASE_URL]
             ?.takeIf { it.isNotBlank() }
             ?: DEFAULT_TORRSERVE_BASE_URL
     }
 
-    fun readTorrServeLogin(): String = prefs.getString("torrserve_login", "").orEmpty()
+    fun readTorrServeLogin(): String = prefs[KEY_TORRSERVE_LOGIN].orEmpty()
 
-    fun readTorrServePassword(): String = prefs.getString("torrserve_password", "").orEmpty()
+    fun readTorrServePassword(): String = prefs[KEY_TORRSERVE_PASSWORD].orEmpty()
 
     fun writeTorrServeBaseUrl(
         value: String,
-        login: String = readTorrServeLogin(),
-        password: String = readTorrServePassword(),
+        login: String? = null,
+        password: String? = null,
     ) {
-        prefs.edit()
-            .putString(KEY_TORRSERVE_BASE_URL, value)
-            .putString("torrserve_login", login)
-            .putString("torrserve_password", password)
-            .apply()
+        prefs.update {
+            this[KEY_TORRSERVE_BASE_URL] = value
+            if (login != null) this[KEY_TORRSERVE_LOGIN] = login
+            if (password != null) this[KEY_TORRSERVE_PASSWORD] = password
+        }
     }
 
     fun resetTorrServeBaseUrl() {
-        prefs.edit()
-            .remove(KEY_TORRSERVE_BASE_URL)
-            .remove("torrserve_login")
-            .remove("torrserve_password")
-            .apply()
+        prefs.update {
+            remove(KEY_TORRSERVE_BASE_URL)
+            remove(KEY_TORRSERVE_LOGIN)
+            remove(KEY_TORRSERVE_PASSWORD)
+        }
     }
 
-    fun readLostFilmAutomaticMirror(): Boolean = prefs.getBoolean("lostfilm_automatic_mirror", false)
+    fun readLostFilmAutomaticMirror(): Boolean = prefs[KEY_LOSTFILM_AUTOMATIC_MIRROR] ?: false
 
     fun writeLostFilmAutomaticMirror(enabled: Boolean) {
-        prefs.edit().putBoolean("lostfilm_automatic_mirror", enabled).apply()
+        prefs.update { this[KEY_LOSTFILM_AUTOMATIC_MIRROR] = enabled }
     }
 
     fun readLostFilmBaseUrl(): String {
-        return prefs.getString(KEY_LOSTFILM_BASE_URL, null)
+        return prefs[KEY_LOSTFILM_BASE_URL]
             ?.takeIf { it.isNotBlank() }
             ?: DEFAULT_LOSTFILM_BASE_URL
     }
 
     fun writeLostFilmBaseUrl(value: String) {
-        prefs.edit()
-            .putString(KEY_LOSTFILM_BASE_URL, value)
-            .apply()
+        prefs.update { this[KEY_LOSTFILM_BASE_URL] = value }
     }
 
     fun resetLostFilmBaseUrl() {
-        prefs.edit()
-            .remove(KEY_LOSTFILM_BASE_URL)
-            .apply()
+        prefs.update { remove(KEY_LOSTFILM_BASE_URL) }
     }
 
     fun readHomeSelectedFeedMode(): HomeFeedMode {
         return HomeFeedMode.fromStorageValue(
-            prefs.getString(KEY_HOME_SELECTED_FEED_MODE, null),
+            prefs[KEY_HOME_SELECTED_FEED_MODE],
         )
     }
 
     fun writeHomeSelectedFeedMode(value: HomeFeedMode) {
-        prefs.edit()
-            .putString(KEY_HOME_SELECTED_FEED_MODE, value.storageValue)
-            .apply()
+        prefs.update { this[KEY_HOME_SELECTED_FEED_MODE] = value.storageValue }
     }
 
     fun readReleaseFilter(mode: HomeFeedMode): ReleaseWatchFilter =
-        readEnum("release_filter_${mode.storageValue}", ReleaseWatchFilter.All)
+        readEnum(stringPreferencesKey("release_filter_${mode.storageValue}"), ReleaseWatchFilter.All)
 
     fun writeReleaseFilter(mode: HomeFeedMode, filter: ReleaseWatchFilter) {
-        prefs.edit().putString("release_filter_${mode.storageValue}", filter.name).apply()
+        prefs.update { this[stringPreferencesKey("release_filter_${mode.storageValue}")] = filter.name }
     }
 
     fun readCatalogSort(mode: HomeFeedMode): CatalogSort =
-        readEnum("catalog_sort_${mode.storageValue}", CatalogSort.Added)
+        readEnum(stringPreferencesKey("catalog_sort_${mode.storageValue}"), CatalogSort.Added)
 
     fun readSeriesStatus(): SeriesStatus = readEnum(KEY_SERIES_STATUS, SeriesStatus.All)
 
     fun writeCatalogSelection(mode: HomeFeedMode, sort: CatalogSort, status: SeriesStatus) {
-        val editor = prefs.edit().putString("catalog_sort_${mode.storageValue}", sort.name)
-        if (mode == HomeFeedMode.Series) editor.putString(KEY_SERIES_STATUS, status.name)
-        editor.apply()
+        prefs.update {
+            this[stringPreferencesKey("catalog_sort_${mode.storageValue}")] = sort.name
+            if (mode == HomeFeedMode.Series) this[KEY_SERIES_STATUS] = status.name
+        }
     }
 
     fun readHistoryFilter(): WatchHistoryFilter = readEnum(KEY_HISTORY_FILTER, WatchHistoryFilter.All)
 
     fun writeHistoryFilter(filter: WatchHistoryFilter) {
-        prefs.edit().putString(KEY_HISTORY_FILTER, filter.name).apply()
+        prefs.update { this[KEY_HISTORY_FILTER] = filter.name }
     }
 
-    fun readScheduleFavoritesOnly(): Boolean = prefs.getBoolean(KEY_SCHEDULE_FAVORITES_ONLY, false)
+    fun readScheduleFavoritesOnly(): Boolean = prefs[KEY_SCHEDULE_FAVORITES_ONLY] ?: false
 
     fun writeScheduleFavoritesOnly(favoritesOnly: Boolean) {
-        prefs.edit().putBoolean(KEY_SCHEDULE_FAVORITES_ONLY, favoritesOnly).apply()
+        prefs.update { this[KEY_SCHEDULE_FAVORITES_ONLY] = favoritesOnly }
     }
 
-    private inline fun <reified T : Enum<T>> readEnum(key: String, default: T): T {
-        val storedName = prefs.getString(key, null)
+    private inline fun <reified T : Enum<T>> readEnum(key: Preferences.Key<String>, default: T): T {
+        val storedName = prefs[key]
         return enumValues<T>().firstOrNull { it.name == storedName } ?: default
     }
 
     private companion object {
         const val DEFAULT_PREFS_NAME = "lostfilm_playback_prefs"
-        const val KEY_SERIES_STATUS = "series_status"
-        const val KEY_HISTORY_FILTER = "history_filter"
-        const val KEY_SCHEDULE_FAVORITES_ONLY = "schedule_favorites_only"
-        const val KEY_DEFAULT_QUALITY = "default_quality"
-        const val KEY_UPDATE_CHECK_MODE = "update_check_mode"
-        const val KEY_ANDROID_TV_CHANNEL_MODE = "android_tv_channel_mode"
-        const val KEY_ANDROID_TV_CHANNEL_ID = "android_tv_channel_id"
-        const val KEY_ANDROID_TV_FAVORITES_CHANNEL_ID = "android_tv_favorites_channel_id"
-        const val KEY_HOME_FAVORITES_RAIL_ENABLED = "home_favorites_rail_enabled"
-        const val KEY_HOME_FAVORITE_SERIES_ENABLED = "home_favorite_series_enabled"
-        const val KEY_HOME_MOVIES_ENABLED = "home_movies_enabled"
-        const val KEY_HOME_SERIES_ENABLED = "home_series_enabled"
-        const val KEY_HOME_MENU_LABELS_ENABLED = "home_menu_labels_enabled"
-        const val KEY_HOME_SELECTED_FEED_MODE = "home_selected_feed_mode"
-        const val KEY_WATCHED_MARKING_MODE = "watched_marking_mode"
-        const val KEY_TORRSERVE_BASE_URL = "torrserve_base_url"
-        const val KEY_LOSTFILM_BASE_URL = "lostfilm_base_url"
+        val KEY_SERIES_STATUS = stringPreferencesKey("series_status")
+        val KEY_HISTORY_FILTER = stringPreferencesKey("history_filter")
+        val KEY_SCHEDULE_FAVORITES_ONLY = booleanPreferencesKey("schedule_favorites_only")
+        val KEY_DEFAULT_QUALITY = stringPreferencesKey("default_quality")
+        val KEY_UPDATE_CHECK_MODE = stringPreferencesKey("update_check_mode")
+        val KEY_ANDROID_TV_CHANNEL_MODE = stringPreferencesKey("android_tv_channel_mode")
+        val KEY_ANDROID_TV_CHANNEL_ID = longPreferencesKey("android_tv_channel_id")
+        val KEY_ANDROID_TV_FAVORITES_CHANNEL_ID = longPreferencesKey("android_tv_favorites_channel_id")
+        val KEY_HOME_FAVORITES_RAIL_ENABLED = booleanPreferencesKey("home_favorites_rail_enabled")
+        val KEY_HOME_FAVORITE_SERIES_ENABLED = booleanPreferencesKey("home_favorite_series_enabled")
+        val KEY_HOME_MOVIES_ENABLED = booleanPreferencesKey("home_movies_enabled")
+        val KEY_HOME_SERIES_ENABLED = booleanPreferencesKey("home_series_enabled")
+        val KEY_HOME_MENU_LABELS_ENABLED = booleanPreferencesKey("home_menu_labels_enabled")
+        val KEY_HOME_SELECTED_FEED_MODE = stringPreferencesKey("home_selected_feed_mode")
+        val KEY_WATCHED_MARKING_MODE = stringPreferencesKey("watched_marking_mode")
+        val KEY_TORRSERVE_LOGIN = stringPreferencesKey("torrserve_login")
+        val KEY_TORRSERVE_PASSWORD = stringPreferencesKey("torrserve_password")
+        val KEY_LOSTFILM_AUTOMATIC_MIRROR = booleanPreferencesKey("lostfilm_automatic_mirror")
+        val KEY_TORRSERVE_BASE_URL = stringPreferencesKey("torrserve_base_url")
+        val KEY_LOSTFILM_BASE_URL = stringPreferencesKey("lostfilm_base_url")
         const val DEFAULT_LOSTFILM_BASE_URL = LostFilmBaseUrl.DEFAULT
     }
 }

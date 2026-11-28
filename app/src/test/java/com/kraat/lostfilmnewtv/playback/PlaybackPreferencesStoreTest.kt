@@ -1,10 +1,15 @@
 package com.kraat.lostfilmnewtv.playback
 
 import android.content.Context
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.test.core.app.ApplicationProvider
+import com.kraat.lostfilmnewtv.data.model.ReleaseWatchFilter
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.ui.home.HomeFeedMode
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -13,6 +18,56 @@ import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class PlaybackPreferencesStoreTest {
+    @Test
+    fun firstReadMigratesValuesAndRemovesLegacyEntries() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsName = "playback-store-migration"
+        val legacy = context.getSharedPreferences(prefsName, Context.MODE_PRIVATE)
+        legacy.edit()
+            .putString("default_quality", PlaybackQualityPreference.Q720.storageValue)
+            .putBoolean("home_movies_enabled", false)
+            .putLong("android_tv_channel_id", 42L)
+            .putString("torrserve_login", "legacy-user")
+            .putString("release_filter_${HomeFeedMode.AllNew.storageValue}", "invalid-filter")
+            .commit()
+
+        val store = PlaybackPreferencesStore(context, prefsName)
+        assertEquals(PlaybackQualityPreference.Q720, store.readDefaultQuality())
+        assertEquals(false, store.readHomeMoviesEnabled())
+        assertEquals(42L, store.readAndroidTvChannelId())
+        assertEquals("legacy-user", store.readTorrServeLogin())
+        assertEquals(ReleaseWatchFilter.All, store.readReleaseFilter(HomeFeedMode.AllNew))
+        assertEquals(emptySet<String>(), legacy.all.keys)
+    }
+
+    @Test
+    fun writesAndResetsPersistTogetherInDataStore() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsName = "playback-store-transaction"
+        val store = PlaybackPreferencesStore(context, prefsName)
+        val persisted = PlaybackPreferencesDataStore.get(context, prefsName).data
+        val endpoint = stringPreferencesKey("torrserve_base_url")
+        val login = stringPreferencesKey("torrserve_login")
+        val password = stringPreferencesKey("torrserve_password")
+        val quality = stringPreferencesKey("default_quality")
+
+        store.writeTorrServeBaseUrl("http://example.test:8090", "user", "password")
+        store.writeDefaultQuality(PlaybackQualityPreference.Q720)
+
+        val saved = withTimeout(5_000) {
+            persisted.first { it[quality] == PlaybackQualityPreference.Q720.storageValue }
+        }
+        assertEquals("http://example.test:8090", saved[endpoint])
+        assertEquals("user", saved[login])
+        assertEquals("password", saved[password])
+
+        store.resetTorrServeBaseUrl()
+        val reset = withTimeout(5_000) { persisted.first { it[endpoint] == null } }
+        assertNull(reset[login])
+        assertNull(reset[password])
+        assertEquals(PlaybackQualityPreference.Q720.storageValue, reset[quality])
+    }
+
     @Test
     fun readDefaultQuality_returns1080_whenNothingWasSaved() {
         val context = ApplicationProvider.getApplicationContext<Context>()

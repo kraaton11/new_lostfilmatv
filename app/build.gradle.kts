@@ -126,6 +126,7 @@ dependencies {
     implementation(libs.androidx.tv.material)
     implementation(libs.androidx.tvprovider)
     implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     implementation(libs.jsoup)
