@@ -7,9 +7,11 @@ import com.kraat.lostfilmnewtv.data.model.ReleaseWatchFilter
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.ui.home.HomeFeedMode
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -57,6 +59,14 @@ class PlaybackPreferencesStoreTest {
         val prefsName = "playback-store-transaction"
         val store = PlaybackPreferencesStore(context, prefsName)
         val persisted = PlaybackPreferencesDataStore.get(context, prefsName).data
+        // Read a fresh snapshot each time. An observer can miss a write between
+        // DataStore's initial read and its subscription to further updates.
+        val snapshots = flow {
+            while (true) {
+                emit(persisted.first())
+                delay(10)
+            }
+        }
         val endpoint = stringPreferencesKey("torrserve_base_url")
         val login = stringPreferencesKey("torrserve_login")
         val password = stringPreferencesKey("torrserve_password")
@@ -65,15 +75,17 @@ class PlaybackPreferencesStoreTest {
         store.writeTorrServeBaseUrl("http://example.test:8090", "user", "password")
         store.writeDefaultQuality(PlaybackQualityPreference.Q720)
 
-        val saved = withTimeout(5_000) {
-            persisted.first { it[quality] == PlaybackQualityPreference.Q720.storageValue }
-        }
+        val saved = withTimeoutOrNull(5_000) {
+            snapshots.first { it[quality] == PlaybackQualityPreference.Q720.storageValue }
+        } ?: error("DataStore did not persist TorrServe settings and playback quality")
         assertEquals("http://example.test:8090", saved[endpoint])
         assertEquals("user", saved[login])
         assertEquals("password", saved[password])
 
         store.resetTorrServeBaseUrl()
-        val reset = withTimeout(5_000) { persisted.first { it[endpoint] == null } }
+        val reset = withTimeoutOrNull(5_000) {
+            snapshots.first { it[endpoint] == null }
+        } ?: error("DataStore did not persist the TorrServe reset")
         assertNull(reset[login])
         assertNull(reset[password])
         assertEquals(PlaybackQualityPreference.Q720.storageValue, reset[quality])
