@@ -314,7 +314,7 @@ class AppNavGraphTorrServeTest {
 
         composeRule.openSettingsSection(
             sectionTag = "settings-section-playback",
-            readyText = "Качество: 1080p",
+            readyText = "1080p",
         )
         composeRule.onNodeWithTag("settings-section-playback").assertIsSelected()
         composeRule.onNodeWithTag("settings-quality-1080").assertIsSelected()
@@ -355,7 +355,8 @@ class AppNavGraphTorrServeTest {
         composeRule.waitForHomeScreen()
         composeRule.onNodeWithTag("home-action-settings").performSemanticsAction(SemanticsActions.OnClick)
         composeRule.onNodeWithTag("settings-section-playback").performSemanticsAction(SemanticsActions.OnClick)
-        composeRule.waitForText("Качество: 1080p")
+        composeRule.waitForTag("settings-quality-1080")
+        composeRule.onNodeWithTag("settings-quality-1080").assertIsSelected()
         composeRule.onNodeWithTag("settings-quality-720").performSemanticsAction(SemanticsActions.OnClick)
         composeRule.waitUntil(timeoutMillis = 5_000) { store.readDefaultQuality() == PlaybackQualityPreference.Q720 }
         assertEquals(PlaybackQualityPreference.Q720, store.readDefaultQuality())

@@ -11,6 +11,7 @@ import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performSemanticsAction
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
+import com.kraat.lostfilmnewtv.ui.settings.SettingsActions
 import com.kraat.lostfilmnewtv.ui.settings.SettingsScreen
 import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
@@ -28,7 +29,6 @@ class SettingsScreenFocusTest {
             LostFilmTheme {
                 SettingsScreen(
                     selectedQuality = PlaybackQualityPreference.Q1080,
-                    onQualitySelected = {},
                     selectedUpdateMode = UpdateCheckMode.MANUAL,
                     selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
                     installedVersionText = "0.1.0",
@@ -36,10 +36,13 @@ class SettingsScreenFocusTest {
                     statusText = "Доступно обновление",
                     isCheckingForUpdates = false,
                     installUrl = "https://example.test/app.apk",
-                    onUpdateModeSelected = {},
-                    onChannelModeSelected = {},
-                    onCheckForUpdatesClick = {},
-                    onInstallUpdateClick = {},
+                    actions = SettingsActions(
+                        onQualitySelected = {},
+                        onUpdateModeSelected = {},
+                        onChannelModeSelected = {},
+                        onCheckForUpdatesClick = {},
+                        onInstallUpdateClick = {},
+                    ),
                 )
             }
         }
@@ -74,7 +77,6 @@ class SettingsScreenFocusTest {
             LostFilmTheme {
                 SettingsScreen(
                     selectedQuality = PlaybackQualityPreference.Q1080,
-                    onQualitySelected = {},
                     selectedUpdateMode = UpdateCheckMode.MANUAL,
                     selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
                     installedVersionText = "0.1.0",
@@ -82,10 +84,13 @@ class SettingsScreenFocusTest {
                     statusText = null,
                     isCheckingForUpdates = false,
                     installUrl = null,
-                    onUpdateModeSelected = {},
-                    onChannelModeSelected = {},
-                    onCheckForUpdatesClick = {},
-                    onInstallUpdateClick = {},
+                    actions = SettingsActions(
+                        onQualitySelected = {},
+                        onUpdateModeSelected = {},
+                        onChannelModeSelected = {},
+                        onCheckForUpdatesClick = {},
+                        onInstallUpdateClick = {},
+                    ),
                 )
             }
         }

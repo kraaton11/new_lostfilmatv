@@ -1,10 +1,7 @@
 package com.kraat.lostfilmnewtv.ui.settings
 
 import androidx.activity.compose.BackHandler
-import android.content.Intent
-import android.net.Uri
 import androidx.compose.foundation.background
-import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,49 +17,37 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import com.kraat.lostfilmnewtv.data.parser.LostFilmBaseUrl
-import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGold
-import com.kraat.lostfilmnewtv.ui.theme.HomeTextMuted
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.platform.LocalContext
 import com.kraat.lostfilmnewtv.BuildConfig
-import com.kraat.lostfilmnewtv.ui.home.requestFocusWhenReady
+import com.kraat.lostfilmnewtv.data.parser.LostFilmBaseUrl
 import com.kraat.lostfilmnewtv.playback.DEFAULT_TORRSERVE_BASE_URL
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.playback.WatchedMarkingMode
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
+import com.kraat.lostfilmnewtv.ui.home.requestFocusWhenReady
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundSurface
+import com.kraat.lostfilmnewtv.ui.theme.HomeTextMuted
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 
 @Composable
 fun SettingsScreen(
     currentSection: SettingsSection = SettingsSection.PLAYBACK,
-    onSectionSelected: (SettingsSection) -> Unit = {},
-    onSectionBack: () -> Unit = {},
-    onNavigateBack: () -> Unit = {},
     selectedQuality: PlaybackQualityPreference,
-    onQualitySelected: (PlaybackQualityPreference) -> Unit,
     selectedUpdateMode: UpdateCheckMode,
     selectedChannelMode: AndroidTvChannelMode,
     isHomeFavoritesRailEnabled: Boolean = false,
@@ -70,33 +55,19 @@ fun SettingsScreen(
     isHomeSeriesEnabled: Boolean = true,
     isHomeMenuLabelsEnabled: Boolean = true,
     selectedWatchedMarkingMode: WatchedMarkingMode = WatchedMarkingMode.AUTO,
-    onWatchedMarkingModeSelected: (WatchedMarkingMode) -> Unit = {},
     torrServeBaseUrl: String = "",
     torrServeLogin: String = "",
     torrServePassword: String = "",
     isTorrServeConnected: Boolean = false,
     isTorrServeClientAvailable: Boolean? = null,
-    onTorrServeLoginChanged: (String) -> Unit = {},
-    onTorrServePasswordChanged: (String) -> Unit = {},
     torrServeStatusText: String? = null,
     isCheckingTorrServe: Boolean = false,
-    onTorrServeBaseUrlChanged: (String) -> Unit = {},
-    onSaveTorrServeClick: () -> Unit = {},
-    onResetTorrServeClick: () -> Unit = {},
-    onCheckTorrServeClick: () -> Unit = {},
     lostFilmHost: String = "",
     lostFilmHostStatusText: String? = null,
     activeLostFilmHost: String = LostFilmBaseUrl.DEFAULT,
     isCheckingLostFilmHost: Boolean = false,
     isLostFilmAutomaticMirror: Boolean = false,
-    onCheckLostFilmHostClick: () -> Unit = {},
-    onSelectLostFilmMirror: (String) -> Unit = {},
-    onToggleLostFilmAutomaticMirror: () -> Unit = {},
-    onLostFilmHostChanged: (String) -> Unit = {},
-    onSaveLostFilmHostClick: () -> Unit = {},
-    onResetLostFilmHostClick: () -> Unit = {},
     isAuthenticated: Boolean = false,
-    onAuthClick: () -> Unit = {},
     installedVersionText: String,
     latestVersionText: String?,
     statusText: String?,
@@ -104,14 +75,7 @@ fun SettingsScreen(
     isDownloadingUpdate: Boolean = false,
     installDownloadProgress: Int? = null,
     installUrl: String?,
-    onUpdateModeSelected: (UpdateCheckMode) -> Unit,
-    onChannelModeSelected: (AndroidTvChannelMode) -> Unit,
-    onHomeFavoritesRailVisibilitySelected: (Boolean) -> Unit = {},
-    onHomeMoviesVisibilitySelected: (Boolean) -> Unit = {},
-    onHomeSeriesVisibilitySelected: (Boolean) -> Unit = {},
-    onHomeMenuLabelsVisibilitySelected: (Boolean) -> Unit = {},
-    onCheckForUpdatesClick: () -> Unit,
-    onInstallUpdateClick: () -> Unit,
+    actions: SettingsActions,
 ) {
     // Секции разработчика удалены вместе с Prowlarr и Диагностикой (f0ccbacd),
     // так что фильтровать больше нечего: список всегда полный.
@@ -183,9 +147,9 @@ fun SettingsScreen(
         if (contentHasFocus) {
             railRequesters.getValue(selectedSection).requestFocus()
             contentHasFocus = false
-            onSectionBack()
+            actions.onSectionBack()
         } else {
-            onNavigateBack()
+            actions.onNavigateBack()
         }
     }
 
@@ -252,7 +216,7 @@ fun SettingsScreen(
                 sections = visibleSections,
                 onSectionSelected = {
                     selectedSectionName = it.name
-                    onSectionSelected(it)
+                    actions.onSectionSelected(it)
                 },
                 focusRequesterForSection = { railRequesters.getValue(it) },
                 contentRequesterForSection = { section ->
@@ -283,444 +247,76 @@ fun SettingsScreen(
                         .verticalScroll(contentScrollState),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
+                    val rememberAction: (SettingsFocusTarget) -> Unit = { target ->
+                        rememberedActionBySection = rememberedActionBySection + (selectedSection.name to target)
+                    }
                     when (selectedSection) {
-                        SettingsSection.PLAYBACK -> {
-                            SettingsOptionsSection {
-                                SettingsOverviewCard(
-                                    title = "Воспроизведение",
-                                    subtitle = "Какое качество запускать и когда отмечать серию просмотренной.",
-                                )
-                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    SettingsGroupLabel("КАЧЕСТВО ПО УМОЛЧАНИЮ", HomeAccentGold)
-                                    qualityOptions.forEachIndexed { index, quality ->
-                                        SettingsRowButton(
-                                            title = quality.shortLabel(),
-                                            description = quality.description(),
-                                            value = "",
-                                            radio = true,
-                                            onClick = {
-                                                onQualitySelected(quality)
-                                                contentRequesters.getValue(quality.buttonTag()).requestFocus()
-                                            },
-                                            isSelected = quality == selectedQuality,
-                                            tag = quality.buttonTag(),
-                                            onFocused = {
-                                                rememberedActionBySection = rememberedActionBySection + (
-                                                    SettingsSection.PLAYBACK.name to SettingsFocusTarget.PlaybackQuality(quality)
-                                                )
-                                            },
-                                            modifier = Modifier
-                                                .focusRequester(contentRequesters.getValue(quality.buttonTag()))
-                                                .focusProperties {
-                                                    left = railRequesters.getValue(SettingsSection.PLAYBACK)
-                                                    up = if (index > 0) {
-                                                        contentRequesters.getValue(qualityOptions[index - 1].buttonTag())
-                                                    } else {
-                                                        railRequesters.getValue(SettingsSection.PLAYBACK)
-                                                    }
-                                                    down = if (index < qualityOptions.lastIndex) {
-                                                        contentRequesters.getValue(qualityOptions[index + 1].buttonTag())
-                                                    } else {
-                                                        contentRequesters.getValue(SettingsFocusTarget.WatchedMarkingToggle.toTag())
-                                                    }
-                                                },
-                                        )
-                                    }
-                                    SettingsGroupLabel("ПОСЛЕ ЗАПУСКА", HomeAccentGold)
-                                    SettingsRowButton(
-                                        title = "Отмечать просмотренным",
-                                        description = "Серия отмечается автоматически при запуске",
-                                        value = "",
-                                        toggle = true,
-                                        onClick = {
-                                            onWatchedMarkingModeSelected(
-                                                if (selectedWatchedMarkingMode == WatchedMarkingMode.AUTO) {
-                                                    WatchedMarkingMode.DISABLED
-                                                } else {
-                                                    WatchedMarkingMode.AUTO
-                                                },
-                                            )
-                                            contentRequesters.getValue(SettingsFocusTarget.WatchedMarkingToggle.toTag()).requestFocus()
-                                        },
-                                        isSelected = selectedWatchedMarkingMode == WatchedMarkingMode.AUTO,
-                                        tag = SettingsFocusTarget.WatchedMarkingToggle.toTag(),
-                                        onFocused = {
-                                            rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.PLAYBACK.name to SettingsFocusTarget.WatchedMarkingToggle
-                                            )
-                                        },
-                                        modifier = Modifier
-                                            .focusRequester(contentRequesters.getValue(SettingsFocusTarget.WatchedMarkingToggle.toTag()))
-                                            .focusProperties {
-                                                left = railRequesters.getValue(SettingsSection.PLAYBACK)
-                                                up = contentRequesters.getValue(qualityOptions.last().buttonTag())
-                                                down = FocusRequester.Default
-                                            },
-                                    )
-                                }
-                            }
-                        }
+                        SettingsSection.PLAYBACK -> PlaybackSettingsSection(
+                            selectedQuality = selectedQuality,
+                            onQualitySelected = actions.onQualitySelected,
+                            selectedWatchedMarkingMode = selectedWatchedMarkingMode,
+                            onWatchedMarkingModeSelected = actions.onWatchedMarkingModeSelected,
+                            qualityOptions = qualityOptions,
+                            railRequester = railRequesters.getValue(SettingsSection.PLAYBACK),
+                            contentRequesters = contentRequesters,
+                            onActionFocused = rememberAction,
+                        )
 
-                        SettingsSection.HOME_SCREEN -> {
-                            SettingsOptionsSection {
-                                SettingsOverviewCard(
-                                    title = "Главный экран",
-                                    subtitle = "Вкладки и подписи в боковом меню.",
-                                )
-                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    SettingsRowButton(
-                                        title = "Вкладка Избранное",
-                                        description = "Показывает отдельную вкладку с сохраненными релизами.",
-                                        value = "",
-                                        toggle = true,
-                                        onClick = {
-                                            onHomeFavoritesRailVisibilitySelected(!isHomeFavoritesRailEnabled)
-                                            contentRequesters.getValue(SettingsFocusTarget.HomeFavoritesToggle.toTag()).requestFocus()
-                                        },
-                                        isSelected = isHomeFavoritesRailEnabled,
-                                        tag = SettingsFocusTarget.HomeFavoritesToggle.toTag(),
-                                        onFocused = {
-                                            rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.HOME_SCREEN.name to SettingsFocusTarget.HomeFavoritesToggle
-                                            )
-                                        },
-                                        modifier = Modifier
-                                            .focusRequester(contentRequesters.getValue(SettingsFocusTarget.HomeFavoritesToggle.toTag()))
-                                            .focusProperties {
-                                                left = railRequesters.getValue(SettingsSection.HOME_SCREEN)
-                                                up = railRequesters.getValue(SettingsSection.HOME_SCREEN)
-                                                down = contentRequesters.getValue(SettingsFocusTarget.HomeMoviesToggle.toTag())
-                                            },
-                                    )
-                                    SettingsRowButton(
-                                        title = "Фильмы",
-                                        description = "Показывает вкладку с фильмами LostFilm.",
-                                        value = "",
-                                        toggle = true,
-                                        onClick = {
-                                            onHomeMoviesVisibilitySelected(!isHomeMoviesEnabled)
-                                            contentRequesters.getValue(SettingsFocusTarget.HomeMoviesToggle.toTag()).requestFocus()
-                                        },
-                                        isSelected = isHomeMoviesEnabled,
-                                        tag = SettingsFocusTarget.HomeMoviesToggle.toTag(),
-                                        onFocused = {
-                                            rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.HOME_SCREEN.name to SettingsFocusTarget.HomeMoviesToggle
-                                            )
-                                        },
-                                        modifier = Modifier
-                                            .focusRequester(contentRequesters.getValue(SettingsFocusTarget.HomeMoviesToggle.toTag()))
-                                            .focusProperties {
-                                                left = railRequesters.getValue(SettingsSection.HOME_SCREEN)
-                                                up = contentRequesters.getValue(SettingsFocusTarget.HomeFavoritesToggle.toTag())
-                                                down = contentRequesters.getValue(SettingsFocusTarget.HomeSeriesToggle.toTag())
-                                            },
-                                    )
-                                    SettingsRowButton(
-                                        title = "Сериалы",
-                                        description = "Показывает вкладку общего каталога сериалов.",
-                                        value = "",
-                                        toggle = true,
-                                        onClick = {
-                                            onHomeSeriesVisibilitySelected(!isHomeSeriesEnabled)
-                                            contentRequesters.getValue(SettingsFocusTarget.HomeSeriesToggle.toTag()).requestFocus()
-                                        },
-                                        isSelected = isHomeSeriesEnabled,
-                                        tag = SettingsFocusTarget.HomeSeriesToggle.toTag(),
-                                        onFocused = {
-                                            rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.HOME_SCREEN.name to SettingsFocusTarget.HomeSeriesToggle
-                                            )
-                                        },
-                                        modifier = Modifier
-                                            .focusRequester(contentRequesters.getValue(SettingsFocusTarget.HomeSeriesToggle.toTag()))
-                                            .focusProperties {
-                                                left = railRequesters.getValue(SettingsSection.HOME_SCREEN)
-                                                up = contentRequesters.getValue(SettingsFocusTarget.HomeMoviesToggle.toTag())
-                                                down = contentRequesters.getValue(SettingsFocusTarget.HomeMenuLabelsToggle.toTag())
-                                            },
-                                    )
-                                    SettingsRowButton(
-                                        title = "Подписи в меню",
-                                        description = "Показывает текст рядом с иконками бокового меню.",
-                                        value = "",
-                                        toggle = true,
-                                        onClick = {
-                                            onHomeMenuLabelsVisibilitySelected(!isHomeMenuLabelsEnabled)
-                                            contentRequesters.getValue(SettingsFocusTarget.HomeMenuLabelsToggle.toTag()).requestFocus()
-                                        },
-                                        isSelected = isHomeMenuLabelsEnabled,
-                                        tag = SettingsFocusTarget.HomeMenuLabelsToggle.toTag(),
-                                        onFocused = {
-                                            rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.HOME_SCREEN.name to SettingsFocusTarget.HomeMenuLabelsToggle
-                                            )
-                                        },
-                                        modifier = Modifier
-                                            .focusRequester(contentRequesters.getValue(SettingsFocusTarget.HomeMenuLabelsToggle.toTag()))
-                                            .focusProperties {
-                                                left = railRequesters.getValue(SettingsSection.HOME_SCREEN)
-                                                up = contentRequesters.getValue(SettingsFocusTarget.HomeSeriesToggle.toTag())
-                                                down = FocusRequester.Default
-                                            },
-                                    )
-                                }
-                            }
-                        }
+                        SettingsSection.HOME_SCREEN -> HomeScreenSettingsSection(
+                            isHomeFavoritesRailEnabled = isHomeFavoritesRailEnabled,
+                            isHomeMoviesEnabled = isHomeMoviesEnabled,
+                            isHomeSeriesEnabled = isHomeSeriesEnabled,
+                            isHomeMenuLabelsEnabled = isHomeMenuLabelsEnabled,
+                            onHomeFavoritesRailVisibilitySelected = actions.onHomeFavoritesRailVisibilitySelected,
+                            onHomeMoviesVisibilitySelected = actions.onHomeMoviesVisibilitySelected,
+                            onHomeSeriesVisibilitySelected = actions.onHomeSeriesVisibilitySelected,
+                            onHomeMenuLabelsVisibilitySelected = actions.onHomeMenuLabelsVisibilitySelected,
+                            railRequester = railRequesters.getValue(SettingsSection.HOME_SCREEN),
+                            contentRequesters = contentRequesters,
+                            onActionFocused = rememberAction,
+                        )
 
-                        SettingsSection.CHANNEL -> {
-                            SettingsOptionsSection {
-                                SettingsOverviewCard(
-                                    title = "Android TV",
-                                    subtitle = "Канал с релизами на главном экране Android TV, вне приложения.",
-                                ) {
-                                    SettingsOverviewValue(text = "Сейчас: ${selectedChannelMode.label()}")
-                                }
-                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    channelModes.forEachIndexed { index, mode ->
-                                        SettingsRowButton(
-                                            title = mode.shortLabel(),
-                                            description = mode.description(),
-                                            value = "",
-                                            radio = true,
-                                            onClick = {
-                                                onChannelModeSelected(mode)
-                                                contentRequesters.getValue(mode.buttonTag()).requestFocus()
-                                            },
-                                            isSelected = mode == selectedChannelMode,
-                                            tag = mode.buttonTag(),
-                                            onFocused = {
-                                                rememberedActionBySection = rememberedActionBySection + (
-                                                    SettingsSection.CHANNEL.name to SettingsFocusTarget.ChannelMode(mode)
-                                                )
-                                            },
-                                            modifier = Modifier
-                                                .focusRequester(contentRequesters.getValue(mode.buttonTag()))
-                                                .focusProperties {
-                                                    left = railRequesters.getValue(SettingsSection.CHANNEL)
-                                                    up = if (index > 0) {
-                                                        contentRequesters.getValue(channelModes[index - 1].buttonTag())
-                                                    } else {
-                                                        railRequesters.getValue(SettingsSection.CHANNEL)
-                                                    }
-                                                    down = if (index < channelModes.lastIndex) {
-                                                        contentRequesters.getValue(channelModes[index + 1].buttonTag())
-                                                    } else {
-                                                        FocusRequester.Default
-                                                    }
-                                                },
-                                        )
-                                    }
-                                }
-                            }
-                        }
+                        SettingsSection.CHANNEL -> ChannelSettingsSection(
+                            selectedChannelMode = selectedChannelMode,
+                            onChannelModeSelected = actions.onChannelModeSelected,
+                            channelModes = channelModes,
+                            railRequester = railRequesters.getValue(SettingsSection.CHANNEL),
+                            contentRequesters = contentRequesters,
+                            onActionFocused = rememberAction,
+                        )
 
-                        SettingsSection.TORRSERVE -> {
-                            SettingsOptionsSection {
-                                SettingsOverviewCard(
-                                    title = "TorrServe",
-                                    subtitle = "Здесь проверяется указанный адрес. Для просмотра используются настройки приложения TorrServe.",
-                                ) {
-                                    val status = torrServeStatusText ?: when (isTorrServeClientAvailable) {
-                                        true -> "Клиент TorrServe доступен для воспроизведения"
-                                        false -> "Android не может открыть клиент TorrServe"
-                                        null -> null
-                                    }
-                                    status?.let { SettingsOverviewValue(text = it) }
-                                }
-                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    SettingsTextField(
-                                        value = torrServeBaseUrl,
-                                        onValueChange = onTorrServeBaseUrlChanged,
-                                        label = "Адрес TorrServe",
-                                        tag = SettingsFocusTarget.TorrServeBaseUrl.toTag(),
-                                        onFocused = {
-                                            rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.TORRSERVE.name to SettingsFocusTarget.TorrServeBaseUrl
-                                            )
-                                        },
-                                        modifier = Modifier.focusRequester(contentRequesters.getValue(SettingsFocusTarget.TorrServeBaseUrl.toTag())),
-                                    )
-                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        SettingsTextField(
-                                            value = torrServeLogin,
-                                            onValueChange = onTorrServeLoginChanged,
-                                            label = "Логин",
-                                            modifier = Modifier.weight(1f),
-                                            tag = "settings-torrserve-login",
-                                        )
-                                        SettingsTextField(
-                                            value = torrServePassword,
-                                            onValueChange = onTorrServePasswordChanged,
-                                            label = "Пароль",
-                                            modifier = Modifier.weight(1f),
-                                            tag = "settings-torrserve-password",
-                                            isPassword = true,
-                                        )
-                                    }
-                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        SettingsRowButton(
-                                            title = "Сохранить",
-                                            description = "Применить настройки и проверить подключение.",
-                                            value = "",
-                                            onClick = onSaveTorrServeClick,
-                                            tag = SettingsFocusTarget.TorrServeSave.toTag(),
-                                            onFocused = {
-                                                rememberedActionBySection = rememberedActionBySection + (
-                                                    SettingsSection.TORRSERVE.name to SettingsFocusTarget.TorrServeSave
-                                                )
-                                            },
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .focusRequester(contentRequesters.getValue(SettingsFocusTarget.TorrServeSave.toTag())),
-                                        )
-                                        SettingsRowButton(
-                                            title = "Сбросить",
-                                            description = "Вернуть настройки по умолчанию.",
-                                            value = "",
-                                            onClick = onResetTorrServeClick,
-                                            tag = SettingsFocusTarget.TorrServeReset.toTag(),
-                                            onFocused = {
-                                                rememberedActionBySection = rememberedActionBySection + (
-                                                    SettingsSection.TORRSERVE.name to SettingsFocusTarget.TorrServeReset
-                                                )
-                                            },
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .focusRequester(contentRequesters.getValue(SettingsFocusTarget.TorrServeReset.toTag())),
-                                        )
-                                    }
-                                    SettingsRowButton(
-                                        title = "Проверить подключение",
-                                        value = if (isCheckingTorrServe) "Проверяем…" else "",
-                                        onClick = onCheckTorrServeClick,
-                                        enabled = !isCheckingTorrServe,
-                                        tag = SettingsFocusTarget.TorrServeCheck.toTag(),
-                                        onFocused = {
-                                            rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.TORRSERVE.name to SettingsFocusTarget.TorrServeCheck
-                                            )
-                                        },
-                                        modifier = Modifier.focusRequester(contentRequesters.getValue(SettingsFocusTarget.TorrServeCheck.toTag())),
-                                    )
-                                }
-                            }
-                        }
+                        SettingsSection.TORRSERVE -> TorrServeSettingsSection(
+                            torrServeBaseUrl = torrServeBaseUrl,
+                            torrServeLogin = torrServeLogin,
+                            torrServePassword = torrServePassword,
+                            isTorrServeClientAvailable = isTorrServeClientAvailable,
+                            onTorrServeLoginChanged = actions.onTorrServeLoginChanged,
+                            onTorrServePasswordChanged = actions.onTorrServePasswordChanged,
+                            torrServeStatusText = torrServeStatusText,
+                            isCheckingTorrServe = isCheckingTorrServe,
+                            onTorrServeBaseUrlChanged = actions.onTorrServeBaseUrlChanged,
+                            onSaveTorrServeClick = actions.onSaveTorrServeClick,
+                            onResetTorrServeClick = actions.onResetTorrServeClick,
+                            onCheckTorrServeClick = actions.onCheckTorrServeClick,
+                            contentRequesters = contentRequesters,
+                            onActionFocused = rememberAction,
+                        )
 
-                        SettingsSection.SERVER -> {
-                            SettingsOptionsSection {
-                                SettingsOverviewCard(
-                                    title = "Адрес хоста",
-                                    subtitle = "Активный сервер: ${activeLostFilmHost.substringAfter("://")}",
-                                ) {
-                                    lostFilmHostStatusText?.let { SettingsOverviewValue(text = it) }
-                                }
-                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    val checkTarget = SettingsFocusTarget.LostFilmHostCheck
-                                    SettingsRowButton(
-                                        title = "Проверить доступность",
-                                        value = if (isCheckingLostFilmHost) "Проверяем…" else "",
-                                        onClick = onCheckLostFilmHostClick,
-                                        tag = checkTarget.toTag(),
-                                        onFocused = {
-                                            rememberedActionBySection = rememberedActionBySection +
-                                                (SettingsSection.SERVER.name to checkTarget)
-                                        },
-                                        modifier = Modifier.focusRequester(contentRequesters.getValue(checkTarget.toTag())),
-                                    )
-                                    val automaticTarget = SettingsFocusTarget.LostFilmAutomaticMirror
-                                    SettingsRowButton(
-                                        title = "Автопереключение",
-                                        description = "При сбое загрузки публичных страниц проверить другой сервер.",
-                                        value = if (isLostFilmAutomaticMirror) "Включено" else "Выключено",
-                                        toggle = true,
-                                        isSelected = isLostFilmAutomaticMirror,
-                                        onClick = onToggleLostFilmAutomaticMirror,
-                                        tag = automaticTarget.toTag(),
-                                        onFocused = {
-                                            rememberedActionBySection = rememberedActionBySection +
-                                                (SettingsSection.SERVER.name to automaticTarget)
-                                        },
-                                        modifier = Modifier.focusRequester(contentRequesters.getValue(automaticTarget.toTag())),
-                                    )
-                                    LostFilmBaseUrl.selectableMirrors.forEach { url ->
-                                        val target = SettingsFocusTarget.LostFilmMirror(url)
-                                        SettingsRowButton(
-                                            title = url.substringAfter("://").removePrefix("www."),
-                                            value = if (url == activeLostFilmHost) "Активен" else "",
-                                            radio = true,
-                                            isSelected = url == activeLostFilmHost,
-                                            onClick = { onSelectLostFilmMirror(url) },
-                                            tag = target.toTag(),
-                                            onFocused = {
-                                                rememberedActionBySection = rememberedActionBySection +
-                                                    (SettingsSection.SERVER.name to target)
-                                            },
-                                            modifier = Modifier.focusRequester(contentRequesters.getValue(target.toTag())),
-                                        )
-                                    }
-                                    SettingsTextField(
-                                        value = lostFilmHost,
-                                        onValueChange = onLostFilmHostChanged,
-                                        label = "Адрес хоста",
-                                        tag = SettingsFocusTarget.LostFilmHost.toTag(),
-                                        onFocused = {
-                                            rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.SERVER.name to SettingsFocusTarget.LostFilmHost
-                                            )
-                                        },
-                                        modifier = Modifier
-                                            .focusRequester(contentRequesters.getValue(SettingsFocusTarget.LostFilmHost.toTag()))
-                                            .onPreviewKeyEvent { event ->
-                                                val target = when (event.key) {
-                                                    Key.DirectionUp -> SettingsFocusTarget.LostFilmMirror(
-                                                        LostFilmBaseUrl.selectableMirrors.last(),
-                                                    )
-                                                    Key.DirectionDown -> SettingsFocusTarget.LostFilmHostSave
-                                                    else -> null
-                                                }
-                                                if (target != null && event.type == KeyEventType.KeyDown) {
-                                                    contentRequesters.getValue(target.toTag()).requestFocus()
-                                                } else {
-                                                    false
-                                                }
-                                            },
-                                    )
-                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        SettingsRowButton(
-                                            title = "Сохранить",
-                                            description = "Применить указанный адрес хоста.",
-                                            value = "Сохранить",
-                                            onClick = onSaveLostFilmHostClick,
-                                            tag = SettingsFocusTarget.LostFilmHostSave.toTag(),
-                                            onFocused = {
-                                                rememberedActionBySection = rememberedActionBySection + (
-                                                    SettingsSection.SERVER.name to SettingsFocusTarget.LostFilmHostSave
-                                                )
-                                            },
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .focusRequester(contentRequesters.getValue(SettingsFocusTarget.LostFilmHostSave.toTag())),
-                                        )
-                                        SettingsRowButton(
-                                            title = "Сбросить",
-                                            description = "Вернуть адрес по умолчанию (lostfilm.today).",
-                                            value = "Сбросить",
-                                            onClick = onResetLostFilmHostClick,
-                                            tag = SettingsFocusTarget.LostFilmHostReset.toTag(),
-                                            onFocused = {
-                                                rememberedActionBySection = rememberedActionBySection + (
-                                                    SettingsSection.SERVER.name to SettingsFocusTarget.LostFilmHostReset
-                                                )
-                                            },
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .focusRequester(contentRequesters.getValue(SettingsFocusTarget.LostFilmHostReset.toTag())),
-                                        )
-                                    }
-                                }
-                            }
-                        }
+                        SettingsSection.SERVER -> LostFilmServerSettingsSection(
+                            lostFilmHost = lostFilmHost,
+                            lostFilmHostStatusText = lostFilmHostStatusText,
+                            activeLostFilmHost = activeLostFilmHost,
+                            isCheckingLostFilmHost = isCheckingLostFilmHost,
+                            isLostFilmAutomaticMirror = isLostFilmAutomaticMirror,
+                            onCheckLostFilmHostClick = actions.onCheckLostFilmHostClick,
+                            onSelectLostFilmMirror = actions.onSelectLostFilmMirror,
+                            onToggleLostFilmAutomaticMirror = actions.onToggleLostFilmAutomaticMirror,
+                            onLostFilmHostChanged = actions.onLostFilmHostChanged,
+                            onSaveLostFilmHostClick = actions.onSaveLostFilmHostClick,
+                            onResetLostFilmHostClick = actions.onResetLostFilmHostClick,
+                            contentRequesters = contentRequesters,
+                            onActionFocused = rememberAction,
+                        )
 
                         SettingsSection.UPDATES -> {
                             SettingsOptionsSection {
@@ -734,117 +330,30 @@ fun SettingsScreen(
                                     installDownloadProgress = installDownloadProgress,
                                     installUrl = installUrl,
                                     updateModes = updateModes,
-                                    onUpdateModeSelected = onUpdateModeSelected,
-                                    onCheckForUpdatesClick = onCheckForUpdatesClick,
-                                    onInstallUpdateClick = onInstallUpdateClick,
+                                    onUpdateModeSelected = actions.onUpdateModeSelected,
+                                    onCheckForUpdatesClick = actions.onCheckForUpdatesClick,
+                                    onInstallUpdateClick = actions.onInstallUpdateClick,
                                     railRequester = railRequesters.getValue(SettingsSection.UPDATES),
                                     contentRequesters = contentRequesters,
-                                    onActionFocused = { tag ->
-                                        rememberedActionBySection = rememberedActionBySection + (
-                                            SettingsSection.UPDATES.name to tag
-                                        )
-                                    },
+                                    onActionFocused = rememberAction,
                                 )
                             }
                         }
 
-                        SettingsSection.ACCOUNT -> {
-                            SettingsOptionsSection {
-                                SettingsOverviewCard(
-                                    title = "Аккаунт LostFilm",
-                                    subtitle = "Вход нужен для Избранного и синхронизации просмотренного.",
-                                ) {
-                                    SettingsOverviewValue(text = "Статус: $accountSummary")
-                                }
-                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    SettingsRowButton(
-                                        title = "Аккаунт",
-                                        description = if (isAuthenticated) "Завершить текущую сессию." else "Войти через QR-код в браузере.",
-                                        value = if (isAuthenticated) "Выйти" else "Войти",
-                                        onClick = onAuthClick,
-                                        tag = SettingsFocusTarget.AccountAuth.toTag(),
-                                        onFocused = {
-                                            rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.ACCOUNT.name to SettingsFocusTarget.AccountAuth
-                                            )
-                                        },
-                                        modifier = Modifier
-                                            .focusRequester(contentRequesters.getValue(SettingsFocusTarget.AccountAuth.toTag()))
-                                            .focusProperties {
-                                                left = railRequesters.getValue(SettingsSection.ACCOUNT)
-                                                up = railRequesters.getValue(SettingsSection.ACCOUNT)
-                                                down = FocusRequester.Default
-                                            },
-                                    )
-                                }
-                            }
-                        }
+                        SettingsSection.ACCOUNT -> AccountSettingsSection(
+                            isAuthenticated = isAuthenticated,
+                            onAuthClick = actions.onAuthClick,
+                            accountSummary = accountSummary,
+                            railRequester = railRequesters.getValue(SettingsSection.ACCOUNT),
+                            contentRequesters = contentRequesters,
+                            onActionFocused = rememberAction,
+                        )
 
-                        SettingsSection.ABOUT -> {
-                            SettingsOptionsSection {
-                                val context = LocalContext.current
-                                SettingsOverviewCard(
-                                    title = "О приложении",
-                                    subtitle = "Неофициальный клиент LostFilm для Android TV.",
-                                ) {
-                                    SettingsOverviewValue(text = "Версия: ${BuildConfig.VERSION_NAME} (сборка ${BuildConfig.VERSION_CODE})")
-                                }
-                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    val gitHubTag = SettingsFocusTarget.AboutGitHubLink.toTag()
-                                    val telegramTag = SettingsFocusTarget.AboutTelegramLink.toTag()
-                                    SettingsRowButton(
-                                        title = "Исходный код на GitHub",
-                                        description = "Репозиторий kraaton11/new_lostfilmatv",
-                                        value = "Открыть",
-                                        onClick = {
-                                            context.startActivity(
-                                                Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/kraaton11/new_lostfilmatv")).apply {
-                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                },
-                                            )
-                                        },
-                                        tag = gitHubTag,
-                                        onFocused = {
-                                            rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.ABOUT.name to SettingsFocusTarget.AboutGitHubLink
-                                            )
-                                        },
-                                        modifier = Modifier
-                                            .focusRequester(contentRequesters.getValue(gitHubTag))
-                                            .focusProperties {
-                                                left = railRequesters.getValue(SettingsSection.ABOUT)
-                                                up = railRequesters.getValue(SettingsSection.ABOUT)
-                                                down = contentRequesters.getValue(telegramTag)
-                                            },
-                                    )
-                                    SettingsRowButton(
-                                        title = "Telegram-канал",
-                                        description = "t.me/lostfilmatv_new",
-                                        value = "Открыть",
-                                        onClick = {
-                                            context.startActivity(
-                                                Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/lostfilmatv_new")).apply {
-                                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                                },
-                                            )
-                                        },
-                                        tag = telegramTag,
-                                        onFocused = {
-                                            rememberedActionBySection = rememberedActionBySection + (
-                                                SettingsSection.ABOUT.name to SettingsFocusTarget.AboutTelegramLink
-                                            )
-                                        },
-                                        modifier = Modifier
-                                            .focusRequester(contentRequesters.getValue(telegramTag))
-                                            .focusProperties {
-                                                left = railRequesters.getValue(SettingsSection.ABOUT)
-                                                up = contentRequesters.getValue(gitHubTag)
-                                                down = FocusRequester.Default
-                                            },
-                                    )
-                                }
-                            }
-                        }
+                        SettingsSection.ABOUT -> AboutSettingsSection(
+                            railRequester = railRequesters.getValue(SettingsSection.ABOUT),
+                            contentRequesters = contentRequesters,
+                            onActionFocused = rememberAction,
+                        )
                     }
                 }
             }
@@ -967,7 +476,7 @@ private fun SettingsSection.iconPath(): String = when (this) {
 }
 
 @Composable
-private fun SettingsGroupLabel(text: String, color: Color = HomeTextMuted) {
+internal fun SettingsGroupLabel(text: String, color: Color = HomeTextMuted) {
     Text(
         text = text,
         color = color,
@@ -979,7 +488,7 @@ private fun SettingsGroupLabel(text: String, color: Color = HomeTextMuted) {
 }
 
 @Composable
-private fun SettingsOptionsSection(
+internal fun SettingsOptionsSection(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
@@ -987,145 +496,6 @@ private fun SettingsOptionsSection(
         verticalArrangement = Arrangement.spacedBy(10.dp),
         content = content,
     )
-}
-
-@Composable
-private fun UpdatesSectionContent(
-    selectedUpdateMode: UpdateCheckMode,
-    installedVersionText: String,
-    latestVersionText: String?,
-    statusText: String?,
-    isCheckingForUpdates: Boolean,
-    isDownloadingUpdate: Boolean,
-    installDownloadProgress: Int?,
-    installUrl: String?,
-    updateModes: List<UpdateCheckMode>,
-    onUpdateModeSelected: (UpdateCheckMode) -> Unit,
-    onCheckForUpdatesClick: () -> Unit,
-    onInstallUpdateClick: () -> Unit,
-    railRequester: FocusRequester,
-    contentRequesters: Map<String, FocusRequester>,
-    onActionFocused: (SettingsFocusTarget) -> Unit,
-) {
-    val isInstallVisible by remember(installUrl) {
-        derivedStateOf { !installUrl.isNullOrBlank() }
-    }
-    val isCheckEnabled by remember(isCheckingForUpdates) {
-        derivedStateOf { !isCheckingForUpdates }
-    }
-    val isInstallEnabled by remember(isDownloadingUpdate) {
-        derivedStateOf { !isDownloadingUpdate }
-    }
-    val updateStatus = when {
-        isDownloadingUpdate -> installDownloadProgress?.let { "Скачивание обновления… $it%" } ?: "Скачивание обновления…"
-        else -> statusText ?: selectedUpdateMode.summaryLabel()
-    }
-    SettingsOverviewCard(
-        title = "Обновления",
-        subtitle = "Режим проверки и установка новой версии через GitHub.",
-    ) {
-        SettingsOverviewValue(text = "Установлена версия: $installedVersionText")
-        SettingsOverviewValue(text = "Последняя версия: ${latestVersionText ?: "-"}")
-        SettingsOverviewValue(text = updateStatus)
-    }
-    Column(
-        modifier = Modifier.focusGroup(),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        val orderedTags = buildList {
-            updateModes.forEach { add(it.buttonTag()) }
-            add(SettingsFocusTarget.CheckForUpdates.toTag())
-            if (isInstallVisible) add(SettingsFocusTarget.InstallUpdate.toTag())
-        }
-        updateModes.forEach { mode ->
-            val tag = mode.buttonTag()
-            val focusTarget = SettingsFocusTarget.UpdateChannel(mode)
-            val index = orderedTags.indexOf(tag)
-            SettingsRowButton(
-                title = mode.shortLabel(),
-                description = mode.description(),
-                value = "",
-                radio = true,
-                onClick = { onUpdateModeSelected(mode) },
-                isSelected = mode == selectedUpdateMode,
-                tag = tag,
-                onFocused = { onActionFocused(focusTarget) },
-                modifier = Modifier
-                    .focusRequester(contentRequesters.getValue(tag))
-                    .focusProperties {
-                        left = railRequester
-                        up = if (index > 0) {
-                            contentRequesters.getValue(orderedTags[index - 1])
-                        } else {
-                            railRequester
-                        }
-                        down = if (index < orderedTags.lastIndex) {
-                            contentRequesters.getValue(orderedTags[index + 1])
-                        } else {
-                            FocusRequester.Default
-                        }
-                    },
-            )
-        }
-        val checkUpdatesTag = SettingsFocusTarget.CheckForUpdates.toTag()
-        val checkUpdatesIndex = orderedTags.indexOf(checkUpdatesTag)
-        SettingsRowButton(
-            title = "Проверить обновления",
-            description = "Запустить проверку сейчас.",
-            value = if (isCheckingForUpdates) "Проверяем..." else "Проверить",
-            onClick = onCheckForUpdatesClick,
-            enabled = isCheckEnabled,
-            tag = checkUpdatesTag,
-            onFocused = { onActionFocused(SettingsFocusTarget.CheckForUpdates) },
-            modifier = Modifier
-                .focusRequester(contentRequesters.getValue(checkUpdatesTag))
-                .focusProperties {
-                    left = railRequester
-                    up = if (checkUpdatesIndex > 0) {
-                        contentRequesters.getValue(orderedTags[checkUpdatesIndex - 1])
-                    } else {
-                        railRequester
-                    }
-                    down = if (checkUpdatesIndex < orderedTags.lastIndex) {
-                        contentRequesters.getValue(orderedTags[checkUpdatesIndex + 1])
-                    } else {
-                        FocusRequester.Default
-                    }
-                },
-        )
-        if (isInstallVisible) {
-            val installUpdateTag = SettingsFocusTarget.InstallUpdate.toTag()
-            val installUpdateIndex = orderedTags.indexOf(installUpdateTag)
-            SettingsRowButton(
-                title = if (isDownloadingUpdate) "Скачивается обновление" else "Скачать и установить",
-                description = "Открыть APK новой версии.",
-                value = when {
-                    isDownloadingUpdate && installDownloadProgress != null -> "${installDownloadProgress}%"
-                    isDownloadingUpdate -> "Скачивание…"
-                    else -> "Установить"
-                },
-                onClick = onInstallUpdateClick,
-                enabled = isInstallEnabled,
-                tag = installUpdateTag,
-                onFocused = { onActionFocused(SettingsFocusTarget.InstallUpdate) },
-                modifier = Modifier
-                    .focusRequester(contentRequesters.getValue(installUpdateTag))
-                    .focusProperties {
-                        left = railRequester
-                        up = if (installUpdateIndex > 0) {
-                            contentRequesters.getValue(orderedTags[installUpdateIndex - 1])
-                        } else {
-                            railRequester
-                        }
-                        down = if (installUpdateIndex < orderedTags.lastIndex) {
-                            contentRequesters.getValue(orderedTags[installUpdateIndex + 1])
-                        } else {
-                            FocusRequester.Default
-                        }
-                    },
-            )
-        }
-    }
 }
 
 private fun targetContentTag(
@@ -1170,84 +540,4 @@ private fun updateSummary(
         !installUrl.isNullOrBlank() -> "Доступно обновление"
         else -> selectedUpdateMode.shortSummary()
     }
-}
-
-private fun PlaybackQualityPreference.shortLabel(): String {
-    return when (this) {
-        PlaybackQualityPreference.Q1080 -> "1080p"
-        PlaybackQualityPreference.Q720 -> "720p"
-        PlaybackQualityPreference.Q480 -> "480p"
-    }
-}
-
-private fun PlaybackQualityPreference.description(): String {
-    return when (this) {
-        PlaybackQualityPreference.Q1080 -> "Максимальное качество, если доступно."
-        PlaybackQualityPreference.Q720 -> "Оптимальный баланс качества и размера."
-        PlaybackQualityPreference.Q480 -> "Меньше трафика и быстрее запуск."
-    }
-}
-
-private fun PlaybackQualityPreference.buttonTag(): String {
-    return SettingsFocusTarget.PlaybackQuality(this).toTag()
-}
-
-private fun UpdateCheckMode.shortLabel(): String {
-    return when (this) {
-        UpdateCheckMode.MANUAL -> "Ручная проверка"
-        UpdateCheckMode.QUIET_CHECK -> "Автоматическая проверка"
-    }
-}
-
-private fun UpdateCheckMode.description(): String {
-    return when (this) {
-        UpdateCheckMode.MANUAL -> "Приложение не ищет обновления само."
-        UpdateCheckMode.QUIET_CHECK -> "Тихо проверять и показывать доступную версию."
-    }
-}
-
-private fun UpdateCheckMode.summaryLabel(): String {
-    return when (this) {
-        UpdateCheckMode.MANUAL -> "Ручная проверка"
-        UpdateCheckMode.QUIET_CHECK -> "Автоматическая проверка"
-    }
-}
-
-private fun UpdateCheckMode.shortSummary(): String {
-    return when (this) {
-        UpdateCheckMode.MANUAL -> "Вручную"
-        UpdateCheckMode.QUIET_CHECK -> "Авто"
-    }
-}
-
-private fun UpdateCheckMode.buttonTag(): String {
-    return SettingsFocusTarget.UpdateChannel(this).toTag()
-}
-
-private fun AndroidTvChannelMode.shortLabel(): String {
-    return when (this) {
-        AndroidTvChannelMode.ALL_NEW -> "Все новые релизы"
-        AndroidTvChannelMode.UNWATCHED -> "Только непросмотренные"
-        AndroidTvChannelMode.DISABLED -> "Не показывать"
-    }
-}
-
-private fun AndroidTvChannelMode.description(): String {
-    return when (this) {
-        AndroidTvChannelMode.ALL_NEW -> "Публиковать все свежие карточки."
-        AndroidTvChannelMode.UNWATCHED -> "Показывать только то, что еще не отмечено просмотренным."
-        AndroidTvChannelMode.DISABLED -> "Убрать канал приложения с главного экрана TV."
-    }
-}
-
-private fun AndroidTvChannelMode.label(): String {
-    return when (this) {
-        AndroidTvChannelMode.ALL_NEW -> "Все новые релизы"
-        AndroidTvChannelMode.UNWATCHED -> "Только непросмотренные"
-        AndroidTvChannelMode.DISABLED -> "Не показывать"
-    }
-}
-
-private fun AndroidTvChannelMode.buttonTag(): String {
-    return SettingsFocusTarget.ChannelMode(this).toTag()
 }

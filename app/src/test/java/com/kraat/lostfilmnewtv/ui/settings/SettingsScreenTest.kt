@@ -35,7 +35,6 @@ class SettingsScreenTest {
             LostFilmTheme {
                 SettingsScreen(
                     selectedQuality = PlaybackQualityPreference.Q720,
-                    onQualitySelected = {},
                     selectedUpdateMode = UpdateCheckMode.MANUAL,
                     selectedChannelMode = AndroidTvChannelMode.UNWATCHED,
                     installedVersionText = "0.1.0",
@@ -43,21 +42,23 @@ class SettingsScreenTest {
                     statusText = "Доступно обновление",
                     isCheckingForUpdates = false,
                     installUrl = "https://example.test/app.apk",
-                    onUpdateModeSelected = {},
-                    onChannelModeSelected = {},
-                    onCheckForUpdatesClick = {},
-                    onInstallUpdateClick = {},
+                    actions = SettingsActions(
+                        onQualitySelected = {},
+                        onUpdateModeSelected = {},
+                        onChannelModeSelected = {},
+                        onCheckForUpdatesClick = {},
+                        onInstallUpdateClick = {},
+                    ),
                 )
             }
         }
 
         composeRule.onNodeWithTag("settings-section-playback").assertIsSelected()
-        composeRule.onNodeWithTag("settings-section-playback-summary", useUnmergedTree = true).assertTextEquals("720p · отметка Авто")
+        composeRule.onNodeWithTag("settings-section-playback-summary", useUnmergedTree = true).assertTextEquals("720p · авто-отметка")
         composeRule.onNodeWithTag("settings-section-updates-summary", useUnmergedTree = true).assertTextEquals("Доступно обновление")
         composeRule.onNodeWithTag("settings-section-channel-summary", useUnmergedTree = true).assertTextEquals("Только непросмотренные")
         composeRule.onNodeWithTag("settings-overview-card").assertExists()
-        composeRule.onNodeWithText("Качество: 720p").assertExists()
-        composeRule.onNodeWithTag("settings-quality-720").assertExists()
+        composeRule.onNodeWithTag("settings-quality-720").assertIsSelected()
         assertEquals(
             0,
             composeRule.onAllNodesWithTag("settings-update-mode-manual").fetchSemanticsNodes().size,
@@ -97,7 +98,6 @@ class SettingsScreenTest {
             LostFilmTheme {
                 SettingsScreen(
                     selectedQuality = PlaybackQualityPreference.Q1080,
-                    onQualitySelected = {},
                     selectedUpdateMode = UpdateCheckMode.MANUAL,
                     selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
                     installedVersionText = "0.1.0",
@@ -105,10 +105,13 @@ class SettingsScreenTest {
                     statusText = "Доступно обновление",
                     isCheckingForUpdates = false,
                     installUrl = "https://example.test/app.apk",
-                    onUpdateModeSelected = { selectedModes += it },
-                    onChannelModeSelected = {},
-                    onCheckForUpdatesClick = { checkClicks += 1 },
-                    onInstallUpdateClick = { installClicks += 1 },
+                    actions = SettingsActions(
+                        onQualitySelected = {},
+                        onUpdateModeSelected = { selectedModes += it },
+                        onChannelModeSelected = {},
+                        onCheckForUpdatesClick = { checkClicks += 1 },
+                        onInstallUpdateClick = { installClicks += 1 },
+                    ),
                 )
             }
         }
@@ -146,7 +149,6 @@ class SettingsScreenTest {
             LostFilmTheme {
                 SettingsScreen(
                     selectedQuality = PlaybackQualityPreference.Q1080,
-                    onQualitySelected = { selectedQualities += it },
                     selectedUpdateMode = UpdateCheckMode.MANUAL,
                     selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
                     installedVersionText = "0.1.0",
@@ -154,10 +156,13 @@ class SettingsScreenTest {
                     statusText = null,
                     isCheckingForUpdates = false,
                     installUrl = null,
-                    onUpdateModeSelected = {},
-                    onChannelModeSelected = { selectedChannelModes += it },
-                    onCheckForUpdatesClick = {},
-                    onInstallUpdateClick = {},
+                    actions = SettingsActions(
+                        onQualitySelected = { selectedQualities += it },
+                        onUpdateModeSelected = {},
+                        onChannelModeSelected = { selectedChannelModes += it },
+                        onCheckForUpdatesClick = {},
+                        onInstallUpdateClick = {},
+                    ),
                 )
             }
         }
@@ -176,10 +181,16 @@ class SettingsScreenTest {
         // Center reproduces the real TV remote interaction.
         composeRule.onNodeWithTag("settings-quality-720")
             .performKeyInput { pressKey(Key.DirectionLeft) }
-        composeRule.onNodeWithTag("settings-section-playback")
-            .performKeyInput { pressKey(Key.DirectionDown) }
-        composeRule.onNodeWithTag("settings-section-home-screen")
-            .performKeyInput { pressKey(Key.DirectionDown) }
+        listOf(
+            "settings-section-playback",
+            "settings-section-home-screen",
+            "settings-section-torrserve",
+            "settings-section-server",
+            "settings-section-account",
+        ).forEach { tag ->
+            composeRule.onNodeWithTag(tag).assertIsFocused()
+                .performKeyInput { pressKey(Key.DirectionDown) }
+        }
         composeRule.onNodeWithTag("settings-section-channel")
             .assertIsFocused()
             .performKeyInput { pressKey(Key.DirectionCenter) }
@@ -196,7 +207,6 @@ class SettingsScreenTest {
             LostFilmTheme {
                 SettingsScreen(
                     selectedQuality = PlaybackQualityPreference.Q1080,
-                    onQualitySelected = {},
                     selectedUpdateMode = UpdateCheckMode.MANUAL,
                     selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
                     installedVersionText = "0.1.0",
@@ -204,10 +214,13 @@ class SettingsScreenTest {
                     statusText = null,
                     isCheckingForUpdates = false,
                     installUrl = null,
-                    onUpdateModeSelected = {},
-                    onChannelModeSelected = {},
-                    onCheckForUpdatesClick = {},
-                    onInstallUpdateClick = {},
+                    actions = SettingsActions(
+                        onQualitySelected = {},
+                        onUpdateModeSelected = {},
+                        onChannelModeSelected = {},
+                        onCheckForUpdatesClick = {},
+                        onInstallUpdateClick = {},
+                    ),
                 )
             }
         }
@@ -226,7 +239,6 @@ class SettingsScreenTest {
             LostFilmTheme {
                 SettingsScreen(
                     selectedQuality = PlaybackQualityPreference.Q1080,
-                    onQualitySelected = {},
                     selectedUpdateMode = UpdateCheckMode.MANUAL,
                     selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
                     installedVersionText = "0.1.0",
@@ -234,10 +246,13 @@ class SettingsScreenTest {
                     statusText = "Проверяем обновления...",
                     isCheckingForUpdates = true,
                     installUrl = null,
-                    onUpdateModeSelected = {},
-                    onChannelModeSelected = {},
-                    onCheckForUpdatesClick = {},
-                    onInstallUpdateClick = {},
+                    actions = SettingsActions(
+                        onQualitySelected = {},
+                        onUpdateModeSelected = {},
+                        onChannelModeSelected = {},
+                        onCheckForUpdatesClick = {},
+                        onInstallUpdateClick = {},
+                    ),
                 )
             }
         }
@@ -256,7 +271,6 @@ class SettingsScreenTest {
             LostFilmTheme {
                 SettingsScreen(
                     selectedQuality = PlaybackQualityPreference.Q1080,
-                    onQualitySelected = {},
                     selectedUpdateMode = UpdateCheckMode.MANUAL,
                     selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
                     installedVersionText = "0.1.0",
@@ -265,10 +279,13 @@ class SettingsScreenTest {
                     isCheckingForUpdates = false,
                     isDownloadingUpdate = true,
                     installUrl = "https://example.test/app.apk",
-                    onUpdateModeSelected = {},
-                    onChannelModeSelected = {},
-                    onCheckForUpdatesClick = {},
-                    onInstallUpdateClick = {},
+                    actions = SettingsActions(
+                        onQualitySelected = {},
+                        onUpdateModeSelected = {},
+                        onChannelModeSelected = {},
+                        onCheckForUpdatesClick = {},
+                        onInstallUpdateClick = {},
+                    ),
                 )
             }
         }
@@ -288,7 +305,6 @@ class SettingsScreenTest {
             LostFilmTheme {
                 SettingsScreen(
                     selectedQuality = PlaybackQualityPreference.Q1080,
-                    onQualitySelected = {},
                     selectedUpdateMode = UpdateCheckMode.MANUAL,
                     selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
                     isHomeFavoritesRailEnabled = false,
@@ -297,11 +313,14 @@ class SettingsScreenTest {
                     statusText = null,
                     isCheckingForUpdates = false,
                     installUrl = null,
-                    onUpdateModeSelected = {},
-                    onChannelModeSelected = {},
-                    onHomeFavoritesRailVisibilitySelected = {},
-                    onCheckForUpdatesClick = {},
-                    onInstallUpdateClick = {},
+                    actions = SettingsActions(
+                        onQualitySelected = {},
+                        onUpdateModeSelected = {},
+                        onChannelModeSelected = {},
+                        onHomeFavoritesRailVisibilitySelected = {},
+                        onCheckForUpdatesClick = {},
+                        onInstallUpdateClick = {},
+                    ),
                 )
             }
         }
@@ -331,7 +350,6 @@ class SettingsScreenTest {
             LostFilmTheme {
                 SettingsScreen(
                     selectedQuality = PlaybackQualityPreference.Q1080,
-                    onQualitySelected = {},
                     selectedUpdateMode = UpdateCheckMode.MANUAL,
                     selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
                     isHomeFavoritesRailEnabled = false,
@@ -340,11 +358,14 @@ class SettingsScreenTest {
                     statusText = null,
                     isCheckingForUpdates = false,
                     installUrl = null,
-                    onUpdateModeSelected = {},
-                    onChannelModeSelected = {},
-                    onHomeFavoritesRailVisibilitySelected = { selectedValues += it },
-                    onCheckForUpdatesClick = {},
-                    onInstallUpdateClick = {},
+                    actions = SettingsActions(
+                        onQualitySelected = {},
+                        onUpdateModeSelected = {},
+                        onChannelModeSelected = {},
+                        onHomeFavoritesRailVisibilitySelected = { selectedValues += it },
+                        onCheckForUpdatesClick = {},
+                        onInstallUpdateClick = {},
+                    ),
                 )
             }
         }
@@ -368,7 +389,6 @@ class SettingsScreenTest {
             LostFilmTheme {
                 SettingsScreen(
                     selectedQuality = PlaybackQualityPreference.Q1080,
-                    onQualitySelected = {},
                     selectedUpdateMode = UpdateCheckMode.MANUAL,
                     selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
                     isHomeFavoritesRailEnabled = true,
@@ -377,11 +397,14 @@ class SettingsScreenTest {
                     statusText = null,
                     isCheckingForUpdates = false,
                     installUrl = null,
-                    onUpdateModeSelected = {},
-                    onChannelModeSelected = {},
-                    onHomeFavoritesRailVisibilitySelected = {},
-                    onCheckForUpdatesClick = {},
-                    onInstallUpdateClick = {},
+                    actions = SettingsActions(
+                        onQualitySelected = {},
+                        onUpdateModeSelected = {},
+                        onChannelModeSelected = {},
+                        onHomeFavoritesRailVisibilitySelected = {},
+                        onCheckForUpdatesClick = {},
+                        onInstallUpdateClick = {},
+                    ),
                 )
             }
         }
@@ -402,7 +425,6 @@ class SettingsScreenTest {
             LostFilmTheme {
                 SettingsScreen(
                     selectedQuality = PlaybackQualityPreference.Q1080,
-                    onQualitySelected = {},
                     selectedUpdateMode = UpdateCheckMode.MANUAL,
                     selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
                     installedVersionText = "0.1.0",
@@ -410,10 +432,13 @@ class SettingsScreenTest {
                     statusText = null,
                     isCheckingForUpdates = false,
                     installUrl = null,
-                    onUpdateModeSelected = {},
-                    onChannelModeSelected = {},
-                    onCheckForUpdatesClick = {},
-                    onInstallUpdateClick = {},
+                    actions = SettingsActions(
+                        onQualitySelected = {},
+                        onUpdateModeSelected = {},
+                        onChannelModeSelected = {},
+                        onCheckForUpdatesClick = {},
+                        onInstallUpdateClick = {},
+                    ),
                 )
             }
         }
@@ -433,7 +458,6 @@ class SettingsScreenTest {
             LostFilmTheme {
                 SettingsScreen(
                     selectedQuality = PlaybackQualityPreference.Q1080,
-                    onQualitySelected = {},
                     selectedUpdateMode = UpdateCheckMode.MANUAL,
                     selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
                     installedVersionText = "0.1.0",
@@ -441,10 +465,13 @@ class SettingsScreenTest {
                     statusText = null,
                     isCheckingForUpdates = false,
                     installUrl = null,
-                    onUpdateModeSelected = {},
-                    onChannelModeSelected = {},
-                    onCheckForUpdatesClick = {},
-                    onInstallUpdateClick = {},
+                    actions = SettingsActions(
+                        onQualitySelected = {},
+                        onUpdateModeSelected = {},
+                        onChannelModeSelected = {},
+                        onCheckForUpdatesClick = {},
+                        onInstallUpdateClick = {},
+                    ),
                 )
             }
         }
@@ -461,7 +488,6 @@ class SettingsScreenTest {
             LostFilmTheme {
                 SettingsScreen(
                     selectedQuality = PlaybackQualityPreference.Q1080,
-                    onQualitySelected = {},
                     selectedUpdateMode = UpdateCheckMode.MANUAL,
                     selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
                     installedVersionText = "0.1.0",
@@ -469,10 +495,13 @@ class SettingsScreenTest {
                     statusText = null,
                     isCheckingForUpdates = false,
                     installUrl = null,
-                    onUpdateModeSelected = {},
-                    onChannelModeSelected = {},
-                    onCheckForUpdatesClick = {},
-                    onInstallUpdateClick = {},
+                    actions = SettingsActions(
+                        onQualitySelected = {},
+                        onUpdateModeSelected = {},
+                        onChannelModeSelected = {},
+                        onCheckForUpdatesClick = {},
+                        onInstallUpdateClick = {},
+                    ),
                 )
             }
         }
@@ -491,7 +520,6 @@ class SettingsScreenTest {
             LostFilmTheme {
                 SettingsScreen(
                     selectedQuality = PlaybackQualityPreference.Q1080,
-                    onQualitySelected = {},
                     selectedUpdateMode = UpdateCheckMode.MANUAL,
                     selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
                     installedVersionText = "0.1.0",
@@ -499,10 +527,13 @@ class SettingsScreenTest {
                     statusText = null,
                     isCheckingForUpdates = false,
                     installUrl = null,
-                    onUpdateModeSelected = {},
-                    onChannelModeSelected = {},
-                    onCheckForUpdatesClick = {},
-                    onInstallUpdateClick = {},
+                    actions = SettingsActions(
+                        onQualitySelected = {},
+                        onUpdateModeSelected = {},
+                        onChannelModeSelected = {},
+                        onCheckForUpdatesClick = {},
+                        onInstallUpdateClick = {},
+                    ),
                 )
             }
         }

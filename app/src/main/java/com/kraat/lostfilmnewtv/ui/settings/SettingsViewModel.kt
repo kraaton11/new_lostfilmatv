@@ -1,5 +1,6 @@
 package com.kraat.lostfilmnewtv.ui.settings
 
+import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kraat.lostfilmnewtv.BuildConfig
@@ -49,8 +50,6 @@ class SettingsViewModel @Inject constructor(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
-    private var debounceIntervalMs: Long = DEFAULT_DEBOUNCE_INTERVAL_MS
-
     private val savedUpdateState: StateFlow<SavedAppUpdate?> = appUpdateCoordinator.savedUpdateState
 
     private var activeRefreshJob: Job? = null
@@ -59,7 +58,7 @@ class SettingsViewModel @Inject constructor(
     private var torrServeCheckJob: Job? = null
     private var lostFilmCheckJob: Job? = null
     private var refreshRequestToken: Long = 0
-    private var lastCheckTimestamp = 0L
+    private var lastCheckElapsedMs: Long? = null
 
     private val initialSavedUpdate = savedUpdateState.value
 
@@ -338,9 +337,10 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun onCheckForUpdatesClick() {
-        val now = System.currentTimeMillis()
-        if (now - lastCheckTimestamp < debounceIntervalMs) return
-        lastCheckTimestamp = now
+        val now = SystemClock.elapsedRealtime()
+        val lastCheck = lastCheckElapsedMs
+        if (lastCheck != null && now - lastCheck < UPDATE_CHECK_DEBOUNCE_MS) return
+        lastCheckElapsedMs = now
         refreshUpdateInfo()
     }
 
@@ -426,31 +426,6 @@ class SettingsViewModel @Inject constructor(
             }
         }
     }
-
-    constructor(
-        preferencesStore: PlaybackPreferencesStore,
-        appUpdateCoordinator: AppUpdateCoordinator,
-        homeChannelSyncManager: HomeChannelSyncManager,
-        homeChannelBackgroundScheduler: HomeChannelBackgroundScheduler,
-        appUpdateBackgroundScheduler: AppUpdateBackgroundScheduler,
-        releaseApkLauncher: ReleaseApkLauncher,
-        torrServeEndpointChecker: TorrServeEndpointChecker,
-        ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
-        debounceIntervalMs: Long,
-        lostFilmMirrorChecker: LostFilmMirrorChecker = LostFilmMirrorChecker(okhttp3.OkHttpClient()),
-    ) : this(
-        preferencesStore = preferencesStore,
-        appUpdateCoordinator = appUpdateCoordinator,
-        homeChannelSyncManager = homeChannelSyncManager,
-        homeChannelBackgroundScheduler = homeChannelBackgroundScheduler,
-        appUpdateBackgroundScheduler = appUpdateBackgroundScheduler,
-        releaseApkLauncher = releaseApkLauncher,
-        torrServeEndpointChecker = torrServeEndpointChecker,
-        lostFilmMirrorChecker = lostFilmMirrorChecker,
-        ioDispatcher = ioDispatcher,
-    ) {
-        this.debounceIntervalMs = debounceIntervalMs
-    }
 }
 
 private fun SettingsUiState.toCheckedState(result: AppUpdateRefreshResult): SettingsUiState = when (result) {
@@ -479,4 +454,4 @@ private const val CHECKING_UPDATES_MESSAGE = "Проверяем обновле�
 private const val DOWNLOADING_UPDATE_MESSAGE = "Скачивание обновления..."
 private const val INSTALLER_OPENED_MESSAGE = "Открыт установщик обновления"
 private const val INSTALL_UPDATE_FAILED_MESSAGE = "Не удалось открыть обновление."
-private const val DEFAULT_DEBOUNCE_INTERVAL_MS = 1000L
+private const val UPDATE_CHECK_DEBOUNCE_MS = 1000L

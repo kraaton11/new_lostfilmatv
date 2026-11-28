@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import androidx.work.Operation
 import androidx.work.WorkManager
+import com.kraat.lostfilmnewtv.data.network.LostFilmMirrorChecker
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.ui.home.HomeFeedMode
@@ -23,6 +24,7 @@ import com.kraat.lostfilmnewtv.updates.AppUpdateRefreshResult
 import com.kraat.lostfilmnewtv.updates.ReleaseApkLauncher
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
+import java.time.Duration
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineStart
@@ -42,6 +44,7 @@ import org.junit.runner.RunWith
 import org.mockito.Mockito.mock
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowSystemClock
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @RunWith(RobolectricTestRunner::class)
@@ -333,11 +336,17 @@ class SettingsViewModelTest {
             savedUpdateState = MutableStateFlow(null),
             refreshSavedUpdateState = refresher::invoke,
             ioDispatcher = dispatcher,
-            debounceIntervalMs = 0,
         )
 
         viewModel.onCheckForUpdatesClick()
         runCurrent()
+
+        ShadowSystemClock.advanceBy(Duration.ofMillis(999))
+        viewModel.onCheckForUpdatesClick()
+        runCurrent()
+        assertEquals(1, refresher.callCount)
+
+        ShadowSystemClock.advanceBy(Duration.ofMillis(1))
         viewModel.onCheckForUpdatesClick()
         runCurrent()
 
@@ -573,7 +582,6 @@ class SettingsViewModelTest {
         syncAndroidTvChannelBackgroundSchedule: () -> Unit = {},
         syncAndroidTvChannel: () -> Unit = {},
         ioDispatcher: CoroutineDispatcher,
-        debounceIntervalMs: Long = 1000L,
         torrServeEndpointChecker: TorrServeEndpointChecker = FakeTorrServeEndpointChecker(),
     ): SettingsViewModel {
         val context = ApplicationProvider.getApplicationContext<Context>()
@@ -695,8 +703,8 @@ class SettingsViewModelTest {
             appUpdateBackgroundScheduler = appUpdateBackgroundScheduler,
             releaseApkLauncher = releaseApkLauncher,
             torrServeEndpointChecker = torrServeEndpointChecker,
+            lostFilmMirrorChecker = LostFilmMirrorChecker(OkHttpClient()),
             ioDispatcher = ioDispatcher,
-            debounceIntervalMs = debounceIntervalMs,
         )
     }
 
