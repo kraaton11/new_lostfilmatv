@@ -12,6 +12,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.Credentials
 import okhttp3.OkHttpClient
 import okhttp3.Request
 
@@ -19,10 +20,11 @@ data class TorrServeEndpointCheck(
     val normalizedBaseUrl: String?,
     val isAppInstalled: Boolean,
     val isEndpointReachable: Boolean,
+    val isAuthorizationRejected: Boolean = false,
 )
 
 interface TorrServeEndpointChecker {
-    suspend fun check(baseUrl: String): TorrServeEndpointCheck
+    suspend fun check(baseUrl: String, login: String = "", password: String = ""): TorrServeEndpointCheck
 }
 
 class OkHttpTorrServeEndpointChecker(
@@ -30,33 +32,40 @@ class OkHttpTorrServeEndpointChecker(
     private val availabilityChecker: TorrServeAvailabilityChecker,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : TorrServeEndpointChecker {
-    override suspend fun check(baseUrl: String): TorrServeEndpointCheck = withContext(ioDispatcher) {
+    override suspend fun check(baseUrl: String, login: String, password: String): TorrServeEndpointCheck = withContext(ioDispatcher) {
         val normalized = normalizeTorrServeBaseUrl(baseUrl)
         val appInstalled = availabilityChecker.isAvailable()
-        val endpointReachable = normalized?.let(::isReachable).orFalse()
+        val status = normalized?.let { responseStatus(it, login, password) }
         TorrServeEndpointCheck(
             normalizedBaseUrl = normalized,
             isAppInstalled = appInstalled,
-            isEndpointReachable = endpointReachable,
+            isEndpointReachable = status in 200..299,
+            isAuthorizationRejected = status == 401 || status == 403,
         )
     }
 
-    private fun isReachable(baseUrl: String): Boolean {
+    private fun responseStatus(baseUrl: String, login: String, password: String): Int? {
         val client = okHttpClient.newBuilder()
+            .followRedirects(false)
+            .followSslRedirects(false)
             .connectTimeout(2, TimeUnit.SECONDS)
             .readTimeout(2, TimeUnit.SECONDS)
             .callTimeout(3, TimeUnit.SECONDS)
             .build()
         val echoUrl = baseUrl.trimEnd('/') + "/echo"
-        val request = Request.Builder().url(echoUrl).get().build()
+        val request = Request.Builder().url(echoUrl).apply {
+            if (login.isNotEmpty() || password.isNotEmpty()) {
+                header("Authorization", Credentials.basic(login, password))
+            }
+        }.build()
         return try {
             client.newCall(request).execute().use { response ->
-                response.isSuccessful
+                response.code
             }
         } catch (error: IOException) {
-            false
+            null
         } catch (error: IllegalArgumentException) {
-            false
+            null
         }
     }
 }
@@ -69,6 +78,8 @@ fun normalizeTorrServeBaseUrl(raw: String): String? {
     val parsed = withScheme.toHttpUrlOrNull() ?: return null
     if (parsed.host.isBlank()) return null
     return parsed.newBuilder()
+        .username("")
+        .password("")
         .encodedPath("/")
         .query(null)
         .fragment(null)
@@ -97,5 +108,3 @@ fun normalizeLostFilmHost(raw: String): String? {
         .toString()
         .trimEnd('/')
 }
-
-private fun Boolean?.orFalse(): Boolean = this == true

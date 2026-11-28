@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
@@ -68,6 +69,8 @@ class SettingsViewModel @Inject constructor(
             isHomeMenuLabelsEnabled = preferencesStore.readHomeMenuLabelsEnabled(),
             watchedMarkingMode = preferencesStore.readWatchedMarkingMode(),
             torrServeBaseUrl = preferencesStore.readTorrServeBaseUrl(),
+            torrServeLogin = preferencesStore.readTorrServeLogin(),
+            torrServePassword = preferencesStore.readTorrServePassword(),
             lostFilmHost = preferencesStore.readLostFilmBaseUrl(),
             installedVersionText = BuildConfig.VERSION_NAME,
             savedAppUpdate = initialSavedUpdate,
@@ -99,6 +102,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun onScreenShown() {
+        if (_uiState.value.torrServeStatusText == null) onCheckTorrServeClick()
         if (_uiState.value.updateMode == UpdateCheckMode.QUIET_CHECK) refreshUpdateInfo()
     }
 
@@ -174,33 +178,37 @@ class SettingsViewModel @Inject constructor(
         _uiState.update { it.copy(watchedMarkingMode = mode) }
     }
 
-    fun onTorrServeBaseUrlChanged(value: String) {
-        _uiState.update { it.copy(torrServeBaseUrl = value, torrServeStatusText = null) }
+    fun onTorrServeBaseUrlChanged(value: String) = editTorrServe { it.copy(torrServeBaseUrl = value) }
+
+    fun onTorrServeLoginChanged(value: String) = editTorrServe { it.copy(torrServeLogin = value) }
+
+    fun onTorrServePasswordChanged(value: String) = editTorrServe { it.copy(torrServePassword = value) }
+
+    private fun editTorrServe(transform: (SettingsUiState) -> SettingsUiState) {
+        torrServeCheckJob?.cancel()
+        _uiState.update {
+            transform(it).copy(torrServeStatusText = null, isCheckingTorrServe = false, isTorrServeConnected = false)
+        }
     }
 
     fun onSaveTorrServeBaseUrlClick() {
-        val normalized = normalizeTorrServeBaseUrl(_uiState.value.torrServeBaseUrl)
+        val settings = _uiState.value
+        val normalized = normalizeTorrServeBaseUrl(settings.torrServeBaseUrl)
         if (normalized == null) {
             _uiState.update { it.copy(torrServeStatusText = "Неверный адрес TorrServe") }
             return
         }
-        preferencesStore.writeTorrServeBaseUrl(normalized)
-        _uiState.update {
-            it.copy(
-                torrServeBaseUrl = normalized,
-                torrServeStatusText = "Адрес сохранен",
-            )
-        }
+        preferencesStore.writeTorrServeBaseUrl(normalized, settings.torrServeLogin, settings.torrServePassword)
+        editTorrServe { it.copy(torrServeBaseUrl = normalized) }
+        onCheckTorrServeClick()
     }
 
     fun onResetTorrServeBaseUrlClick() {
         preferencesStore.resetTorrServeBaseUrl()
-        _uiState.update {
-            it.copy(
-                torrServeBaseUrl = preferencesStore.readTorrServeBaseUrl(),
-                torrServeStatusText = "Адрес сброшен",
-            )
+        editTorrServe {
+            it.copy(torrServeBaseUrl = preferencesStore.readTorrServeBaseUrl(), torrServeLogin = "", torrServePassword = "")
         }
+        onCheckTorrServeClick()
     }
 
     fun onLostFilmHostChanged(value: String) {
@@ -245,22 +253,27 @@ class SettingsViewModel @Inject constructor(
 
     fun onCheckTorrServeClick() {
         if (torrServeCheckJob?.isActive == true) return
-        torrServeCheckJob = viewModelScope.launch(ioDispatcher) {
-            _uiState.update { it.copy(isCheckingTorrServe = true, torrServeStatusText = "Проверяем TorrServe...") }
+        val settings = _uiState.value
+        _uiState.update { it.copy(isCheckingTorrServe = true, isTorrServeConnected = false, torrServeStatusText = "Проверяем TorrServe…") }
+        torrServeCheckJob = viewModelScope.launch {
             val result = runCatching {
-                torrServeEndpointChecker.check(_uiState.value.torrServeBaseUrl)
-            }.getOrNull()
+                withContext(ioDispatcher) {
+                    torrServeEndpointChecker.check(settings.torrServeBaseUrl, settings.torrServeLogin, settings.torrServePassword)
+                }
+            }.getOrElse {
+                if (it is kotlinx.coroutines.CancellationException) throw it
+                null
+            }
             _uiState.update {
                 val message = when {
                     result == null -> "Не удалось проверить TorrServe"
                     result.normalizedBaseUrl == null -> "Неверный адрес TorrServe"
-                    result.isAppInstalled && result.isEndpointReachable -> "TorrServe доступен"
-                    result.isAppInstalled -> "Приложение найдено, HTTP недоступен"
-                    result.isEndpointReachable -> "HTTP доступен, приложение не найдено"
-                    else -> "TorrServe недоступен"
+                    result.isEndpointReachable -> "Подключён"
+                    result.isAuthorizationRejected -> "Проверьте логин и пароль"
+                    else -> "Сервер по указанному адресу не ответил"
                 }
                 it.copy(
-                    torrServeBaseUrl = result?.normalizedBaseUrl ?: it.torrServeBaseUrl,
+                    isTorrServeConnected = result?.isEndpointReachable == true,
                     torrServeStatusText = message,
                     isCheckingTorrServe = false,
                 )

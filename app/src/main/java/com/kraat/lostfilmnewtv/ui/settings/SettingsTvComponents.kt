@@ -3,11 +3,18 @@ package com.kraat.lostfilmnewtv.ui.settings
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.scale
+import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -35,6 +42,10 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -52,6 +63,7 @@ import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 @Composable
 fun SettingsTvButton(
     text: String,
+    iconPath: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     isSelected: Boolean = false,
@@ -59,6 +71,7 @@ fun SettingsTvButton(
     summary: String? = null,
     tag: String? = null,
     summaryTag: String? = null,
+    summaryIndicatorColor: Color? = null,
     onFocused: (() -> Unit)? = null,
 ) {
     var isFocused by remember { mutableStateOf(false) }
@@ -73,7 +86,7 @@ fun SettingsTvButton(
 
     val backgroundColor = when {
         !enabled -> HomePanelSurface.copy(alpha = 0.72f)
-        isSelected -> HomeAccentGold
+        isSelected -> FocusBackground
         isFocused -> FocusBackground
         else -> HomePanelSurface
     }
@@ -84,22 +97,15 @@ fun SettingsTvButton(
         isSelected -> HomeAccentGold
         else -> HomePanelBorder
     }
-    val textColor = when {
-        !enabled -> HomeTextMuted
-        isSelected -> Color(0xFF17120D)
-        else -> TextPrimary
-    }
-    val summaryColor = when {
-        !enabled -> HomeTextMuted
-        isSelected -> Color(0xFF5E4419)
-        else -> HomeTextMuted
-    }
+    val textColor = if (enabled) TextPrimary else HomeTextMuted
+    val summaryColor = HomeTextMuted
     val shape = RoundedCornerShape(12.dp)
 
     Button(
         onClick = onClick,
         enabled = enabled,
         shape = shape,
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = Color.Transparent,
             disabledContainerColor = Color.Transparent,
@@ -112,12 +118,16 @@ fun SettingsTvButton(
                     color = backgroundColor,
                     cornerRadius = CornerRadius(12.dp.toPx()),
                 )
+                if (isSelected) {
+                    drawLine(HomeAccentGold, Offset(2.dp.toPx(), 10.dp.toPx()),
+                        Offset(2.dp.toPx(), size.height - 10.dp.toPx()), strokeWidth = 3.dp.toPx())
+                }
             }
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
             }
-            .border(2.dp, borderColor, shape)
+            .border(2.dp, if (isFocused) borderColor else Color.Transparent, shape)
             .onFocusChanged {
                 isFocused = it.isFocused
                 if (it.isFocused) onFocused?.invoke()
@@ -125,30 +135,50 @@ fun SettingsTvButton(
             .semantics { selected = isSelected }
             .then(if (tag != null) Modifier.testTag(tag) else Modifier),
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 2.dp, vertical = 1.dp),
-            verticalArrangement = Arrangement.spacedBy(3.dp),
-            horizontalAlignment = Alignment.Start,
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = text,
-                color = textColor,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (summary != null) {
+            val path = remember(iconPath) { PathParser().parsePathString(iconPath).toPath() }
+            Canvas(Modifier.size(22.dp)) {
+                scale(size.width / 24f, size.height / 24f, pivot = Offset.Zero) {
+                    drawPath(path, if (isSelected) HomeAccentGold else HomeTextMuted, style = Stroke(1.8f))
+                }
+            }
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 2.dp, vertical = 1.dp),
+                verticalArrangement = Arrangement.spacedBy(3.dp),
+                horizontalAlignment = Alignment.Start,
+            ) {
                 Text(
-                    text = summary,
-                    color = summaryColor,
-                    fontSize = 12.sp,
+                    text = text,
+                    color = textColor,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = if (summaryTag != null) Modifier.testTag(summaryTag) else Modifier,
                 )
+                if (summary != null) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(5.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        if (summaryIndicatorColor != null) {
+                            Canvas(Modifier.size(7.dp)) { drawCircle(summaryIndicatorColor) }
+                        }
+                        Text(
+                            text = summary,
+                            color = summaryColor,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = if (summaryTag != null) Modifier.testTag(summaryTag) else Modifier,
+                        )
+                    }
+                }
             }
         }
     }
@@ -167,22 +197,21 @@ fun SettingsOverviewCard(
             .fillMaxWidth()
             .testTag(tag)
             .focusable(false)
-            .border(1.dp, HomePanelBorder, RoundedCornerShape(14.dp))
-            .padding(18.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = 2.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 text = title,
                 color = TextPrimary,
-                fontSize = 24.sp,
+                fontSize = 22.sp,
                 fontWeight = FontWeight.SemiBold,
             )
             subtitle?.let {
                 Text(
                     text = it,
                     color = HomeTextMuted,
-                    fontSize = 14.sp,
+                    fontSize = 13.sp,
                 )
             }
         }
@@ -206,6 +235,8 @@ fun SettingsRowButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     description: String? = null,
+    radio: Boolean = false,
+    toggle: Boolean = false,
     tag: String? = null,
     isSelected: Boolean = false,
     enabled: Boolean = true,
@@ -223,15 +254,13 @@ fun SettingsRowButton(
     val shape = RoundedCornerShape(12.dp)
     val backgroundColor = when {
         !enabled -> HomePanelSurface.copy(alpha = 0.58f)
-        isSelected -> HomePanelSurfaceStrong
         isFocused -> FocusBackground
-        else -> HomePanelSurface
+        else -> HomePanelSurfaceStrong
     }
     val borderColor = when {
         !enabled -> HomePanelBorder
-        isFocused -> HomePanelBorderFocus
-        isSelected -> HomeAccentGold.copy(alpha = 0.72f)
-        else -> HomePanelBorder
+        isFocused -> HomeAccentGoldGlow
+        else -> Color.Transparent
     }
     val valueColor = when {
         !enabled -> HomeTextMuted
@@ -244,6 +273,7 @@ fun SettingsRowButton(
         onClick = onClick,
         enabled = enabled,
         shape = shape,
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = Color.Transparent,
             disabledContainerColor = Color.Transparent,
@@ -275,14 +305,25 @@ fun SettingsRowButton(
                 .padding(horizontal = 2.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (radio) {
+                Canvas(Modifier.size(20.dp)) {
+                    drawCircle(
+                        color = if (isSelected) HomeAccentGold else HomeTextMuted,
+                        radius = size.minDimension / 2 - 1.dp.toPx(),
+                        style = Stroke(2.dp.toPx()),
+                    )
+                    if (isSelected) drawCircle(HomeAccentGold, radius = 4.5.dp.toPx())
+                }
+                Spacer(Modifier.width(14.dp))
+            }
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
             ) {
                 Text(
                     text = title,
                     color = textColor,
-                    fontSize = 17.sp,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -297,15 +338,26 @@ fun SettingsRowButton(
                     )
                 }
             }
-            Spacer(modifier = Modifier.width(18.dp))
-            Text(
-                text = value,
-                color = valueColor,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            if (toggle) {
+                Canvas(Modifier.size(46.dp, 24.dp)) {
+                    drawRoundRect(
+                        color = if (isSelected) HomeAccentGold else HomeTextMuted,
+                        cornerRadius = CornerRadius(size.height / 2),
+                    )
+                    val thumbX = if (isSelected) size.width - size.height / 2 else size.height / 2
+                    drawCircle(HomePanelSurface, radius = 9.dp.toPx(), center = Offset(thumbX, size.height / 2))
+                }
+            } else if (value.isNotBlank()) {
+                Spacer(Modifier.width(18.dp))
+                Text(
+                    text = value,
+                    color = valueColor,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
     }
 }
@@ -317,6 +369,7 @@ fun SettingsTextField(
     label: String,
     modifier: Modifier = Modifier,
     tag: String? = null,
+    isPassword: Boolean = false,
     onFocused: (() -> Unit)? = null,
 ) {
     var isFocused by remember { mutableStateOf(false) }
@@ -324,6 +377,8 @@ fun SettingsTextField(
         value = value,
         onValueChange = onValueChange,
         singleLine = true,
+        visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
+        keyboardOptions = if (isPassword) KeyboardOptions(keyboardType = KeyboardType.Password) else KeyboardOptions.Default,
         label = { Text(text = label) },
         colors = OutlinedTextFieldDefaults.colors(
             focusedTextColor = TextPrimary,

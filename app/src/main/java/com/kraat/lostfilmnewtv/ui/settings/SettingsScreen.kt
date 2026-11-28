@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -28,6 +27,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGold
+import com.kraat.lostfilmnewtv.ui.theme.HomeTextMuted
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -38,13 +40,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
 import com.kraat.lostfilmnewtv.BuildConfig
 import com.kraat.lostfilmnewtv.ui.home.requestFocusWhenReady
+import com.kraat.lostfilmnewtv.playback.DEFAULT_TORRSERVE_BASE_URL
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.playback.WatchedMarkingMode
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundSurface
-import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurface
-import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 
@@ -65,6 +66,11 @@ fun SettingsScreen(
     selectedWatchedMarkingMode: WatchedMarkingMode = WatchedMarkingMode.AUTO,
     onWatchedMarkingModeSelected: (WatchedMarkingMode) -> Unit = {},
     torrServeBaseUrl: String = "",
+    torrServeLogin: String = "",
+    torrServePassword: String = "",
+    isTorrServeConnected: Boolean = false,
+    onTorrServeLoginChanged: (String) -> Unit = {},
+    onTorrServePasswordChanged: (String) -> Unit = {},
     torrServeStatusText: String? = null,
     isCheckingTorrServe: Boolean = false,
     onTorrServeBaseUrlChanged: (String) -> Unit = {},
@@ -167,7 +173,7 @@ fun SettingsScreen(
 
     val qualitySummary = selectedQuality.shortLabel()
     val watchedSummary = if (selectedWatchedMarkingMode == WatchedMarkingMode.AUTO) "Авто" else "Выкл"
-    val playbackSummary = "$qualitySummary · отметка $watchedSummary"
+    val playbackSummary = "$qualitySummary · ${if (selectedWatchedMarkingMode == WatchedMarkingMode.AUTO) "авто-отметка" else "ручная отметка"}"
     val updateSummary = updateSummary(
         selectedUpdateMode = selectedUpdateMode,
         statusText = statusText,
@@ -183,11 +189,12 @@ fun SettingsScreen(
         "сериалы ${if (isHomeSeriesEnabled) "вкл" else "выкл"}",
         "подписи ${if (isHomeMenuLabelsEnabled) "вкл" else "выкл"}",
     ).joinToString(" · ")
-    val torrServeSummary = when {
-        isCheckingTorrServe -> "Проверяем..."
-        !torrServeStatusText.isNullOrBlank() -> torrServeStatusText
-        else -> torrServeBaseUrl.ifBlank { "По умолчанию" }
-    }
+    val usesDefaultTorrServeAddress =
+        torrServeBaseUrl == DEFAULT_TORRSERVE_BASE_URL &&
+            torrServeLogin.isEmpty() && torrServePassword.isEmpty()
+    val hasTorrServeAddressError =
+        !usesDefaultTorrServeAddress && !isCheckingTorrServe &&
+            !isTorrServeConnected && torrServeStatusText != null
     val serverSummary = lostFilmHostStatusText?.takeIf { it.isNotBlank() }
         ?: lostFilmHost.ifBlank { "По умолчанию" }
     val accountSummary = if (isAuthenticated) "Вход выполнен" else "Без входа"
@@ -197,20 +204,20 @@ fun SettingsScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(BackgroundPrimary)
-            .padding(horizontal = 48.dp, vertical = 32.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
+            .padding(horizontal = 36.dp, vertical = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Text(
             text = "Настройки",
             color = TextPrimary,
-            fontSize = 30.sp,
+            fontSize = 26.sp,
             fontWeight = FontWeight.SemiBold,
         )
         Row(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(22.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             SettingsSectionRail(
                 selectedSection = selectedSection,
@@ -218,7 +225,8 @@ fun SettingsScreen(
                 updateSummary = updateSummary,
                 channelSummary = channelSummary,
                 homeScreenSummary = homeScreenSummary,
-                torrServeSummary = torrServeSummary,
+                isTorrServeConnected = isTorrServeConnected,
+                hasTorrServeAddressError = hasTorrServeAddressError,
                 serverSummary = serverSummary,
                 accountSummary = accountSummary,
                 aboutSummary = aboutSummary,
@@ -239,7 +247,7 @@ fun SettingsScreen(
                     )?.let { contentRequesters.getValue(it.toTag()) } ?: railRequesters.getValue(section)
                 },
                 modifier = Modifier
-                    .width(292.dp)
+                    .fillMaxWidth(0.37f)
                     .fillMaxHeight(),
             )
             Box(
@@ -248,31 +256,29 @@ fun SettingsScreen(
                     .fillMaxHeight()
                     .background(BackgroundSurface, RoundedCornerShape(18.dp))
                     .onFocusChanged { contentHasFocus = it.hasFocus }
-                    .padding(22.dp),
+                    .padding(16.dp),
             ) {
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(contentScrollState),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     when (selectedSection) {
                         SettingsSection.PLAYBACK -> {
                             SettingsOptionsSection {
                                 SettingsOverviewCard(
                                     title = "Воспроизведение",
-                                    subtitle = "Качество для запуска торрента и автоматическая отметка просмотренного.",
-                                    modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(14.dp)),
-                                ) {
-                                    SettingsOverviewValue(text = "Качество: ${selectedQuality.shortLabel()}")
-                                    SettingsOverviewValue(text = "Отметка просмотренного: $watchedSummary")
-                                }
-                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    subtitle = "Какое качество запускать и когда отмечать серию просмотренной.",
+                                )
+                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    SettingsGroupLabel("КАЧЕСТВО ПО УМОЛЧАНИЮ", HomeAccentGold)
                                     qualityOptions.forEachIndexed { index, quality ->
                                         SettingsRowButton(
                                             title = quality.shortLabel(),
                                             description = quality.description(),
-                                            value = if (quality == selectedQuality) "Выбрано" else "Выбрать",
+                                            value = "",
+                                            radio = true,
                                             onClick = {
                                                 onQualitySelected(quality)
                                                 contentRequesters.getValue(quality.buttonTag()).requestFocus()
@@ -301,10 +307,12 @@ fun SettingsScreen(
                                                 },
                                         )
                                     }
+                                    SettingsGroupLabel("ПОСЛЕ ЗАПУСКА", HomeAccentGold)
                                     SettingsRowButton(
-                                        title = "Отметка просмотренного",
-                                        description = "Меняет статус эпизода при запуске воспроизведения.",
-                                        value = watchedSummary,
+                                        title = "Отмечать просмотренным",
+                                        description = "Серия отмечается автоматически при запуске",
+                                        value = "",
+                                        toggle = true,
                                         onClick = {
                                             onWatchedMarkingModeSelected(
                                                 if (selectedWatchedMarkingMode == WatchedMarkingMode.AUTO) {
@@ -338,16 +346,14 @@ fun SettingsScreen(
                             SettingsOptionsSection {
                                 SettingsOverviewCard(
                                     title = "Главный экран",
-                                    subtitle = "Что показывать в домашнем экране приложения.",
-                                    modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(14.dp)),
-                                ) {
-                                    SettingsOverviewValue(text = homeScreenSummary)
-                                }
-                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    subtitle = "Вкладки и подписи в боковом меню.",
+                                )
+                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     SettingsRowButton(
                                         title = "Вкладка Избранное",
                                         description = "Показывает отдельную вкладку с сохраненными релизами.",
-                                        value = if (isHomeFavoritesRailEnabled) "Вкл" else "Выкл",
+                                        value = "",
+                                        toggle = true,
                                         onClick = {
                                             onHomeFavoritesRailVisibilitySelected(!isHomeFavoritesRailEnabled)
                                             contentRequesters.getValue(SettingsFocusTarget.HomeFavoritesToggle.toTag()).requestFocus()
@@ -370,7 +376,8 @@ fun SettingsScreen(
                                     SettingsRowButton(
                                         title = "Фильмы",
                                         description = "Показывает вкладку с фильмами LostFilm.",
-                                        value = if (isHomeMoviesEnabled) "Вкл" else "Выкл",
+                                        value = "",
+                                        toggle = true,
                                         onClick = {
                                             onHomeMoviesVisibilitySelected(!isHomeMoviesEnabled)
                                             contentRequesters.getValue(SettingsFocusTarget.HomeMoviesToggle.toTag()).requestFocus()
@@ -393,7 +400,8 @@ fun SettingsScreen(
                                     SettingsRowButton(
                                         title = "Сериалы",
                                         description = "Показывает вкладку общего каталога сериалов.",
-                                        value = if (isHomeSeriesEnabled) "Вкл" else "Выкл",
+                                        value = "",
+                                        toggle = true,
                                         onClick = {
                                             onHomeSeriesVisibilitySelected(!isHomeSeriesEnabled)
                                             contentRequesters.getValue(SettingsFocusTarget.HomeSeriesToggle.toTag()).requestFocus()
@@ -416,7 +424,8 @@ fun SettingsScreen(
                                     SettingsRowButton(
                                         title = "Подписи в меню",
                                         description = "Показывает текст рядом с иконками бокового меню.",
-                                        value = if (isHomeMenuLabelsEnabled) "Вкл" else "Выкл",
+                                        value = "",
+                                        toggle = true,
                                         onClick = {
                                             onHomeMenuLabelsVisibilitySelected(!isHomeMenuLabelsEnabled)
                                             contentRequesters.getValue(SettingsFocusTarget.HomeMenuLabelsToggle.toTag()).requestFocus()
@@ -445,16 +454,16 @@ fun SettingsScreen(
                                 SettingsOverviewCard(
                                     title = "Android TV",
                                     subtitle = "Канал с релизами на главном экране Android TV, вне приложения.",
-                                    modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(14.dp)),
                                 ) {
                                     SettingsOverviewValue(text = "Сейчас: ${selectedChannelMode.label()}")
                                 }
-                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     channelModes.forEachIndexed { index, mode ->
                                         SettingsRowButton(
                                             title = mode.shortLabel(),
                                             description = mode.description(),
-                                            value = if (mode == selectedChannelMode) "Выбрано" else "Выбрать",
+                                            value = "",
+                                            radio = true,
                                             onClick = {
                                                 onChannelModeSelected(mode)
                                                 contentRequesters.getValue(mode.buttonTag()).requestFocus()
@@ -491,12 +500,11 @@ fun SettingsScreen(
                             SettingsOptionsSection {
                                 SettingsOverviewCard(
                                     title = "TorrServe",
-                                    subtitle = "Адрес сервера TorrServe для воспроизведения торрентов.",
-                                    modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(14.dp)),
+                                    subtitle = "Здесь проверяется указанный адрес. Для просмотра используются настройки приложения TorrServe.",
                                 ) {
-                                    SettingsOverviewValue(text = torrServeStatusText ?: "Сейчас: $torrServeBaseUrl")
+                                    torrServeStatusText?.let { SettingsOverviewValue(text = it) }
                                 }
-                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     SettingsTextField(
                                         value = torrServeBaseUrl,
                                         onValueChange = onTorrServeBaseUrlChanged,
@@ -509,11 +517,28 @@ fun SettingsScreen(
                                         },
                                         modifier = Modifier.focusRequester(contentRequesters.getValue(SettingsFocusTarget.TorrServeBaseUrl.toTag())),
                                     )
-                                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        SettingsTextField(
+                                            value = torrServeLogin,
+                                            onValueChange = onTorrServeLoginChanged,
+                                            label = "Логин",
+                                            modifier = Modifier.weight(1f),
+                                            tag = "settings-torrserve-login",
+                                        )
+                                        SettingsTextField(
+                                            value = torrServePassword,
+                                            onValueChange = onTorrServePasswordChanged,
+                                            label = "Пароль",
+                                            modifier = Modifier.weight(1f),
+                                            tag = "settings-torrserve-password",
+                                            isPassword = true,
+                                        )
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                         SettingsRowButton(
                                             title = "Сохранить",
-                                            description = "Применить указанный адрес TorrServe.",
-                                            value = "Сохранить",
+                                            description = "Применить настройки и проверить подключение.",
+                                            value = "",
                                             onClick = onSaveTorrServeClick,
                                             tag = SettingsFocusTarget.TorrServeSave.toTag(),
                                             onFocused = {
@@ -527,8 +552,8 @@ fun SettingsScreen(
                                         )
                                         SettingsRowButton(
                                             title = "Сбросить",
-                                            description = "Вернуть адрес по умолчанию (127.0.0.1:8090).",
-                                            value = "Сбросить",
+                                            description = "Вернуть настройки по умолчанию.",
+                                            value = "",
                                             onClick = onResetTorrServeClick,
                                             tag = SettingsFocusTarget.TorrServeReset.toTag(),
                                             onFocused = {
@@ -543,8 +568,7 @@ fun SettingsScreen(
                                     }
                                     SettingsRowButton(
                                         title = "Проверить подключение",
-                                        description = "Отправить запрос на /echo для проверки доступности.",
-                                        value = if (isCheckingTorrServe) "Проверяем..." else "Проверить",
+                                        value = if (isCheckingTorrServe) "Проверяем…" else "",
                                         onClick = onCheckTorrServeClick,
                                         enabled = !isCheckingTorrServe,
                                         tag = SettingsFocusTarget.TorrServeCheck.toTag(),
@@ -564,11 +588,10 @@ fun SettingsScreen(
                                 SettingsOverviewCard(
                                     title = "Адрес хоста",
                                     subtitle = "Адрес сервера LostFilm, к которому обращается приложение. По умолчанию https://www.lostfilm.today.",
-                                    modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(14.dp)),
                                 ) {
                                     SettingsOverviewValue(text = lostFilmHostStatusText ?: "Сейчас: ${lostFilmHost.ifBlank { "по умолчанию" }}")
                                 }
-                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     SettingsTextField(
                                         value = lostFilmHost,
                                         onValueChange = onLostFilmHostChanged,
@@ -581,7 +604,7 @@ fun SettingsScreen(
                                         },
                                         modifier = Modifier.focusRequester(contentRequesters.getValue(SettingsFocusTarget.LostFilmHost.toTag())),
                                     )
-                                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                         SettingsRowButton(
                                             title = "Сохранить",
                                             description = "Применить указанный адрес хоста.",
@@ -648,11 +671,10 @@ fun SettingsScreen(
                                 SettingsOverviewCard(
                                     title = "Аккаунт LostFilm",
                                     subtitle = "Вход нужен для Избранного и синхронизации просмотренного.",
-                                    modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(14.dp)),
                                 ) {
                                     SettingsOverviewValue(text = "Статус: $accountSummary")
                                 }
-                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     SettingsRowButton(
                                         title = "Аккаунт",
                                         description = if (isAuthenticated) "Завершить текущую сессию." else "Войти через QR-код в браузере.",
@@ -682,11 +704,10 @@ fun SettingsScreen(
                                 SettingsOverviewCard(
                                     title = "О приложении",
                                     subtitle = "Неофициальный клиент LostFilm для Android TV.",
-                                    modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(14.dp)),
                                 ) {
                                     SettingsOverviewValue(text = "Версия: ${BuildConfig.VERSION_NAME} (сборка ${BuildConfig.VERSION_CODE})")
                                 }
-                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     val gitHubTag = SettingsFocusTarget.AboutGitHubLink.toTag()
                                     val telegramTag = SettingsFocusTarget.AboutTelegramLink.toTag()
                                     SettingsRowButton(
@@ -746,6 +767,12 @@ fun SettingsScreen(
                 }
             }
         }
+        Text(
+            text = if (contentHasFocus) "OK  Выбрать     ←  К разделам     Назад  К разделам"
+                else "→  К настройкам     Назад  Выйти",
+            color = HomeTextMuted,
+            fontSize = 13.sp,
+        )
     }
 }
 
@@ -756,11 +783,11 @@ enum class SettingsSection(
 ) {
     PLAYBACK("Воспроизведение", "settings-section-playback", "settings-section-playback-summary"),
     HOME_SCREEN("Главный экран", "settings-section-home-screen", "settings-section-home-screen-summary"),
-    CHANNEL("Android TV", "settings-section-channel", "settings-section-channel-summary"),
     TORRSERVE("TorrServe", "settings-section-torrserve", "settings-section-torrserve-summary"),
-    SERVER("Сервер", "settings-section-server", "settings-section-server-summary"),
-    UPDATES("Обновления", "settings-section-updates", "settings-section-updates-summary"),
+    SERVER("Зеркало LostFilm", "settings-section-server", "settings-section-server-summary"),
     ACCOUNT("Аккаунт", "settings-section-account", "settings-section-account-summary"),
+    CHANNEL("Канал на главном экране", "settings-section-channel", "settings-section-channel-summary"),
+    UPDATES("Обновления", "settings-section-updates", "settings-section-updates-summary"),
     ABOUT("О приложении", "settings-section-about", "settings-section-about-summary");
 
     companion object {
@@ -778,7 +805,8 @@ private fun SettingsSectionRail(
     updateSummary: String,
     channelSummary: String,
     homeScreenSummary: String,
-    torrServeSummary: String,
+    isTorrServeConnected: Boolean,
+    hasTorrServeAddressError: Boolean,
     serverSummary: String,
     accountSummary: String,
     aboutSummary: String,
@@ -790,25 +818,42 @@ private fun SettingsSectionRail(
 ) {
     Column(
         modifier = modifier
-            .background(HomePanelSurface, RoundedCornerShape(18.dp))
-            .padding(14.dp)
+            .background(BackgroundSurface, RoundedCornerShape(18.dp))
+            .padding(8.dp)
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         sections.forEachIndexed { index, section ->
+            when (section) {
+                SettingsSection.PLAYBACK -> SettingsGroupLabel("ПРИЛОЖЕНИЕ")
+                SettingsSection.TORRSERVE -> SettingsGroupLabel("ПОДКЛЮЧЕНИЯ")
+                SettingsSection.CHANNEL -> SettingsGroupLabel("СИСТЕМА")
+                else -> Unit
+            }
             SettingsTvButton(
                 text = section.railTitle,
+                iconPath = section.iconPath(),
                 summary = when (section) {
                     SettingsSection.PLAYBACK -> playbackSummary
                     SettingsSection.HOME_SCREEN -> homeScreenSummary
                     SettingsSection.CHANNEL -> channelSummary
-                    SettingsSection.TORRSERVE -> torrServeSummary
+                    SettingsSection.TORRSERVE -> when {
+                        isTorrServeConnected -> "Подключён"
+                        hasTorrServeAddressError -> "Ошибка проверки адреса"
+                        else -> "Через внешний клиент"
+                    }
                     SettingsSection.UPDATES -> updateSummary
                     SettingsSection.ACCOUNT -> accountSummary
                     SettingsSection.SERVER -> serverSummary
                     SettingsSection.ABOUT -> aboutSummary
                 },
                 summaryTag = section.summaryTag,
+                summaryIndicatorColor = when {
+                    section != SettingsSection.TORRSERVE -> null
+                    isTorrServeConnected -> Color(0xFF59D58B)
+                    hasTorrServeAddressError -> Color(0xFFFF636B)
+                    else -> null
+                },
                 isSelected = section == selectedSection,
                 tag = section.tag,
                 onClick = { onSectionSelected(section) },
@@ -825,13 +870,36 @@ private fun SettingsSectionRail(
     }
 }
 
+private fun SettingsSection.iconPath(): String = when (this) {
+    SettingsSection.PLAYBACK -> "M8 4 L20 12 L8 20 Z"
+    SettingsSection.HOME_SCREEN -> "M3 10 L12 3 L21 10 V21 H3 Z"
+    SettingsSection.TORRSERVE -> "M3 5 H21 V11 H3 Z M3 14 H21 V20 H3 Z"
+    SettingsSection.SERVER -> "M3 12 A9 9 0 1 0 21 12 A9 9 0 1 0 3 12 M3 12 H21 M12 3 C7 6 7 18 12 21 C17 18 17 6 12 3"
+    SettingsSection.ACCOUNT -> "M8 8 A4 4 0 1 0 16 8 A4 4 0 1 0 8 8 M3 21 C3 13 21 13 21 21"
+    SettingsSection.CHANNEL -> "M3 4 H21 V17 H3 Z M8 21 H16"
+    SettingsSection.UPDATES -> "M20 8 A9 9 0 1 0 21 14 M20 3 V9 H14"
+    SettingsSection.ABOUT -> "M3 12 A9 9 0 1 0 21 12 A9 9 0 1 0 3 12 M12 11 V17 M12 7 V8"
+}
+
+@Composable
+private fun SettingsGroupLabel(text: String, color: Color = HomeTextMuted) {
+    Text(
+        text = text,
+        color = color,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 1.4.sp,
+        modifier = Modifier.padding(top = 4.dp, start = 8.dp),
+    )
+}
+
 @Composable
 private fun SettingsOptionsSection(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
         content = content,
     )
 }
@@ -870,7 +938,6 @@ private fun UpdatesSectionContent(
     SettingsOverviewCard(
         title = "Обновления",
         subtitle = "Режим проверки и установка новой версии через GitHub.",
-        modifier = Modifier.background(HomePanelSurfaceStrong, RoundedCornerShape(14.dp)),
     ) {
         SettingsOverviewValue(text = "Установлена версия: $installedVersionText")
         SettingsOverviewValue(text = "Последняя версия: ${latestVersionText ?: "-"}")
@@ -878,7 +945,7 @@ private fun UpdatesSectionContent(
     }
     Column(
         modifier = Modifier.focusGroup(),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         val orderedTags = buildList {
             updateModes.forEach { add(it.buttonTag()) }
@@ -892,7 +959,8 @@ private fun UpdatesSectionContent(
             SettingsRowButton(
                 title = mode.shortLabel(),
                 description = mode.description(),
-                value = if (mode == selectedUpdateMode) "Выбрано" else "Выбрать",
+                value = "",
+                radio = true,
                 onClick = { onUpdateModeSelected(mode) },
                 isSelected = mode == selectedUpdateMode,
                 tag = tag,

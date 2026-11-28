@@ -481,6 +481,60 @@ class SettingsViewModelTest {
         assertEquals("Не удалось открыть обновление.", viewModel.uiState.value.statusText)
     }
 
+    @Test
+    fun saveTorrServeSettings_checksSavedCredentialsAndShowsConnected() = runTest(dispatcher) {
+        val requests = mutableListOf<Triple<String, String, String>>()
+        val viewModel = createViewModel(
+            installedVersion = "1.0.0",
+            initialPlaybackQuality = PlaybackQualityPreference.Q1080,
+            initialUpdateMode = UpdateCheckMode.MANUAL,
+            refreshSavedUpdateState = FakeUpdateRefresher()::invoke,
+            ioDispatcher = dispatcher,
+            torrServeEndpointChecker = object : TorrServeEndpointChecker {
+                override suspend fun check(baseUrl: String, login: String, password: String): TorrServeEndpointCheck {
+                    requests += Triple(baseUrl, login, password)
+                    return TorrServeEndpointCheck(baseUrl, isAppInstalled = false, isEndpointReachable = true)
+                }
+            },
+        )
+
+        viewModel.onTorrServeBaseUrlChanged("nas.local:8090")
+        viewModel.onTorrServeLoginChanged("viewer")
+        viewModel.onTorrServePasswordChanged("test-password")
+        viewModel.onSaveTorrServeBaseUrlClick()
+        advanceUntilIdle()
+
+        val store = checkNotNull(lastSettingsPreferencesStore)
+        assertEquals("http://nas.local:8090", store.readTorrServeBaseUrl())
+        assertEquals("viewer", store.readTorrServeLogin())
+        assertEquals("test-password", store.readTorrServePassword())
+        assertEquals(listOf(Triple("http://nas.local:8090", "viewer", "test-password")), requests)
+        assertEquals(true, viewModel.uiState.value.isTorrServeConnected)
+        assertEquals("Подключён", viewModel.uiState.value.torrServeStatusText)
+    }
+
+    @Test
+    fun checkTorrServe_reportsUnavailableEndpointEvenWhenAppIsInstalled() = runTest(dispatcher) {
+        val viewModel = createViewModel(
+            installedVersion = "1.0.0",
+            initialPlaybackQuality = PlaybackQualityPreference.Q1080,
+            initialUpdateMode = UpdateCheckMode.MANUAL,
+            refreshSavedUpdateState = FakeUpdateRefresher()::invoke,
+            ioDispatcher = dispatcher,
+            torrServeEndpointChecker = object : TorrServeEndpointChecker {
+                override suspend fun check(baseUrl: String, login: String, password: String): TorrServeEndpointCheck {
+                    return TorrServeEndpointCheck(baseUrl, isAppInstalled = true, isEndpointReachable = false)
+                }
+            },
+        )
+
+        viewModel.onCheckTorrServeClick()
+        advanceUntilIdle()
+
+        assertEquals(false, viewModel.uiState.value.isTorrServeConnected)
+        assertEquals("Сервер по указанному адресу не ответил", viewModel.uiState.value.torrServeStatusText)
+    }
+
     @Suppress("UNUSED_PARAMETER")
     private fun createViewModel(
         installedVersion: String,
@@ -498,6 +552,7 @@ class SettingsViewModelTest {
         syncAndroidTvChannel: () -> Unit = {},
         ioDispatcher: CoroutineDispatcher,
         debounceIntervalMs: Long = 1000L,
+        torrServeEndpointChecker: TorrServeEndpointChecker = FakeTorrServeEndpointChecker(),
     ): SettingsViewModel {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val prefsName = "settings-view-model-test-${settingsPrefsCounter++}"
@@ -617,7 +672,7 @@ class SettingsViewModelTest {
             homeChannelBackgroundScheduler = homeChannelBackgroundScheduler,
             appUpdateBackgroundScheduler = appUpdateBackgroundScheduler,
             releaseApkLauncher = releaseApkLauncher,
-            torrServeEndpointChecker = FakeTorrServeEndpointChecker(),
+            torrServeEndpointChecker = torrServeEndpointChecker,
             ioDispatcher = ioDispatcher,
             debounceIntervalMs = debounceIntervalMs,
         )
@@ -645,7 +700,7 @@ class SettingsViewModelTest {
     }
 
     private class FakeTorrServeEndpointChecker : TorrServeEndpointChecker {
-        override suspend fun check(baseUrl: String): TorrServeEndpointCheck {
+        override suspend fun check(baseUrl: String, login: String, password: String): TorrServeEndpointCheck {
             return TorrServeEndpointCheck(
                 normalizedBaseUrl = normalizeTorrServeBaseUrl(baseUrl),
                 isAppInstalled = true,

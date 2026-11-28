@@ -198,7 +198,7 @@ object MainActivityTestAppModule {
     @Provides
     @Singleton
     fun provideTorrServeEndpointChecker(): TorrServeEndpointChecker = object : TorrServeEndpointChecker {
-        override suspend fun check(baseUrl: String): TorrServeEndpointCheck {
+        override suspend fun check(baseUrl: String, login: String, password: String): TorrServeEndpointCheck {
             return TorrServeEndpointCheck(
                 normalizedBaseUrl = normalizeTorrServeBaseUrl(baseUrl),
                 isAppInstalled = false,

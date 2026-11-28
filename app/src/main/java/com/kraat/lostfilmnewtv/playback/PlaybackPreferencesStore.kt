@@ -11,6 +11,8 @@ import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 import com.kraat.lostfilmnewtv.data.parser.LostFilmBaseUrl
 import com.kraat.lostfilmnewtv.playback.WatchedMarkingMode
 
+internal const val DEFAULT_TORRSERVE_BASE_URL = "http://127.0.0.1:8090"
+
 class PlaybackPreferencesStore(
     context: Context,
     prefsName: String = DEFAULT_PREFS_NAME,
@@ -161,15 +163,27 @@ class PlaybackPreferencesStore(
             ?: DEFAULT_TORRSERVE_BASE_URL
     }
 
-    fun writeTorrServeBaseUrl(value: String) {
+    fun readTorrServeLogin(): String = prefs.getString("torrserve_login", "").orEmpty()
+
+    fun readTorrServePassword(): String = prefs.getString("torrserve_password", "").orEmpty()
+
+    fun writeTorrServeBaseUrl(
+        value: String,
+        login: String = readTorrServeLogin(),
+        password: String = readTorrServePassword(),
+    ) {
         prefs.edit()
             .putString(KEY_TORRSERVE_BASE_URL, value)
+            .putString("torrserve_login", login)
+            .putString("torrserve_password", password)
             .apply()
     }
 
     fun resetTorrServeBaseUrl() {
         prefs.edit()
             .remove(KEY_TORRSERVE_BASE_URL)
+            .remove("torrserve_login")
+            .remove("torrserve_password")
             .apply()
     }
 
@@ -258,6 +272,5 @@ class PlaybackPreferencesStore(
         const val KEY_TORRSERVE_BASE_URL = "torrserve_base_url"
         const val KEY_LOSTFILM_BASE_URL = "lostfilm_base_url"
         const val DEFAULT_LOSTFILM_BASE_URL = LostFilmBaseUrl.DEFAULT
-        const val DEFAULT_TORRSERVE_BASE_URL = "http://127.0.0.1:8090"
     }
 }
