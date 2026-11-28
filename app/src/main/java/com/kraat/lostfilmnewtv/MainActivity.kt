@@ -5,14 +5,17 @@ import android.view.View
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kraat.lostfilmnewtv.navigation.AppLaunchTarget
 import com.kraat.lostfilmnewtv.navigation.AppNavGraph
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelBackgroundScheduler
 import com.kraat.lostfilmnewtv.updates.AppUpdateBackgroundScheduler
 import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
+import com.kraat.lostfilmnewtv.ui.theme.ThemeController
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 
@@ -21,6 +24,7 @@ class MainActivity : ComponentActivity() {
 
     @Inject lateinit var homeChannelBackgroundScheduler: HomeChannelBackgroundScheduler
     @Inject lateinit var appUpdateBackgroundScheduler: AppUpdateBackgroundScheduler
+    @Inject lateinit var themeController: ThemeController
 
     private var hasResumedOnce = false
 
@@ -29,7 +33,8 @@ class MainActivity : ComponentActivity() {
         hideLauncherBars()
         val initialDetailsUrl = AppLaunchTarget.parseDetailsUrl(intent)
         setContent {
-            LostFilmTheme {
+            val theme by themeController.theme.collectAsStateWithLifecycle()
+            LostFilmTheme(theme) {
                 LostFilmApp(initialDetailsUrl = initialDetailsUrl)
             }
         }

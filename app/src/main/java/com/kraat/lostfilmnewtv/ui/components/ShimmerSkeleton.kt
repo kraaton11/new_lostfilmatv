@@ -20,12 +20,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundSurface
 import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceSoft
+import com.kraat.lostfilmnewtv.ui.theme.LocalLostFilmColors
 
 @Composable
 fun rememberShimmerSkeletonBrush(
     label: String,
     baseColor: Color = DetailsSurfaceSoft,
-    highlightColor: Color = Color.White,
+    highlightColor: Color = LocalLostFilmColors.current.highlight,
     baseAlpha: Float = 0.72f,
     highlightAlpha: Float = 0.10f,
     startOffset: Float = -560f,

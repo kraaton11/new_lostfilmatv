@@ -42,6 +42,7 @@ import com.kraat.lostfilmnewtv.ui.theme.DetailsBackgroundTop
 import com.kraat.lostfilmnewtv.ui.theme.DetailsBorderDefault
 import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceReadable
 import com.kraat.lostfilmnewtv.ui.theme.DetailsTextSecondary
+import com.kraat.lostfilmnewtv.ui.theme.LocalLostFilmColors
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 
 private val movieOverviewWhitespaceRegex = Regex("""\s+""")
@@ -131,7 +132,7 @@ private fun MovieOverviewErrorState(
             onClick = onRetry,
             colors = ButtonDefaults.buttonColors(
                 containerColor = DetailsAccentGold,
-                contentColor = Color.Black,
+                contentColor = LocalLostFilmColors.current.onAccent,
             ),
         ) {
             Text(text = "Повторить", fontWeight = FontWeight.SemiBold)
@@ -298,6 +299,7 @@ private fun String.splitByWords(maxChars: Int): List<String> {
     return parts
 }
 
+@Composable
 private fun movieOverviewBackgroundBrush(): Brush {
     return Brush.verticalGradient(
         0f to DetailsBackgroundTop,

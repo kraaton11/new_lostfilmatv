@@ -62,6 +62,7 @@ import com.kraat.lostfilmnewtv.ui.theme.DetailsBorderDefault
 import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceReadable
 import com.kraat.lostfilmnewtv.ui.theme.DetailsTextSecondary
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
+import com.kraat.lostfilmnewtv.ui.theme.LocalLostFilmColors
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 
 private val HistoryRowShape = RoundedCornerShape(8.dp)
@@ -201,7 +202,7 @@ private fun HistoryRow(entry: WatchHistoryEntry, onClick: () -> Unit, modifier: 
         shape = ButtonDefaults.shape(shape = HistoryRowShape),
         colors = ButtonDefaults.colors(
             containerColor = DetailsSurfaceReadable,
-            focusedContainerColor = lerp(DetailsSurfaceReadable, Color.White, 0.08f),
+            focusedContainerColor = lerp(DetailsSurfaceReadable, LocalLostFilmColors.current.highlight, 0.08f),
             contentColor = TextPrimary,
             focusedContentColor = TextPrimary,
         ),
@@ -278,6 +279,6 @@ private fun HistoryAction(label: String, onClick: () -> Unit, modifier: Modifier
             focusedContainerColor = DetailsAccentGoldFocus,
         ),
     ) {
-        Text(label, color = Color(0xFF17120D))
+        Text(label, color = LocalLostFilmColors.current.onAccent)
     }
 }

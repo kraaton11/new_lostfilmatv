@@ -15,7 +15,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -25,6 +24,7 @@ import com.kraat.lostfilmnewtv.ui.theme.DetailsBorderDefault
 import com.kraat.lostfilmnewtv.ui.theme.DetailsStatusError
 import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceReadable
 import com.kraat.lostfilmnewtv.ui.theme.DetailsTextSecondary
+import com.kraat.lostfilmnewtv.ui.theme.LocalLostFilmColors
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 
 @Composable
@@ -36,7 +36,7 @@ internal fun DetailsStatusPanel(
     onAction: (() -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(24.dp)
-    val background = if (isError) Color(0xCC2A0E10) else DetailsSurfaceReadable
+    val background = if (isError) LocalLostFilmColors.current.errorSurface else DetailsSurfaceReadable
     val borderColor = if (isError) DetailsStatusError.copy(alpha = 0.42f) else DetailsAccentBlue.copy(alpha = 0.35f)
 
     Row(
@@ -61,7 +61,7 @@ internal fun DetailsStatusPanel(
             ) {
                 Text(
                     text = actionLabel,
-                    color = Color(0xFF17120D),
+                    color = LocalLostFilmColors.current.onAccent,
                     fontWeight = FontWeight.SemiBold,
                 )
             }

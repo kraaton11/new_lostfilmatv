@@ -83,6 +83,7 @@ import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurface
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 import com.kraat.lostfilmnewtv.ui.theme.HomeStatusError
 import com.kraat.lostfilmnewtv.ui.theme.HomeTextSecondary
+import com.kraat.lostfilmnewtv.ui.theme.LocalLostFilmColors
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -375,8 +376,8 @@ fun HomeScreen(
             }
             .background(
                 Brush.verticalGradient(
-                    0f to Color(0xFF07111B),
-                    0.34f to Color(0xFF061018),
+                    0f to LocalLostFilmColors.current.homeBackgroundTop,
+                    0.34f to LocalLostFilmColors.current.homeBackgroundMid,
                     1f to BackgroundPrimary,
                 ),
             ),
@@ -731,7 +732,7 @@ private fun SeriesStatusPicker(selectedStatus: SeriesStatus, onSelected: (Series
     val selectedRequester = remember { FocusRequester() }
     LaunchedEffect(selectedStatus) { requestFocusWhenReady(selectedRequester) }
     Box(
-        modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.7f)),
+        modifier = Modifier.fillMaxSize().background(LocalLostFilmColors.current.scrim.copy(alpha = 0.7f)),
         contentAlignment = Alignment.Center,
     ) {
         Column(
@@ -1181,6 +1182,7 @@ private fun Int.formatFavoriteSeriesCount(): String {
 
 @Composable
 private fun HomeBackdrop(backdropPath: String?) {
+    val scrim = LocalLostFilmColors.current.scrim
     val context = LocalContext.current
     val backdropUrl = resolveArtworkForDisplay(backdropPath)
 
@@ -1209,26 +1211,26 @@ private fun HomeBackdrop(backdropPath: String?) {
         modifier = Modifier
             .fillMaxSize()
             .drawBehind {
-                drawRect(Color(0x8A040A11))
+                drawRect(scrim.copy(alpha = 0.5412f))
                 drawRect(
                     brush = Brush.horizontalGradient(
-                        0f to BackgroundPrimary.copy(alpha = 1f),
-                        0.34f to BackgroundPrimary.copy(alpha = 0.88f),
-                        0.62f to BackgroundPrimary.copy(alpha = 0.18f),
-                        1f to BackgroundPrimary.copy(alpha = 0.28f),
+                        0f to scrim.copy(alpha = 1f),
+                        0.34f to scrim.copy(alpha = 0.88f),
+                        0.62f to scrim.copy(alpha = 0.18f),
+                        1f to scrim.copy(alpha = 0.28f),
                     ),
                 )
                 drawRect(
                     brush = Brush.verticalGradient(
-                        0f to Color(0x33040A11),
+                        0f to scrim.copy(alpha = 0.2f),
                         0.38f to Color.Transparent,
-                        1f to BackgroundPrimary.copy(alpha = 0.96f),
+                        1f to scrim.copy(alpha = 0.96f),
                     ),
                 )
                 drawRect(
                     brush = Brush.verticalGradient(
-                        0f to BackgroundPrimary.copy(alpha = 0.74f),
-                        0.18f to BackgroundPrimary.copy(alpha = 0.48f),
+                        0f to scrim.copy(alpha = 0.74f),
+                        0.18f to scrim.copy(alpha = 0.48f),
                         0.34f to Color.Transparent,
                     ),
                 )
@@ -1247,7 +1249,7 @@ private fun HomeLoadingSkeleton(
     val shimmerBrush = rememberShimmerSkeletonBrush(
         label = "homeSkeleton",
         baseColor = HomePanelSurfaceStrong,
-        highlightColor = Color.White,
+        highlightColor = LocalLostFilmColors.current.highlight,
         baseAlpha = 0.72f,
         highlightAlpha = 0.10f,
         startOffset = -520f,
@@ -1395,7 +1397,7 @@ private fun HomeStatusPanel(
     onAction: (() -> Unit)? = null,
 ) {
     val shape = RoundedCornerShape(24.dp)
-    val background = if (isError) Color(0xCC2A0E10) else HomePanelSurfaceStrong
+    val background = if (isError) LocalLostFilmColors.current.errorSurface else HomePanelSurfaceStrong
     val borderColor = if (isError) HomeStatusError.copy(alpha = 0.42f) else HomeAccentBlue.copy(alpha = 0.35f)
 
     Row(
@@ -1427,7 +1429,7 @@ private fun HomeStatusPanel(
             ) {
                 Text(
                     text = actionLabel,
-                    color = if (isError) Color(0xFF17120D) else TextPrimary,
+                    color = if (isError) LocalLostFilmColors.current.onAccent else TextPrimary,
                 )
             }
         }
@@ -1469,7 +1471,7 @@ private fun HomeActionPanel(
                         .then(if (actionTestTag != null) Modifier.testTag(actionTestTag) else Modifier),
                     colors = ButtonDefaults.buttonColors(containerColor = HomeAccentGold),
                 ) {
-                    Text(actionLabel, color = Color(0xFF17120D))
+                    Text(actionLabel, color = LocalLostFilmColors.current.onAccent)
                 }
             }
         }

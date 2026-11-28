@@ -1,5 +1,8 @@
 package com.kraat.lostfilmnewtv.ui.settings
 
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -14,8 +17,10 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.pressKey
+import com.kraat.lostfilmnewtv.ui.theme.AppTheme
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
+import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
 import com.kraat.lostfilmnewtv.ui.theme.LostFilmTheme
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 import org.junit.Assert.assertEquals
@@ -184,6 +189,7 @@ class SettingsScreenTest {
         listOf(
             "settings-section-playback",
             "settings-section-home-screen",
+            "settings-section-appearance",
             "settings-section-torrserve",
             "settings-section-server",
             "settings-section-account",
@@ -199,6 +205,59 @@ class SettingsScreenTest {
 
         assertEquals(listOf(PlaybackQualityPreference.Q720), selectedQualities)
         assertEquals(listOf(AndroidTvChannelMode.UNWATCHED), selectedChannelModes)
+    }
+
+    @Test
+    @OptIn(androidx.compose.ui.test.ExperimentalTestApi::class)
+    fun appearanceSection_changesPaletteAndKeepsRemoteFocus() {
+        val theme = mutableStateOf(AppTheme.CLASSIC)
+        var renderedBackground = Color.Unspecified
+
+        composeRule.setContent {
+            LostFilmTheme(theme.value) {
+                val background = BackgroundPrimary
+                SideEffect { renderedBackground = background }
+                SettingsScreen(
+                    currentSection = SettingsSection.APPEARANCE,
+                    selectedTheme = theme.value,
+                    selectedQuality = PlaybackQualityPreference.Q1080,
+                    selectedUpdateMode = UpdateCheckMode.MANUAL,
+                    selectedChannelMode = AndroidTvChannelMode.ALL_NEW,
+                    installedVersionText = "0.1.0",
+                    latestVersionText = null,
+                    statusText = null,
+                    isCheckingForUpdates = false,
+                    installUrl = null,
+                    actions = SettingsActions(
+                        onThemeSelected = { theme.value = it },
+                        onQualitySelected = {},
+                        onUpdateModeSelected = {},
+                        onChannelModeSelected = {},
+                        onCheckForUpdatesClick = {},
+                        onInstallUpdateClick = {},
+                    ),
+                )
+            }
+        }
+
+        composeRule.runOnIdle { assertEquals(Color(0xFF040A11), renderedBackground) }
+        val rail = composeRule.onNodeWithTag("settings-section-appearance")
+        rail.performSemanticsAction(SemanticsActions.RequestFocus)
+        rail.performKeyInput { pressKey(Key.DirectionRight) }
+        composeRule.onNodeWithTag("settings-theme-classic").assertIsFocused()
+            .performKeyInput { pressKey(Key.DirectionDown) }
+        composeRule.onNodeWithTag("settings-theme-amoled").assertIsFocused()
+            .performKeyInput { pressKey(Key.DirectionDown) }
+        composeRule.onNodeWithTag("settings-theme-blue").assertIsFocused()
+            .performKeyInput { pressKey(Key.DirectionDown) }
+        val neon = composeRule.onNodeWithTag("settings-theme-neon")
+        neon.assertIsFocused().performKeyInput { pressKey(Key.DirectionCenter) }
+        neon.assertIsSelected().assertIsFocused()
+        composeRule.onNodeWithTag("settings-section-appearance-summary", useUnmergedTree = true)
+            .assertTextEquals("Neon")
+        composeRule.runOnIdle { assertEquals(Color(0xFF0D0E15), renderedBackground) }
+        neon.performKeyInput { pressKey(Key.DirectionLeft) }
+        rail.assertIsFocused()
     }
 
     @Test

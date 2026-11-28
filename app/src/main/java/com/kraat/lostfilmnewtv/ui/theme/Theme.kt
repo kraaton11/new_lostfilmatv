@@ -3,25 +3,48 @@ package com.kraat.lostfilmnewtv.ui.theme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
-
-private val LostFilmColorScheme = darkColorScheme(
-    primary = HomeAccentGold,
-    onPrimary = Color(0xFF17110A),
-    secondary = HomeAccentBlue,
-    onSecondary = Color(0xFF07111B),
-    background = BackgroundPrimary,
-    surface = BackgroundSurface,
-    surfaceVariant = HomePanelSurfaceStrong,
-    onBackground = TextPrimary,
-    onSurface = TextPrimary,
-    outline = HomePanelBorder,
-)
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.remember
+import androidx.tv.material3.MaterialTheme as TvMaterialTheme
+import androidx.tv.material3.darkColorScheme as tvDarkColorScheme
 
 @Composable
-fun LostFilmTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = LostFilmColorScheme,
-        content = content,
-    )
+fun LostFilmTheme(theme: AppTheme = AppTheme.CLASSIC, content: @Composable () -> Unit) {
+    val colors = theme.colors()
+    val materialScheme = remember(colors) {
+        darkColorScheme(
+            primary = colors.accent,
+            onPrimary = colors.onAccent,
+            secondary = colors.accentSecondary,
+            onSecondary = colors.onAccentSecondary,
+            background = colors.backgroundPrimary,
+            surface = colors.backgroundSurface,
+            surfaceVariant = colors.panelSurfaceStrong,
+            onBackground = colors.textPrimary,
+            onSurface = colors.textPrimary,
+            outline = colors.panelBorder,
+            error = colors.statusError,
+        )
+    }
+    val tvScheme = remember(colors) {
+        tvDarkColorScheme(
+            primary = colors.accent,
+            onPrimary = colors.onAccent,
+            secondary = colors.accentSecondary,
+            onSecondary = colors.onAccentSecondary,
+            background = colors.backgroundPrimary,
+            surface = colors.backgroundSurface,
+            surfaceVariant = colors.panelSurfaceStrong,
+            onBackground = colors.textPrimary,
+            onSurface = colors.textPrimary,
+            onSurfaceVariant = colors.textSecondary,
+            inverseOnSurface = colors.backgroundPrimary,
+            error = colors.statusError,
+        )
+    }
+    CompositionLocalProvider(LocalLostFilmColors provides colors) {
+        TvMaterialTheme(colorScheme = tvScheme) {
+            MaterialTheme(colorScheme = materialScheme, content = content)
+        }
+    }
 }

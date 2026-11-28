@@ -14,6 +14,7 @@ import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performKeyInput
@@ -462,12 +463,14 @@ class HomeScreenTest {
         composeRule.waitForIdle()
 
         composeRule.onNodeWithText("Расписание").assertExists()
+        composeRule.onNodeWithContentDescription("LOSTFILM").assertExists()
 
         composeRule.onNodeWithTag(posterTag(firstDetailsUrl))
             .performSemanticsAction(SemanticsActions.RequestFocus)
         composeRule.waitForIdle()
 
         assertEquals(0, composeRule.onAllNodesWithText("Расписание").fetchSemanticsNodes().size)
+        composeRule.onNodeWithContentDescription("LOSTFILM").assertDoesNotExist()
     }
 
     @Test

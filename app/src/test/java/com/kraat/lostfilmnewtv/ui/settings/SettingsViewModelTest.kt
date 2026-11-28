@@ -8,6 +8,7 @@ import com.kraat.lostfilmnewtv.data.network.LostFilmMirrorChecker
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.ui.home.HomeFeedMode
+import com.kraat.lostfilmnewtv.ui.theme.ThemeController
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelBackgroundScheduler
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelPreferences
@@ -704,6 +705,7 @@ class SettingsViewModelTest {
             releaseApkLauncher = releaseApkLauncher,
             torrServeEndpointChecker = torrServeEndpointChecker,
             lostFilmMirrorChecker = LostFilmMirrorChecker(OkHttpClient()),
+            themeController = ThemeController(preferencesStore),
             ioDispatcher = ioDispatcher,
         )
     }

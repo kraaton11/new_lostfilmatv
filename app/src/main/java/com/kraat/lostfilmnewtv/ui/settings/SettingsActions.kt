@@ -3,6 +3,7 @@ package com.kraat.lostfilmnewtv.ui.settings
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.playback.WatchedMarkingMode
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
+import com.kraat.lostfilmnewtv.ui.theme.AppTheme
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 
 class SettingsActions(
@@ -25,6 +26,7 @@ class SettingsActions(
     val onResetLostFilmHostClick: () -> Unit = {},
     val onAuthClick: () -> Unit = {},
     val onUpdateModeSelected: (UpdateCheckMode) -> Unit,
+    val onThemeSelected: (AppTheme) -> Unit = {},
     val onChannelModeSelected: (AndroidTvChannelMode) -> Unit,
     val onHomeFavoritesRailVisibilitySelected: (Boolean) -> Unit = {},
     val onHomeMoviesVisibilitySelected: (Boolean) -> Unit = {},

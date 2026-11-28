@@ -37,6 +37,7 @@ import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGoldGlow
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurface
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
+import com.kraat.lostfilmnewtv.ui.theme.LocalLostFilmColors
 import kotlin.math.roundToInt
 
 private val POSTER_CARD_WIDTH = 112.dp
@@ -137,7 +138,7 @@ fun PosterCard(
                 ) {
                     Text(
                         text = label,
-                        color = Color(0xFF1B1408),
+                        color = LocalLostFilmColors.current.onAccent,
                         fontSize = 11.sp,
                         lineHeight = 13.sp,
                         fontWeight = FontWeight.Bold,
@@ -156,7 +157,7 @@ fun PosterCard(
                 ) {
                     Text(
                         text = "✓",
-                        color = if (isFocused) Color(0xFF1B1408) else HomeAccentGoldGlow,
+                        color = if (isFocused) LocalLostFilmColors.current.onAccent else HomeAccentGoldGlow,
                         fontSize = 11.sp,
                         lineHeight = 11.sp,
                         fontWeight = FontWeight.Bold,

@@ -72,6 +72,7 @@ import com.kraat.lostfilmnewtv.ui.theme.DetailsBorderDefault
 import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceReadable
 import com.kraat.lostfilmnewtv.ui.theme.DetailsTextSecondary
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
+import com.kraat.lostfilmnewtv.ui.theme.LocalLostFilmColors
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -175,7 +176,7 @@ fun ScheduleScreen(
                                 .testTag("schedule-retry"),
                             colors = ButtonDefaults.buttonColors(containerColor = DetailsAccentGold),
                         ) {
-                            Text("Повторить", color = Color(0xFF17120D))
+                            Text("Повторить", color = LocalLostFilmColors.current.onAccent)
                         }
                     }
                 }
@@ -259,7 +260,7 @@ private fun ColumnScope.ScheduleLoadingSkeleton() {
     val brush = rememberShimmerSkeletonBrush(
         label = "schedule-loading",
         baseColor = DetailsSurfaceReadable,
-        highlightColor = Color.White,
+        highlightColor = LocalLostFilmColors.current.highlight,
         baseAlpha = 0.72f,
         highlightAlpha = 0.10f,
         startOffset = -560f,
@@ -302,7 +303,7 @@ private fun ColumnScope.ScheduleLoadingSkeleton() {
                                 brush,
                                 Modifier.width(ScheduleArtworkSize).height(ScheduleArtworkSize),
                                 RoundedCornerShape(6.dp),
-                                baseColor = Color(0xFF172636),
+                                baseColor = LocalLostFilmColors.current.scheduleSurface,
                             )
                             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
                                 ShimmerSkeletonBox(brush, Modifier.width(270.dp).height(22.dp), RoundedCornerShape(8.dp))
@@ -426,7 +427,7 @@ private fun ScheduleItemRow(
         onClick = onClick,
         shape = ScheduleRowShape,
         colors = ButtonDefaults.buttonColors(
-            containerColor = if (isFocused) lerp(DetailsSurfaceReadable, Color.White, 0.08f) else DetailsSurfaceReadable,
+            containerColor = if (isFocused) lerp(DetailsSurfaceReadable, LocalLostFilmColors.current.highlight, 0.08f) else DetailsSurfaceReadable,
         ),
         contentPadding = PaddingValues(0.dp),
         modifier = modifier
@@ -538,8 +539,8 @@ private fun ScheduleItemImage(
             .clip(RoundedCornerShape(6.dp))
             .background(
                 Brush.horizontalGradient(
-                    0f to Color(0xFF172636),
-                    1f to Color(0xFF0B1320),
+                    0f to LocalLostFilmColors.current.scheduleSurface,
+                    1f to LocalLostFilmColors.current.scheduleSurfaceEnd,
                 ),
             ),
         contentAlignment = Alignment.Center,
@@ -600,6 +601,7 @@ private fun ColumnScope.ScheduleCenteredStatePanel(
     }
 }
 
+@Composable
 private fun scheduleBackgroundBrush(): Brush = Brush.verticalGradient(
     0f to DetailsBackgroundTop,
     0.32f to DetailsBackgroundMid,

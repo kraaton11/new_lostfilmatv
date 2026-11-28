@@ -3,6 +3,7 @@ package com.kraat.lostfilmnewtv.ui.settings
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.playback.WatchedMarkingMode
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
+import com.kraat.lostfilmnewtv.ui.theme.AppTheme
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 
 sealed class SettingsFocusTarget {
@@ -24,6 +25,7 @@ sealed class SettingsFocusTarget {
     data class UpdateChannel(val mode: UpdateCheckMode) : SettingsFocusTarget()
     data object CheckForUpdates : SettingsFocusTarget()
     data object InstallUpdate : SettingsFocusTarget()
+    data class Theme(val theme: AppTheme) : SettingsFocusTarget()
     data class ChannelMode(val mode: AndroidTvChannelMode) : SettingsFocusTarget()
     data class WatchedMarking(val mode: WatchedMarkingMode) : SettingsFocusTarget()
     data object AccountAuth : SettingsFocusTarget()
@@ -53,6 +55,7 @@ fun SettingsFocusTarget.toTag(): String = when (this) {
     }
     SettingsFocusTarget.CheckForUpdates -> "settings-action-check-updates"
     SettingsFocusTarget.InstallUpdate -> "settings-install-update"
+    is SettingsFocusTarget.Theme -> "settings-theme-${theme.storageValue}"
     is SettingsFocusTarget.ChannelMode -> when (mode) {
         AndroidTvChannelMode.ALL_NEW -> "settings-tv-channel-all-new"
         AndroidTvChannelMode.UNWATCHED -> "settings-tv-channel-unwatched"

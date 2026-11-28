@@ -38,9 +38,11 @@ import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.playback.WatchedMarkingMode
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.ui.home.requestFocusWhenReady
+import com.kraat.lostfilmnewtv.ui.theme.AppTheme
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundPrimary
 import com.kraat.lostfilmnewtv.ui.theme.BackgroundSurface
 import com.kraat.lostfilmnewtv.ui.theme.HomeTextMuted
+import com.kraat.lostfilmnewtv.ui.theme.LocalLostFilmColors
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 
@@ -76,6 +78,7 @@ fun SettingsScreen(
     installDownloadProgress: Int? = null,
     installUrl: String?,
     actions: SettingsActions,
+    selectedTheme: AppTheme = AppTheme.CLASSIC,
 ) {
     // Секции разработчика удалены вместе с Prowlarr и Диагностикой (f0ccbacd),
     // так что фильтровать больше нечего: список всегда полный.
@@ -97,6 +100,7 @@ fun SettingsScreen(
         buildMap {
             qualityOptions.forEach { put(it.buttonTag(), FocusRequester()) }
             updateModes.forEach { put(it.buttonTag(), FocusRequester()) }
+            AppTheme.entries.forEach { put(SettingsFocusTarget.Theme(it).toTag(), FocusRequester()) }
             channelModes.forEach { put(it.buttonTag(), FocusRequester()) }
             WatchedMarkingMode.entries.forEach { put(SettingsFocusTarget.WatchedMarking(it).toTag(), FocusRequester()) }
             put(SettingsFocusTarget.HomeFavoritesToggle.toTag(), FocusRequester())
@@ -128,6 +132,7 @@ fun SettingsScreen(
             mapOf(
                 SettingsSection.PLAYBACK.name to SettingsFocusTarget.PlaybackQuality(selectedQuality),
                 SettingsSection.HOME_SCREEN.name to SettingsFocusTarget.HomeFavoritesToggle,
+                SettingsSection.APPEARANCE.name to SettingsFocusTarget.Theme(selectedTheme),
                 SettingsSection.CHANNEL.name to SettingsFocusTarget.ChannelMode(selectedChannelMode),
                 SettingsSection.TORRSERVE.name to SettingsFocusTarget.TorrServeBaseUrl,
                 SettingsSection.SERVER.name to SettingsFocusTarget.LostFilmHostCheck,
@@ -210,6 +215,7 @@ fun SettingsScreen(
                 playbackSummary = playbackSummary,
                 updateSummary = updateSummary,
                 channelSummary = channelSummary,
+                appearanceSummary = selectedTheme.label(),
                 homeScreenSummary = homeScreenSummary,
                 isTorrServeConnected = isTorrServeConnected,
                 hasTorrServeAddressError = hasTorrServeAddressError,
@@ -229,6 +235,7 @@ fun SettingsScreen(
                         selectedQuality = selectedQuality,
                         selectedUpdateMode = selectedUpdateMode,
                         selectedChannelMode = selectedChannelMode,
+                        selectedTheme = selectedTheme,
                         installUrl = installUrl,
                         rememberedActionBySection = rememberedActionBySection,
                     )?.let { contentRequesters.getValue(it.toTag()) } ?: railRequesters.getValue(section)
@@ -276,6 +283,14 @@ fun SettingsScreen(
                             onHomeSeriesVisibilitySelected = actions.onHomeSeriesVisibilitySelected,
                             onHomeMenuLabelsVisibilitySelected = actions.onHomeMenuLabelsVisibilitySelected,
                             railRequester = railRequesters.getValue(SettingsSection.HOME_SCREEN),
+                            contentRequesters = contentRequesters,
+                            onActionFocused = rememberAction,
+                        )
+
+                        SettingsSection.APPEARANCE -> AppearanceSettingsSection(
+                            selectedTheme = selectedTheme,
+                            onThemeSelected = actions.onThemeSelected,
+                            railRequester = railRequesters.getValue(SettingsSection.APPEARANCE),
                             contentRequesters = contentRequesters,
                             onActionFocused = rememberAction,
                         )
@@ -378,6 +393,7 @@ enum class SettingsSection(
 ) {
     PLAYBACK("Воспроизведение", "settings-section-playback", "settings-section-playback-summary"),
     HOME_SCREEN("Главный экран", "settings-section-home-screen", "settings-section-home-screen-summary"),
+    APPEARANCE("Внешний вид", "settings-section-appearance", "settings-section-appearance-summary"),
     TORRSERVE("TorrServe", "settings-section-torrserve", "settings-section-torrserve-summary"),
     SERVER("Зеркало LostFilm", "settings-section-server", "settings-section-server-summary"),
     ACCOUNT("Аккаунт", "settings-section-account", "settings-section-account-summary"),
@@ -399,6 +415,7 @@ private fun SettingsSectionRail(
     playbackSummary: String,
     updateSummary: String,
     channelSummary: String,
+    appearanceSummary: String,
     homeScreenSummary: String,
     isTorrServeConnected: Boolean,
     hasTorrServeAddressError: Boolean,
@@ -433,6 +450,7 @@ private fun SettingsSectionRail(
                     SettingsSection.PLAYBACK -> playbackSummary
                     SettingsSection.HOME_SCREEN -> homeScreenSummary
                     SettingsSection.CHANNEL -> channelSummary
+                    SettingsSection.APPEARANCE -> appearanceSummary
                     SettingsSection.TORRSERVE -> when {
                         isTorrServeConnected -> "Подключён"
                         hasTorrServeAddressError -> "Ошибка проверки адреса"
@@ -448,8 +466,8 @@ private fun SettingsSectionRail(
                 summaryTag = section.summaryTag,
                 summaryIndicatorColor = when {
                     section != SettingsSection.TORRSERVE -> null
-                    isTorrServeConnected -> Color(0xFF59D58B)
-                    hasTorrServeAddressError || isTorrServeClientAvailable == false -> Color(0xFFFF636B)
+                    isTorrServeConnected -> LocalLostFilmColors.current.statusSuccess
+                    hasTorrServeAddressError || isTorrServeClientAvailable == false -> LocalLostFilmColors.current.statusDanger
                     else -> null
                 },
                 isSelected = section == selectedSection,
@@ -474,6 +492,7 @@ private fun SettingsSection.iconPath(): String = when (this) {
     SettingsSection.TORRSERVE -> "M3 5 H21 V11 H3 Z M3 14 H21 V20 H3 Z"
     SettingsSection.SERVER -> "M3 12 A9 9 0 1 0 21 12 A9 9 0 1 0 3 12 M3 12 H21 M12 3 C7 6 7 18 12 21 C17 18 17 6 12 3"
     SettingsSection.ACCOUNT -> "M8 8 A4 4 0 1 0 16 8 A4 4 0 1 0 8 8 M3 21 C3 13 21 13 21 21"
+    SettingsSection.APPEARANCE -> "M12 3 A9 9 0 1 0 21 12 A9 9 0 0 0 12 3 M12 3 V21"
     SettingsSection.CHANNEL -> "M3 4 H21 V17 H3 Z M8 21 H16"
     SettingsSection.UPDATES -> "M20 8 A9 9 0 1 0 21 14 M20 3 V9 H14"
     SettingsSection.ABOUT -> "M3 12 A9 9 0 1 0 21 12 A9 9 0 1 0 3 12 M12 11 V17 M12 7 V8"
@@ -507,6 +526,7 @@ private fun targetContentTag(
     selectedQuality: PlaybackQualityPreference,
     selectedUpdateMode: UpdateCheckMode,
     selectedChannelMode: AndroidTvChannelMode,
+    selectedTheme: AppTheme,
     installUrl: String?,
     rememberedActionBySection: Map<String, SettingsFocusTarget>,
 ): SettingsFocusTarget? {
@@ -515,6 +535,7 @@ private fun targetContentTag(
         rememberedTarget != null && isActionAvailable(rememberedTarget, installUrl) -> rememberedTarget
         section == SettingsSection.PLAYBACK -> SettingsFocusTarget.PlaybackQuality(selectedQuality)
         section == SettingsSection.HOME_SCREEN -> SettingsFocusTarget.HomeFavoritesToggle
+        section == SettingsSection.APPEARANCE -> SettingsFocusTarget.Theme(selectedTheme)
         section == SettingsSection.CHANNEL -> SettingsFocusTarget.ChannelMode(selectedChannelMode)
         section == SettingsSection.TORRSERVE -> SettingsFocusTarget.TorrServeBaseUrl
         section == SettingsSection.UPDATES -> SettingsFocusTarget.UpdateChannel(selectedUpdateMode)

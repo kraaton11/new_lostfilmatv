@@ -38,7 +38,6 @@ import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -66,6 +65,7 @@ import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceReadable
 import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceSoft
 import com.kraat.lostfilmnewtv.ui.theme.DetailsTextSecondary
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
+import com.kraat.lostfilmnewtv.ui.theme.LocalLostFilmColors
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 import kotlin.math.roundToInt
 
@@ -164,7 +164,7 @@ fun SearchScreen(
                 ) {
                     Text(
                         text = "Найти",
-                        color = Color(0xFF17120D),
+                        color = LocalLostFilmColors.current.onAccent,
                         fontWeight = FontWeight.SemiBold,
                     )
                 }
@@ -194,7 +194,7 @@ fun SearchScreen(
                                 .testTag("search-retry"),
                             colors = ButtonDefaults.buttonColors(containerColor = DetailsAccentGold),
                         ) {
-                            Text("Повторить", color = Color(0xFF17120D))
+                            Text("Повторить", color = LocalLostFilmColors.current.onAccent)
                         }
                     }
                 }
@@ -403,6 +403,7 @@ private fun ColumnScope.SearchCenteredStatePanel(
     }
 }
 
+@Composable
 private fun searchBackgroundBrush(): Brush = Brush.verticalGradient(
     0f to DetailsBackgroundTop,
     0.32f to DetailsBackgroundMid,

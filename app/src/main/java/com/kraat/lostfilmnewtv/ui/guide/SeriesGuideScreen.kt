@@ -68,6 +68,7 @@ import com.kraat.lostfilmnewtv.ui.theme.DetailsTextMuted
 import com.kraat.lostfilmnewtv.ui.theme.DetailsTextSecondary
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurface
+import com.kraat.lostfilmnewtv.ui.theme.LocalLostFilmColors
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 import kotlin.math.roundToInt
 
@@ -449,6 +450,7 @@ private fun SeasonSidebarItem(
     isSelected: Boolean,
     onClick: () -> Unit,
 ) {
+    val accent = DetailsAccentGold
     val watchedCount = remember(season) { season.episodes.count { it.isWatched } }
     val totalCount = season.episodes.size
     val progress = if (totalCount == 0) 0f else watchedCount / totalCount.toFloat()
@@ -462,7 +464,7 @@ private fun SeasonSidebarItem(
             .drawBehind {
                 if (isSelected) {
                     drawRect(
-                        color = DetailsAccentGold,
+                        color = accent,
                         size = size.copy(width = 2.dp.toPx()),
                     )
                 }
@@ -519,6 +521,7 @@ private fun GuideProgressBar(
     progress: Float,
     modifier: Modifier = Modifier,
 ) {
+    val accent = DetailsAccentGold
     val clampedProgress = progress.coerceIn(0f, 1f)
     val shape = RoundedCornerShape(999.dp)
 
@@ -530,7 +533,7 @@ private fun GuideProgressBar(
             modifier = Modifier.fillMaxSize(),
         ) {
             drawRoundRect(
-                color = DetailsAccentGold,
+                color = accent,
                 size = size.copy(width = size.width * clampedProgress),
                 cornerRadius = androidx.compose.ui.geometry.CornerRadius(size.height / 2f, size.height / 2f),
             )
@@ -648,7 +651,7 @@ private fun EpisodeRow(
                 ) {
                     Text(
                         text = "✓",
-                        color = Color(0xFF17120D),
+                        color = LocalLostFilmColors.current.onAccent,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
                     )
@@ -688,8 +691,8 @@ private fun GuideActionButton(
         isFocused -> DetailsAccentBlue
         else -> DetailsBorderDefault
     }
-    val textColor = if (isPrimary) Color(0xFF17120D) else TextPrimary
-    val subtitleColor = if (isPrimary) Color(0xFF473317) else DetailsTextMuted
+    val textColor = if (isPrimary) LocalLostFilmColors.current.onAccent else TextPrimary
+    val subtitleColor = if (isPrimary) LocalLostFilmColors.current.onAccentMuted else DetailsTextMuted
 
     Button(
         onClick = onClick,
@@ -723,6 +726,7 @@ private fun GuideActionButton(
     }
 }
 
+@Composable
 private fun guideBackgroundBrush(): Brush {
     return Brush.verticalGradient(
         0f to DetailsBackgroundTop,

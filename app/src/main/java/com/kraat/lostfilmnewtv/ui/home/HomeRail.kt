@@ -30,7 +30,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
@@ -46,6 +45,7 @@ import com.kraat.lostfilmnewtv.ui.components.rememberShimmerSkeletonBrush
 import com.kraat.lostfilmnewtv.ui.components.PosterCard
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
+import com.kraat.lostfilmnewtv.ui.theme.LocalLostFilmColors
 
 private const val HOME_PAGING_SKELETON_COUNT = 4
 private val HOME_RAIL_CARD_SPACING = 8.dp
@@ -260,7 +260,7 @@ private fun HomePagingPosterSkeleton(size: DpSize, modifier: Modifier = Modifier
     val shimmerBrush = rememberShimmerSkeletonBrush(
         label = "homePagingSkeleton",
         baseColor = HomePanelSurfaceStrong,
-        highlightColor = Color.White,
+        highlightColor = LocalLostFilmColors.current.highlight,
         baseAlpha = 0.72f,
         highlightAlpha = 0.12f,
         startOffset = -220f,

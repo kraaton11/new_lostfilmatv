@@ -64,6 +64,7 @@ import com.kraat.lostfilmnewtv.ui.theme.HomeAccentGoldGlow
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelSurfaceStrong
 import com.kraat.lostfilmnewtv.ui.theme.HomeTextMuted
 import com.kraat.lostfilmnewtv.ui.theme.HomePanelBorder
+import com.kraat.lostfilmnewtv.ui.theme.LocalLostFilmColors
 
 internal val ExpandedMenuWidth = 174.dp
 internal val CollapsedMenuWidth = 68.dp
@@ -145,17 +146,17 @@ fun HomeHeader(
             )
             .background(
                 brush = Brush.verticalGradient(
-                    0f to Color(0xE60A1420),
+                    0f to LocalLostFilmColors.current.headerSurfaceTop.copy(alpha = 0.902f),
                     0.52f to HomePanelSurfaceStrong.copy(alpha = 0.90f),
-                    1f to Color(0xF2050B12),
+                    1f to LocalLostFilmColors.current.headerSurfaceEnd.copy(alpha = 0.949f),
                 ),
                 shape = MenuShape,
             )
             .border(
                 width = 1.dp,
                 brush = Brush.verticalGradient(
-                    0f to Color.White.copy(alpha = 0.12f),
-                    0.58f to Color.White.copy(alpha = 0.04f),
+                    0f to LocalLostFilmColors.current.highlight.copy(alpha = 0.12f),
+                    0.58f to LocalLostFilmColors.current.highlight.copy(alpha = 0.04f),
                     1f to HomeAccentGold.copy(alpha = 0.16f),
                 ),
                 shape = MenuShape,
@@ -374,14 +375,7 @@ private fun HomeMenuLogo(showLabels: Boolean) {
         contentAlignment = Alignment.Center,
     ) {
         if (showLabels) {
-            Text(
-                text = "LF.Tv",
-                color = HomeAccentGold,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Clip,
-            )
+            LostFilmWordmark()
         } else {
             Image(
                 painter = painterResource(id = R.drawable.ic_lf_logo),

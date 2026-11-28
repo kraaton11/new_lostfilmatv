@@ -12,6 +12,7 @@ import com.kraat.lostfilmnewtv.data.model.WatchHistoryFilter
 import com.kraat.lostfilmnewtv.data.parser.LostFilmBaseUrl
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.ui.home.HomeFeedMode
+import com.kraat.lostfilmnewtv.ui.theme.AppTheme
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 
 internal const val DEFAULT_TORRSERVE_BASE_URL = "http://127.0.0.1:8090"
@@ -21,6 +22,12 @@ class PlaybackPreferencesStore(
     prefsName: String = DEFAULT_PREFS_NAME,
 ) {
     private val prefs = PlaybackPreferencesDataStore.get(context, prefsName)
+
+    fun readAppTheme(): AppTheme = AppTheme.fromStorageValue(prefs[KEY_APP_THEME])
+
+    fun writeAppTheme(value: AppTheme) {
+        prefs.update { this[KEY_APP_THEME] = value.storageValue }
+    }
 
     fun readDefaultQuality(): PlaybackQualityPreference {
         return PlaybackQualityPreference.fromStorageValue(
@@ -224,6 +231,7 @@ class PlaybackPreferencesStore(
 
     private companion object {
         const val DEFAULT_PREFS_NAME = "lostfilm_playback_prefs"
+        val KEY_APP_THEME = stringPreferencesKey("app_theme")
         val KEY_SERIES_STATUS = stringPreferencesKey("series_status")
         val KEY_HISTORY_FILTER = stringPreferencesKey("history_filter")
         val KEY_SCHEDULE_FAVORITES_ONLY = booleanPreferencesKey("schedule_favorites_only")

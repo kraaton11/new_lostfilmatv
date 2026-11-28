@@ -14,6 +14,8 @@ import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelBackgroundScheduler
 import com.kraat.lostfilmnewtv.tvchannel.HomeChannelSyncManager
 import com.kraat.lostfilmnewtv.ui.home.HomeFeedMode
+import com.kraat.lostfilmnewtv.ui.theme.AppTheme
+import com.kraat.lostfilmnewtv.ui.theme.ThemeController
 import com.kraat.lostfilmnewtv.updates.AppUpdateBackgroundScheduler
 import com.kraat.lostfilmnewtv.updates.AppUpdateCoordinator
 import com.kraat.lostfilmnewtv.updates.ReleaseApkLauncher
@@ -47,6 +49,7 @@ class SettingsViewModel @Inject constructor(
     private val releaseApkLauncher: ReleaseApkLauncher,
     private val torrServeEndpointChecker: TorrServeEndpointChecker,
     private val lostFilmMirrorChecker: LostFilmMirrorChecker,
+    private val themeController: ThemeController,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
@@ -67,6 +70,7 @@ class SettingsViewModel @Inject constructor(
             playbackQuality = preferencesStore.readDefaultQuality(),
             updateMode = preferencesStore.readUpdateCheckMode(),
             channelMode = preferencesStore.readAndroidTvChannelMode(),
+            appTheme = themeController.theme.value,
             isHomeFavoritesRailEnabled = preferencesStore.readHomeFavoritesRailEnabled(),
             isHomeMoviesEnabled = preferencesStore.readHomeMoviesEnabled(),
             isHomeSeriesEnabled = preferencesStore.readHomeSeriesEnabled(),
@@ -92,6 +96,9 @@ class SettingsViewModel @Inject constructor(
     val homeMenuLabelsVisibilityEvents: SharedFlow<Boolean> = _homeMenuLabelsVisibilityEvents.asSharedFlow()
 
     init {
+        viewModelScope.launch {
+            themeController.theme.collect { theme -> _uiState.update { it.copy(appTheme = theme) } }
+        }
         viewModelScope.launch(ioDispatcher) {
             savedUpdateState.drop(1).collectLatest { savedUpdate ->
                 _uiState.update {
@@ -148,6 +155,10 @@ class SettingsViewModel @Inject constructor(
         _uiState.update { it.copy(updateMode = mode) }
         appUpdateBackgroundScheduler.syncForCurrentMode()
         if (mode == UpdateCheckMode.QUIET_CHECK) refreshUpdateInfo()
+    }
+
+    fun onThemeSelected(theme: AppTheme) {
+        themeController.selectTheme(theme)
     }
 
     fun onChannelModeSelected(mode: AndroidTvChannelMode) {

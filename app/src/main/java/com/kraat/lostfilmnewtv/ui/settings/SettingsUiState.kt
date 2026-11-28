@@ -3,6 +3,7 @@ package com.kraat.lostfilmnewtv.ui.settings
 import com.kraat.lostfilmnewtv.playback.PlaybackQualityPreference
 import com.kraat.lostfilmnewtv.playback.WatchedMarkingMode
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
+import com.kraat.lostfilmnewtv.ui.theme.AppTheme
 import com.kraat.lostfilmnewtv.updates.SavedAppUpdate
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 
@@ -35,4 +36,5 @@ data class SettingsUiState(
     val isDownloadingUpdate: Boolean = false,
     val installDownloadProgress: Int? = null,
     val installUrl: String? = null,
+    val appTheme: AppTheme = AppTheme.CLASSIC,
 )

@@ -42,6 +42,7 @@ import com.kraat.lostfilmnewtv.ui.theme.DetailsBackgroundTop
 import com.kraat.lostfilmnewtv.ui.theme.DetailsBorderDefault
 import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceReadable
 import com.kraat.lostfilmnewtv.ui.theme.DetailsTextSecondary
+import com.kraat.lostfilmnewtv.ui.theme.LocalLostFilmColors
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 
 private val overviewParagraphSplitRegex = Regex("""\n\s*\n+""")
@@ -327,7 +328,7 @@ private fun OverviewActionButton(
         onClick = onClick,
         colors = ButtonDefaults.buttonColors(
             containerColor = DetailsAccentGold,
-            contentColor = Color.Black,
+            contentColor = LocalLostFilmColors.current.onAccent,
         ),
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -337,6 +338,7 @@ private fun OverviewActionButton(
     }
 }
 
+@Composable
 private fun overviewBackgroundBrush(): Brush {
     return Brush.verticalGradient(
         0f to DetailsBackgroundTop,

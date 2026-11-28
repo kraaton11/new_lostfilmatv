@@ -6,6 +6,8 @@ import androidx.test.core.app.ApplicationProvider
 import com.kraat.lostfilmnewtv.data.model.ReleaseWatchFilter
 import com.kraat.lostfilmnewtv.tvchannel.AndroidTvChannelMode
 import com.kraat.lostfilmnewtv.ui.home.HomeFeedMode
+import com.kraat.lostfilmnewtv.ui.theme.AppTheme
+import com.kraat.lostfilmnewtv.ui.theme.ThemeController
 import com.kraat.lostfilmnewtv.updates.UpdateCheckMode
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -20,6 +22,30 @@ import org.robolectric.RobolectricTestRunner
 
 @RunWith(RobolectricTestRunner::class)
 class PlaybackPreferencesStoreTest {
+    @Test
+    fun themeControllerStartsWithSavedThemeAndPersistsSelection() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsName = "theme_test_${System.nanoTime()}"
+        val store = PlaybackPreferencesStore(context, prefsName)
+        assertEquals(AppTheme.CLASSIC, ThemeController(store).theme.value)
+
+        store.writeAppTheme(AppTheme.AMOLED)
+        val controller = ThemeController(store)
+        assertEquals(AppTheme.AMOLED, controller.theme.value)
+
+        controller.selectTheme(AppTheme.BLUE)
+        assertEquals(AppTheme.BLUE, controller.theme.value)
+        assertEquals(AppTheme.BLUE, store.readAppTheme())
+        val key = stringPreferencesKey("app_theme")
+        val persisted = PlaybackPreferencesDataStore.get(context, prefsName).data
+        val savedTheme = withTimeoutOrNull(5_000) {
+            while (persisted.first()[key] != AppTheme.BLUE.storageValue) delay(10)
+            persisted.first()[key]
+        }
+        assertEquals(AppTheme.BLUE.storageValue, savedTheme)
+        assertEquals(AppTheme.CLASSIC, AppTheme.fromStorageValue("unknown"))
+    }
+
     @Test
     fun askAfterReturnModePersistsWithItsOwnStorageValue() {
         val context = ApplicationProvider.getApplicationContext<Context>()

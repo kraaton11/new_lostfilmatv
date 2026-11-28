@@ -79,6 +79,7 @@ import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceFocused
 import com.kraat.lostfilmnewtv.ui.theme.DetailsSurfaceSoft
 import com.kraat.lostfilmnewtv.ui.theme.DetailsTextMuted
 import com.kraat.lostfilmnewtv.ui.theme.DetailsTextSecondary
+import com.kraat.lostfilmnewtv.ui.theme.LocalLostFilmColors
 import com.kraat.lostfilmnewtv.ui.theme.TextPrimary
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.roundToInt
@@ -427,15 +428,15 @@ private fun BackgroundPoster(details: ReleaseDetails?) {
                 .background(
                     if (isMovie) {
                         Brush.horizontalGradient(
-                            0f to Color(0xF2040A10),
-                            0.48f to Color(0xCD040A10),
-                            1f to Color(0x26040A10),
+                            0f to LocalLostFilmColors.current.scrim.copy(alpha = 0.949f),
+                            0.48f to LocalLostFilmColors.current.scrim.copy(alpha = 0.8039f),
+                            1f to LocalLostFilmColors.current.scrim.copy(alpha = 0.149f),
                         )
                     } else {
                         Brush.horizontalGradient(
-                            0f to Color(0xB8040A10),
-                            0.45f to Color(0x66040A10),
-                            1f to Color(0xD8040A10),
+                            0f to LocalLostFilmColors.current.scrim.copy(alpha = 0.7216f),
+                            0.45f to LocalLostFilmColors.current.scrim.copy(alpha = 0.4f),
+                            1f to LocalLostFilmColors.current.scrim.copy(alpha = 0.8471f),
                         )
                     },
                 ),
@@ -986,7 +987,7 @@ private fun PosterCard(details: ReleaseDetails?) {
             .clip(RoundedCornerShape(22.dp))
             .background(
                 Brush.verticalGradient(
-                    listOf(Color(0xFF3F586E), Color(0xFF172734), Color(0xFF0A131B)),
+                    listOf(LocalLostFilmColors.current.posterPlaceholderTop, LocalLostFilmColors.current.posterPlaceholderMid, LocalLostFilmColors.current.posterPlaceholderEnd),
                 ),
             )
             .border(1.dp, DetailsBorderDefault.copy(alpha = 0.74f), RoundedCornerShape(22.dp)),
@@ -1016,7 +1017,7 @@ private fun PosterCard(details: ReleaseDetails?) {
                     Brush.verticalGradient(
                         0f to Color.Transparent,
                         0.54f to Color.Transparent,
-                        1f to Color(0xB8040A10),
+                        1f to LocalLostFilmColors.current.scrim.copy(alpha = 0.7216f),
                     ),
                 ),
         )
@@ -1065,12 +1066,12 @@ private fun StageButton(
         else -> DetailsBorderDefault
     }
     val textColor = when {
-        isPrimary -> Color(0xFF17120D)
+        isPrimary -> LocalLostFilmColors.current.onAccent
         isHighlighted -> DetailsAccentGold
         else -> TextPrimary
     }
     val subtitleColor = when {
-        isPrimary -> Color(0xFF473317)
+        isPrimary -> LocalLostFilmColors.current.onAccentMuted
         isHighlighted -> DetailsAccentGoldFocus
         else -> DetailsTextMuted
     }
@@ -1173,9 +1174,10 @@ private fun StageButtonIcon(
 
 @Composable
 private fun PrimaryPlayIcon(tint: Color, modifier: Modifier) {
+    val circleColor = LocalLostFilmColors.current.onAccent.copy(alpha = 0.92f)
     Canvas(modifier = modifier) {
         val radius = size.minDimension / 2f
-        drawCircle(color = Color(0xFF1B1710).copy(alpha = 0.92f), radius = radius)
+        drawCircle(color = circleColor, radius = radius)
         val triangle = Path().apply {
             moveTo(size.width * 0.43f, size.height * 0.33f)
             lineTo(size.width * 0.43f, size.height * 0.67f)
@@ -1292,6 +1294,7 @@ private fun MoreIcon(tint: Color, modifier: Modifier) {
     }
 }
 
+@Composable
 private fun detailsBackgroundBrush(): Brush {
     return Brush.verticalGradient(
         0f to DetailsBackgroundTop,

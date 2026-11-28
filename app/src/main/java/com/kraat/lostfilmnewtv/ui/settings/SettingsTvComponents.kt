@@ -98,6 +98,8 @@ fun SettingsTvButton(
         else -> HomePanelBorder
     }
     val textColor = if (enabled) TextPrimary else HomeTextMuted
+    val selectionAccent = HomeAccentGold
+    val iconColor = if (isSelected) selectionAccent else HomeTextMuted
     val summaryColor = HomeTextMuted
     val shape = RoundedCornerShape(12.dp)
 
@@ -119,7 +121,7 @@ fun SettingsTvButton(
                     cornerRadius = CornerRadius(12.dp.toPx()),
                 )
                 if (isSelected) {
-                    drawLine(HomeAccentGold, Offset(2.dp.toPx(), 10.dp.toPx()),
+                    drawLine(selectionAccent, Offset(2.dp.toPx(), 10.dp.toPx()),
                         Offset(2.dp.toPx(), size.height - 10.dp.toPx()), strokeWidth = 3.dp.toPx())
                 }
             }
@@ -143,7 +145,7 @@ fun SettingsTvButton(
             val path = remember(iconPath) { PathParser().parsePathString(iconPath).toPath() }
             Canvas(Modifier.size(22.dp)) {
                 scale(size.width / 24f, size.height / 24f, pivot = Offset.Zero) {
-                    drawPath(path, if (isSelected) HomeAccentGold else HomeTextMuted, style = Stroke(1.8f))
+                    drawPath(path, iconColor, style = Stroke(1.8f))
                 }
             }
             Column(
@@ -305,14 +307,15 @@ fun SettingsRowButton(
                 .padding(horizontal = 2.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            val optionAccent = if (isSelected) HomeAccentGold else HomeTextMuted
             if (radio) {
                 Canvas(Modifier.size(20.dp)) {
                     drawCircle(
-                        color = if (isSelected) HomeAccentGold else HomeTextMuted,
+                        color = optionAccent,
                         radius = size.minDimension / 2 - 1.dp.toPx(),
                         style = Stroke(2.dp.toPx()),
                     )
-                    if (isSelected) drawCircle(HomeAccentGold, radius = 4.5.dp.toPx())
+                    if (isSelected) drawCircle(optionAccent, radius = 4.5.dp.toPx())
                 }
                 Spacer(Modifier.width(14.dp))
             }
@@ -339,13 +342,14 @@ fun SettingsRowButton(
                 }
             }
             if (toggle) {
+                val thumbColor = HomePanelSurface
                 Canvas(Modifier.size(46.dp, 24.dp)) {
                     drawRoundRect(
-                        color = if (isSelected) HomeAccentGold else HomeTextMuted,
+                        color = optionAccent,
                         cornerRadius = CornerRadius(size.height / 2),
                     )
                     val thumbX = if (isSelected) size.width - size.height / 2 else size.height / 2
-                    drawCircle(HomePanelSurface, radius = 9.dp.toPx(), center = Offset(thumbX, size.height / 2))
+                    drawCircle(thumbColor, radius = 9.dp.toPx(), center = Offset(thumbX, size.height / 2))
                 }
             } else if (value.isNotBlank()) {
                 Spacer(Modifier.width(18.dp))
