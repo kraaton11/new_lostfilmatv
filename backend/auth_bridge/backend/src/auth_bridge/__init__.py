@@ -1,1 +1,0 @@
-"""LostFilm auth bridge package."""

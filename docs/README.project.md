@@ -89,14 +89,14 @@ adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 TV: показывает QR-код
        ↓
-Телефон: сканирует QR → открывает страницу auth.bazuka.pp.ua
+Телефон: сканирует QR → открывает страницу входа на телевизоре
        ↓
-Телефон: входит в LostFilm как обычно через браузер
+Телефон: вводит данные LostFilm в браузере
        ↓
 TV: автоматически получает сессию и сохраняет её
 ```
 
-Логин и пароль на телевизоре вводить **не нужно**. Сессия хранится локально в зашифрованном виде (AES-256-GCM) и действует 7 дней.
+Для входа по QR телефон и телевизор должны быть в одной локальной сети. Данные для входа также можно ввести на телевизоре. Сессия хранится локально в зашифрованном виде.
 
 ---
 
@@ -178,26 +178,25 @@ QR-код открывает страницу входа, которую при�
 ## Структура проекта
 
 ```
-├── app/src/main/java/.../
-│   ├── data/
-│   │   ├── auth/          # Авторизация, EncryptedSessionStore
-│   │   ├── db/            # Room: entities, DAO, Database
-│   │   ├── model/         # Доменные модели
-│   │   ├── network/       # HTTP-клиенты LostFilm
-│   │   ├── parser/        # HTML-парсеры (Jsoup)
-│   │   └── repository/    # LostFilmRepositoryImpl
-│   ├── ui/
-│   │   ├── home/          # Главный экран
-│   │   ├── details/       # Экран деталей релиза
-│   │   ├── guide/         # Гид по сериям
-│   │   ├── auth/          # QR-авторизация
-│   │   └── settings/      # Настройки
-│   ├── navigation/        # AppNavGraph, AppDestination
-│   ├── tvchannel/         # Android TV Channel + WorkManager
-│   ├── platform/torrserve/ # TorrServe интеграция
-│   ├── updates/           # Автообновление через GitHub
-│   └── playback/          # PlaybackPreferencesStore
-└── backend/auth_bridge/   # Исторический сервер авторизации
+app/src/main/java/.../
+├── data/
+│   ├── auth/          # Авторизация, EncryptedSessionStore
+│   ├── db/            # Room: entities, DAO, Database
+│   ├── model/         # Доменные модели
+│   ├── network/       # HTTP-клиенты LostFilm
+│   ├── parser/        # HTML-парсеры (Jsoup)
+│   └── repository/    # LostFilmRepositoryImpl
+├── ui/
+│   ├── home/          # Главный экран
+│   ├── details/       # Экран деталей релиза
+│   ├── guide/         # Гид по сериям
+│   ├── auth/          # QR-авторизация
+│   └── settings/      # Настройки
+├── navigation/        # AppNavGraph, AppDestination
+├── tvchannel/         # Android TV Channel + WorkManager
+├── platform/torrserve/ # TorrServe интеграция
+├── updates/           # Автообновление через GitHub
+└── playback/          # PlaybackPreferencesStore
 ```
 
 ---

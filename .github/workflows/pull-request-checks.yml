@@ -18,16 +18,6 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-
-      - name: Install auth bridge dependencies
-        run: pip install ./backend/auth_bridge/backend
-
-      - name: Run auth bridge tests
-        run: python -m unittest discover -s backend/auth_bridge/backend/tests -p 'test_*.py'
-
       - uses: actions/setup-java@v5
         with:
           distribution: temurin

@@ -1,3 +1,5 @@
+> Исторические заметки о разработке. Текущая архитектура и команды описаны в [DEVELOPMENT.md](DEVELOPMENT.md).
+
 ## Goal
 - Fix season-specific TMDB poster/overview for anthology series with rate limiting and backend wildcard proxy routing
 

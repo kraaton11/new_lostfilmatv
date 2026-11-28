@@ -6,7 +6,7 @@
 
 ## Что это за проект
 
-Android TV приложение (`com.kraat.lostfilmnewtv`) для просмотра новых релизов и избранного с lostfilm.today. Для входа с телефона приложение запускает локальный HTTP-сервер на телевизоре. `backend/auth_bridge` относится к старым версиям.
+Android TV приложение (`com.kraat.lostfilmnewtv`) для просмотра новых релизов и избранного с lostfilm.today. Для входа с телефона приложение запускает локальный HTTP-сервер на телевизоре.
 
 ---
 
@@ -33,12 +33,6 @@ app/                        Android TV клиент (Kotlin, Jetpack Compose for
   src/test/                 JVM unit-тесты (парсеры, DAO, poster resolver)
   src/androidTest/          Instrumented UI-тесты (Hilt + Compose Test)
 
-backend/
-  auth_bridge/
-    backend/                FastAPI-приложение (Python 3.12)
-      src/                  исходники
-      tests/                unittest-тесты
-
 docs/                       Дополнительная документация
 scripts/
   run-emulator.sh           Запуск AVD tv_test
@@ -52,7 +46,6 @@ scripts/
 |---|---|
 | JDK | 17 (Temurin) |
 | Android SDK | compileSdk 35, minSdk 28 |
-| Python | 3.12 (только для исторического Auth Bridge) |
 | Gradle | через wrapper `./gradlew` |
 
 Не вызывай `gradle` напрямую — только `./gradlew`.
@@ -84,21 +77,6 @@ scripts/
 ./gradlew :app:connectedDebugAndroidTest
 ```
 
-### Python / исторический Auth Bridge
-
-```bash
-pip install ./backend/auth_bridge/backend
-python -m unittest discover -s backend/auth_bridge/backend/tests -p 'test_*.py'
-```
-
-### Локальный запуск Auth Bridge для старых версий
-
-```bash
-cd backend/auth_bridge
-cp .env.example .env   # заполни переменные
-docker compose up -d
-```
-
 ### Запуск эмулятора
 
 ```bash
@@ -109,9 +87,7 @@ docker compose up -d
 
 ## CI (GitHub Actions)
 
-**`pull-request-checks`** — срабатывает на push/PR в `main`:
-1. Устанавливает Python 3.12, прогоняет auth bridge тесты.
-2. Устанавливает JDK 17, прогоняет `testDebugUnitTest lint assembleDebug`.
+**`pull-request-checks`** — срабатывает на push/PR в `main`, устанавливает JDK 17 и запускает `testDebugUnitTest lint assembleDebug`.
 
 **`release`** — срабатывает на push в `main`, создаёт подписанный release APK и GitHub Release.
 
