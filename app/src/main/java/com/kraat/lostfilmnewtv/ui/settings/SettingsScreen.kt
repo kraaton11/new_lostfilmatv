@@ -75,6 +75,7 @@ fun SettingsScreen(
     torrServeLogin: String = "",
     torrServePassword: String = "",
     isTorrServeConnected: Boolean = false,
+    isTorrServeClientAvailable: Boolean? = null,
     onTorrServeLoginChanged: (String) -> Unit = {},
     onTorrServePasswordChanged: (String) -> Unit = {},
     torrServeStatusText: String? = null,
@@ -244,6 +245,7 @@ fun SettingsScreen(
                 homeScreenSummary = homeScreenSummary,
                 isTorrServeConnected = isTorrServeConnected,
                 hasTorrServeAddressError = hasTorrServeAddressError,
+                isTorrServeClientAvailable = isTorrServeClientAvailable,
                 serverSummary = serverSummary,
                 accountSummary = accountSummary,
                 aboutSummary = aboutSummary,
@@ -519,7 +521,12 @@ fun SettingsScreen(
                                     title = "TorrServe",
                                     subtitle = "Здесь проверяется указанный адрес. Для просмотра используются настройки приложения TorrServe.",
                                 ) {
-                                    torrServeStatusText?.let { SettingsOverviewValue(text = it) }
+                                    val status = torrServeStatusText ?: when (isTorrServeClientAvailable) {
+                                        true -> "Клиент TorrServe доступен для воспроизведения"
+                                        false -> "Android не может открыть клиент TorrServe"
+                                        null -> null
+                                    }
+                                    status?.let { SettingsOverviewValue(text = it) }
                                 }
                                 Column(modifier = Modifier.focusGroup(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     SettingsTextField(
@@ -882,6 +889,7 @@ private fun SettingsSectionRail(
     homeScreenSummary: String,
     isTorrServeConnected: Boolean,
     hasTorrServeAddressError: Boolean,
+    isTorrServeClientAvailable: Boolean?,
     serverSummary: String,
     accountSummary: String,
     aboutSummary: String,
@@ -915,6 +923,8 @@ private fun SettingsSectionRail(
                     SettingsSection.TORRSERVE -> when {
                         isTorrServeConnected -> "Подключён"
                         hasTorrServeAddressError -> "Ошибка проверки адреса"
+                        isTorrServeClientAvailable == true -> "Клиент доступен"
+                        isTorrServeClientAvailable == false -> "Клиент недоступен"
                         else -> "Через внешний клиент"
                     }
                     SettingsSection.UPDATES -> updateSummary
@@ -926,7 +936,7 @@ private fun SettingsSectionRail(
                 summaryIndicatorColor = when {
                     section != SettingsSection.TORRSERVE -> null
                     isTorrServeConnected -> Color(0xFF59D58B)
-                    hasTorrServeAddressError -> Color(0xFFFF636B)
+                    hasTorrServeAddressError || isTorrServeClientAvailable == false -> Color(0xFFFF636B)
                     else -> null
                 },
                 isSelected = section == selectedSection,

@@ -24,6 +24,7 @@ data class TorrServeEndpointCheck(
 )
 
 interface TorrServeEndpointChecker {
+    suspend fun isClientAvailable(): Boolean
     suspend fun check(baseUrl: String, login: String = "", password: String = ""): TorrServeEndpointCheck
 }
 
@@ -32,9 +33,11 @@ class OkHttpTorrServeEndpointChecker(
     private val availabilityChecker: TorrServeAvailabilityChecker,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : TorrServeEndpointChecker {
+    override suspend fun isClientAvailable(): Boolean = availabilityChecker.isAvailable()
+
     override suspend fun check(baseUrl: String, login: String, password: String): TorrServeEndpointCheck = withContext(ioDispatcher) {
         val normalized = normalizeTorrServeBaseUrl(baseUrl)
-        val appInstalled = availabilityChecker.isAvailable()
+        val appInstalled = isClientAvailable()
         val status = normalized?.let { responseStatus(it, login, password) }
         TorrServeEndpointCheck(
             normalizedBaseUrl = normalized,

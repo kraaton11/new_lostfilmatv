@@ -491,6 +491,8 @@ class SettingsViewModelTest {
             refreshSavedUpdateState = FakeUpdateRefresher()::invoke,
             ioDispatcher = dispatcher,
             torrServeEndpointChecker = object : TorrServeEndpointChecker {
+                override suspend fun isClientAvailable(): Boolean = true
+
                 override suspend fun check(baseUrl: String, login: String, password: String): TorrServeEndpointCheck {
                     requests += Triple(baseUrl, login, password)
                     return TorrServeEndpointCheck(baseUrl, isAppInstalled = false, isEndpointReachable = true)
@@ -522,6 +524,8 @@ class SettingsViewModelTest {
             refreshSavedUpdateState = FakeUpdateRefresher()::invoke,
             ioDispatcher = dispatcher,
             torrServeEndpointChecker = object : TorrServeEndpointChecker {
+                override suspend fun isClientAvailable(): Boolean = true
+
                 override suspend fun check(baseUrl: String, login: String, password: String): TorrServeEndpointCheck {
                     return TorrServeEndpointCheck(baseUrl, isAppInstalled = true, isEndpointReachable = false)
                 }
@@ -533,6 +537,24 @@ class SettingsViewModelTest {
 
         assertEquals(false, viewModel.uiState.value.isTorrServeConnected)
         assertEquals("Сервер по указанному адресу не ответил", viewModel.uiState.value.torrServeStatusText)
+    }
+
+    @Test
+    fun onScreenShown_checksClientWithoutCheckingDefaultTorrServeAddress() = runTest(dispatcher) {
+        val viewModel = createViewModel(
+            installedVersion = "1.0.0",
+            initialPlaybackQuality = PlaybackQualityPreference.Q1080,
+            initialUpdateMode = UpdateCheckMode.MANUAL,
+            refreshSavedUpdateState = FakeUpdateRefresher()::invoke,
+            ioDispatcher = dispatcher,
+        )
+
+        viewModel.onScreenShown()
+        advanceUntilIdle()
+
+        assertEquals(true, viewModel.uiState.value.isTorrServeClientAvailable)
+        assertEquals(null, viewModel.uiState.value.torrServeStatusText)
+        assertEquals(false, viewModel.uiState.value.isCheckingTorrServe)
     }
 
     @Suppress("UNUSED_PARAMETER")
@@ -700,6 +722,8 @@ class SettingsViewModelTest {
     }
 
     private class FakeTorrServeEndpointChecker : TorrServeEndpointChecker {
+        override suspend fun isClientAvailable(): Boolean = true
+
         override suspend fun check(baseUrl: String, login: String, password: String): TorrServeEndpointCheck {
             return TorrServeEndpointCheck(
                 normalizedBaseUrl = normalizeTorrServeBaseUrl(baseUrl),

@@ -3,6 +3,7 @@ package com.kraat.lostfilmnewtv.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.kraat.lostfilmnewtv.BuildConfig
+import com.kraat.lostfilmnewtv.playback.DEFAULT_TORRSERVE_BASE_URL
 import com.kraat.lostfilmnewtv.playback.PlaybackPreferencesStore
 import com.kraat.lostfilmnewtv.data.parser.LostFilmBaseUrl
 import com.kraat.lostfilmnewtv.data.network.LostFilmMirrorChecker
@@ -54,6 +55,7 @@ class SettingsViewModel @Inject constructor(
 
     private var activeRefreshJob: Job? = null
     private var installJob: Job? = null
+    private var torrServeClientCheckJob: Job? = null
     private var torrServeCheckJob: Job? = null
     private var lostFilmCheckJob: Job? = null
     private var refreshRequestToken: Long = 0
@@ -106,8 +108,20 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun onScreenShown() {
-        if (_uiState.value.torrServeStatusText == null) onCheckTorrServeClick()
+        val settings = _uiState.value
+        val hasCustomTorrServeSettings = settings.torrServeBaseUrl != DEFAULT_TORRSERVE_BASE_URL ||
+            settings.torrServeLogin.isNotEmpty() || settings.torrServePassword.isNotEmpty()
+        checkTorrServeClient()
+        if (hasCustomTorrServeSettings && settings.torrServeStatusText == null) onCheckTorrServeClick()
         if (_uiState.value.updateMode == UpdateCheckMode.QUIET_CHECK) refreshUpdateInfo()
+    }
+
+    private fun checkTorrServeClient() {
+        if (torrServeClientCheckJob?.isActive == true) return
+        torrServeClientCheckJob = viewModelScope.launch {
+            val available = withContext(ioDispatcher) { torrServeEndpointChecker.isClientAvailable() }
+            _uiState.update { it.copy(isTorrServeClientAvailable = available) }
+        }
     }
 
     fun onSectionSelected(section: SettingsSection) {
@@ -209,10 +223,10 @@ class SettingsViewModel @Inject constructor(
 
     fun onResetTorrServeBaseUrlClick() {
         preferencesStore.resetTorrServeBaseUrl()
+        checkTorrServeClient()
         editTorrServe {
             it.copy(torrServeBaseUrl = preferencesStore.readTorrServeBaseUrl(), torrServeLogin = "", torrServePassword = "")
         }
-        onCheckTorrServeClick()
     }
 
     fun onLostFilmHostChanged(value: String) {

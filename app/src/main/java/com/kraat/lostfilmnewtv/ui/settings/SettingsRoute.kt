@@ -40,6 +40,7 @@ fun SettingsRoute(
         torrServeLogin = state.value.torrServeLogin,
         torrServePassword = state.value.torrServePassword,
         isTorrServeConnected = state.value.isTorrServeConnected,
+        isTorrServeClientAvailable = state.value.isTorrServeClientAvailable,
         onTorrServeLoginChanged = viewModel::onTorrServeLoginChanged,
         onTorrServePasswordChanged = viewModel::onTorrServePasswordChanged,
         lostFilmHost = state.value.lostFilmHost,
