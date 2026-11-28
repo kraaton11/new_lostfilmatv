@@ -19,6 +19,17 @@ import org.robolectric.RobolectricTestRunner
 @RunWith(RobolectricTestRunner::class)
 class PlaybackPreferencesStoreTest {
     @Test
+    fun askAfterReturnModePersistsWithItsOwnStorageValue() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val prefsName = "playback-store-watched-mode"
+        val store = PlaybackPreferencesStore(context, prefsName)
+
+        store.writeWatchedMarkingMode(WatchedMarkingMode.fromStorageValue("ask_after_return"))
+
+        assertEquals("ask_after_return", PlaybackPreferencesStore(context, prefsName).readWatchedMarkingMode().storageValue)
+    }
+
+    @Test
     fun firstReadMigratesValuesAndRemovesLegacyEntries() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val prefsName = "playback-store-migration"

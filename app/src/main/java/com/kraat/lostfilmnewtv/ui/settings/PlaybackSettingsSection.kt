@@ -56,38 +56,47 @@ internal fun PlaybackSettingsSection(
                             down = if (index < qualityOptions.lastIndex) {
                                 contentRequesters.getValue(qualityOptions[index + 1].buttonTag())
                             } else {
-                                contentRequesters.getValue(SettingsFocusTarget.WatchedMarkingToggle.toTag())
+                                contentRequesters.getValue(SettingsFocusTarget.WatchedMarking(WatchedMarkingMode.AUTO).toTag())
                             }
                         },
                 )
             }
-            SettingsGroupLabel("ПОСЛЕ ЗАПУСКА", HomeAccentGold)
-            SettingsRowButton(
-                title = "Отмечать просмотренным",
-                description = "Серия отмечается автоматически при запуске",
-                value = "",
-                toggle = true,
-                onClick = {
-                    onWatchedMarkingModeSelected(
-                        if (selectedWatchedMarkingMode == WatchedMarkingMode.AUTO) {
-                            WatchedMarkingMode.DISABLED
-                        } else {
-                            WatchedMarkingMode.AUTO
-                        },
-                    )
-                    contentRequesters.getValue(SettingsFocusTarget.WatchedMarkingToggle.toTag()).requestFocus()
-                },
-                isSelected = selectedWatchedMarkingMode == WatchedMarkingMode.AUTO,
-                tag = SettingsFocusTarget.WatchedMarkingToggle.toTag(),
-                onFocused = { onActionFocused(SettingsFocusTarget.WatchedMarkingToggle) },
-                modifier = Modifier
-                    .focusRequester(contentRequesters.getValue(SettingsFocusTarget.WatchedMarkingToggle.toTag()))
-                    .focusProperties {
-                        left = railRequester
-                        up = contentRequesters.getValue(qualityOptions.last().buttonTag())
-                        down = FocusRequester.Default
+            SettingsGroupLabel("ОТМЕТКА ПРОСМОТРЕННОГО", HomeAccentGold)
+            val modes = WatchedMarkingMode.entries
+            modes.forEachIndexed { index, mode ->
+                val target = SettingsFocusTarget.WatchedMarking(mode)
+                val tag = target.toTag()
+                val requester = contentRequesters.getValue(tag)
+                val (title, description) = when (mode) {
+                    WatchedMarkingMode.AUTO -> "Авто" to "Отмечать при запуске плеера"
+                    WatchedMarkingMode.ASK_AFTER_RETURN -> "Спросить после возврата" to "Показывать вопрос после возврата из плеера"
+                    WatchedMarkingMode.DISABLED -> "Выкл" to "Отмечать вручную в карточке"
+                }
+                SettingsRowButton(
+                    title = title,
+                    description = description,
+                    value = "",
+                    radio = true,
+                    onClick = {
+                        onWatchedMarkingModeSelected(mode)
+                        requester.requestFocus()
                     },
-            )
+                    isSelected = mode == selectedWatchedMarkingMode,
+                    tag = tag,
+                    onFocused = { onActionFocused(target) },
+                    modifier = Modifier
+                        .focusRequester(requester)
+                        .focusProperties {
+                            left = railRequester
+                            up = modes.getOrNull(index - 1)?.let {
+                                contentRequesters.getValue(SettingsFocusTarget.WatchedMarking(it).toTag())
+                            } ?: contentRequesters.getValue(qualityOptions.last().buttonTag())
+                            down = modes.getOrNull(index + 1)?.let {
+                                contentRequesters.getValue(SettingsFocusTarget.WatchedMarking(it).toTag())
+                            } ?: FocusRequester.Default
+                        },
+                )
+            }
         }
     }
 }

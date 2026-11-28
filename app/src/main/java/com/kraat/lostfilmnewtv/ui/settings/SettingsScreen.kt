@@ -98,7 +98,7 @@ fun SettingsScreen(
             qualityOptions.forEach { put(it.buttonTag(), FocusRequester()) }
             updateModes.forEach { put(it.buttonTag(), FocusRequester()) }
             channelModes.forEach { put(it.buttonTag(), FocusRequester()) }
-            put(SettingsFocusTarget.WatchedMarkingToggle.toTag(), FocusRequester())
+            WatchedMarkingMode.entries.forEach { put(SettingsFocusTarget.WatchedMarking(it).toTag(), FocusRequester()) }
             put(SettingsFocusTarget.HomeFavoritesToggle.toTag(), FocusRequester())
             put(SettingsFocusTarget.HomeMoviesToggle.toTag(), FocusRequester())
             put(SettingsFocusTarget.HomeSeriesToggle.toTag(), FocusRequester())
@@ -154,8 +154,12 @@ fun SettingsScreen(
     }
 
     val qualitySummary = selectedQuality.shortLabel()
-    val watchedSummary = if (selectedWatchedMarkingMode == WatchedMarkingMode.AUTO) "Авто" else "Выкл"
-    val playbackSummary = "$qualitySummary · ${if (selectedWatchedMarkingMode == WatchedMarkingMode.AUTO) "авто-отметка" else "ручная отметка"}"
+    val watchedSummary = when (selectedWatchedMarkingMode) {
+        WatchedMarkingMode.AUTO -> "авто-отметка"
+        WatchedMarkingMode.ASK_AFTER_RETURN -> "спросить после возврата"
+        WatchedMarkingMode.DISABLED -> "ручная отметка"
+    }
+    val playbackSummary = "$qualitySummary · $watchedSummary"
     val updateSummary = updateSummary(
         selectedUpdateMode = selectedUpdateMode,
         statusText = statusText,

@@ -12,6 +12,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kraat.lostfilmnewtv.data.parser.lostFilmArtworkUrl
 import com.kraat.lostfilmnewtv.data.parser.lostFilmPortraitUrl
@@ -49,6 +52,17 @@ fun DetailsRoute(
     val state by detailsViewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    var resumeCount by remember(lifecycle) { mutableIntStateOf(0) }
+    var pendingWatchedPrompt by remember(detailsUrl, lifecycle) { mutableStateOf<PendingWatchedPrompt?>(null) }
+
+    DisposableEffect(lifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) resumeCount++
+        }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer) }
+    }
 
     val supportedTorrentRows = remember(state.details?.torrentLinks, detailsUrl, linkBuilder, preferredPlaybackQuality) {
         state.details?.torrentLinks.orEmpty().mapIndexed { index, link ->
@@ -106,9 +120,18 @@ fun DetailsRoute(
         }
     }
 
+    suspend fun markWatched(detailsUrl: String, playEpisodeId: String) {
+        if (detailsViewModel.markEpisodeWatched(detailsUrl, playEpisodeId)) {
+            onMarkedWatched(detailsUrl)
+            onWatchedStateChanged(detailsUrl, true)
+            onChannelContentChanged()
+        }
+    }
+
     val handleOpenTorrServe: (String, String) -> Unit = handleOpenTorrServe@{ rowId, url ->
         if (isTorrServeBusy) return@handleOpenTorrServe
         val currentDetails = state.details
+        pendingWatchedPrompt = null
         val token = requestToken + 1
         requestToken = token
         torrServeMessage = null
@@ -127,17 +150,21 @@ fun DetailsRoute(
                 ) {
                     TorrServeOpenResult.Success -> {
                         val playEpisodeId = currentDetails?.playEpisodeId
-                        if (playEpisodeId != null && watchedMarkingMode == WatchedMarkingMode.AUTO) {
-                            launch {
-                                val marked = detailsViewModel.markEpisodeWatched(
-                                    detailsUrl = currentDetails.detailsUrl,
-                                    playEpisodeId = playEpisodeId,
-                                )
-                                if (marked) {
-                                    onMarkedWatched(currentDetails.detailsUrl)
-                                    onWatchedStateChanged(currentDetails.detailsUrl, true)
-                                    onChannelContentChanged()
+                        if (playEpisodeId != null && requestToken == token) {
+                            when (watchedMarkingMode) {
+                                WatchedMarkingMode.AUTO -> launch {
+                                    markWatched(currentDetails.detailsUrl, playEpisodeId)
                                 }
+                                WatchedMarkingMode.ASK_AFTER_RETURN -> {
+                                    if (isAuthenticated && state.isWatched != true) {
+                                        pendingWatchedPrompt = PendingWatchedPrompt(
+                                            currentDetails.detailsUrl,
+                                            playEpisodeId,
+                                            resumeCount,
+                                        )
+                                    }
+                                }
+                                WatchedMarkingMode.DISABLED -> Unit
                             }
                         }
                         null
@@ -173,4 +200,26 @@ fun DetailsRoute(
         onAuthClick = onAuthClick,
         onOpenTorrServe = handleOpenTorrServe,
     )
+
+    val prompt = pendingWatchedPrompt
+    if (prompt != null && resumeCount > prompt.resumeCountAtLaunch &&
+        isAuthenticated && state.isWatched != true
+    ) {
+        WatchedPromptDialog(
+            onDismiss = { pendingWatchedPrompt = null },
+            onConfirm = {
+                if (pendingWatchedPrompt == prompt) {
+                    pendingWatchedPrompt = null
+                    scope.launch { markWatched(prompt.detailsUrl, prompt.playEpisodeId) }
+                }
+            },
+        )
+    }
 }
+
+
+private data class PendingWatchedPrompt(
+    val detailsUrl: String,
+    val playEpisodeId: String,
+    val resumeCountAtLaunch: Int,
+)

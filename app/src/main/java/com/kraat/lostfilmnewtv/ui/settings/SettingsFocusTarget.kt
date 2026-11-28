@@ -26,7 +26,6 @@ sealed class SettingsFocusTarget {
     data object InstallUpdate : SettingsFocusTarget()
     data class ChannelMode(val mode: AndroidTvChannelMode) : SettingsFocusTarget()
     data class WatchedMarking(val mode: WatchedMarkingMode) : SettingsFocusTarget()
-    data object WatchedMarkingToggle : SettingsFocusTarget()
     data object AccountAuth : SettingsFocusTarget()
     data object AboutGitHubLink : SettingsFocusTarget()
     data object AboutTelegramLink : SettingsFocusTarget()
@@ -59,11 +58,7 @@ fun SettingsFocusTarget.toTag(): String = when (this) {
         AndroidTvChannelMode.UNWATCHED -> "settings-tv-channel-unwatched"
         AndroidTvChannelMode.DISABLED -> "settings-tv-channel-disabled"
     }
-    is SettingsFocusTarget.WatchedMarking -> when (mode) {
-        WatchedMarkingMode.AUTO -> "settings-watched-marking-auto"
-        WatchedMarkingMode.DISABLED -> "settings-watched-marking-disabled"
-    }
-    SettingsFocusTarget.WatchedMarkingToggle -> "settings-watched-marking-toggle"
+    is SettingsFocusTarget.WatchedMarking -> "settings-watched-marking-${mode.storageValue.replace('_', '-')}"
     SettingsFocusTarget.AccountAuth -> "settings-account-auth-action"
     SettingsFocusTarget.AboutGitHubLink -> "settings-about-github-link"
     SettingsFocusTarget.AboutTelegramLink -> "settings-about-telegram-link"

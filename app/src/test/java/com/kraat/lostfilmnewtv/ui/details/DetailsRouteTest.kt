@@ -1,6 +1,7 @@
 package com.kraat.lostfilmnewtv.ui.details
 
 import com.kraat.lostfilmnewtv.data.model.ReleaseWatchFilter
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -43,7 +44,12 @@ import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
 import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.kraat.lostfilmnewtv.playback.WatchedMarkingMode
 import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
@@ -456,6 +462,51 @@ class DetailsRouteTest {
         assertEquals(listOf(detailsUrl), watchedDetailsUrls)
         assertEquals(1, channelSyncCalls.get())
         composeRule.onNodeWithText("Просмотрено").assertExists()
+    }
+
+    @Test
+    fun route_asksOnlyAfterReturningAndMarksOnlyAfterConfirmation() {
+        val detailsUrl = "https://www.lostfilm.today/series/ask"
+        val repository = RouteFakeDetailsRepository.success(detailsUrl)
+        val viewModel = routeViewModel(detailsUrl, repository)
+        val owner = object : LifecycleOwner {
+            override val lifecycle = LifecycleRegistry.createUnsafe(this)
+        }
+        owner.lifecycle.currentState = Lifecycle.State.RESUMED
+
+        composeRule.setContent {
+            CompositionLocalProvider(LocalLifecycleOwner provides owner) {
+                DetailsRoute(
+                    detailsUrl = detailsUrl,
+                    viewModel = viewModel,
+                    watchedMarkingMode = WatchedMarkingMode.fromStorageValue("ask_after_return"),
+                    actionHandler = succeedingActionHandler(),
+                    linkBuilder = TorrServeLinkBuilder(),
+                    openTorrServe = { _, _, _, _ -> TorrServeOpenResult.Success },
+                )
+            }
+        }
+
+        val playTag = torrServeButtonTag(routeRowId(detailsUrl, 0))
+        val question = "Отметить как просмотренное?"
+        composeRule.waitForNodeWithTag(playTag)
+
+        repeat(2) { attempt ->
+            composeRule.onNodeWithTag(playTag).performSemanticsAction(SemanticsActions.OnClick)
+            composeRule.onNodeWithText(question).assertDoesNotExist()
+            assertEquals(emptyList<Pair<String, String>>(), repository.markedEpisodes)
+
+            composeRule.runOnIdle {
+                owner.lifecycle.currentState = Lifecycle.State.STARTED
+                owner.lifecycle.currentState = Lifecycle.State.RESUMED
+            }
+            composeRule.waitForNodeWithText(question)
+            composeRule.onNodeWithText(if (attempt == 0) "Пропустить" else "Отметить")
+                .performSemanticsAction(SemanticsActions.OnClick)
+            composeRule.onNodeWithText(question).assertDoesNotExist()
+        }
+
+        assertEquals(listOf(detailsUrl to "362009013"), repository.markedEpisodes)
     }
 
     @Test
