@@ -15,7 +15,6 @@ sealed class SettingsFocusTarget {
     data object LostFilmHostSave : SettingsFocusTarget()
     data object LostFilmHostReset : SettingsFocusTarget()
     data object HomeFavoritesToggle : SettingsFocusTarget()
-    data object HomeFavoriteSeriesToggle : SettingsFocusTarget()
     data object HomeMoviesToggle : SettingsFocusTarget()
     data object HomeSeriesToggle : SettingsFocusTarget()
     data object HomeMenuLabelsToggle : SettingsFocusTarget()
@@ -40,7 +39,6 @@ fun SettingsFocusTarget.toTag(): String = when (this) {
     SettingsFocusTarget.LostFilmHostSave -> "settings-lostfilm-host-save"
     SettingsFocusTarget.LostFilmHostReset -> "settings-lostfilm-host-reset"
     SettingsFocusTarget.HomeFavoritesToggle -> "settings-home-favorites-toggle"
-    SettingsFocusTarget.HomeFavoriteSeriesToggle -> "settings-home-favorite-series-toggle"
     SettingsFocusTarget.HomeMoviesToggle -> "settings-home-movies-toggle"
     SettingsFocusTarget.HomeSeriesToggle -> "settings-home-series-toggle"
     SettingsFocusTarget.HomeMenuLabelsToggle -> "settings-home-menu-labels-toggle"

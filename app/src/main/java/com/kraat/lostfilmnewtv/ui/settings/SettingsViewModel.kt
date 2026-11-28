@@ -63,7 +63,6 @@ class SettingsViewModel @Inject constructor(
             updateMode = preferencesStore.readUpdateCheckMode(),
             channelMode = preferencesStore.readAndroidTvChannelMode(),
             isHomeFavoritesRailEnabled = preferencesStore.readHomeFavoritesRailEnabled(),
-            isHomeFavoriteSeriesEnabled = preferencesStore.readHomeFavoriteSeriesEnabled(),
             isHomeMoviesEnabled = preferencesStore.readHomeMoviesEnabled(),
             isHomeSeriesEnabled = preferencesStore.readHomeSeriesEnabled(),
             isHomeMenuLabelsEnabled = preferencesStore.readHomeMenuLabelsEnabled(),
@@ -146,13 +145,6 @@ class SettingsViewModel @Inject constructor(
         _railVisibilityEvents.tryEmit(enabled)
         _homeModeVisibilityEvents.tryEmit(HomeFeedMode.Favorites to enabled)
         _uiState.update { it.copy(isHomeFavoritesRailEnabled = enabled) }
-    }
-
-    fun onHomeFavoriteSeriesVisibilitySelected(enabled: Boolean) {
-        if (enabled == _uiState.value.isHomeFavoriteSeriesEnabled) return
-        preferencesStore.writeHomeFavoriteSeriesEnabled(enabled)
-        _homeModeVisibilityEvents.tryEmit(HomeFeedMode.FavoriteSeries to enabled)
-        _uiState.update { it.copy(isHomeFavoriteSeriesEnabled = enabled) }
     }
 
     fun onHomeMoviesVisibilitySelected(enabled: Boolean) {
@@ -275,11 +267,6 @@ class SettingsViewModel @Inject constructor(
             }
         }
     }
-
-
-
-
-
 
     fun onCheckForUpdatesClick() {
         val now = System.currentTimeMillis()

@@ -12,7 +12,6 @@ data class SettingsUiState(
     val updateMode: UpdateCheckMode,
     val channelMode: AndroidTvChannelMode,
     val isHomeFavoritesRailEnabled: Boolean,
-    val isHomeFavoriteSeriesEnabled: Boolean = true,
     val isHomeMoviesEnabled: Boolean = true,
     val isHomeSeriesEnabled: Boolean = true,
     val isHomeMenuLabelsEnabled: Boolean = true,

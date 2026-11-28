@@ -302,20 +302,16 @@ class SettingsViewModelTest {
             viewModel.homeModeVisibilityEvents.collect { events += it }
         }
 
-        viewModel.onHomeFavoriteSeriesVisibilitySelected(false)
         viewModel.onHomeMoviesVisibilitySelected(false)
         viewModel.onHomeSeriesVisibilitySelected(false)
         advanceUntilIdle()
 
-        assertEquals(false, checkNotNull(lastSettingsPreferencesStore).readHomeFavoriteSeriesEnabled())
         assertEquals(false, checkNotNull(lastSettingsPreferencesStore).readHomeMoviesEnabled())
         assertEquals(false, checkNotNull(lastSettingsPreferencesStore).readHomeSeriesEnabled())
-        assertEquals(false, viewModel.uiState.value.isHomeFavoriteSeriesEnabled)
         assertEquals(false, viewModel.uiState.value.isHomeMoviesEnabled)
         assertEquals(false, viewModel.uiState.value.isHomeSeriesEnabled)
         assertEquals(
             listOf(
-                HomeFeedMode.FavoriteSeries to false,
                 HomeFeedMode.Movies to false,
                 HomeFeedMode.Series to false,
             ),
